@@ -28,7 +28,7 @@ export async function addLanguage(code: string): Promise<StoredLanguage> {
   if (!isLearnableLanguage(normalized)) {
     throw new Error(`Unsupported language "${code}"`);
   }
-  const existing = (await readLanguages()).find((language) => language.code === normalized);
+  const existing = await getLanguage(normalized);
   if (existing) return existing;
   const created: StoredLanguage = {
     code: normalized,
@@ -39,16 +39,21 @@ export async function addLanguage(code: string): Promise<StoredLanguage> {
   return created;
 }
 
-export async function setLanguageMode(
-  code: string,
-  mode: LanguageMode,
-): Promise<StoredLanguage | null> {
-  const normalized = code.trim().toLowerCase();
-  const existing = (await readLanguages()).find((language) => language.code === normalized);
-  if (!existing) return null;
-  const next: StoredLanguage = { ...existing, mode };
-  await putLanguage(next);
-  return next;
+export async function saveLanguage(language: StoredLanguage): Promise<void> {
+  if (!isLearnableLanguage(language.code)) return;
+  await putLanguage({
+    code: language.code,
+    mode: language.mode === 'explorer' ? 'explorer' : 'settler',
+    createdAt: language.createdAt,
+  });
+}
+
+async function getLanguage(code: string): Promise<StoredLanguage | null> {
+  if (!isLearnableLanguage(code) || typeof indexedDB === 'undefined') return null;
+  const db = await openDatabase();
+  return normalizeLanguage(
+    await idbRequest(db.transaction(STORE, 'readonly').objectStore(STORE).get(code)),
+  );
 }
 
 function normalizeLanguage(raw: unknown): StoredLanguage | null {

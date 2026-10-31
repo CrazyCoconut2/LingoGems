@@ -1,9 +1,8 @@
-import { Component, computed, OnInit, signal } from '@angular/core';
-import { LEARNABLE_LANGUAGES, languageDisplayName } from './catalog';
+import { Component, computed, ElementRef, OnInit, signal, viewChild } from '@angular/core';
+import { isLearnableLanguage, LEARNABLE_LANGUAGES, languageDisplayName } from './catalog';
 import {
-  addLanguage,
   readLanguages,
-  setLanguageMode,
+  saveLanguage,
   type LanguageMode,
   type StoredLanguage,
 } from './language-store';
@@ -12,51 +11,63 @@ import {
   selector: 'app-language-list',
   template: `
     <main>
-      <h1>LingoGem</h1>
-      @if (!loading()) {
-        @if (languages().length) {
-          <ul class="languages">
-            @for (language of languages(); track language.code) {
-              <li>
-                <span class="name">{{ displayName(language.code) }}</span>
-                <div class="modes" role="group" [attr.aria-label]="displayName(language.code)">
-                  <button
-                    type="button"
-                    [class.is-active]="language.mode === 'settler'"
-                    [attr.aria-pressed]="language.mode === 'settler'"
-                    (click)="chooseMode(language.code, 'settler')"
-                  >
-                    Settler
-                  </button>
-                  <button
-                    type="button"
-                    [class.is-active]="language.mode === 'explorer'"
-                    [attr.aria-pressed]="language.mode === 'explorer'"
-                    (click)="chooseMode(language.code, 'explorer')"
-                  >
-                    Explorer
-                  </button>
-                </div>
-              </li>
-            }
-          </ul>
+      <header class="brand">
+        <span class="gem gem-mark" aria-hidden="true"></span>
+        <div class="titles">
+          <h1>LingoGem</h1>
+          @if (ready() && !languages().length) {
+            <p>Set your first language.</p>
+          }
+        </div>
+        @if (ready() && available().length) {
+          <button type="button" class="plus" aria-label="Add a language" (click)="openAdd()">
+            +
+          </button>
         }
-        @if (available().length) {
-          <form (submit)="add($event)">
-            <label for="language">Add a language</label>
-            <select
-              id="language"
-              [value]="selected()"
-              (change)="selected.set(selectValue($event))"
-            >
-              @for (code of available(); track code) {
-                <option [value]="code">{{ displayName(code) }}</option>
-              }
-            </select>
-            <button type="submit" class="btn btn-primary">Add</button>
-          </form>
-        }
+      </header>
+
+      @if (ready() && languages().length) {
+        <ul class="stones">
+          @for (language of languages(); track language.code) {
+            <li class="stone">
+              <span class="gem gem-stone" aria-hidden="true"></span>
+              <span class="name">{{ displayName(language.code) }}</span>
+              <div class="cut" role="group" [attr.aria-label]="displayName(language.code)">
+                <button
+                  type="button"
+                  [attr.aria-pressed]="language.mode === 'settler'"
+                  (click)="chooseMode(language, 'settler')"
+                >
+                  Settler
+                </button>
+                <button
+                  type="button"
+                  [attr.aria-pressed]="language.mode === 'explorer'"
+                  (click)="chooseMode(language, 'explorer')"
+                >
+                  Explorer
+                </button>
+              </div>
+            </li>
+          }
+        </ul>
       }
+
+      <dialog #adder (click)="closeOnBackdrop($event)" (close)="onDialogClose()">
+        <form (submit)="add($event)">
+          <div class="modal-head">
+            <h2>Add a language</h2>
+            <button type="button" class="close" aria-label="Close" (click)="closeAdd()">×</button>
+          </div>
+          <label for="language">Language</label>
+          <select id="language" [value]="selected()" (change)="selected.set(selectValue($event))">
+            @for (code of available(); track code) {
+              <option [value]="code">{{ displayName(code) }}</option>
+            }
+          </select>
+          <button type="submit" class="btn btn-primary">Add</button>
+        </form>
+      </dialog>
     </main>
   `,
   styles: `
@@ -66,131 +77,205 @@ import {
     }
 
     main {
+      width: min(100%, 40rem);
       min-height: 100dvh;
       box-sizing: border-box;
+      margin: 0 auto;
       display: flex;
       flex-direction: column;
+      gap: 1.25rem;
+      padding: 2rem 1.25rem 2.5rem;
+    }
+
+    .brand {
+      display: flex;
       align-items: center;
-      gap: 1.5rem;
-      padding: 2.5rem 1.5rem;
-      font-family: var(--font);
-      color: var(--text);
+      gap: 0.9rem;
+    }
+
+    .titles {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .plus,
+    .close {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      cursor: pointer;
+    }
+
+    .plus {
+      width: 2.75rem;
+      height: 2.75rem;
+      border-radius: 999px;
+      background: var(--accent);
+      color: white;
+      font-size: 1.75rem;
+      line-height: 1;
+    }
+
+    .plus:hover {
+      background: var(--accent-hover);
     }
 
     h1 {
       margin: 0;
-      font-size: 2.5rem;
+      font-size: 2rem;
       font-weight: 650;
-      letter-spacing: -0.03em;
+      letter-spacing: -0.04em;
     }
 
-    .languages,
-    form {
-      width: min(100%, 28rem);
-      margin: 0;
-      padding: 1.5rem;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--surface);
-      box-shadow: var(--shadow);
+    p {
+      margin: 0.2rem 0 0;
+      color: var(--muted);
     }
 
-    .languages {
+    .stones {
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      gap: 0.75rem;
+      margin: 0;
+      padding: 0;
       list-style: none;
     }
 
-    li {
+    .stone {
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
+      gap: 0.85rem;
+      padding: 0.85rem 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 4px);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 42%),
+        var(--surface);
+    }
+
+    .gem-mark {
+      --gem-size: 2.75rem;
+    }
+
+    .gem-stone {
+      --gem-size: 1.65rem;
     }
 
     .name {
+      flex: 1;
+      min-width: 6rem;
       font-size: 1.125rem;
-      font-weight: 600;
+      font-weight: 650;
     }
 
-    .modes {
+    .cut {
       display: flex;
-      gap: 0.5rem;
-    }
-
-    .modes button {
+      padding: 0.2rem;
       border: 1px solid var(--border);
       border-radius: 999px;
-      padding: 0.45rem 0.8rem;
       background: var(--surface-2);
-      color: var(--text);
-      font: inherit;
+    }
+
+    .cut button {
+      border: 0;
+      border-radius: 999px;
+      padding: 0.45rem 0.8rem;
+      background: transparent;
+      color: var(--muted);
       font-size: 0.875rem;
-      font-weight: 600;
+      font-weight: 650;
       cursor: pointer;
     }
 
-    .modes button.is-active {
+    .cut button[aria-pressed='true'] {
       background: var(--accent);
-      border-color: var(--accent);
       color: white;
+    }
+
+    dialog {
+      width: min(100% - 2rem, 24rem);
+      margin: auto;
+      padding: 1.15rem 1.15rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+    }
+
+    dialog::backdrop {
+      background: rgba(8, 10, 16, 0.72);
     }
 
     form {
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 0.7rem;
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 650;
+    }
+
+    .close {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1.4rem;
+      line-height: 1;
     }
 
     label {
-      font-size: 0.875rem;
-      font-weight: 500;
+      font-size: 0.8125rem;
+      font-weight: 650;
       color: var(--muted);
     }
 
     select {
-      font: inherit;
-      padding: 0.75rem 0.9rem;
+      width: 100%;
+      padding: 0.7rem 0.85rem;
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 12px;
       background: var(--surface-2);
       color: var(--text);
     }
 
-    select:focus {
-      outline: 2px solid rgba(var(--accent-rgb), 0.45);
-      border-color: var(--accent);
-    }
-
-    .btn {
+    form .btn {
       align-self: flex-end;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border: none;
-      border-radius: 999px;
-      padding: 0.6rem 1rem;
-      font-size: 0.875rem;
-      font-weight: 600;
-      cursor: pointer;
     }
 
-    .btn-primary {
-      background: var(--accent);
-      color: white;
-    }
+    @media (max-width: 640px) {
+      .stone {
+        flex-wrap: wrap;
+      }
 
-    .btn-primary:hover {
-      background: var(--accent-hover);
+      .cut {
+        width: 100%;
+      }
+
+      .cut button {
+        flex: 1;
+      }
     }
   `,
 })
 export class LanguageList implements OnInit {
   private readonly catalog = LEARNABLE_LANGUAGES;
+  private readonly adder = viewChild<ElementRef<HTMLDialogElement>>('adder');
 
-  readonly loading = signal(true);
+  readonly ready = signal(false);
   readonly languages = signal<StoredLanguage[]>([]);
   readonly selected = signal('');
   readonly available = computed(() => {
@@ -201,30 +286,58 @@ export class LanguageList implements OnInit {
   readonly displayName = languageDisplayName;
 
   async ngOnInit(): Promise<void> {
-    const languages = await readLanguages();
-    this.languages.set(languages);
+    this.languages.set(await readLanguages());
     this.selected.set(this.available()[0] ?? '');
-    this.loading.set(false);
+    this.ready.set(true);
   }
 
   selectValue(event: Event): string {
     return (event.target as HTMLSelectElement).value;
   }
 
-  async add(event: Event): Promise<void> {
-    event.preventDefault();
-    const code = this.selected();
-    if (!code) return;
-    await addLanguage(code);
-    const languages = await readLanguages();
-    this.languages.set(languages);
+  openAdd(): void {
+    this.selected.set(this.available()[0] ?? '');
+    this.adder()?.nativeElement.showModal();
+  }
+
+  closeAdd(): void {
+    this.adder()?.nativeElement.close();
+  }
+
+  closeOnBackdrop(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeAdd();
+  }
+
+  onDialogClose(): void {
     this.selected.set(this.available()[0] ?? '');
   }
 
-  async chooseMode(code: string, mode: LanguageMode): Promise<void> {
-    const current = this.languages().find((language) => language.code === code);
-    if (!current || current.mode === mode) return;
-    await setLanguageMode(code, mode);
-    this.languages.set(await readLanguages());
+  add(event: Event): void {
+    event.preventDefault();
+    const code = this.selected().trim().toLowerCase();
+    if (!isLearnableLanguage(code) || this.languages().some((language) => language.code === code)) {
+      return;
+    }
+    const created: StoredLanguage = { code, mode: 'settler', createdAt: Date.now() };
+    this.languages.update((list) => [...list, created]);
+    this.selected.set(this.available()[0] ?? '');
+    this.closeAdd();
+    void saveLanguage(created).catch(() => {
+      this.languages.update((list) => list.filter((language) => language.code !== code));
+      this.selected.set(code);
+    });
+  }
+
+  chooseMode(language: StoredLanguage, mode: LanguageMode): void {
+    if (language.mode === mode) return;
+    const next: StoredLanguage = { ...language, mode };
+    this.languages.update((list) =>
+      list.map((item) => (item.code === language.code ? next : item)),
+    );
+    void saveLanguage(next).catch(() => {
+      this.languages.update((list) =>
+        list.map((item) => (item.code === language.code ? language : item)),
+      );
+    });
   }
 }

@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
   isAiProvider,
@@ -64,93 +65,104 @@ const EMPTY_SECRETS: StoredTranslationSecrets = {
 
 @Component({
   selector: 'app-onboarding',
+  imports: [FormsModule],
   template: `
     <section class="screen">
-      @switch (step()) {
-        @case ('welcome') {
-          <div class="card">
-            <h1>LingoGem</h1>
-            <p>You collect meaning instead of grammar.</p>
+      <div class="card">
+        <span class="gem" [class.gem-lg]="step() === 'welcome'" aria-hidden="true"></span>
+        @switch (step()) {
+          @case ('welcome') {
+            <div class="copy">
+              <h1>LingoGem</h1>
+              <p>You collect meaning instead of grammar.</p>
+            </div>
             <div class="actions">
               <button type="button" class="btn btn-primary" (click)="step.set('ai')">Continue</button>
             </div>
-          </div>
-        }
-        @case ('ai') {
-          <form class="card" (submit)="continueFromAi($event)">
-            <h1>AI provider</h1>
-            <p>Add an API key. It stays on this device.</p>
-            <label for="ai-provider">
-              Provider
-              <select id="ai-provider" [value]="aiProvider()" (change)="selectAiProvider($event)">
-                @for (provider of aiProviders; track provider.id) {
-                  <option [value]="provider.id">{{ provider.label }}</option>
-                }
-              </select>
-            </label>
-            <label for="ai-api-key">
-              API key
-              <input
-                id="ai-api-key"
-                type="text"
-                autocomplete="off"
-                [value]="aiApiKey()"
-                (input)="aiApiKey.set(inputValue($event))"
-              />
-            </label>
-            <div class="actions">
-              <button type="button" class="btn btn-secondary" (click)="step.set('welcome')">
-                Back
-              </button>
-              <button type="submit" class="btn btn-primary" [disabled]="!aiReady()">
-                Continue
-              </button>
-            </div>
-          </form>
-        }
-        @case ('translation') {
-          <form class="card" (submit)="saveTranslation($event)">
-            <h1>Translation provider</h1>
-            <p>
-              This is optional. Without one, translations use your AI key. A translation key stays
-              on this device.
-            </p>
-            <label for="translation-provider">
-              Provider
-              <select
-                id="translation-provider"
-                [value]="translationProvider()"
-                (change)="selectTranslationProvider($event)"
-              >
-                @for (provider of translationProviders; track provider.id) {
-                  <option [value]="provider.id">{{ provider.label }}</option>
-                }
-              </select>
-            </label>
-            @for (field of translationFields(); track field.name) {
-              <label [attr.for]="'translation-' + field.name">
-                {{ field.label }}
+          }
+          @case ('ai') {
+            <form (submit)="continueFromAi($event)">
+              <div class="copy">
+                <h1>AI provider</h1>
+                <p>Add an API key. It stays on this device.</p>
+              </div>
+              <label for="ai-provider">
+                Provider
+                <select id="ai-provider" [ngModel]="aiProvider()" (ngModelChange)="selectAiProviderValue($event)" name="aiProvider">
+                  @for (provider of aiProviders; track provider.id) {
+                    <option [value]="provider.id">{{ provider.label }}</option>
+                  }
+                </select>
+              </label>
+              <label for="ai-api-key">
+                API key
                 <input
-                  [id]="'translation-' + field.name"
+                  id="ai-api-key"
+                  name="aiApiKey"
                   type="text"
                   autocomplete="off"
-                  [value]="translationValue(field.name)"
-                  (input)="setTranslationValue(field.name, inputValue($event))"
+                  [ngModel]="aiApiKey()"
+                  (ngModelChange)="aiApiKey.set($event)"
                 />
               </label>
-            }
-            <div class="actions">
-              <button type="button" class="btn btn-secondary" (click)="step.set('ai')">Back</button>
-              <button type="button" class="btn btn-secondary" (click)="skipTranslation()">
-                Skip
-              </button>
-              <button type="submit" class="btn btn-primary" [disabled]="!translationReady()">
-                Save
-              </button>
-            </div>
-          </form>
+              <div class="actions">
+                <button type="button" class="btn btn-secondary" (click)="step.set('welcome')">
+                  Back
+                </button>
+                <button type="submit" class="btn btn-primary" [disabled]="!aiReady()">
+                  Continue
+                </button>
+              </div>
+            </form>
+          }
+          @case ('translation') {
+            <form (submit)="saveTranslation($event)">
+              <div class="copy">
+                <h1>Translation provider</h1>
+                <p>
+                  This is optional. Without one, translations use your AI key. A translation key
+                  stays on this device.
+                </p>
+              </div>
+              <label for="translation-provider">
+                Provider
+                <select
+                  id="translation-provider"
+                  name="translationProvider"
+                  [ngModel]="translationProvider()"
+                  (ngModelChange)="selectTranslationProviderValue($event)"
+                >
+                  @for (provider of translationProviders; track provider.id) {
+                    <option [value]="provider.id">{{ provider.label }}</option>
+                  }
+                </select>
+              </label>
+              @for (field of translationFields(); track field.name) {
+                <label [attr.for]="'translation-' + field.name">
+                  {{ field.label }}
+                  <input
+                    [id]="'translation-' + field.name"
+                    [name]="field.name"
+                    type="text"
+                    autocomplete="off"
+                    [ngModel]="translationValue(field.name)"
+                    (ngModelChange)="setTranslationValue(field.name, $event)"
+                  />
+                </label>
+              }
+              <div class="actions">
+                <button type="button" class="btn btn-secondary" (click)="step.set('ai')">Back</button>
+                <button type="button" class="btn btn-secondary" (click)="skipTranslation()">
+                  Skip
+                </button>
+                <button type="submit" class="btn btn-primary" [disabled]="!translationReady()">
+                  Save
+                </button>
+              </div>
+            </form>
+          }
         }
-      }
+      </div>
     </section>
   `,
   styles: `
@@ -166,98 +178,81 @@ const EMPTY_SECRETS: StoredTranslationSecrets = {
       align-items: center;
       justify-content: center;
       padding: 1.5rem;
-      font-family: var(--font);
-      color: var(--text);
     }
 
     .card {
       width: min(100%, 28rem);
       display: flex;
       flex-direction: column;
-      gap: 1rem;
-      margin: 0;
-      padding: 1.5rem;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--surface);
-      box-shadow: var(--shadow);
+      align-items: flex-start;
+      gap: 1.25rem;
+    }
+
+    .card .gem {
+      align-self: center;
+    }
+
+    .card:has(.gem-lg) {
+      align-items: center;
+      text-align: center;
+    }
+
+    .card > .actions {
+      width: 100%;
+    }
+
+    .card > .actions .btn {
+      width: 100%;
+    }
+
+    form {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+
+    .copy {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
     }
 
     h1 {
       margin: 0;
-      font-size: 1.75rem;
+      font-size: 2rem;
       font-weight: 650;
-      letter-spacing: -0.03em;
-      color: var(--text);
+      letter-spacing: -0.04em;
     }
 
     p {
       margin: 0;
-      line-height: 1.5;
+      line-height: 1.45;
       color: var(--muted);
     }
 
     label {
       display: flex;
       flex-direction: column;
-      gap: 0.4rem;
-      font-size: 0.875rem;
-      font-weight: 500;
+      gap: 0.35rem;
+      font-size: 0.8125rem;
+      font-weight: 650;
       color: var(--muted);
     }
 
     input,
     select {
-      font: inherit;
-      padding: 0.75rem 0.9rem;
+      padding: 0.75rem 0.85rem;
       border: 1px solid var(--border);
-      border-radius: 10px;
-      background: var(--surface-2);
+      border-radius: 12px;
+      background: var(--surface);
       color: var(--text);
-    }
-
-    input:focus,
-    select:focus {
-      outline: 2px solid rgba(var(--accent-rgb), 0.45);
-      border-color: var(--accent);
     }
 
     .actions {
       display: flex;
       justify-content: flex-end;
-      gap: 0.75rem;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border: none;
-      border-radius: 999px;
-      padding: 0.6rem 1rem;
-      font-size: 0.875rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      color: white;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-      background: var(--accent-hover);
-    }
-
-    .btn-secondary {
-      background: var(--surface-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-
-    .btn:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
+      gap: 0.6rem;
     }
   `,
 })
@@ -285,14 +280,12 @@ export class Onboarding {
     this.step.set('translation');
   }
 
-  selectAiProvider(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
+  selectAiProviderValue(value: string): void {
     if (!isAiProvider(value)) return;
     this.aiProvider.set(value);
   }
 
-  selectTranslationProvider(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
+  selectTranslationProviderValue(value: string): void {
     if (!isTranslationProvider(value)) return;
     this.translationProvider.set(value);
   }
@@ -303,10 +296,6 @@ export class Onboarding {
 
   setTranslationValue(name: TranslationField, value: string): void {
     this.translationSecrets.update((current) => ({ ...current, [name]: value }));
-  }
-
-  inputValue(event: Event): string {
-    return (event.target as HTMLInputElement).value;
   }
 
   saveTranslation(event?: Event): void {

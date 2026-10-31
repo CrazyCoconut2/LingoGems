@@ -20,6 +20,10 @@
   --font: system-ui, sans-serif;
 }
 
+html {
+  color-scheme: dark;
+}
+
 html,
 body {
   margin: 0;
@@ -31,4 +35,81 @@ body {
   font-family: var(--font);
   color: var(--text);
   background: radial-gradient(circle at top, #171a33 0%, var(--bg) 55%);
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  touch-action: manipulation;
+}
+
+.gem {
+  --gem-size: 1.75rem;
+  position: relative;
+  display: block;
+  width: var(--gem-size);
+  height: var(--gem-size);
+  flex: none;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.92), transparent 38%),
+    linear-gradient(200deg, transparent 46%, rgba(18, 14, 64, 0.55)),
+    linear-gradient(145deg, #f7f6ff 0%, #b7b2ff 30%, var(--accent) 64%, #2c2774 100%);
+  clip-path: polygon(50% 0, 84% 16%, 100% 46%, 50% 100%, 0 46%, 16% 16%);
+}
+
+.gem::before {
+  content: '';
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  top: 18%;
+  height: 20%;
+  background: rgba(255, 255, 255, 0.72);
+  clip-path: polygon(12% 0, 88% 0, 68% 100%, 32% 100%);
+}
+
+.gem-lg {
+  --gem-size: 5.25rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  padding: 0.7rem 1.1rem;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible,
+.cut button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.7);
+  outline-offset: 2px;
 }
