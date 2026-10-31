@@ -2,6 +2,7 @@
 
 # Compiled output
 /dist
+.wrangler/
 /tmp
 /out-tsc
 /bazel-out

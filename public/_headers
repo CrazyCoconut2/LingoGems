@@ -1,0 +1,9 @@
+# App shell must never be served stale.
+# Hashed JS/CSS keep Cloudflare's default (revalidate with ETag).
+/
+  Cache-Control: no-cache, no-store, must-revalidate
+  CDN-Cache-Control: no-store
+
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+  CDN-Cache-Control: no-store

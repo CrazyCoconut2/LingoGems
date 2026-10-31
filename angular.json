@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "linguagem-web": {
+    "lingogem": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -42,7 +42,8 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "browser": "src/main.ts",
+            "browser": "src/platforms/pwa/main.ts",
+            "index": "src/platforms/pwa/index.html",
             "polyfills": [
               "zone.js"
             ],
@@ -55,7 +56,7 @@
               }
             ],
             "styles": [
-              "src/styles.scss"
+              "src/core/styles/styles.scss"
             ]
           },
           "configurations": {
@@ -86,10 +87,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "linguagem-web:build:production"
+              "buildTarget": "lingogem:build:production"
             },
             "development": {
-              "buildTarget": "linguagem-web:build:development"
+              "buildTarget": "lingogem:build:development"
             }
           },
           "defaultConfiguration": "development"
