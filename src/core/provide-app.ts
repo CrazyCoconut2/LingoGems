@@ -4,7 +4,7 @@ import {
   provideZoneChangeDetection,
 } from '@angular/core';
 import { provideRouter, Routes } from '@angular/router';
-import { Home } from './app';
+import { LanguageList } from './languages/language-list';
 import { Onboarding } from './onboarding/onboarding';
 import { leaveOnboardingWhenDone, requireOnboarding } from './onboarding/onboarding.guards';
 
@@ -12,7 +12,7 @@ const routes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    component: Home,
+    component: LanguageList,
     canActivate: [requireOnboarding],
   },
   {
