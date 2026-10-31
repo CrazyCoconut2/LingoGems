@@ -43,6 +43,10 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
+            "outputPath": {
+              "base": "dist/lingogem",
+              "browser": ""
+            },
             "browser": "src/platforms/pwa/main.ts",
             "index": "src/platforms/pwa/index.html",
             "polyfills": [
