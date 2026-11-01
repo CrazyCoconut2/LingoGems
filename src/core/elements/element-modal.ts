@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import {
   assignEquivalent,
+  deleteElement,
   parsePassage,
   saveElement,
   type ElementDefinition,
@@ -29,6 +30,7 @@ type Editor =
 type FormEdit = { definitionIndex: number; previous: string | null };
 
 type ConfirmDelete =
+  | { kind: 'element' }
   | { kind: 'definition'; index: number }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number };
 
@@ -56,15 +58,33 @@ type ConfirmDelete =
               }
             }
           </div>
-          <button
-            #closeButton
-            type="button"
-            class="close"
-            aria-label="Close"
-            (click)="closed.emit()"
-          >
-            ×
-          </button>
+          <div class="header-actions">
+            <button
+              type="button"
+              class="icon-btn danger"
+              aria-label="Delete element"
+              title="Delete element"
+              [disabled]="busy()"
+              (click)="askDeleteElement()"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M19 6l-1 14H6L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+              </svg>
+            </button>
+            <button
+              #closeButton
+              type="button"
+              class="close"
+              aria-label="Close"
+              (click)="closed.emit()"
+            >
+              ×
+            </button>
+          </div>
         </header>
         <div class="body">
           <div class="section-heading">
@@ -391,17 +411,17 @@ type ConfirmDelete =
               class="sheet confirm"
               role="dialog"
               aria-modal="true"
-              [attr.aria-label]="
-                pending.kind === 'definition' ? 'Delete this definition?' : 'Delete this example?'
-              "
+              [attr.aria-label]="confirmTitle(pending)"
               (click)="$event.stopPropagation()"
             >
-              <h3>
+              <h3>{{ confirmTitle(pending) }}</h3>
+              <p class="hint">
                 {{
-                  pending.kind === 'definition' ? 'Delete this definition?' : 'Delete this example?'
+                  pending.kind === 'element'
+                    ? 'This element will be removed.'
+                    : 'This will be removed.'
                 }}
-              </h3>
-              <p class="hint">This will be removed.</p>
+              </p>
               <div class="sheet-actions">
                 <button
                   type="button"
@@ -540,6 +560,12 @@ type ConfirmDelete =
       letter-spacing: -0.03em;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.15rem;
+    }
+
     .close,
     .icon-btn {
       display: inline-flex;
@@ -571,6 +597,15 @@ type ConfirmDelete =
       width: 1.8rem;
       height: 1.8rem;
       border-radius: 0.4rem;
+    }
+
+    .icon-btn.danger {
+      color: var(--danger);
+    }
+
+    .icon-btn.danger:hover:not(:disabled) {
+      color: var(--danger);
+      background: color-mix(in srgb, var(--danger) 12%, transparent);
     }
 
     .icon-btn:disabled,
@@ -830,6 +865,7 @@ export class ElementModal {
   readonly element = input.required<StoredElement>();
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
+  readonly deleted = output<void>();
 
   readonly formMaxLength = FORM_MAX_LENGTH;
   readonly parsePassage = parsePassage;
@@ -1035,6 +1071,19 @@ export class ElementModal {
     await this.persist(definitions, this.element().equivalents);
   }
 
+  confirmTitle(pending: ConfirmDelete): string {
+    if (pending.kind === 'element') return 'Delete this element?';
+    if (pending.kind === 'definition') return 'Delete this definition?';
+    return 'Delete this example?';
+  }
+
+  askDeleteElement(): void {
+    if (this.busy()) return;
+    this.editor.set(null);
+    this.formEdit.set(null);
+    this.confirm.set({ kind: 'element' });
+  }
+
   askDelete(): void {
     const editor = this.editor();
     if (!editor) return;
@@ -1054,12 +1103,31 @@ export class ElementModal {
   async confirmDelete(): Promise<void> {
     const pending = this.confirm();
     if (!pending || this.busy()) return;
+    if (pending.kind === 'element') {
+      await this.removeElement();
+      return;
+    }
     const definitions = this.copyDefinitions();
     if (pending.kind === 'definition') definitions.splice(pending.index, 1);
     else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
     if (await this.persist(definitions, this.element().equivalents)) {
       this.confirm.set(null);
       this.editor.set(null);
+    }
+  }
+
+  private async removeElement(): Promise<void> {
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      await deleteElement(this.element().id);
+      this.confirm.set(null);
+      this.deleted.emit();
+    } catch {
+      this.confirm.set(null);
+      this.error.set('Could not delete this element.');
+    } finally {
+      this.busy.set(false);
     }
   }
 

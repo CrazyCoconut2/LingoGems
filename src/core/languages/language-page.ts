@@ -168,7 +168,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           @for (item of skeletons; track item) {
             <li class="element skeleton">
               <span class="bone bone-title"></span>
-              <span class="bone bone-meta"></span>
             </li>
           }
         </ul>
@@ -186,9 +185,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     }
                   }
                 </span>
-                @if (preview(element); as line) {
-                  <span class="meta">{{ line }}</span>
-                }
               </button>
             </li>
           }
@@ -357,6 +353,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           [element]="element"
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
+          (deleted)="onElementDeleted()"
         />
       }
     </main>
@@ -665,7 +662,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .element {
       box-sizing: border-box;
       width: 100%;
-      min-height: 5.35rem;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -691,14 +687,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       letter-spacing: -0.02em;
     }
 
-    .meta {
-      overflow: hidden;
-      color: var(--text-muted);
-      font-size: 0.875rem;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
     .skeleton {
       gap: 0.55rem;
       border-left-color: color-mix(in srgb, var(--text) 7%, transparent);
@@ -714,10 +702,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .bone-title {
       width: 58%;
       height: 0.95rem;
-    }
-
-    .bone-meta {
-      width: 34%;
     }
 
     .empty {
@@ -1143,6 +1127,12 @@ export class LanguagePage {
     this.elements.update((list) => list.map((item) => (item.id === saved.id ? saved : item)));
   }
 
+  onElementDeleted(): void {
+    const id = this.elementId();
+    if (id) this.elements.update((list) => list.filter((item) => item.id !== id));
+    this.closeElement();
+  }
+
   closeElement(): void {
     if (!this.elementId()) return;
     void this.router.navigate([], {
@@ -1154,10 +1144,6 @@ export class LanguagePage {
 
   highlight(text: string): ElementSearchPart[] {
     return elementHighlightParts(text, this.search());
-  }
-
-  preview(element: StoredElement): string {
-    return element.definitions.find((definition) => definition.text)?.text ?? '';
   }
 
   inputValue(event: Event): string {
