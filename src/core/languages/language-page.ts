@@ -1,7 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
-import { languageDisplayName } from './catalog';
-import { readLanguages } from './language-store';
+import { languageDisplayName, readLanguages } from 'collection';
 
 const ELEMENT_SKELETONS = [0, 1, 2, 3, 4, 5, 6, 7];
 

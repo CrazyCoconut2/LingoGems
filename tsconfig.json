@@ -17,7 +17,8 @@
     "module": "preserve",
     "paths": {
       "@app/core": ["./src/core/index.ts"],
-      "@app/core/*": ["./src/core/*"]
+      "@app/core/*": ["./src/core/*"],
+      "collection": ["./packages/collection/src/index.ts"]
     }
   },
   "angularCompilerOptions": {

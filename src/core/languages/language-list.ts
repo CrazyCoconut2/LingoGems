@@ -1,12 +1,14 @@
 import { Component, computed, ElementRef, OnInit, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { isLearnableLanguage, LEARNABLE_LANGUAGES, languageDisplayName } from './catalog';
 import {
+  isLearnableLanguage,
+  LEARNABLE_LANGUAGES,
+  languageDisplayName,
   readLanguages,
   saveLanguage,
   type LanguageMode,
   type StoredLanguage,
-} from './language-store';
+} from 'collection';
 
 @Component({
   selector: 'app-language-list',

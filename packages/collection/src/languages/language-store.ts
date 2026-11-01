@@ -1,3 +1,4 @@
+import { idbRequest, LANGUAGES_STORE, openDatabase } from '../database';
 import { isLearnableLanguage, type LearnableLanguage } from './catalog';
 
 export type LanguageMode = 'settler' | 'explorer';
@@ -7,12 +8,6 @@ export type StoredLanguage = {
   mode: LanguageMode;
   createdAt: number;
 };
-
-const DB_NAME = 'lingogem';
-const DB_VERSION = 1;
-const STORE = 'languages';
-
-let database: Promise<IDBDatabase> | null = null;
 
 export async function readLanguages(): Promise<StoredLanguage[]> {
   if (typeof indexedDB === 'undefined') return [];
@@ -52,7 +47,9 @@ async function getLanguage(code: string): Promise<StoredLanguage | null> {
   if (!isLearnableLanguage(code) || typeof indexedDB === 'undefined') return null;
   const db = await openDatabase();
   return normalizeLanguage(
-    await idbRequest(db.transaction(STORE, 'readonly').objectStore(STORE).get(code)),
+    await idbRequest(
+      db.transaction(LANGUAGES_STORE, 'readonly').objectStore(LANGUAGES_STORE).get(code),
+    ),
   );
 }
 
@@ -72,46 +69,17 @@ function normalizeLanguage(raw: unknown): StoredLanguage | null {
   };
 }
 
-function openDatabase(): Promise<IDBDatabase> {
-  if (database) return database;
-  database = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: 'code' });
-      }
-    };
-    request.onsuccess = () => {
-      const db = request.result;
-      db.onversionchange = () => {
-        db.close();
-        database = null;
-      };
-      resolve(db);
-    };
-    request.onerror = () => {
-      database = null;
-      reject(request.error ?? new Error('IndexedDB open failed'));
-    };
-  });
-  return database;
-}
-
 async function getAll(): Promise<unknown[]> {
   const db = await openDatabase();
-  const result = await idbRequest(db.transaction(STORE, 'readonly').objectStore(STORE).getAll());
+  const result = await idbRequest(
+    db.transaction(LANGUAGES_STORE, 'readonly').objectStore(LANGUAGES_STORE).getAll(),
+  );
   return Array.isArray(result) ? result : [];
 }
 
 async function putLanguage(language: StoredLanguage): Promise<void> {
   const db = await openDatabase();
-  await idbRequest(db.transaction(STORE, 'readwrite').objectStore(STORE).put(language));
-}
-
-function idbRequest<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'));
-  });
+  await idbRequest(
+    db.transaction(LANGUAGES_STORE, 'readwrite').objectStore(LANGUAGES_STORE).put(language),
+  );
 }
