@@ -39,7 +39,13 @@ import type { ElementMetadata, StoredElement } from 'collection';
             <ol class="definitions">
               @for (definition of element().definitions; track $index) {
                 <li>
+                  @if (definition.equivalent) {
+                    <p class="equivalent">{{ definition.equivalent }}</p>
+                  }
                   <p>{{ definition.text }}</p>
+                  @if (definition.translation) {
+                    <p class="translation">{{ definition.translation }}</p>
+                  }
                   @if (definition.forms.length) {
                     <ul class="forms">
                       @for (form of definition.forms; track form) {
@@ -191,6 +197,15 @@ import type { ElementMetadata, StoredElement } from 'collection';
 
     p {
       margin: 0;
+    }
+
+    .equivalent {
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+
+    .translation {
+      color: var(--text-muted);
     }
 
     .forms,

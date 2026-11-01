@@ -10,6 +10,8 @@ export type ElementExample = {
 
 export type ElementDefinition = {
   text: string;
+  translation: string;
+  equivalent: string;
   forms: string[];
   examples: ElementExample[];
   metadata: ElementMetadata;
@@ -131,12 +133,18 @@ function normalizeDefinitions(value: unknown): ElementDefinition[] {
     if (!text) continue;
     definitions.push({
       text,
+      translation: normalizePlainText(source.translation),
+      equivalent: normalizePlainText(source.equivalent),
       forms: normalizeForms(source.forms),
       examples: normalizeExamples(source.examples),
       metadata: normalizeMetadata(source.metadata),
     });
   }
   return definitions;
+}
+
+function normalizePlainText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function normalizeForms(value: unknown): string[] {
