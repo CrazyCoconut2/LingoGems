@@ -64,12 +64,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
       <section class="entries-toolbar" aria-label="Search">
         <form class="search-bar" (submit)="lookup($event)">
-          <span class="search-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-          </span>
           <input
             class="entry-input"
             type="search"
@@ -359,7 +353,11 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       }
 
       @if (opened(); as element) {
-        <app-element-modal [element]="element" (closed)="closeElement()" />
+        <app-element-modal
+          [element]="element"
+          (closed)="closeElement()"
+          (changed)="replaceElement($event)"
+        />
       }
     </main>
   `,
@@ -556,7 +554,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       min-width: 0;
       height: 2.4rem;
       min-height: 2.4rem;
-      padding: 0.2rem 0.2rem 0.2rem 0.15rem;
+      padding: 0 0.2rem 0 0.15rem;
+      overflow: hidden;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
@@ -567,14 +566,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       border-color: rgba(var(--accent-rgb), 0.55);
     }
 
-    .search-icon {
-      display: inline-flex;
-      flex-shrink: 0;
-      margin-left: 0.4rem;
-      color: var(--text-muted);
-    }
-
-    .search-icon svg,
     .search-actions svg {
       display: block;
       width: 0.9rem;
@@ -586,20 +577,21 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       stroke-linejoin: round;
     }
 
-    .search-bar:focus-within .search-icon {
-      color: var(--accent-text);
-    }
-
     .entry-input {
       flex: 1;
+      align-self: stretch;
       min-width: 0;
+      height: 100%;
+      margin: 0;
       border: 0;
       background: transparent;
       color: var(--text);
-      padding: 0.32rem 0.2rem;
-      border-radius: var(--radius);
+      padding: 0 0.75rem;
+      font: inherit;
       font-size: 0.9rem;
+      line-height: calc(2.4rem - 2px);
       outline: none;
+      appearance: none;
     }
 
     .entry-input::-webkit-search-cancel-button,
@@ -1145,6 +1137,10 @@ export class LanguagePage {
       queryParams: { element: id },
       queryParamsHandling: 'merge',
     });
+  }
+
+  replaceElement(saved: StoredElement): void {
+    this.elements.update((list) => list.map((item) => (item.id === saved.id ? saved : item)));
   }
 
   closeElement(): void {

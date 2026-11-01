@@ -5,6 +5,7 @@ export type ElementMetadata = Record<string, string>;
 
 export type ElementExample = {
   text: string;
+  translation: string;
   metadata: ElementMetadata;
 };
 
@@ -166,11 +167,13 @@ function normalizeExamples(value: unknown): ElementExample[] {
   const examples: ElementExample[] = [];
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') continue;
-    const text = String((raw as { text?: unknown }).text ?? '').trim();
+    const source = raw as Partial<ElementExample>;
+    const text = String(source.text ?? '').trim();
     if (!text) continue;
     examples.push({
       text,
-      metadata: normalizeMetadata((raw as { metadata?: unknown }).metadata),
+      translation: normalizePlainText(source.translation),
+      metadata: normalizeMetadata(source.metadata),
     });
   }
   return examples;
