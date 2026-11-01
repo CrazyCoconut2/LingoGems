@@ -32,3 +32,16 @@ export {
   type ElementSearch,
   type ElementSearchPart,
 } from './elements/search';
+
+export {
+  DEFAULT_ELEMENT_SORT,
+  ELEMENT_FACETS,
+  ELEMENT_SORTS,
+  compareElements,
+  elementFacetCount,
+  elementMatchesFacets,
+  parseElementFacets,
+  parseElementSort,
+  type ElementFacet,
+  type ElementSort,
+} from './elements/browse';
