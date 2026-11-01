@@ -11,8 +11,10 @@ import {
   viewChild,
 } from '@angular/core';
 import {
+  assignEquivalent,
   saveElement,
   type ElementDefinition,
+  type ElementEquivalent,
   type ElementMetadata,
   type StoredElement,
 } from 'collection';
@@ -76,8 +78,8 @@ type ConfirmDelete =
             <ol class="definitions">
               @for (definition of element().definitions; track $index; let index = $index) {
                 <li class="sense">
-                  @if (definition.equivalent) {
-                    <p class="equivalent">{{ definition.equivalent }}</p>
+                  @if (equivalentText(definition); as equivalent) {
+                    <p class="equivalent">{{ equivalent }}</p>
                   }
                   <p>{{ definition.text }}</p>
                   @if (definition.translation) {
@@ -794,6 +796,12 @@ export class ElementModal {
     else this.editor.set(null);
   }
 
+  equivalentText(definition: ElementDefinition): string {
+    const id = definition.equivalentId;
+    if (!id) return '';
+    return this.element().equivalents.find((item) => item.id === id)?.text ?? '';
+  }
+
   entries(metadata: ElementMetadata): Array<{ key: string; value: string }> {
     return Object.entries(metadata).map(([key, value]) => ({ key, value }));
   }
@@ -813,7 +821,7 @@ export class ElementModal {
     const definition = index == null ? null : this.element().definitions[index];
     if (index != null && !definition) return;
     this.formEdit.set(null);
-    this.equivalentDraft.set(definition?.equivalent ?? '');
+    this.equivalentDraft.set(definition ? this.equivalentText(definition) : '');
     this.textDraft.set(definition?.text ?? '');
     this.translationDraft.set(definition?.translation ?? '');
     this.editor.set({ kind: 'definition', index });
@@ -848,30 +856,32 @@ export class ElementModal {
     if (editor.kind === 'definition') {
       const current = editor.index == null ? null : definitions[editor.index];
       if (editor.index != null && !current) return;
+      const linked = assignEquivalent(this.element().equivalents, this.equivalentDraft());
       const next: ElementDefinition = {
         text,
         translation: this.translationDraft().trim(),
-        equivalent: this.equivalentDraft().trim(),
+        equivalentId: linked.equivalentId,
         forms: current?.forms ?? [],
         examples: current?.examples ?? [],
         metadata: current?.metadata ?? {},
       };
       if (editor.index == null) definitions.push(next);
       else definitions[editor.index] = next;
-    } else {
-      const definition = definitions[editor.definitionIndex];
-      if (!definition) return;
-      const current = editor.exampleIndex == null ? null : definition.examples[editor.exampleIndex];
-      if (editor.exampleIndex != null && !current) return;
-      const next = {
-        text,
-        translation: this.translationDraft().trim(),
-        metadata: current?.metadata ?? {},
-      };
-      if (editor.exampleIndex == null) definition.examples.push(next);
-      else definition.examples[editor.exampleIndex] = next;
+      if (await this.persist(definitions, linked.equivalents)) this.editor.set(null);
+      return;
     }
-    if (await this.persist(definitions)) this.editor.set(null);
+    const definition = definitions[editor.definitionIndex];
+    if (!definition) return;
+    const current = editor.exampleIndex == null ? null : definition.examples[editor.exampleIndex];
+    if (editor.exampleIndex != null && !current) return;
+    const next = {
+      text,
+      translation: this.translationDraft().trim(),
+      metadata: current?.metadata ?? {},
+    };
+    if (editor.exampleIndex == null) definition.examples.push(next);
+    else definition.examples[editor.exampleIndex] = next;
+    if (await this.persist(definitions, this.element().equivalents)) this.editor.set(null);
   }
 
   async saveForm(): Promise<void> {
@@ -888,7 +898,7 @@ export class ElementModal {
     } else if (!definition.forms.includes(form)) {
       definition.forms.push(form);
     }
-    if (await this.persist(definitions)) this.formEdit.set(null);
+    if (await this.persist(definitions, this.element().equivalents)) this.formEdit.set(null);
   }
 
   async removeForm(definitionIndex: number, form: string): Promise<void> {
@@ -897,7 +907,7 @@ export class ElementModal {
     const definition = definitions[definitionIndex];
     if (!definition) return;
     definition.forms = definition.forms.filter((item) => item !== form);
-    await this.persist(definitions);
+    await this.persist(definitions, this.element().equivalents);
   }
 
   askDelete(): void {
@@ -922,7 +932,7 @@ export class ElementModal {
     const definitions = this.copyDefinitions();
     if (pending.kind === 'definition') definitions.splice(pending.index, 1);
     else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
-    if (await this.persist(definitions)) {
+    if (await this.persist(definitions, this.element().equivalents)) {
       this.confirm.set(null);
       this.editor.set(null);
     }
@@ -940,11 +950,14 @@ export class ElementModal {
     }));
   }
 
-  private async persist(definitions: ElementDefinition[]): Promise<boolean> {
+  private async persist(
+    definitions: ElementDefinition[],
+    equivalents: ElementEquivalent[],
+  ): Promise<boolean> {
     this.busy.set(true);
     this.error.set('');
     try {
-      const saved = await saveElement({ ...this.element(), definitions });
+      const saved = await saveElement({ ...this.element(), definitions, equivalents });
       this.changed.emit(saved);
       return true;
     } catch {

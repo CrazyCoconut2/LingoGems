@@ -9,10 +9,15 @@ export type ElementExample = {
   metadata: ElementMetadata;
 };
 
+export type ElementEquivalent = {
+  id: string;
+  text: string;
+};
+
 export type ElementDefinition = {
   text: string;
   translation: string;
-  equivalent: string;
+  equivalentId: string | null;
   forms: string[];
   examples: ElementExample[];
   metadata: ElementMetadata;
@@ -22,9 +27,23 @@ export type StoredElement = {
   id: string;
   language: LearnableLanguage;
   title: string;
+  equivalents: ElementEquivalent[];
   definitions: ElementDefinition[];
   createdAt: number;
 };
+
+/** Empty text clears the link. An exact text match reuses that equivalent. */
+export function assignEquivalent(
+  equivalents: readonly ElementEquivalent[],
+  draft: string,
+): { equivalents: ElementEquivalent[]; equivalentId: string | null } {
+  const text = draft.trim();
+  if (!text) return { equivalents: [...equivalents], equivalentId: null };
+  const existing = equivalents.find((item) => item.text === text);
+  if (existing) return { equivalents: [...equivalents], equivalentId: existing.id };
+  const created: ElementEquivalent = { id: crypto.randomUUID(), text };
+  return { equivalents: [...equivalents, created], equivalentId: created.id };
+}
 
 export async function readElements(language: string): Promise<StoredElement[]> {
   const code = language.trim().toLowerCase();
@@ -59,6 +78,7 @@ export async function addElement(language: string, title: string): Promise<Store
     id: crypto.randomUUID(),
     language: code,
     title: name,
+    equivalents: [],
     definitions: [],
     createdAt: Date.now(),
   };
@@ -78,11 +98,13 @@ export async function saveElement(element: StoredElement): Promise<StoredElement
   const id = String(element?.id ?? '').trim();
   if (!id) throw new Error('Id is required');
   const createdAtValue = element?.createdAt;
+  const content = normalizeContent(element?.equivalents, element?.definitions);
   const saved: StoredElement = {
     id,
     language,
     title,
-    definitions: normalizeDefinitions(element?.definitions),
+    equivalents: content.equivalents,
+    definitions: content.definitions,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
@@ -114,34 +136,81 @@ function normalizeElement(raw: unknown): StoredElement | null {
   const id = String(source.id ?? '').trim();
   if (!title || !id) return null;
   const createdAtValue = source.createdAt;
+  const content = normalizeContent(source.equivalents, source.definitions);
   return {
     id,
     language,
     title,
-    definitions: normalizeDefinitions(source.definitions),
+    equivalents: content.equivalents,
+    definitions: content.definitions,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
 }
 
-function normalizeDefinitions(value: unknown): ElementDefinition[] {
+function normalizeContent(
+  rawEquivalents: unknown,
+  rawDefinitions: unknown,
+): { equivalents: ElementEquivalent[]; definitions: ElementDefinition[] } {
+  const equivalents = normalizeEquivalents(rawEquivalents);
+  return {
+    equivalents,
+    definitions: normalizeDefinitions(rawDefinitions, equivalents),
+  };
+}
+
+function normalizeEquivalents(value: unknown): ElementEquivalent[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const equivalents: ElementEquivalent[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue;
+    const source = raw as Partial<ElementEquivalent>;
+    const id = typeof source.id === 'string' ? source.id.trim() : '';
+    const text = normalizePlainText(source.text);
+    if (!id || !text || seen.has(id)) continue;
+    seen.add(id);
+    equivalents.push({ id, text });
+  }
+  return equivalents;
+}
+
+function normalizeDefinitions(
+  value: unknown,
+  equivalents: ElementEquivalent[],
+): ElementDefinition[] {
   if (!Array.isArray(value)) return [];
   const definitions: ElementDefinition[] = [];
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') continue;
-    const source = raw as Partial<ElementDefinition>;
+    const source = raw as Partial<ElementDefinition> & { equivalent?: unknown };
     const text = String(source.text ?? '').trim();
     if (!text) continue;
     definitions.push({
       text,
       translation: normalizePlainText(source.translation),
-      equivalent: normalizePlainText(source.equivalent),
+      equivalentId: resolveEquivalentId(source, equivalents),
       forms: normalizeForms(source.forms),
       examples: normalizeExamples(source.examples),
       metadata: normalizeMetadata(source.metadata),
     });
   }
   return definitions;
+}
+
+function resolveEquivalentId(
+  source: { equivalentId?: unknown; equivalent?: unknown },
+  equivalents: ElementEquivalent[],
+): string | null {
+  const id = typeof source.equivalentId === 'string' ? source.equivalentId.trim() : '';
+  if (id && equivalents.some((item) => item.id === id)) return id;
+  const legacy = normalizePlainText(source.equivalent);
+  if (!legacy) return null;
+  const match = equivalents.find((item) => item.text === legacy);
+  if (match) return match.id;
+  const created: ElementEquivalent = { id: crypto.randomUUID(), text: legacy };
+  equivalents.push(created);
+  return created.id;
 }
 
 function normalizePlainText(value: unknown): string {
