@@ -1260,9 +1260,10 @@ export class LanguagePage {
     const title = this.draft().trim();
     const code = this.code();
     if (!title || !code) return;
-    await addElement(code, title);
+    const created = await addElement(code, title);
     this.closeAdd();
     this.elements.set(await readElements(code));
+    this.openElement(created.id);
   }
 
   private async load(language: string): Promise<void> {

@@ -335,6 +335,18 @@ type ConfirmDelete =
                   </svg>
                 </button>
               </div>
+              <label
+                [attr.for]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
+              >
+                {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
+              </label>
+              <textarea
+                #draftField
+                [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
+                rows="3"
+                [value]="textDraft()"
+                (input)="textDraft.set(inputValue($event))"
+              ></textarea>
               @if (current.kind === 'definition') {
                 @if (element().equivalents.length) {
                   <p class="field-label">Equivalent</p>
@@ -365,18 +377,6 @@ type ConfirmDelete =
                   placeholder="Type a new equivalent"
                 />
               }
-              <label
-                [attr.for]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
-              >
-                {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
-              </label>
-              <textarea
-                #draftField
-                [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
-                rows="3"
-                [value]="textDraft()"
-                (input)="textDraft.set(inputValue($event))"
-              ></textarea>
               <div class="sheet-actions">
                 <button
                   type="button"
