@@ -7,6 +7,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "api": "mkdir -p dist/lingogem && wrangler dev --port 8787",
     "build": "ng build",
     "deploy": "npm run build && wrangler deploy"
   },

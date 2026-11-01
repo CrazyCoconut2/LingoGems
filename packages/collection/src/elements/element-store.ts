@@ -246,6 +246,25 @@ export function parsePassage(value: string): ParsedPassage {
   return { text, translations };
 }
 
+/** Store a translation on a phrase as `Primary [en: …]`, replacing that language's tag. */
+export function embedTranslation(raw: string, lang: string, text: string): string {
+  const key = lang.trim().toLowerCase().split('-')[0];
+  const value = text.replace(/]/g, '').trim();
+  const parsed = parsePassage(raw);
+  const translations = new Map<string, string>();
+  for (const item of parsed.translations) {
+    if (item.language && item.text) translations.set(item.language, item.text);
+  }
+  if (key && value) translations.set(key, value);
+  else if (key) translations.delete(key);
+  const parts = [...translations.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([language, body]) => `[${language}: ${body}]`);
+  const base = parsed.text.trim();
+  if (!parts.length) return base;
+  return base ? `${base} ${parts.join(' ')}` : parts.join(' ');
+}
+
 /** Older records kept a translation field. It now lives in the text as `[en: …]`. */
 function withEmbeddedTranslation(text: string, translation: unknown): string {
   const body = text.trim();

@@ -18,6 +18,7 @@ export {
   deleteElement,
   readElements,
   assignEquivalent,
+  embedTranslation,
   parsePassage,
   saveElement,
   type ElementDefinition,

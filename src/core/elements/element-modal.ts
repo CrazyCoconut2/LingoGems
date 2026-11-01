@@ -13,13 +13,16 @@ import {
 import {
   assignEquivalent,
   deleteElement,
+  embedTranslation,
   parsePassage,
   saveElement,
   type ElementDefinition,
   type ElementEquivalent,
   type ElementMetadata,
+  type PassageTranslation,
   type StoredElement,
 } from 'collection';
+import { translatePhrase } from '../translate/translate';
 
 const FORM_MAX_LENGTH = 100;
 
@@ -347,6 +350,24 @@ type ConfirmDelete =
                 [value]="textDraft()"
                 (input)="textDraft.set(inputValue($event))"
               ></textarea>
+              @if (sheetTranslations().length) {
+                <ul class="equivalents">
+                  @for (translation of sheetTranslations(); track $index) {
+                    <li>{{ translation.text }}</li>
+                  }
+                </ul>
+              }
+              <button
+                type="button"
+                class="btn btn-secondary"
+                [disabled]="!canTranslate()"
+                (click)="translateDraft()"
+              >
+                {{ translating() ? 'Translating…' : 'Translate' }}
+              </button>
+              @if (sheetError()) {
+                <p class="error">{{ sheetError() }}</p>
+              }
               @if (current.kind === 'definition') {
                 @if (element().equivalents.length) {
                   <p class="field-label">Equivalent</p>
@@ -381,7 +402,7 @@ type ConfirmDelete =
                 <button
                   type="button"
                   class="btn btn-primary"
-                  [disabled]="busy() || !textDraft().trim()"
+                  [disabled]="busy() || translating() || !textDraft().trim()"
                   (click)="saveEditor()"
                 >
                   Save
@@ -850,6 +871,10 @@ type ConfirmDelete =
       margin-top: 0.25rem;
     }
 
+    .sheet > .btn {
+      align-self: flex-start;
+    }
+
     .btn-danger {
       background: transparent;
       color: var(--danger);
@@ -873,12 +898,16 @@ export class ElementModal {
   readonly equivalentDraft = signal('');
   readonly equivalentIdDraft = signal<string | null>(null);
   readonly textDraft = signal('');
+  readonly sheetTranslations = signal<PassageTranslation[]>([]);
+  readonly translating = signal(false);
+  readonly sheetError = signal('');
   readonly formEdit = signal<FormEdit | null>(null);
   readonly formDraft = signal('');
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
   readonly error = signal('');
 
+  private translateTicket = 0;
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly draftField = viewChild<ElementRef<HTMLTextAreaElement>>('draftField');
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
@@ -977,7 +1006,7 @@ export class ElementModal {
         : null;
     this.equivalentIdDraft.set(known);
     this.equivalentDraft.set('');
-    this.textDraft.set(definition?.text ?? '');
+    this.beginSheet(definition?.text ?? '');
     this.editor.set({ kind: 'definition', index });
     this.focusDraft();
   }
@@ -988,7 +1017,7 @@ export class ElementModal {
     const example = exampleIndex == null ? null : definition.examples[exampleIndex];
     if (exampleIndex != null && !example) return;
     this.formEdit.set(null);
-    this.textDraft.set(example?.text ?? '');
+    this.beginSheet(example?.text ?? '');
     this.editor.set({ kind: 'example', definitionIndex, exampleIndex });
     this.focusDraft();
   }
@@ -1001,10 +1030,42 @@ export class ElementModal {
     setTimeout(() => this.formField()?.nativeElement.focus());
   }
 
+  canTranslate(): boolean {
+    const draft = this.textDraft().trim();
+    return (
+      this.element().language !== 'en' &&
+      draft.length > 0 &&
+      this.sheetTranslations().length === 0 &&
+      parsePassage(draft).translations.length === 0 &&
+      !this.translating() &&
+      !this.busy()
+    );
+  }
+
+  async translateDraft(): Promise<void> {
+    if (!this.canTranslate()) return;
+    const text = this.textDraft().trim();
+    const source = this.element().language;
+    const ticket = this.translateTicket;
+    this.translating.set(true);
+    this.sheetError.set('');
+    try {
+      const translated = await translatePhrase(text, source);
+      if (ticket !== this.translateTicket) return;
+      this.sheetTranslations.set([{ language: 'en', text: translated }]);
+    } catch {
+      if (ticket !== this.translateTicket) return;
+      this.sheetError.set('Could not translate this.');
+    } finally {
+      if (ticket === this.translateTicket) this.translating.set(false);
+    }
+  }
+
   async saveEditor(): Promise<void> {
     const editor = this.editor();
-    const text = this.textDraft().trim();
-    if (!editor || !text || this.busy()) return;
+    const primary = this.textDraft().trim();
+    if (!editor || !primary || this.busy() || this.translating()) return;
+    const text = this.phraseToStore();
     const definitions = this.copyDefinitions();
     if (editor.kind === 'definition') {
       const current = editor.index == null ? null : definitions[editor.index];
@@ -1159,6 +1220,22 @@ export class ElementModal {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  private beginSheet(text: string): void {
+    this.translateTicket += 1;
+    const passage = parsePassage(text);
+    this.textDraft.set(passage.text);
+    this.sheetTranslations.set(passage.translations);
+    this.sheetError.set('');
+    this.translating.set(false);
+  }
+
+  private phraseToStore(): string {
+    return this.sheetTranslations().reduce(
+      (raw, item) => embedTranslation(raw, item.language, item.text),
+      this.textDraft().trim(),
+    );
   }
 
   private focusDraft(): void {
