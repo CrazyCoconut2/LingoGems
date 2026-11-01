@@ -217,6 +217,35 @@ function normalizePlainText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+const TRANSLATION_MARKER = /\[([a-z]{2}):\s*([^\]]*)]/gi;
+
+export type PassageTranslation = {
+  language: string;
+  text: string;
+};
+
+export type ParsedPassage = {
+  text: string;
+  translations: PassageTranslation[];
+};
+
+/** Split `[en: …]` markers out of definition or example text for display. */
+export function parsePassage(value: string): ParsedPassage {
+  const translations: PassageTranslation[] = [];
+  const text = value
+    .replace(TRANSLATION_MARKER, (_match, language: string, body: string) => {
+      const translation = body.trim();
+      if (translation) translations.push({ language: language.toLowerCase(), text: translation });
+      return '';
+    })
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return { text, translations };
+}
+
 /** Older records kept a translation field. It now lives in the text as `[en: …]`. */
 function withEmbeddedTranslation(text: string, translation: unknown): string {
   const body = text.trim();

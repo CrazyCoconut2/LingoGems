@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import {
   assignEquivalent,
+  parsePassage,
   saveElement,
   type ElementDefinition,
   type ElementEquivalent,
@@ -91,7 +92,17 @@ type ConfirmDelete =
                 <li class="sense">
                   <div class="sense-main">
                     <div class="sense-copy">
-                      <p class="passage">{{ definition.text }}</p>
+                      @let passage = parsePassage(definition.text);
+                      @if (passage.text) {
+                        <p class="passage">{{ passage.text }}</p>
+                      }
+                      @if (passage.translations.length) {
+                        <ul class="equivalents">
+                          @for (translation of passage.translations; track $index) {
+                            <li>{{ translation.text }}</li>
+                          }
+                        </ul>
+                      }
                       @if (entries(definition.metadata); as meta) {
                         @if (meta.length) {
                           <dl>
@@ -145,7 +156,17 @@ type ConfirmDelete =
                         ) {
                           <li>
                             <div class="example-copy">
-                              <q class="passage">{{ example.text }}</q>
+                              @let passage = parsePassage(example.text);
+                              @if (passage.text) {
+                                <q class="passage">{{ passage.text }}</q>
+                              }
+                              @if (passage.translations.length) {
+                                <ul class="equivalents">
+                                  @for (translation of passage.translations; track $index) {
+                                    <li>{{ translation.text }}</li>
+                                  }
+                                </ul>
+                              }
                               @if (entries(example.metadata); as meta) {
                                 @if (meta.length) {
                                   <dl>
@@ -758,6 +779,7 @@ export class ElementModal {
   readonly changed = output<StoredElement>();
 
   readonly formMaxLength = FORM_MAX_LENGTH;
+  readonly parsePassage = parsePassage;
   readonly editor = signal<Editor | null>(null);
   readonly equivalentDraft = signal('');
   readonly textDraft = signal('');
