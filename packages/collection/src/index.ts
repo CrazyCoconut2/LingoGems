@@ -30,6 +30,14 @@ export {
   type StoredElement,
 } from './elements/element-store';
 
+export { isValidForm } from './elements/forms';
+
+export {
+  highlightDefinitionPassage,
+  type DefinitionHighlightMatch,
+  type DefinitionHighlightPart,
+} from './elements/highlight';
+
 export {
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,

@@ -351,9 +351,11 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       @if (opened(); as element) {
         <app-element-modal
           [element]="element"
+          [collection]="elements()"
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
           (deleted)="onElementDeleted()"
+          (visit)="openElement($event)"
         />
       }
     </main>

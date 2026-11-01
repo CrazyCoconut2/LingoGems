@@ -4,6 +4,7 @@ import {
   ElementRef,
   HostListener,
   afterNextRender,
+  effect,
   inject,
   input,
   output,
@@ -14,8 +15,12 @@ import {
   assignEquivalent,
   deleteElement,
   embedTranslation,
+  highlightDefinitionPassage,
+  isValidForm,
   parsePassage,
   saveElement,
+  type DefinitionHighlightMatch,
+  type DefinitionHighlightPart,
   type ElementDefinition,
   type ElementEquivalent,
   type ElementMetadata,
@@ -106,6 +111,15 @@ type ConfirmDelete =
               </svg>
             </button>
           </div>
+          @if (collision(); as matches) {
+            <div class="collision" role="menu" aria-label="Matching elements">
+              @for (match of matches; track match.elementId) {
+                <button type="button" (click)="visitHighlight(match.elementId)">
+                  {{ match.title }}
+                </button>
+              }
+            </div>
+          }
           @if (error()) {
             <p class="error">{{ error() }}</p>
           }
@@ -117,7 +131,32 @@ type ConfirmDelete =
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
                       @if (passage.text) {
-                        <p class="passage">{{ passage.text }}</p>
+                        <p class="passage">
+                          @for (part of highlightPassage(passage.text, index); track $index) {
+                            @if (part.matches.length > 1) {
+                              <button
+                                type="button"
+                                class="linguagem-highlighted"
+                                [textContent]="part.text"
+                                (click)="showCollision($event, part.matches)"
+                              ></button>
+                            } @else if (part.matches.length === 1 && !part.current) {
+                              <button
+                                type="button"
+                                class="linguagem-highlighted"
+                                [textContent]="part.text"
+                                (click)="visitHighlight(part.matches[0].elementId)"
+                              ></button>
+                            } @else if (part.current) {
+                              <span
+                                class="linguagem-highlighted linguagem-highlighted--current"
+                                [textContent]="part.text"
+                              ></span>
+                            } @else {
+                              <span [textContent]="part.text"></span>
+                            }
+                          }
+                        </p>
                       }
                       @if (passage.translations.length) {
                         <ul class="equivalents">
@@ -181,7 +220,35 @@ type ConfirmDelete =
                             <div class="example-copy">
                               @let passage = parsePassage(example.text);
                               @if (passage.text) {
-                                <q class="passage">{{ passage.text }}</q>
+                                <q class="passage">
+                                  @for (
+                                    part of highlightPassage(passage.text, index);
+                                    track $index
+                                  ) {
+                                    @if (part.matches.length > 1) {
+                                      <button
+                                        type="button"
+                                        class="linguagem-highlighted"
+                                        [textContent]="part.text"
+                                        (click)="showCollision($event, part.matches)"
+                                      ></button>
+                                    } @else if (part.matches.length === 1 && !part.current) {
+                                      <button
+                                        type="button"
+                                        class="linguagem-highlighted"
+                                        [textContent]="part.text"
+                                        (click)="visitHighlight(part.matches[0].elementId)"
+                                      ></button>
+                                    } @else if (part.current) {
+                                      <span
+                                        class="linguagem-highlighted linguagem-highlighted--current"
+                                        [textContent]="part.text"
+                                      ></span>
+                                    } @else {
+                                      <span [textContent]="part.text"></span>
+                                    }
+                                  }
+                                </q>
                               }
                               @if (passage.translations.length) {
                                 <ul class="equivalents">
@@ -249,7 +316,7 @@ type ConfirmDelete =
                             [attr.maxlength]="formMaxLength"
                             placeholder="walked"
                             aria-label="New form"
-                            (input)="formDraft.set(inputValue($event))"
+                            (input)="onFormInput($event)"
                             (keydown.enter)="saveForm()"
                           />
                           <button
@@ -265,7 +332,7 @@ type ConfirmDelete =
                             type="button"
                             class="icon-btn"
                             aria-label="Cancel"
-                            (click)="formEdit.set(null)"
+                            (click)="cancelForm()"
                           >
                             <svg viewBox="0 0 24 24">
                               <path d="M18 6 6 18" />
@@ -273,6 +340,9 @@ type ConfirmDelete =
                             </svg>
                           </button>
                         </div>
+                        @if (formError()) {
+                          <p class="error">{{ formError() }}</p>
+                        }
                       }
                     }
                     @if (definition.forms.length) {
@@ -718,6 +788,56 @@ type ConfirmDelete =
       white-space: pre-wrap;
     }
 
+    .linguagem-highlighted {
+      background: transparent;
+      color: inherit;
+      border-bottom: none;
+      text-decoration-line: underline;
+      text-decoration-style: var(--highlight-style, solid);
+      text-decoration-color: var(--highlight-color, #6c63ff);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.18em;
+    }
+
+    button.linguagem-highlighted {
+      display: inline;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: none;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      text-align: inherit;
+    }
+
+    .linguagem-highlighted--current {
+      text-decoration: none;
+      border-radius: 0.18em;
+      padding: 0 0.12em;
+      background: color-mix(in srgb, var(--highlight-color, #6c63ff) 32%, transparent);
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    .collision {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .collision button {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.8125rem;
+      padding: 0.28rem 0.7rem;
+      cursor: pointer;
+    }
+
     .group {
       display: flex;
       flex-direction: column;
@@ -888,9 +1008,11 @@ type ConfirmDelete =
 })
 export class ElementModal {
   readonly element = input.required<StoredElement>();
+  readonly collection = input<StoredElement[]>([]);
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
   readonly deleted = output<void>();
+  readonly visit = output<string>();
 
   readonly formMaxLength = FORM_MAX_LENGTH;
   readonly parsePassage = parsePassage;
@@ -903,16 +1025,29 @@ export class ElementModal {
   readonly sheetError = signal('');
   readonly formEdit = signal<FormEdit | null>(null);
   readonly formDraft = signal('');
+  readonly formError = signal('');
+  readonly collision = signal<DefinitionHighlightMatch[] | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
   readonly error = signal('');
 
   private translateTicket = 0;
+  private trackedElementId = '';
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly draftField = viewChild<ElementRef<HTMLTextAreaElement>>('draftField');
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
 
   constructor() {
+    effect(() => {
+      const id = this.element().id;
+      if (id === this.trackedElementId) return;
+      this.trackedElementId = id;
+      this.editor.set(null);
+      this.formEdit.set(null);
+      this.formError.set('');
+      this.collision.set(null);
+      this.confirm.set(null);
+    });
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     inject(DestroyRef).onDestroy(() => {
@@ -1025,9 +1160,49 @@ export class ElementModal {
   openForm(definitionIndex: number, previous: string | null): void {
     if (!this.element().definitions[definitionIndex]) return;
     this.editor.set(null);
+    this.formError.set('');
     this.formDraft.set(previous ?? '');
     this.formEdit.set({ definitionIndex, previous });
     setTimeout(() => this.formField()?.nativeElement.focus());
+  }
+
+  onFormInput(event: Event): void {
+    this.formError.set('');
+    this.formDraft.set(this.inputValue(event));
+  }
+
+  cancelForm(): void {
+    this.formError.set('');
+    this.formEdit.set(null);
+  }
+
+  highlightPassage(text: string, definitionIndex: number): DefinitionHighlightPart[] {
+    const element = this.element();
+    const definition = element.definitions[definitionIndex];
+    const others: { id: string; title: string; forms: string[] }[] = [];
+    for (const item of this.collection()) {
+      if (item.id === element.id) continue;
+      for (const sense of item.definitions) {
+        others.push({ id: item.id, title: item.title, forms: sense.forms });
+      }
+    }
+    return highlightDefinitionPassage(
+      text,
+      { id: element.id, title: element.title, forms: definition?.forms ?? [] },
+      others,
+    );
+  }
+
+  showCollision(event: MouseEvent, matches: DefinitionHighlightMatch[]): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.collision.set(matches);
+  }
+
+  visitHighlight(id: string): void {
+    this.collision.set(null);
+    if (!id || id === this.element().id) return;
+    this.visit.emit(id);
   }
 
   canTranslate(): boolean {
@@ -1113,14 +1288,31 @@ export class ElementModal {
     const definitions = this.copyDefinitions();
     const definition = definitions[editing.definitionIndex];
     if (!definition) return;
+    if (form === this.element().title.trim()) {
+      this.cancelForm();
+      return;
+    }
+    if (!isValidForm(form)) {
+      this.formError.set('That form is not valid.');
+      return;
+    }
+    if (editing.previous && form === editing.previous) {
+      this.cancelForm();
+      return;
+    }
+    const others = definition.forms.filter((value) => value !== editing.previous);
+    if (others.some((value) => value.toLowerCase() === form.toLowerCase())) {
+      this.cancelForm();
+      return;
+    }
     if (editing.previous) {
       const at = definition.forms.indexOf(editing.previous);
       if (at >= 0) definition.forms[at] = form;
       else definition.forms.push(form);
-    } else if (!definition.forms.includes(form)) {
+    } else {
       definition.forms.push(form);
     }
-    if (await this.persist(definitions, this.element().equivalents)) this.formEdit.set(null);
+    if (await this.persist(definitions, this.element().equivalents)) this.cancelForm();
   }
 
   async removeForm(definitionIndex: number, form: string): Promise<void> {
