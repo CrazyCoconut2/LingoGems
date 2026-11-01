@@ -5,7 +5,6 @@ export type ElementMetadata = Record<string, string>;
 
 export type ElementExample = {
   text: string;
-  translation: string;
   metadata: ElementMetadata;
 };
 
@@ -16,7 +15,6 @@ export type ElementEquivalent = {
 
 export type ElementDefinition = {
   text: string;
-  translation: string;
   equivalentId: string | null;
   forms: string[];
   examples: ElementExample[];
@@ -183,12 +181,14 @@ function normalizeDefinitions(
   const definitions: ElementDefinition[] = [];
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') continue;
-    const source = raw as Partial<ElementDefinition> & { equivalent?: unknown };
-    const text = String(source.text ?? '').trim();
+    const source = raw as Partial<ElementDefinition> & {
+      equivalent?: unknown;
+      translation?: unknown;
+    };
+    const text = withEmbeddedTranslation(String(source.text ?? ''), source.translation);
     if (!text) continue;
     definitions.push({
       text,
-      translation: normalizePlainText(source.translation),
       equivalentId: resolveEquivalentId(source, equivalents),
       forms: normalizeForms(source.forms),
       examples: normalizeExamples(source.examples),
@@ -217,6 +217,16 @@ function normalizePlainText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+/** Older records kept a translation field. It now lives in the text as `[en: …]`. */
+function withEmbeddedTranslation(text: string, translation: unknown): string {
+  const body = text.trim();
+  const extra = normalizePlainText(translation);
+  if (!extra) return body;
+  const marker = `[en: ${extra}]`;
+  if (body.includes(marker)) return body;
+  return body ? `${body}\n${marker}` : marker;
+}
+
 function normalizeForms(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
@@ -236,12 +246,11 @@ function normalizeExamples(value: unknown): ElementExample[] {
   const examples: ElementExample[] = [];
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') continue;
-    const source = raw as Partial<ElementExample>;
-    const text = String(source.text ?? '').trim();
+    const source = raw as Partial<ElementExample> & { translation?: unknown };
+    const text = withEmbeddedTranslation(String(source.text ?? ''), source.translation);
     if (!text) continue;
     examples.push({
       text,
-      translation: normalizePlainText(source.translation),
       metadata: normalizeMetadata(source.metadata),
     });
   }

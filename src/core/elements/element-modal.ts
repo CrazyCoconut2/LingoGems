@@ -43,7 +43,18 @@ type ConfirmDelete =
     >
       <div class="panel">
         <header>
-          <h2>{{ element().title }}</h2>
+          <div class="title-block">
+            <h2>{{ element().title }}</h2>
+            @if (headerEquivalents(); as equivalents) {
+              @if (equivalents.length) {
+                <ul class="equivalents">
+                  @for (equivalent of equivalents; track equivalent) {
+                    <li>{{ equivalent }}</li>
+                  }
+                </ul>
+              }
+            }
+          </div>
           <button
             #closeButton
             type="button"
@@ -78,26 +89,22 @@ type ConfirmDelete =
             <ol class="definitions">
               @for (definition of element().definitions; track $index; let index = $index) {
                 <li class="sense">
-                  @if (equivalentText(definition); as equivalent) {
-                    <p class="equivalent">{{ equivalent }}</p>
-                  }
-                  <p>{{ definition.text }}</p>
-                  @if (definition.translation) {
-                    <p class="translation">{{ definition.translation }}</p>
-                  }
-                  @if (entries(definition.metadata); as meta) {
-                    @if (meta.length) {
-                      <dl>
-                        @for (entry of meta; track entry.key) {
-                          <div>
-                            <dt>{{ entry.key }}</dt>
-                            <dd>{{ entry.value }}</dd>
-                          </div>
+                  <div class="sense-main">
+                    <div class="sense-copy">
+                      <p class="passage">{{ definition.text }}</p>
+                      @if (entries(definition.metadata); as meta) {
+                        @if (meta.length) {
+                          <dl>
+                            @for (entry of meta; track entry.key) {
+                              <div>
+                                <dt>{{ entry.key }}</dt>
+                                <dd>{{ entry.value }}</dd>
+                              </div>
+                            }
+                          </dl>
                         }
-                      </dl>
-                    }
-                  }
-                  <div class="sense-toolbar">
+                      }
+                    </div>
                     <button
                       type="button"
                       class="icon-btn"
@@ -138,10 +145,7 @@ type ConfirmDelete =
                         ) {
                           <li>
                             <div class="example-copy">
-                              <q>{{ example.text }}</q>
-                              @if (example.translation) {
-                                <p class="translation">{{ example.translation }}</p>
-                              }
+                              <q class="passage">{{ example.text }}</q>
                               @if (entries(example.metadata); as meta) {
                                 @if (meta.length) {
                                   <dl>
@@ -311,21 +315,6 @@ type ConfirmDelete =
                 [value]="textDraft()"
                 (input)="textDraft.set(inputValue($event))"
               ></textarea>
-              <label
-                [attr.for]="
-                  current.kind === 'definition' ? 'definition-translation' : 'example-translation'
-                "
-              >
-                Translation
-              </label>
-              <textarea
-                [id]="
-                  current.kind === 'definition' ? 'definition-translation' : 'example-translation'
-                "
-                rows="2"
-                [value]="translationDraft()"
-                (input)="translationDraft.set(inputValue($event))"
-              ></textarea>
               <div class="sheet-actions">
                 <button
                   type="button"
@@ -431,7 +420,6 @@ type ConfirmDelete =
     header,
     .sheet-head,
     .section-heading,
-    .sense-toolbar,
     .sheet-actions {
       display: flex;
       align-items: center;
@@ -445,9 +433,25 @@ type ConfirmDelete =
     }
 
     header {
+      align-items: flex-start;
       gap: 1rem;
       padding: 0.9rem 1.15rem;
       border-bottom: 1px solid var(--border);
+    }
+
+    .title-block {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .equivalents {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      color: var(--text-muted);
+      font-size: 0.95rem;
     }
 
     h2,
@@ -534,7 +538,6 @@ type ConfirmDelete =
 
     .empty,
     .hint,
-    .translation,
     .error {
       color: var(--text-muted);
       font-size: 0.82rem;
@@ -568,13 +571,22 @@ type ConfirmDelete =
       background: rgba(255, 255, 255, 0.02);
     }
 
-    .equivalent {
-      font-weight: 650;
-      letter-spacing: -0.02em;
+    .sense-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.45rem;
     }
 
-    .sense-toolbar {
-      justify-content: flex-end;
+    .sense-copy {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .passage {
+      white-space: pre-wrap;
     }
 
     .group {
@@ -749,7 +761,6 @@ export class ElementModal {
   readonly editor = signal<Editor | null>(null);
   readonly equivalentDraft = signal('');
   readonly textDraft = signal('');
-  readonly translationDraft = signal('');
   readonly formEdit = signal<FormEdit | null>(null);
   readonly formDraft = signal('');
   readonly confirm = signal<ConfirmDelete | null>(null);
@@ -796,6 +807,18 @@ export class ElementModal {
     else this.editor.set(null);
   }
 
+  headerEquivalents(): string[] {
+    const seen = new Set<string>();
+    const texts: string[] = [];
+    for (const definition of this.element().definitions) {
+      const text = this.equivalentText(definition);
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      texts.push(text);
+    }
+    return texts;
+  }
+
   equivalentText(definition: ElementDefinition): string {
     const id = definition.equivalentId;
     if (!id) return '';
@@ -823,7 +846,6 @@ export class ElementModal {
     this.formEdit.set(null);
     this.equivalentDraft.set(definition ? this.equivalentText(definition) : '');
     this.textDraft.set(definition?.text ?? '');
-    this.translationDraft.set(definition?.translation ?? '');
     this.editor.set({ kind: 'definition', index });
     this.focusDraft();
   }
@@ -835,7 +857,6 @@ export class ElementModal {
     if (exampleIndex != null && !example) return;
     this.formEdit.set(null);
     this.textDraft.set(example?.text ?? '');
-    this.translationDraft.set(example?.translation ?? '');
     this.editor.set({ kind: 'example', definitionIndex, exampleIndex });
     this.focusDraft();
   }
@@ -859,7 +880,6 @@ export class ElementModal {
       const linked = assignEquivalent(this.element().equivalents, this.equivalentDraft());
       const next: ElementDefinition = {
         text,
-        translation: this.translationDraft().trim(),
         equivalentId: linked.equivalentId,
         forms: current?.forms ?? [],
         examples: current?.examples ?? [],
@@ -876,7 +896,6 @@ export class ElementModal {
     if (editor.exampleIndex != null && !current) return;
     const next = {
       text,
-      translation: this.translationDraft().trim(),
       metadata: current?.metadata ?? {},
     };
     if (editor.exampleIndex == null) definition.examples.push(next);
