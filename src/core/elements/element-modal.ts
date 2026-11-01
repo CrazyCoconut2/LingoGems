@@ -316,12 +316,33 @@ type ConfirmDelete =
                 </button>
               </div>
               @if (current.kind === 'definition') {
-                <label for="definition-equivalent">Equivalent</label>
+                @if (element().equivalents.length) {
+                  <p class="field-label">Equivalent</p>
+                  <ul class="equivalent-choices">
+                    @for (item of element().equivalents; track item.id) {
+                      <li>
+                        <button
+                          type="button"
+                          [class.selected]="equivalentSelected(item.id)"
+                          [attr.aria-pressed]="equivalentSelected(item.id)"
+                          [disabled]="busy()"
+                          (click)="chooseEquivalent(item.id)"
+                        >
+                          {{ item.text }}
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+                <label for="definition-equivalent">
+                  {{ element().equivalents.length ? 'New equivalent' : 'Equivalent' }}
+                </label>
                 <input
                   id="definition-equivalent"
                   [value]="equivalentDraft()"
                   (input)="equivalentDraft.set(inputValue($event))"
                   autocomplete="off"
+                  placeholder="Type a new equivalent"
                 />
               }
               <label
@@ -473,6 +494,37 @@ type ConfirmDelete =
       list-style: none;
       color: var(--text-muted);
       font-size: 0.95rem;
+    }
+
+    .equivalent-choices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .equivalent-choices button {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.8125rem;
+      padding: 0.28rem 0.7rem;
+      cursor: pointer;
+    }
+
+    .equivalent-choices button.selected {
+      color: var(--accent-text);
+      border-color: rgba(var(--accent-rgb), 0.45);
+      background: rgba(var(--accent-rgb), 0.12);
+    }
+
+    .equivalent-choices button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     h2,
@@ -737,7 +789,8 @@ type ConfirmDelete =
       text-transform: none;
     }
 
-    label {
+    label,
+    .field-label {
       font-size: 0.78rem;
       font-weight: 650;
       color: var(--text-muted);
@@ -782,6 +835,7 @@ export class ElementModal {
   readonly parsePassage = parsePassage;
   readonly editor = signal<Editor | null>(null);
   readonly equivalentDraft = signal('');
+  readonly equivalentIdDraft = signal<string | null>(null);
   readonly textDraft = signal('');
   readonly formEdit = signal<FormEdit | null>(null);
   readonly formDraft = signal('');
@@ -841,6 +895,20 @@ export class ElementModal {
     return texts;
   }
 
+  equivalentSelected(id: string): boolean {
+    const typed = this.equivalentDraft().trim();
+    if (typed) {
+      return this.element().equivalents.some((item) => item.id === id && item.text === typed);
+    }
+    return this.equivalentIdDraft() === id;
+  }
+
+  chooseEquivalent(id: string): void {
+    const selected = this.equivalentSelected(id);
+    this.equivalentDraft.set('');
+    this.equivalentIdDraft.set(selected ? null : id);
+  }
+
   equivalentText(definition: ElementDefinition): string {
     const id = definition.equivalentId;
     if (!id) return '';
@@ -866,7 +934,13 @@ export class ElementModal {
     const definition = index == null ? null : this.element().definitions[index];
     if (index != null && !definition) return;
     this.formEdit.set(null);
-    this.equivalentDraft.set(definition ? this.equivalentText(definition) : '');
+    const equivalentId = definition?.equivalentId ?? null;
+    const known =
+      equivalentId && this.element().equivalents.some((item) => item.id === equivalentId)
+        ? equivalentId
+        : null;
+    this.equivalentIdDraft.set(known);
+    this.equivalentDraft.set('');
     this.textDraft.set(definition?.text ?? '');
     this.editor.set({ kind: 'definition', index });
     this.focusDraft();
@@ -899,7 +973,17 @@ export class ElementModal {
     if (editor.kind === 'definition') {
       const current = editor.index == null ? null : definitions[editor.index];
       if (editor.index != null && !current) return;
-      const linked = assignEquivalent(this.element().equivalents, this.equivalentDraft());
+      const typed = this.equivalentDraft().trim();
+      const selectedId = this.equivalentIdDraft();
+      const linked = typed
+        ? assignEquivalent(this.element().equivalents, typed)
+        : {
+            equivalents: this.element().equivalents,
+            equivalentId:
+              selectedId && this.element().equivalents.some((item) => item.id === selectedId)
+                ? selectedId
+                : null,
+          };
       const next: ElementDefinition = {
         text,
         equivalentId: linked.equivalentId,
