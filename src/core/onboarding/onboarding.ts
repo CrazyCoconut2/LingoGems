@@ -3,27 +3,15 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
   isAiProvider,
-  isTranslationProvider,
   markOnboarded,
-  secretsForProvider,
   writeStoredAiCredentials,
-  writeStoredTranslationCredentials,
   type AiProviderId,
-  type StoredTranslationSecrets,
-  type TranslationProviderId,
 } from '../credentials/credentials';
 
-type Step = 'welcome' | 'ai' | 'translation';
-
-type TranslationField = keyof StoredTranslationSecrets;
+type Step = 'welcome' | 'ai';
 
 type ProviderOption<T extends string> = {
   id: T;
-  label: string;
-};
-
-type FieldMeta = {
-  name: TranslationField;
   label: string;
 };
 
@@ -33,35 +21,6 @@ const AI_PROVIDERS: ProviderOption<AiProviderId>[] = [
   { id: 'google', label: 'Google Gemini' },
   { id: 'groq', label: 'Groq' },
 ];
-
-const TRANSLATION_PROVIDERS: ProviderOption<TranslationProviderId>[] = [
-  { id: 'deepl', label: 'DeepL API' },
-  { id: 'google', label: 'Google Cloud Translation' },
-  { id: 'azure', label: 'Microsoft Azure AI Translator' },
-  { id: 'amazon', label: 'Amazon Translate' },
-];
-
-const TRANSLATION_FIELDS: Record<TranslationProviderId, FieldMeta[]> = {
-  deepl: [{ name: 'apiKey', label: 'API key' }],
-  google: [{ name: 'apiKey', label: 'API key' }],
-  azure: [
-    { name: 'subscriptionKey', label: 'Subscription key' },
-    { name: 'region', label: 'Region' },
-  ],
-  amazon: [
-    { name: 'accessKeyId', label: 'Access key ID' },
-    { name: 'secretAccessKey', label: 'Secret access key' },
-    { name: 'region', label: 'Region' },
-  ],
-};
-
-const EMPTY_SECRETS: StoredTranslationSecrets = {
-  apiKey: '',
-  subscriptionKey: '',
-  region: '',
-  accessKeyId: '',
-  secretAccessKey: '',
-};
 
 @Component({
   selector: 'app-onboarding',
@@ -77,18 +36,25 @@ const EMPTY_SECRETS: StoredTranslationSecrets = {
               <p>You collect meaning instead of grammar.</p>
             </div>
             <div class="actions">
-              <button type="button" class="btn btn-primary" (click)="step.set('ai')">Continue</button>
+              <button type="button" class="btn btn-primary" (click)="step.set('ai')">
+                Continue
+              </button>
             </div>
           }
           @case ('ai') {
-            <form (submit)="continueFromAi($event)">
+            <form (submit)="saveAi($event)">
               <div class="copy">
                 <h1>AI provider</h1>
                 <p>Add an API key. It stays on this device.</p>
               </div>
               <label for="ai-provider">
                 Provider
-                <select id="ai-provider" [ngModel]="aiProvider()" (ngModelChange)="selectAiProviderValue($event)" name="aiProvider">
+                <select
+                  id="ai-provider"
+                  [ngModel]="aiProvider()"
+                  (ngModelChange)="selectAiProviderValue($event)"
+                  name="aiProvider"
+                >
                   @for (provider of aiProviders; track provider.id) {
                     <option [value]="provider.id">{{ provider.label }}</option>
                   }
@@ -109,55 +75,7 @@ const EMPTY_SECRETS: StoredTranslationSecrets = {
                 <button type="button" class="btn btn-secondary" (click)="step.set('welcome')">
                   Back
                 </button>
-                <button type="submit" class="btn btn-primary" [disabled]="!aiReady()">
-                  Continue
-                </button>
-              </div>
-            </form>
-          }
-          @case ('translation') {
-            <form (submit)="saveTranslation($event)">
-              <div class="copy">
-                <h1>Translation provider</h1>
-                <p>
-                  This is optional. Without one, translations use your AI key. A translation key
-                  stays on this device.
-                </p>
-              </div>
-              <label for="translation-provider">
-                Provider
-                <select
-                  id="translation-provider"
-                  name="translationProvider"
-                  [ngModel]="translationProvider()"
-                  (ngModelChange)="selectTranslationProviderValue($event)"
-                >
-                  @for (provider of translationProviders; track provider.id) {
-                    <option [value]="provider.id">{{ provider.label }}</option>
-                  }
-                </select>
-              </label>
-              @for (field of translationFields(); track field.name) {
-                <label [attr.for]="'translation-' + field.name">
-                  {{ field.label }}
-                  <input
-                    [id]="'translation-' + field.name"
-                    [name]="field.name"
-                    type="text"
-                    autocomplete="off"
-                    [ngModel]="translationValue(field.name)"
-                    (ngModelChange)="setTranslationValue(field.name, $event)"
-                  />
-                </label>
-              }
-              <div class="actions">
-                <button type="button" class="btn btn-secondary" (click)="step.set('ai')">Back</button>
-                <button type="button" class="btn btn-secondary" (click)="skipTranslation()">
-                  Skip
-                </button>
-                <button type="submit" class="btn btn-primary" [disabled]="!translationReady()">
-                  Save
-                </button>
+                <button type="submit" class="btn btn-primary" [disabled]="!aiReady()">Save</button>
               </div>
             </form>
           }
@@ -260,57 +178,22 @@ export class Onboarding {
   private readonly router = inject(Router);
 
   readonly aiProviders = AI_PROVIDERS;
-  readonly translationProviders = TRANSLATION_PROVIDERS;
 
   readonly step = signal<Step>('welcome');
   readonly aiProvider = signal<AiProviderId>('openai');
   readonly aiApiKey = signal('');
-  readonly translationProvider = signal<TranslationProviderId>('deepl');
-  private readonly translationSecrets = signal<StoredTranslationSecrets>({ ...EMPTY_SECRETS });
 
-  readonly translationFields = computed(() => TRANSLATION_FIELDS[this.translationProvider()]);
   readonly aiReady = computed(() => this.aiApiKey().trim().length > 0);
-  readonly translationReady = computed(
-    () => secretsForProvider(this.translationProvider(), this.translationSecrets()) !== null,
-  );
 
-  continueFromAi(event?: Event): void {
+  saveAi(event?: Event): void {
     event?.preventDefault();
-    if (!this.aiReady()) return;
-    this.step.set('translation');
+    if (!this.persistAiKey()) return;
+    this.finish();
   }
 
   selectAiProviderValue(value: string): void {
     if (!isAiProvider(value)) return;
     this.aiProvider.set(value);
-  }
-
-  selectTranslationProviderValue(value: string): void {
-    if (!isTranslationProvider(value)) return;
-    this.translationProvider.set(value);
-  }
-
-  translationValue(name: TranslationField): string {
-    return this.translationSecrets()[name] ?? '';
-  }
-
-  setTranslationValue(name: TranslationField, value: string): void {
-    this.translationSecrets.update((current) => ({ ...current, [name]: value }));
-  }
-
-  saveTranslation(event?: Event): void {
-    event?.preventDefault();
-    const secrets = secretsForProvider(this.translationProvider(), this.translationSecrets());
-    if (!secrets || !this.persistAiKey()) return;
-    writeStoredTranslationCredentials({
-      keys: [{ id: newKeyId(), provider: this.translationProvider(), secrets }],
-    });
-    this.finish();
-  }
-
-  skipTranslation(): void {
-    if (!this.persistAiKey()) return;
-    this.finish();
   }
 
   private persistAiKey(): boolean {

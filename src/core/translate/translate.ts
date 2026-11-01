@@ -1,10 +1,6 @@
-import {
-  readStoredAiCredentials,
-  readStoredTranslationCredentials,
-  type StoredTranslationSecrets,
-} from '../credentials/credentials';
+import { readStoredAiCredentials } from '../credentials/credentials';
 
-/** Translate one phrase into English using the device's translation key, or its AI key. */
+/** Translate one phrase into English using the device's AI key. */
 export async function translatePhrase(text: string, sourceLang: string): Promise<string> {
   const phrase = text.trim();
   if (!phrase) throw new Error('translate_failed');
@@ -21,16 +17,6 @@ export async function translatePhrase(text: string, sourceLang: string): Promise
 }
 
 function requestBody(text: string, sourceLang: string): Record<string, unknown> {
-  const translation = readStoredTranslationCredentials().keys[0];
-  if (translation) {
-    return {
-      texts: [text],
-      targetLang: 'en',
-      sourceLang,
-      provider: translation.provider,
-      secrets: secretsPayload(translation.secrets),
-    };
-  }
   const ai = readStoredAiCredentials().keys[0];
   if (!ai) throw new Error('translate_failed');
   return {
@@ -39,12 +25,4 @@ function requestBody(text: string, sourceLang: string): Record<string, unknown> 
     sourceLang,
     ai: { provider: ai.provider, apiKey: ai.apiKey, model: ai.model },
   };
-}
-
-function secretsPayload(secrets: StoredTranslationSecrets): Record<string, string> {
-  const payload: Record<string, string> = {};
-  for (const [key, value] of Object.entries(secrets)) {
-    if (typeof value === 'string' && value.trim()) payload[key] = value.trim();
-  }
-  return payload;
 }
