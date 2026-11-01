@@ -8,9 +8,9 @@ export type DefinitionHighlightMatch = {
 
 export type DefinitionHighlightPart = {
   text: string;
-  /** True when this definition's title or forms won the span. */
+  /** True when this definition's forms won the span. */
   current: boolean;
-  /** Other elements whose title or forms cover this span. */
+  /** Other elements whose forms cover this span. */
   matches: DefinitionHighlightMatch[];
 };
 
@@ -65,9 +65,9 @@ function toRegExp(regex: HighlightRegex): RegExp | null {
   }
 }
 
-/** Title or forms underline regex. Invalid forms are skipped. */
-export function buildLemmaFormsRegex(lemma: string, forms: readonly string[]): string {
-  const parts = compileFormSources([lemma, ...forms]);
+/** Forms underline regex. Invalid forms are skipped. The title is not included. */
+function buildFormsRegex(forms: readonly string[]): string {
+  const parts = compileFormSources(forms);
   if (parts.length === 0) return '';
   if (parts.length === 1) return parts[0]!;
   return `(?:${parts.join('|')})`;
@@ -132,22 +132,15 @@ function ruleFor(
   forms: readonly string[],
   elementId: string,
 ): HighlightRule | null {
-  const lemma = title.trim();
-  if (!lemma) return null;
-  const source = buildLemmaFormsRegex(lemma, forms);
+  const source = buildFormsRegex(forms);
   if (!source) return null;
-  return { id, lemma, elementId, regexes: [{ source, flags: 'iu' }] };
-}
-
-function sameTitle(left: string, right: string): boolean {
-  return left.trim().toLocaleLowerCase() === right.trim().toLocaleLowerCase();
+  return { id, lemma: title.trim(), elementId, regexes: [{ source, flags: 'iu' }] };
 }
 
 /**
- * Highlight `text` with this definition's title and forms, then any other
- * element's title and that definition's forms. Forms stay on the definition
- * that owns them. Other elements are matched first, matching Linguagem, so an
- * equal overlap keeps the other element.
+ * Highlight `text` from this definition's forms, then each other definition's
+ * forms. The element title is only the label on a match. Other elements are
+ * matched first, so an equal overlap keeps the other element.
  */
 export function highlightDefinitionPassage(
   text: string,
@@ -158,7 +151,7 @@ export function highlightDefinitionPassage(
   const rules: HighlightRule[] = [];
   let nextId = 1;
   for (const other of others) {
-    if (!other.id || other.id === current.id || sameTitle(other.title, current.title)) continue;
+    if (!other.id || other.id === current.id) continue;
     const rule = ruleFor(nextId, other.title, other.forms, other.id);
     if (!rule) continue;
     rules.push(rule);
