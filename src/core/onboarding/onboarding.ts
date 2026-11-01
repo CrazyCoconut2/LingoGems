@@ -1,12 +1,8 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import {
-  isAiProvider,
-  markOnboarded,
-  writeStoredAiCredentials,
-  type AiProviderId,
-} from '../credentials/credentials';
+import { isAiProvider, writeStoredAiCredentials, type AiProviderId } from 'ai';
+import { markOnboarded } from '../credentials/credentials';
 
 type Step = 'welcome' | 'ai';
 

@@ -18,6 +18,7 @@
     "paths": {
       "@app/core": ["./src/core/index.ts"],
       "@app/core/*": ["./src/core/*"],
+      "ai": ["./packages/ai/src/index.ts"],
       "collection": ["./packages/collection/src/index.ts"]
     }
   },

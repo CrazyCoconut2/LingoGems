@@ -7,7 +7,6 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "api": "mkdir -p dist/lingogem && wrangler dev --port 8787",
     "build": "ng build",
     "deploy": "npm run build && wrangler deploy"
   },
@@ -20,6 +19,7 @@
     "@angular/forms": "^22.0.0",
     "@angular/platform-browser": "^22.0.0",
     "@angular/router": "^22.0.0",
+    "ai": "0.1.0",
     "collection": "0.1.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",

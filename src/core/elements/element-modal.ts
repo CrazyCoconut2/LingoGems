@@ -408,11 +408,30 @@ type ConfirmDelete =
                   </svg>
                 </button>
               </div>
-              <label
-                [attr.for]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
-              >
-                {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
-              </label>
+              <div class="field-heading">
+                <label
+                  [attr.for]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
+                >
+                  {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
+                </label>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
+                  [attr.title]="translating() ? 'Translating…' : 'Translate'"
+                  [disabled]="!canTranslate()"
+                  (click)="translateDraft()"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="m5 8 6 6" />
+                    <path d="m4 14 6-6 2-3" />
+                    <path d="M2 5h12" />
+                    <path d="M7 2h1" />
+                    <path d="m22 22-5-10-5 10" />
+                    <path d="M14 18h6" />
+                  </svg>
+                </button>
+              </div>
               <textarea
                 #draftField
                 [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
@@ -427,14 +446,6 @@ type ConfirmDelete =
                   }
                 </ul>
               }
-              <button
-                type="button"
-                class="btn btn-secondary"
-                [disabled]="!canTranslate()"
-                (click)="translateDraft()"
-              >
-                {{ translating() ? 'Translating…' : 'Translate' }}
-              </button>
               @if (sheetError()) {
                 <p class="error">{{ sheetError() }}</p>
               }
@@ -965,6 +976,13 @@ type ConfirmDelete =
       text-transform: none;
     }
 
+    .field-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
     label,
     .field-label {
       font-size: 0.78rem;
@@ -989,10 +1007,6 @@ type ConfirmDelete =
       justify-content: flex-end;
       flex-wrap: wrap;
       margin-top: 0.25rem;
-    }
-
-    .sheet > .btn {
-      align-self: flex-start;
     }
 
     .btn-danger {
