@@ -22,6 +22,15 @@ const routes: Routes = [
     canActivate: [requireOnboarding, openSavedLanguage],
   },
   {
+    path: 'languages/:code/:elementId',
+    redirectTo: ({ params, queryParams }) => {
+      const search = new URLSearchParams({ element: String(params['elementId'] ?? '') });
+      const q = queryParams['q'];
+      if (typeof q === 'string' && q) search.set('q', q);
+      return `/languages/${params['code']}?${search.toString()}`;
+    },
+  },
+  {
     path: 'onboarding',
     component: Onboarding,
     canActivate: [leaveOnboardingWhenDone],

@@ -23,3 +23,12 @@ export {
   type ElementMetadata,
   type StoredElement,
 } from './elements/element-store';
+
+export {
+  ELEMENT_SEARCH_MAX_LENGTH,
+  elementHighlightParts,
+  elementMatchesPrefix,
+  elementPrefixSearch,
+  type ElementSearch,
+  type ElementSearchPart,
+} from './elements/search';
