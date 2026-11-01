@@ -853,6 +853,7 @@ type ConfirmDelete =
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
+      padding-inline-start: 1.5rem;
     }
 
     .forms {
