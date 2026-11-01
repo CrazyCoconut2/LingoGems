@@ -1,4 +1,5 @@
 import { Component, computed, ElementRef, OnInit, signal, viewChild } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { isLearnableLanguage, LEARNABLE_LANGUAGES, languageDisplayName } from './catalog';
 import {
   readLanguages,
@@ -9,6 +10,7 @@ import {
 
 @Component({
   selector: 'app-language-list',
+  imports: [RouterLink],
   template: `
     <main>
       <header class="brand">
@@ -30,8 +32,10 @@ import {
         <ul class="stones">
           @for (language of languages(); track language.code) {
             <li class="stone">
-              <span class="gem gem-stone" aria-hidden="true"></span>
-              <span class="name">{{ displayName(language.code) }}</span>
+              <a class="enter" [routerLink]="['/languages', language.code]">
+                <span class="gem gem-stone" aria-hidden="true"></span>
+                <span class="name">{{ displayName(language.code) }}</span>
+              </a>
               <div class="cut" role="group" [attr.aria-label]="displayName(language.code)">
                 <button
                   type="button"
@@ -162,9 +166,18 @@ import {
       --gem-size: 1.65rem;
     }
 
-    .name {
+    .enter {
       flex: 1;
-      min-width: 6rem;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .name {
+      min-width: 0;
       font-size: 1.125rem;
       font-weight: 650;
     }
