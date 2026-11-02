@@ -242,15 +242,47 @@ function writeExampleSuggestions(
     >
       <div class="panel">
         <header>
-          <div class="title-block">
+          <div class="title-row">
             <h2>{{ element().title }}</h2>
-            @if (headerEquivalents(); as equivalents) {
-              @if (equivalents.length) {
-                <p class="equivalents">{{ equivalents.join(', ') }}</p>
-              }
-            }
+            <button
+              #closeButton
+              type="button"
+              class="close"
+              aria-label="Close"
+              (click)="closed.emit()"
+            >
+              ×
+            </button>
           </div>
+          @if (headerEquivalents(); as equivalents) {
+            @if (equivalents.length) {
+              <p class="equivalents">{{ equivalents.join(', ') }}</p>
+            }
+          }
           <div class="header-actions">
+            @if (canHear(element().title)) {
+              <button
+                type="button"
+                class="icon-btn"
+                [class.active]="speaking() === 'title'"
+                [attr.aria-pressed]="speaking() === 'title'"
+                [attr.aria-label]="speaking() === 'title' ? 'Stop speaking' : 'Hear title'"
+                [attr.title]="speaking() === 'title' ? 'Stop speaking' : 'Hear title'"
+                (click)="hear('title', element().title)"
+              >
+                @if (speaking() === 'title') {
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect class="solid" width="10" height="10" x="7" y="7" rx="1" />
+                  </svg>
+                } @else {
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                  </svg>
+                }
+              </button>
+            }
             <button
               type="button"
               class="icon-btn"
@@ -267,15 +299,6 @@ function writeExampleSuggestions(
                 <path d="m22 22-5-10-5 10" />
                 <path d="M14 18h6" />
               </svg>
-            </button>
-            <button
-              #closeButton
-              type="button"
-              class="close"
-              aria-label="Close"
-              (click)="closed.emit()"
-            >
-              ×
             </button>
           </div>
         </header>
@@ -1629,17 +1652,27 @@ function writeExampleSuggestions(
     }
 
     header {
-      align-items: flex-start;
-      gap: 1rem;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.7rem;
       padding: 0.9rem 1.15rem;
       border-bottom: 1px solid var(--border);
     }
 
-    .title-block {
-      min-width: 0;
+    header > .header-actions {
+      justify-content: flex-end;
+    }
+
+    .title-row {
       display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      min-width: 0;
+    }
+
+    .title-row h2 {
+      flex: 1;
     }
 
     .equivalents {
