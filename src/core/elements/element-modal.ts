@@ -1640,11 +1640,11 @@ function writeExampleSuggestions(
     }
 
     .item-actions {
-      justify-content: space-between;
+      justify-content: flex-end;
     }
 
-    .item-actions-main {
-      margin-left: auto;
+    .item-actions-move {
+      margin-right: auto;
     }
 
     .body {
@@ -1848,6 +1848,12 @@ function writeExampleSuggestions(
       font-size: 0.8125rem;
       padding: 0.28rem 0.7rem;
       cursor: pointer;
+    }
+
+    .sense > .group {
+      margin-top: 0.2rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid rgba(139, 144, 165, 0.28);
     }
 
     .group {
