@@ -8,6 +8,7 @@ import { LanguagePage, openSavedLanguage } from './languages/language-page';
 import { LanguageList } from './languages/language-list';
 import { Onboarding } from './onboarding/onboarding';
 import { leaveOnboardingWhenDone, requireOnboarding } from './onboarding/onboarding.guards';
+import { Settings } from './settings/settings';
 
 const routes: Routes = [
   {
@@ -29,6 +30,11 @@ const routes: Routes = [
       if (typeof q === 'string' && q) search.set('q', q);
       return `/languages/${params['code']}?${search.toString()}`;
     },
+  },
+  {
+    path: 'settings',
+    component: Settings,
+    canActivate: [requireOnboarding],
   },
   {
     path: 'onboarding',

@@ -23,11 +23,21 @@ import {
             <p>Set your first language.</p>
           }
         </div>
-        @if (ready() && available().length) {
-          <button type="button" class="plus" aria-label="Add a language" (click)="openAdd()">
-            +
-          </button>
-        }
+        <div class="header-actions">
+          <a class="settings" routerLink="/settings" aria-label="Settings" title="Settings">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+              />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </a>
+          @if (ready() && available().length) {
+            <button type="button" class="plus" aria-label="Add a language" (click)="openAdd()">
+              +
+            </button>
+          }
+        </div>
       </header>
 
       @if (ready() && languages().length) {
@@ -104,6 +114,38 @@ import {
       min-width: 0;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .settings {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.75rem;
+      height: 2.75rem;
+      border-radius: 999px;
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    .settings:hover {
+      color: var(--text);
+      background: rgba(139, 144, 165, 0.16);
+    }
+
+    .settings svg {
+      width: 1.2rem;
+      height: 1.2rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .plus,
     .close {
       display: inline-flex;
@@ -156,8 +198,7 @@ import {
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) + 4px);
       background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 42%),
-        var(--surface);
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 42%), var(--surface);
     }
 
     .gem-mark {

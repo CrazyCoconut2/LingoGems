@@ -55,11 +55,21 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           <span class="gem gem-mark" aria-hidden="true"></span>
           <span>{{ name() }}</span>
         </a>
-        @if (ready()) {
-          <button type="button" class="plus" aria-label="Add an element" (click)="openAdd()">
-            +
-          </button>
-        }
+        <div class="header-actions">
+          <a class="settings" routerLink="/settings" aria-label="Settings" title="Settings">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+              />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </a>
+          @if (ready()) {
+            <button type="button" class="plus" aria-label="Add an element" (click)="openAdd()">
+              +
+            </button>
+          }
+        </div>
       </header>
 
       <section class="entries-toolbar" aria-label="Search">
@@ -396,6 +406,38 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
     .gem-mark {
       --gem-size: 1.35rem;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+
+    .settings {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.25rem;
+      height: 2.25rem;
+      border-radius: 999px;
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    .settings:hover {
+      color: var(--text);
+      background: rgba(139, 144, 165, 0.16);
+    }
+
+    .settings svg {
+      width: 1.15rem;
+      height: 1.15rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .plus,
