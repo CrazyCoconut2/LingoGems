@@ -47,8 +47,8 @@ const GAUGE_SEGMENTS: GaugeSegment[] = Array.from({ length: 10 }, (_, index) => 
     }
 
     :host(.md) {
-      width: 4.4rem;
-      height: 3.63rem;
+      width: 3.15rem;
+      height: 2.6rem;
     }
 
     :host(.lg) {
