@@ -15,6 +15,7 @@ import {
   assignEquivalent,
   deleteElement,
   embedTranslation,
+  formTexts,
   highlightDefinitionPassage,
   isValidForm,
   parsePassage,
@@ -27,6 +28,7 @@ import {
   type PassageTranslation,
   type StoredElement,
 } from 'collection';
+import { generateDefinitions } from 'ai';
 import { translatePhrase } from '../translate/translate';
 
 const FORM_MAX_LENGTH = 100;
@@ -37,7 +39,7 @@ type Editor =
   | { kind: 'definition'; index: number | null }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number | null };
 
-type FormEdit = { definitionIndex: number; previous: string | null };
+type FormEdit = { definitionIndex: number };
 
 type MetadataEdit = { previousKey: string | null };
 
@@ -109,19 +111,31 @@ type ConfirmDelete =
         <div class="body">
           <div class="section-heading">
             <h3>Definitions</h3>
-            <button
-              type="button"
-              class="icon-btn"
-              aria-label="Add a definition"
-              title="Add a definition"
-              [disabled]="busy()"
-              (click)="openDefinition(null)"
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M5 12h14" />
-                <path d="M12 5v14" />
-              </svg>
-            </button>
+            <div class="add-menu">
+              <button
+                type="button"
+                class="icon-btn"
+                aria-label="Add a definition"
+                title="Add a definition"
+                [attr.aria-expanded]="addMenu()"
+                [attr.aria-busy]="asking() ? true : null"
+                [disabled]="busy() || asking()"
+                (click)="toggleAddMenu($event)"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M5 12h14" />
+                  <path d="M12 5v14" />
+                </svg>
+              </button>
+              @if (addMenu()) {
+                <div class="menu" role="menu" aria-label="Add a definition">
+                  <button type="button" role="menuitem" (click)="writeDefinition()">
+                    Write a definition
+                  </button>
+                  <button type="button" role="menuitem" (click)="askDefinitions()">Ask AI</button>
+                </div>
+              }
+            </div>
           </div>
           @if (collision(); as matches) {
             <div class="collision" role="menu" aria-label="Matching elements">
@@ -309,7 +323,7 @@ type ConfirmDelete =
                         aria-label="Add a form"
                         title="Add a form"
                         [disabled]="busy()"
-                        (click)="openForm(index, null)"
+                        (click)="openForm(index)"
                       >
                         <svg viewBox="0 0 24 24">
                           <path d="M5 12h14" />
@@ -333,7 +347,7 @@ type ConfirmDelete =
                             type="button"
                             class="icon-btn"
                             [disabled]="busy() || !formDraft().trim()"
-                            [attr.aria-label]="editing.previous ? 'Save form' : 'Add form'"
+                            aria-label="Add form"
                             (click)="saveForm()"
                           >
                             <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
@@ -353,34 +367,126 @@ type ConfirmDelete =
                         @if (formError()) {
                           <p class="error">{{ formError() }}</p>
                         }
+                        <div class="meta">
+                          <div class="section-heading">
+                            <h3>Features</h3>
+                            @if (!formFeatureEdit()) {
+                              <button
+                                type="button"
+                                class="icon-btn"
+                                aria-label="Add feature"
+                                title="Add feature"
+                                [disabled]="busy()"
+                                (click)="openFormFeature(null)"
+                              >
+                                <svg viewBox="0 0 24 24">
+                                  <path d="M5 12h14" />
+                                  <path d="M12 5v14" />
+                                </svg>
+                              </button>
+                            }
+                          </div>
+                          @if (formFeatureEdit(); as feature) {
+                            <div class="meta-edit">
+                              <input
+                                #formFeatureField
+                                [value]="formFeatureKey()"
+                                [attr.maxlength]="metaKeyMaxLength"
+                                placeholder="Key"
+                                aria-label="Feature key"
+                                (input)="formFeatureKey.set(inputValue($event))"
+                                (keydown.enter)="saveFormFeature()"
+                              />
+                              <input
+                                [value]="formFeatureValue()"
+                                [attr.maxlength]="metaValueMaxLength"
+                                placeholder="Value"
+                                aria-label="Feature value"
+                                (input)="formFeatureValue.set(inputValue($event))"
+                                (keydown.enter)="saveFormFeature()"
+                              />
+                              <button
+                                type="button"
+                                class="icon-btn"
+                                [disabled]="
+                                  busy() || !formFeatureKey().trim() || !formFeatureValue().trim()
+                                "
+                                [attr.aria-label]="
+                                  feature.previousKey ? 'Save feature' : 'Add feature'
+                                "
+                                (click)="saveFormFeature()"
+                              >
+                                <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
+                              </button>
+                              <button
+                                type="button"
+                                class="icon-btn"
+                                aria-label="Cancel"
+                                (click)="cancelFormFeature()"
+                              >
+                                <svg viewBox="0 0 24 24">
+                                  <path d="M18 6 6 18" />
+                                  <path d="m6 6 12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          }
+                          @if (entries(formFeatures()); as features) {
+                            @if (features.length) {
+                              <ul class="pills">
+                                @for (entry of features; track entry.key) {
+                                  @if (formFeatureEdit()?.previousKey !== entry.key) {
+                                    <li>
+                                      <button
+                                        type="button"
+                                        [disabled]="busy()"
+                                        [attr.aria-label]="'Edit feature ' + entry.key"
+                                        (click)="openFormFeature(entry.key)"
+                                      >
+                                        {{ entry.key }}: {{ entry.value }}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        class="tag-remove"
+                                        [disabled]="busy()"
+                                        [attr.aria-label]="'Remove feature ' + entry.key"
+                                        (click)="removeFormFeature(entry.key)"
+                                      >
+                                        ×
+                                      </button>
+                                    </li>
+                                  }
+                                }
+                              </ul>
+                            }
+                          }
+                        </div>
                       }
                     }
                     @if (definition.forms.length) {
                       <ul class="forms">
-                        @for (form of definition.forms; track form) {
-                          @if (
-                            formEdit()?.definitionIndex !== index || formEdit()?.previous !== form
-                          ) {
-                            <li>
+                        @for (form of definition.forms; track form.text) {
+                          <li>
+                            <div class="form-chip">
                               <button
                                 type="button"
                                 [disabled]="busy()"
-                                [attr.aria-label]="'Edit form ' + form"
-                                (click)="openForm(index, form)"
+                                [attr.aria-label]="'Show metadata for ' + form.text"
+                                (click)="openFormInfo(index, form.text)"
                               >
-                                {{ form }}
+                                {{ form.text }}
                               </button>
                               <button
                                 type="button"
                                 class="tag-remove"
                                 [disabled]="busy()"
-                                [attr.aria-label]="'Remove form ' + form"
-                                (click)="removeForm(index, form)"
+                                [attr.aria-label]="'Remove form ' + form.text"
+                                (click)="removeForm(index, form.text)"
                               >
                                 ×
                               </button>
-                            </li>
-                          }
+                            </div>
+                          </li>
                         }
                       </ul>
                     } @else if (formEdit()?.definitionIndex !== index) {
@@ -622,6 +728,47 @@ type ConfirmDelete =
           </div>
         }
 
+        @if (formInfo(); as info) {
+          <div class="sheet-backdrop" (click)="closeFormInfo($event)">
+            <section
+              class="sheet"
+              role="dialog"
+              aria-modal="true"
+              [attr.aria-label]="'Metadata for ' + info.text"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>{{ info.text }}</h3>
+                <button
+                  #formInfoClose
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  (click)="formInfo.set(null)"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              @if (formMetadata(info); as features) {
+                @if (features.length) {
+                  <ul class="pills">
+                    @for (entry of features; track entry.key) {
+                      <li>
+                        <span>{{ entry.key }}: {{ entry.value }}</span>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="hint">No metadata yet.</p>
+                }
+              }
+            </section>
+          </div>
+        }
+
         @if (confirm(); as pending) {
           <div class="sheet-backdrop" (click)="closeSheet($event)">
             <section
@@ -709,6 +856,41 @@ type ConfirmDelete =
     .sheet-head,
     .section-heading {
       justify-content: space-between;
+    }
+
+    .add-menu {
+      position: relative;
+    }
+
+    .menu {
+      position: absolute;
+      top: calc(100% + 0.35rem);
+      right: 0;
+      z-index: 3;
+      display: flex;
+      flex-direction: column;
+      min-width: 12.5rem;
+      padding: 0.3rem;
+      border: 1px solid var(--border);
+      border-radius: 0.7rem;
+      background: var(--surface);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+
+    .menu button {
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.875rem;
+      text-align: left;
+      padding: 0.45rem 0.65rem;
+      border-radius: 0.45rem;
+      cursor: pointer;
+    }
+
+    .menu button:hover {
+      background: var(--surface-2);
     }
 
     header {
@@ -817,7 +999,7 @@ type ConfirmDelete =
     }
 
     .icon-btn:disabled,
-    .forms button:disabled,
+    .form-chip button:disabled,
     .pills button:disabled,
     .tag-remove:disabled {
       opacity: 0.45;
@@ -989,7 +1171,14 @@ type ConfirmDelete =
       gap: 0.4rem;
     }
 
-    .forms li,
+    .forms li {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.35rem;
+    }
+
+    .form-chip,
     .pills li {
       display: inline-flex;
       align-items: center;
@@ -999,7 +1188,7 @@ type ConfirmDelete =
       font-size: 0.8125rem;
     }
 
-    .forms button,
+    .form-chip button,
     .pills button {
       border: 0;
       background: transparent;
@@ -1008,7 +1197,7 @@ type ConfirmDelete =
       cursor: pointer;
     }
 
-    .forms li > button:first-child,
+    .form-chip > button:first-child,
     .pills li > button:first-child,
     .pills li > span {
       padding: 0.2rem 0.15rem 0.2rem 0.55rem;
@@ -1177,8 +1366,13 @@ export class ElementModal {
   readonly translating = signal(false);
   readonly sheetError = signal('');
   readonly formEdit = signal<FormEdit | null>(null);
+  readonly formInfo = signal<{ definitionIndex: number; text: string } | null>(null);
   readonly formDraft = signal('');
   readonly formError = signal('');
+  readonly formFeatures = signal<ElementMetadata>({});
+  readonly formFeatureEdit = signal<MetadataEdit | null>(null);
+  readonly formFeatureKey = signal('');
+  readonly formFeatureValue = signal('');
   readonly metaEdit = signal<MetadataEdit | null>(null);
   readonly metaKey = signal('');
   readonly metaValue = signal('');
@@ -1186,6 +1380,8 @@ export class ElementModal {
   readonly collision = signal<DefinitionHighlightMatch[] | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
+  readonly asking = signal(false);
+  readonly addMenu = signal(false);
   readonly error = signal('');
 
   private translateTicket = 0;
@@ -1193,6 +1389,8 @@ export class ElementModal {
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly draftField = viewChild<ElementRef<HTMLTextAreaElement>>('draftField');
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
+  private readonly formInfoClose = viewChild<ElementRef<HTMLButtonElement>>('formInfoClose');
+  private readonly formFeatureField = viewChild<ElementRef<HTMLInputElement>>('formFeatureField');
   private readonly metaKeyField = viewChild<ElementRef<HTMLInputElement>>('metaKeyField');
 
   constructor() {
@@ -1202,10 +1400,13 @@ export class ElementModal {
       this.trackedElementId = id;
       this.editor.set(null);
       this.formEdit.set(null);
+      this.formInfo.set(null);
       this.formError.set('');
+      this.formFeatureEdit.set(null);
       this.metaEdit.set(null);
       this.collision.set(null);
       this.confirm.set(null);
+      this.addMenu.set(false);
     });
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -1215,8 +1416,17 @@ export class ElementModal {
     afterNextRender(() => this.closeButton()?.nativeElement.focus());
   }
 
+  @HostListener('document:click')
+  closeAddMenu(): void {
+    this.addMenu.set(false);
+  }
+
   @HostListener('document:keydown.escape')
   onEscape(): void {
+    if (this.addMenu()) {
+      this.addMenu.set(false);
+      return;
+    }
     if (this.confirm()) {
       this.confirm.set(null);
       return;
@@ -1227,6 +1437,14 @@ export class ElementModal {
     }
     if (this.editor()) {
       this.editor.set(null);
+      return;
+    }
+    if (this.formFeatureEdit()) {
+      this.formFeatureEdit.set(null);
+      return;
+    }
+    if (this.formInfo()) {
+      this.formInfo.set(null);
       return;
     }
     if (this.formEdit()) {
@@ -1293,10 +1511,58 @@ export class ElementModal {
     return editor.exampleIndex == null ? 'Add an example' : 'Edit example';
   }
 
+  toggleAddMenu(event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.busy() || this.asking()) return;
+    this.addMenu.update((open) => !open);
+  }
+
+  writeDefinition(): void {
+    this.addMenu.set(false);
+    this.openDefinition(null);
+  }
+
+  async askDefinitions(): Promise<void> {
+    this.addMenu.set(false);
+    if (this.asking() || this.busy()) return;
+    const element = this.element();
+    const title = element.title.trim();
+    if (!title) return;
+    this.asking.set(true);
+    this.error.set('');
+    try {
+      const senses = await generateDefinitions({
+        language: element.language,
+        title,
+        existingGlosses: element.definitions.map((definition) => definition.text),
+      });
+      if (!senses.length) {
+        this.error.set('No further definitions.');
+        return;
+      }
+      const definitions = [
+        ...senses.map((sense) => ({
+          text: sense.text,
+          equivalentId: null,
+          forms: sense.forms,
+          examples: [],
+          metadata: sense.metadata,
+        })),
+        ...this.copyDefinitions(),
+      ];
+      await this.persist(definitions, this.element().equivalents);
+    } catch {
+      this.error.set('Could not ask for definitions.');
+    } finally {
+      this.asking.set(false);
+    }
+  }
+
   openDefinition(index: number | null): void {
     const definition = index == null ? null : this.element().definitions[index];
     if (index != null && !definition) return;
     this.formEdit.set(null);
+    this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
     const equivalentId = definition?.equivalentId ?? null;
@@ -1317,6 +1583,7 @@ export class ElementModal {
     const example = exampleIndex == null ? null : definition.examples[exampleIndex];
     if (exampleIndex != null && !example) return;
     this.formEdit.set(null);
+    this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.sheetMetadata.set({ ...(example?.metadata ?? {}) });
     this.beginSheet(example?.text ?? '');
@@ -1324,13 +1591,39 @@ export class ElementModal {
     this.focusDraft();
   }
 
-  openForm(definitionIndex: number, previous: string | null): void {
+  openFormInfo(definitionIndex: number, text: string): void {
+    if (this.busy()) return;
+    const form = this.element().definitions[definitionIndex]?.forms.find(
+      (item) => item.text === text,
+    );
+    if (!form) return;
+    this.formInfo.set({ definitionIndex, text });
+    setTimeout(() => this.formInfoClose()?.nativeElement.focus());
+  }
+
+  closeFormInfo(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.formInfo.set(null);
+  }
+
+  formMetadata(info: { definitionIndex: number; text: string }): Array<{
+    key: string;
+    value: string;
+  }> {
+    const form = this.element().definitions[info.definitionIndex]?.forms.find(
+      (item) => item.text === info.text,
+    );
+    return form ? this.entries(form.metadata) : [];
+  }
+
+  openForm(definitionIndex: number): void {
     if (!this.element().definitions[definitionIndex]) return;
     this.editor.set(null);
     this.metaEdit.set(null);
     this.formError.set('');
-    this.formDraft.set(previous ?? '');
-    this.formEdit.set({ definitionIndex, previous });
+    this.formFeatureEdit.set(null);
+    this.formFeatures.set({});
+    this.formDraft.set('');
+    this.formEdit.set({ definitionIndex });
     setTimeout(() => this.formField()?.nativeElement.focus());
   }
 
@@ -1341,7 +1634,50 @@ export class ElementModal {
 
   cancelForm(): void {
     this.formError.set('');
+    this.formFeatureEdit.set(null);
     this.formEdit.set(null);
+  }
+
+  openFormFeature(previousKey: string | null): void {
+    const metadata = this.formFeatures();
+    this.formFeatureKey.set(previousKey ?? '');
+    this.formFeatureValue.set(previousKey ? (metadata[previousKey] ?? '') : '');
+    this.formFeatureEdit.set({ previousKey });
+    setTimeout(() => this.formFeatureField()?.nativeElement.focus());
+  }
+
+  cancelFormFeature(): void {
+    this.formFeatureEdit.set(null);
+  }
+
+  private formFeaturesToStore(): ElementMetadata {
+    const editing = this.formFeatureEdit();
+    const key = this.formFeatureKey().trim().slice(0, META_KEY_MAX_LENGTH);
+    const value = this.formFeatureValue().trim().slice(0, META_VALUE_MAX_LENGTH);
+    if (!editing || !key || !value) return { ...this.formFeatures() };
+    return writeMetadata(this.formFeatures(), editing.previousKey, key, value);
+  }
+
+  saveFormFeature(): void {
+    const editing = this.formFeatureEdit();
+    const key = this.formFeatureKey().trim().slice(0, META_KEY_MAX_LENGTH);
+    const value = this.formFeatureValue().trim().slice(0, META_VALUE_MAX_LENGTH);
+    if (!editing || !key || !value || this.busy()) return;
+    const current = this.formFeatures();
+    if (editing.previousKey === key && current[key] === value) {
+      this.cancelFormFeature();
+      return;
+    }
+    this.formFeatures.set(writeMetadata(current, editing.previousKey, key, value));
+    this.cancelFormFeature();
+  }
+
+  removeFormFeature(key: string): void {
+    if (this.busy()) return;
+    const next = { ...this.formFeatures() };
+    delete next[key];
+    this.formFeatures.set(next);
+    if (this.formFeatureEdit()?.previousKey === key) this.cancelFormFeature();
   }
 
   openMetadata(previousKey: string | null): void {
@@ -1363,12 +1699,12 @@ export class ElementModal {
     for (const item of this.collection()) {
       if (item.id === element.id) continue;
       for (const sense of item.definitions) {
-        others.push({ id: item.id, title: item.title, forms: sense.forms });
+        others.push({ id: item.id, title: item.title, forms: formTexts(sense.forms) });
       }
     }
     return highlightDefinitionPassage(
       text,
-      { id: element.id, title: element.title, forms: definition?.forms ?? [] },
+      { id: element.id, title: element.title, forms: formTexts(definition?.forms ?? []) },
       others,
     );
   }
@@ -1476,22 +1812,11 @@ export class ElementModal {
       this.formError.set('That form is not valid.');
       return;
     }
-    if (editing.previous && form === editing.previous) {
+    if (definition.forms.some((item) => item.text.toLowerCase() === form.toLowerCase())) {
       this.cancelForm();
       return;
     }
-    const others = definition.forms.filter((value) => value !== editing.previous);
-    if (others.some((value) => value.toLowerCase() === form.toLowerCase())) {
-      this.cancelForm();
-      return;
-    }
-    if (editing.previous) {
-      const at = definition.forms.indexOf(editing.previous);
-      if (at >= 0) definition.forms[at] = form;
-      else definition.forms.push(form);
-    } else {
-      definition.forms.push(form);
-    }
+    definition.forms.push({ text: form, metadata: this.formFeaturesToStore() });
     if (await this.persist(definitions, this.element().equivalents)) this.cancelForm();
   }
 
@@ -1530,7 +1855,10 @@ export class ElementModal {
     const definitions = this.copyDefinitions();
     const definition = definitions[definitionIndex];
     if (!definition) return;
-    definition.forms = definition.forms.filter((item) => item !== form);
+    definition.forms = definition.forms.filter((item) => item.text !== form);
+    if (this.formInfo()?.definitionIndex === definitionIndex && this.formInfo()?.text === form) {
+      this.formInfo.set(null);
+    }
     await this.persist(definitions, this.element().equivalents);
   }
 
@@ -1544,6 +1872,8 @@ export class ElementModal {
     if (this.busy()) return;
     this.editor.set(null);
     this.formEdit.set(null);
+    this.formInfo.set(null);
+    this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.confirm.set({ kind: 'element' });
   }
@@ -1572,8 +1902,11 @@ export class ElementModal {
       return;
     }
     const definitions = this.copyDefinitions();
-    if (pending.kind === 'definition') definitions.splice(pending.index, 1);
-    else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
+    if (pending.kind === 'definition') {
+      definitions.splice(pending.index, 1);
+      const info = this.formInfo();
+      if (info && info.definitionIndex >= pending.index) this.formInfo.set(null);
+    } else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
     if (await this.persist(definitions, this.element().equivalents)) {
       this.confirm.set(null);
       this.editor.set(null);
@@ -1598,7 +1931,7 @@ export class ElementModal {
   private copyDefinitions(): ElementDefinition[] {
     return this.element().definitions.map((definition) => ({
       ...definition,
-      forms: [...definition.forms],
+      forms: definition.forms.map((form) => ({ text: form.text, metadata: { ...form.metadata } })),
       examples: definition.examples.map((example) => ({
         ...example,
         metadata: { ...example.metadata },

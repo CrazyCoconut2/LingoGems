@@ -1,4 +1,4 @@
-import type { StoredElement } from './element-store';
+import { formTexts, type StoredElement } from './element-store';
 
 const SEARCH_MIN_CHARS = 2;
 
@@ -23,7 +23,7 @@ export function elementMatchesPrefix(element: StoredElement, prefix: string): bo
   if (!needle) return true;
   if (element.title.trim().toLowerCase().startsWith(needle)) return true;
   return element.definitions.some((definition) =>
-    definition.forms.some((form) => form.trim().toLowerCase().startsWith(needle)),
+    formTexts(definition.forms).some((form) => form.toLowerCase().startsWith(needle)),
   );
 }
 

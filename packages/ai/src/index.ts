@@ -44,3 +44,12 @@ export {
   translateTexts,
   type GenerateTranslatePromptInput,
 } from './translate';
+
+export {
+  DEFINITIONS_SYSTEM_PROMPT,
+  buildDefinitionsUserMessage,
+  generateDefinitions,
+  parseGeneratedDefinitions,
+  type GenerateDefinitionsInput,
+  type GeneratedDefinition,
+} from './definitions';

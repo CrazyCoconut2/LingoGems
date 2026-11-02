@@ -13,13 +13,23 @@ export type ElementEquivalent = {
   text: string;
 };
 
+export type ElementForm = {
+  text: string;
+  metadata: ElementMetadata;
+};
+
 export type ElementDefinition = {
   text: string;
   equivalentId: string | null;
-  forms: string[];
+  forms: ElementForm[];
   examples: ElementExample[];
   metadata: ElementMetadata;
 };
+
+/** The strings a form list is matched and highlighted with. */
+export function formTexts(forms: readonly ElementForm[]): string[] {
+  return forms.map((form) => form.text);
+}
 
 export type StoredElement = {
   id: string;
@@ -275,18 +285,28 @@ function withEmbeddedTranslation(text: string, translation: unknown): string {
   return body ? `${body}\n${marker}` : marker;
 }
 
-function normalizeForms(value: unknown): string[] {
+function normalizeForms(value: unknown): ElementForm[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
-  const forms: string[] = [];
+  const forms: ElementForm[] = [];
   for (const raw of value) {
-    if (typeof raw !== 'string') continue;
-    const form = raw.trim();
-    if (!form || seen.has(form)) continue;
-    seen.add(form);
-    forms.push(form);
+    const text = formText(raw);
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    const metadata =
+      raw && typeof raw === 'object'
+        ? normalizeMetadata((raw as Partial<ElementForm>).metadata)
+        : {};
+    forms.push({ text, metadata });
   }
   return forms;
+}
+
+function formText(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (!value || typeof value !== 'object') return '';
+  const text = (value as Partial<ElementForm>).text;
+  return typeof text === 'string' ? text.trim() : '';
 }
 
 function normalizeExamples(value: unknown): ElementExample[] {
