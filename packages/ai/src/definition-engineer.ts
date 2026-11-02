@@ -55,8 +55,10 @@ The phrase MUST be in the language named by writeFieldsIn.
 Do not use English for the phrase unless writeFieldsIn is English.
 Rules:
 - Return exactly one phrase
-- The phrase will be appended to the gloss. Add how the lemma relates to every word in words. Do not restate the gloss
-- The phrase MUST contain every word in words as its own word, exactly as given
+- When gloss is present, the phrase will be appended to it. Do not restate the gloss
+- When gloss is absent, write the phrase as the definition itself from definitionInstruction
+- When words is present, add how the lemma relates to every word in words. The phrase MUST contain every word in words as its own word, exactly as given
+- When words is absent, follow definitionInstruction
 - definitionInstruction, when present, guides the wording. It does not override the other rules
 - Do not add citations or bracket tags such as [en:…]
 - Keep the phrase at most ${MAX_DEFINITION_WORDING} characters
@@ -121,8 +123,10 @@ export function buildDefinitionPhraseUserMessage(input: GenerateDefinitionPhrase
     writeFieldsIn,
     ...(translateFieldsIn ? { translateFieldsIn } : {}),
     lemma: input.title.trim(),
-    gloss: input.gloss.trim(),
-    words: input.words.map((word) => ({ text: word.text, relation: word.relation })),
+    ...(input.gloss.trim() ? { gloss: input.gloss.trim() } : {}),
+    ...(input.words.length
+      ? { words: input.words.map((word) => ({ text: word.text, relation: word.relation })) }
+      : {}),
     ...(instruction ? { definitionInstruction: instruction } : {}),
   });
 }
@@ -203,7 +207,7 @@ export async function generateRelatedWords(
   }
 }
 
-/** Ask the saved model for one phrase that uses every selected word. */
+/** Ask the saved model for one phrase from the instruction, and from selected words when there are any. */
 export async function verbalizeDefinition(
   request: GenerateDefinitionPhraseInput,
 ): Promise<GeneratedDefinitionPhrase[]> {
@@ -211,8 +215,9 @@ export async function verbalizeDefinition(
   const language = request.language.trim().toLowerCase();
   const gloss = request.gloss.trim();
   const words = pickedWords(request.words);
-  if (!title || !language || !gloss || !words.length) return [];
-  const ready = { ...request, title, language, gloss, words };
+  const instruction = (request.definitionInstruction ?? '').trim();
+  if (!title || !language || (!gloss && !words.length && !instruction)) return [];
+  const ready = { ...request, title, language, gloss, words, definitionInstruction: instruction };
   const input: CompleteJsonInput = {
     system: DEFINITION_PHRASE_SYSTEM_PROMPT,
     user: buildDefinitionPhraseUserMessage(ready),

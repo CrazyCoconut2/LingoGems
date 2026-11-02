@@ -176,10 +176,122 @@ type DefinitionEngineer = DefinitionEngineerDraft & {
 
 type WordingSuggestion = { text: string };
 
+const RELATED_CACHE_KEY = 'lingogem.definition-related.v1';
+const RELATED_RELATIONS = new Set(['synonym', 'antonym', 'hypernym', 'hyponym', 'related']);
+
+function relatedDraft(value: unknown): DefinitionEngineerDraft | null {
+  if (!value || typeof value !== 'object') return null;
+  const source = value as { instruction?: unknown; words?: unknown; selected?: unknown };
+  const instruction = String(source.instruction ?? '')
+    .trim()
+    .slice(0, MAX_DEFINITION_INSTRUCTION);
+  const words: RelatedWord[] = [];
+  const seen = new Set<string>();
+  if (Array.isArray(source.words)) {
+    for (const item of source.words) {
+      if (!item || typeof item !== 'object') continue;
+      const text = String((item as { text?: unknown }).text ?? '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const relation = String((item as { relation?: unknown }).relation ?? '')
+        .trim()
+        .toLowerCase();
+      const key = text.toLowerCase();
+      if (!text || !RELATED_RELATIONS.has(relation) || seen.has(key)) continue;
+      seen.add(key);
+      words.push({ text, relation: relation as RelatedWord['relation'] });
+    }
+  }
+  const known = new Set(words.map((word) => word.text.toLowerCase()));
+  const selected: string[] = [];
+  if (Array.isArray(source.selected)) {
+    for (const item of source.selected) {
+      const text = String(item ?? '').trim();
+      if (!text || !known.has(text.toLowerCase()) || selected.length >= MAX_RELATED_PICKS) continue;
+      selected.push(text);
+    }
+  }
+  if (!instruction && !words.length) return null;
+  return { instruction, words, selected };
+}
+
+function readRelatedCache(): Record<string, unknown> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(RELATED_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function readRelatedDrafts(elementId: string): Map<string, DefinitionEngineerDraft> {
+  const drafts = new Map<string, DefinitionEngineerDraft>();
+  if (!elementId) return drafts;
+  const raw = readRelatedCache()[elementId];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return drafts;
+  for (const [key, value] of Object.entries(raw)) {
+    const sense = key.trim().toLowerCase();
+    const draft = relatedDraft(value);
+    if (sense && draft) drafts.set(sense, draft);
+  }
+  return drafts;
+}
+
+function writeRelatedDrafts(
+  elementId: string,
+  drafts: ReadonlyMap<string, DefinitionEngineerDraft>,
+): void {
+  if (typeof localStorage === 'undefined' || !elementId) return;
+  const stored = readRelatedCache();
+  const bucket: Record<string, DefinitionEngineerDraft> = {};
+  for (const [key, draft] of drafts) {
+    const sense = key.trim().toLowerCase();
+    if (!sense || (!draft.instruction && !draft.words.length)) continue;
+    bucket[sense] = {
+      instruction: draft.instruction,
+      words: draft.words.map((word) => ({ text: word.text, relation: word.relation })),
+      selected: [...draft.selected],
+    };
+  }
+  if (Object.keys(bucket).length) stored[elementId] = bucket;
+  else delete stored[elementId];
+  if (Object.keys(stored).length) localStorage.setItem(RELATED_CACHE_KEY, JSON.stringify(stored));
+  else localStorage.removeItem(RELATED_CACHE_KEY);
+}
+
 const EXAMPLE_SUGGESTIONS_KEY = 'lingogem.example-suggestions.v1';
 
 function senseKey(text: string): string {
   return parsePassage(text).text.trim().toLowerCase();
+}
+
+function joinPhrase(current: string, addition: string): string {
+  const left = current.replace(/\s+/g, ' ').trim();
+  const right = addition.replace(/\s+/g, ' ').trim();
+  if (!right) return left;
+  if (!left) return right;
+  return `${left} ${right}`;
+}
+
+function definitionFromDraft(current: string, gloss: string, english: string): string {
+  const parsed = parsePassage(current);
+  const languages = new Set(parsed.translations.map((item) => item.language));
+  const nextEnglish = english.replace(/\s+/g, ' ').trim();
+  if (nextEnglish) languages.add('en');
+  else languages.delete('en');
+  let text = gloss.replace(/\s+/g, ' ').trim();
+  for (const language of [...languages].sort()) {
+    const value =
+      language === 'en'
+        ? nextEnglish
+        : (parsed.translations.find((item) => item.language === language)?.text ?? '');
+    if (value) text = embedTranslation(text, language, value);
+  }
+  return text;
 }
 
 function appendDefinitionPhrase(current: string, addition: string): string {
@@ -1671,15 +1783,16 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <label class="field-label" for="definition-note">Note</label>
+              <label class="field-label" for="definition-note">Instructions</label>
               <textarea
                 id="definition-note"
-                rows="3"
+                class="instruction-note"
+                rows="1"
                 [value]="engineer.instruction"
                 [attr.maxlength]="definitionInstructionMax"
                 [disabled]="definitionSheetBusy()"
                 placeholder="How this word sits among the others"
-                aria-label="Note"
+                aria-label="Instructions"
                 (input)="onDefinitionEngineerInstruction($event)"
               ></textarea>
               <div class="related-block">
@@ -1696,7 +1809,7 @@ function writeExampleSuggestions(
                   </button>
                 </div>
                 @if (engineer.words.length) {
-                  <p class="hint">Select up to four.</p>
+                  <p class="hint">Optional. Select up to four.</p>
                   <div class="engineer-words">
                     <ul class="equivalent-choices">
                       @for (word of engineer.words; track word.text) {
@@ -1720,49 +1833,28 @@ function writeExampleSuggestions(
                   <p class="hint">Words tied to this definition show up here.</p>
                 }
               </div>
-              @if (stagedWording(engineer.definitionIndex); as staged) {
-                @if (staged.length) {
-                  <ul class="staged-wording">
-                    @for (item of staged; track item.text; let stagedIndex = $index) {
-                      <li>
-                        <div class="sense-main">
-                          <div class="sense-copy">
-                            @let passage = parsePassage(item.text);
-                            @if (passage.text) {
-                              <p class="passage">{{ passage.text }}</p>
-                            }
-                            @if (passage.translations.length) {
-                              <ul class="equivalents">
-                                @for (translation of passage.translations; track $index) {
-                                  <li>{{ translation.text }}</li>
-                                }
-                              </ul>
-                            }
-                          </div>
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Dismiss phrase"
-                            title="Dismiss phrase"
-                            [disabled]="busy()"
-                            (click)="dismissStagedWording(engineer.definitionIndex, stagedIndex)"
-                          >
-                            ×
-                          </button>
-                        </div>
-                        <button
-                          type="button"
-                          class="btn btn-primary add-suggestion"
-                          [disabled]="aiBusy()"
-                          (click)="addStagedWording(engineer.definitionIndex, stagedIndex)"
-                        >
-                          Add
-                        </button>
-                      </li>
-                    }
-                  </ul>
+              <div class="definition-draft">
+                <label class="field-label" for="engineer-gloss">Definition</label>
+                <textarea
+                  id="engineer-gloss"
+                  rows="2"
+                  [value]="engineerGloss()"
+                  [disabled]="definitionSheetBusy()"
+                  aria-label="Definition"
+                  (input)="onEngineerGloss($event)"
+                ></textarea>
+                @if (element().language !== 'en') {
+                  <label class="field-label" for="engineer-english">English</label>
+                  <textarea
+                    id="engineer-english"
+                    rows="2"
+                    [value]="engineerEnglish()"
+                    [disabled]="definitionSheetBusy()"
+                    aria-label="English"
+                    (input)="onEngineerEnglish($event)"
+                  ></textarea>
                 }
-              }
+              </div>
               @if (error()) {
                 <p class="error">{{ error() }}</p>
               }
@@ -1770,11 +1862,22 @@ function writeExampleSuggestions(
                 <button
                   type="button"
                   class="btn btn-primary"
-                  [disabled]="definitionSheetBusy() || !engineer.selected.length"
+                  [disabled]="
+                    definitionSheetBusy() ||
+                    (!engineer.instruction.trim() && !engineer.selected.length)
+                  "
                   [attr.aria-busy]="askingWording() !== null ? true : null"
                   (click)="generateEngineeredDefinition()"
                 >
-                  Generate
+                  Append
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  [disabled]="aiBusy() || !engineerGloss().trim()"
+                  (click)="saveEngineeredDefinition()"
+                >
+                  Save
                 </button>
                 <button
                   type="button"
@@ -2204,9 +2307,9 @@ function writeExampleSuggestions(
       flex-direction: column;
       gap: 0.55rem;
       padding: 0.8rem 0.9rem;
-      border: 1px solid rgba(139, 144, 165, 0.16);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
-      background: rgba(255, 255, 255, 0.02);
+      background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
     }
 
     .suggestion {
@@ -2534,8 +2637,20 @@ function writeExampleSuggestions(
 
     .definition-engineer textarea {
       flex: none;
-      height: 5.6rem;
+      height: auto;
       resize: none;
+    }
+
+    .definition-draft {
+      display: flex;
+      flex: none;
+      flex-direction: column;
+      gap: 0.35rem;
+      min-width: 0;
+      padding: 0.7rem 0.75rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
     }
 
     .definition-engineer .sheet-title {
@@ -2556,7 +2671,7 @@ function writeExampleSuggestions(
 
     .definition-engineer .sheet-actions,
     .definition-engineer .error,
-    .definition-engineer .staged-wording {
+    .definition-engineer .definition-draft {
       flex: none;
     }
 
@@ -2790,6 +2905,8 @@ export class ElementModal {
   readonly wordingSuggestions = signal<Record<string, WordingSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
+  readonly engineerGloss = signal('');
+  readonly engineerEnglish = signal('');
   readonly error = signal('');
   readonly speaking = signal<string | null>(null);
   readonly copied = signal<string | null>(null);
@@ -2837,7 +2954,7 @@ export class ElementModal {
       this.askingEquivalent.set(false);
       this.dismissTranslations();
       this.engineerDrafts.clear();
-      this.definitionEngineerDrafts.clear();
+      this.definitionEngineerDrafts = readRelatedDrafts(id);
       this.loadExampleSuggestions(id);
       this.loadWordingSuggestions(id);
       const saved = new Set(
@@ -3490,6 +3607,11 @@ export class ElementModal {
       words: [],
       selected: [],
     };
+    const passage = parsePassage(definition.text);
+    this.engineerGloss.set(passage.text);
+    this.engineerEnglish.set(
+      passage.translations.find((item) => item.language === 'en')?.text ?? '',
+    );
     const known = new Set(draft.words.map((word) => word.text.toLowerCase()));
     this.definitionEngineer.set({
       definitionIndex: index,
@@ -3509,6 +3631,44 @@ export class ElementModal {
     this.patchDefinitionEngineer({
       instruction: this.inputValue(event).slice(0, MAX_DEFINITION_INSTRUCTION),
     });
+  }
+
+  onEngineerGloss(event: Event): void {
+    this.engineerGloss.set(this.inputValue(event));
+  }
+
+  onEngineerEnglish(event: Event): void {
+    this.engineerEnglish.set(this.inputValue(event));
+  }
+
+  async saveEngineeredDefinition(): Promise<void> {
+    if (this.aiBusy()) return;
+    await this.commitEngineeredDefinition();
+  }
+
+  private async commitEngineeredDefinition(): Promise<boolean> {
+    if (this.busy()) return false;
+    const engineer = this.definitionEngineer();
+    const gloss = this.engineerGloss().replace(/\s+/g, ' ').trim();
+    if (!engineer || !gloss) return false;
+    const element = this.element();
+    const definitions = this.copyDefinitions();
+    const target = definitions[engineer.definitionIndex];
+    if (!target) return false;
+    const oldSense = senseKey(target.text);
+    const english = element.language === 'en' ? '' : this.engineerEnglish();
+    const nextText = definitionFromDraft(target.text, gloss, english);
+    if (nextText === target.text) return true;
+    const nextSense = senseKey(nextText);
+    target.text = nextText;
+    if (!(await this.persist(definitions, element.equivalents))) return false;
+    if (oldSense && nextSense && oldSense !== nextSense) {
+      this.rekeyDefinitionEngineerDraft(oldSense, nextSense);
+      this.rekeyExampleSuggestions(element.id, oldSense, nextSense);
+      const staged = this.wordingSuggestions()[oldSense] ?? [];
+      if (staged.length) this.rekeyWordingSuggestions(element.id, oldSense, nextSense, staged);
+    }
+    return true;
   }
 
   relatedWordChosen(word: RelatedWord): boolean {
@@ -3570,17 +3730,18 @@ export class ElementModal {
 
   async generateEngineeredDefinition(): Promise<void> {
     const engineer = this.definitionEngineer();
-    if (!engineer || this.aiBusy() || !engineer.selected.length) return;
+    const instruction = engineer?.instruction.trim() ?? '';
+    if (!engineer || this.aiBusy() || (!instruction && !engineer.selected.length)) return;
     const element = this.element();
     const definition = element.definitions[engineer.definitionIndex];
-    const gloss = parsePassage(definition?.text ?? '').text.trim();
-    const sense = senseKey(gloss);
-    if (!definition || !sense) return;
+    const gloss = this.engineerGloss().replace(/\s+/g, ' ').trim();
+    const sense = senseKey(definition?.text ?? '');
+    if (!definition) return;
     const picked = engineer.selected.flatMap((text) => {
       const word = engineer.words.find((item) => item.text.toLowerCase() === text.toLowerCase());
       return word ? [word] : [];
     });
-    if (!picked.length || picked.length > this.relatedPickMax) return;
+    if (picked.length > this.relatedPickMax) return;
     const job = ++this.wordingJob;
     const index = engineer.definitionIndex;
     this.askingWording.set(index);
@@ -3599,21 +3760,23 @@ export class ElementModal {
         if (showing) this.error.set('Could not forge a definition.');
         return;
       }
-      const primary = parsePassage(phrase.text).text;
-      if (picked.some((word) => !sentenceUsesForm(primary, word.text))) {
-        if (showing) this.error.set('The phrase did not use every chosen word.');
-        return;
-      }
-      const current =
-        this.element().id === element.id
-          ? { ...this.wordingSuggestions() }
-          : readWordingSuggestions(element.id);
-      const list = current[sense] ?? [];
-      if (list.some((item) => senseKey(item.text) === senseKey(phrase.text))) {
+      const extra = parsePassage(phrase.text);
+      if (!extra.text) {
         if (showing) this.error.set('Could not forge a definition.');
         return;
       }
-      this.replaceWordingSuggestions(element.id, sense, [...list, { text: phrase.text }]);
+      if (picked.some((word) => !sentenceUsesForm(extra.text, word.text))) {
+        if (showing) this.error.set('The phrase did not use every chosen word.');
+        return;
+      }
+      if (!showing) return;
+      if (sense && senseKey(this.element().definitions[index]?.text ?? '') !== sense) return;
+      this.engineerGloss.set(joinPhrase(this.engineerGloss(), extra.text));
+      if (element.language !== 'en') {
+        const english = extra.translations.find((item) => item.language === 'en')?.text ?? '';
+        if (english) this.engineerEnglish.set(joinPhrase(this.engineerEnglish(), english));
+      }
+      await this.commitEngineeredDefinition();
     } catch {
       if (this.element().id === element.id) this.error.set('Could not forge a definition.');
     } finally {
@@ -4124,6 +4287,7 @@ export class ElementModal {
       if (removed && !definitions.some((definition) => senseKey(definition.text) === removed)) {
         this.engineerDrafts.delete(removed);
         this.definitionEngineerDrafts.delete(removed);
+        writeRelatedDrafts(this.element().id, this.definitionEngineerDrafts);
         this.replaceExampleSuggestions(this.element().id, removed, []);
         this.replaceWordingSuggestions(this.element().id, removed, []);
       }
@@ -4182,6 +4346,7 @@ export class ElementModal {
       writeDefinitionSuggestions(id, []);
       writeExampleSuggestions(id, {});
       writeWordingSuggestions(id, {});
+      writeRelatedDrafts(id, new Map());
       this.confirm.set(null);
       this.deleted.emit();
     } catch {
@@ -4217,6 +4382,7 @@ export class ElementModal {
       words: next.words.map((word) => ({ ...word })),
       selected: [...next.selected],
     });
+    writeRelatedDrafts(this.element().id, this.definitionEngineerDrafts);
   }
 
   private rekeyDefinitionEngineerDraft(from: string, to: string): void {
@@ -4225,6 +4391,7 @@ export class ElementModal {
     if (!draft) return;
     this.definitionEngineerDrafts.delete(from);
     this.definitionEngineerDrafts.set(to, draft);
+    writeRelatedDrafts(this.element().id, this.definitionEngineerDrafts);
   }
 
   private loadWordingSuggestions(id: string): void {
@@ -4261,6 +4428,20 @@ export class ElementModal {
     else delete current[sense];
     writeWordingSuggestions(elementId, current);
     if (this.element().id === elementId) this.wordingSuggestions.set(current);
+  }
+
+  private rekeyExampleSuggestions(elementId: string, from: string, to: string): void {
+    if (!from || !to || from === to) return;
+    const current =
+      this.element().id === elementId
+        ? { ...this.exampleSuggestions() }
+        : readExampleSuggestions(elementId);
+    const moving = current[from];
+    if (!moving?.length) return;
+    delete current[from];
+    current[to] = [...(current[to] ?? []), ...moving];
+    writeExampleSuggestions(elementId, current);
+    if (this.element().id === elementId) this.exampleSuggestions.set(current);
   }
 
   private rekeyWordingSuggestions(
