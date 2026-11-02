@@ -58,3 +58,16 @@ export {
   type GenerateFormsInput,
   type GeneratedDefinition,
 } from './definitions';
+
+export {
+  EXAMPLES_SYSTEM_PROMPT,
+  MAX_EXAMPLE_INSTRUCTION,
+  MAX_EXAMPLE_LENGTH,
+  MAX_EXAMPLE_WORDS,
+  buildExamplesUserMessage,
+  generateExamples,
+  parseGeneratedExamples,
+  sentenceUsesForm,
+  type GenerateExamplesInput,
+  type GeneratedExample,
+} from './examples';

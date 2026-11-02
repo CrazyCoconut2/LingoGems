@@ -28,7 +28,13 @@ import {
   type PassageTranslation,
   type StoredElement,
 } from 'collection';
-import { generateDefinitions, generateForms } from 'ai';
+import {
+  MAX_EXAMPLE_INSTRUCTION,
+  generateDefinitions,
+  generateExamples,
+  generateForms,
+  sentenceUsesForm,
+} from 'ai';
 import { translatePhrase } from '../translate/translate';
 
 const FORM_MAX_LENGTH = 100;
@@ -71,6 +77,156 @@ type ConfirmDelete =
   | { kind: 'element' }
   | { kind: 'definition'; index: number }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number };
+
+type DefinitionSuggestion = { text: string; metadata: ElementMetadata };
+
+const SUGGESTIONS_KEY = 'lingogem.definition-suggestions.v1';
+
+function suggestionMetadata(raw: unknown): ElementMetadata {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const metadata: ElementMetadata = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const name = key.trim();
+    if (!name || typeof value !== 'string') continue;
+    const text = value.trim();
+    if (text) metadata[name] = text;
+  }
+  return metadata;
+}
+
+function suggestionList(raw: unknown): DefinitionSuggestion[] {
+  if (!Array.isArray(raw)) return [];
+  const suggestions: DefinitionSuggestion[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const text = String((item as { text?: unknown }).text ?? '').trim();
+    if (!text) continue;
+    suggestions.push({
+      text,
+      metadata: suggestionMetadata((item as { metadata?: unknown }).metadata),
+    });
+  }
+  return suggestions;
+}
+
+function readSuggestionStore(): Record<string, unknown> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(SUGGESTIONS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function readDefinitionSuggestions(elementId: string): DefinitionSuggestion[] {
+  if (!elementId) return [];
+  return suggestionList(readSuggestionStore()[elementId]);
+}
+
+function watchDefinitionSuggestions(listener: (elementId: string) => void): () => void {
+  suggestionListeners.add(listener);
+  return () => suggestionListeners.delete(listener);
+}
+
+const suggestionListeners = new Set<(elementId: string) => void>();
+
+function writeDefinitionSuggestions(
+  elementId: string,
+  suggestions: readonly DefinitionSuggestion[],
+): void {
+  if (typeof localStorage === 'undefined' || !elementId) return;
+  const stored = readSuggestionStore();
+  if (suggestions.length) stored[elementId] = suggestions;
+  else delete stored[elementId];
+  if (Object.keys(stored).length) {
+    localStorage.setItem(SUGGESTIONS_KEY, JSON.stringify(stored));
+  } else localStorage.removeItem(SUGGESTIONS_KEY);
+  for (const listener of suggestionListeners) listener(elementId);
+}
+
+type ExampleSuggestion = { text: string; form: string };
+
+type EngineerDraft = { instruction: string; forms: string[] };
+
+type ExampleEngineer = EngineerDraft & {
+  definitionIndex: number;
+  formsOpen: boolean;
+};
+
+const EXAMPLE_SUGGESTIONS_KEY = 'lingogem.example-suggestions.v1';
+
+function senseKey(text: string): string {
+  return parsePassage(text).text.trim().toLowerCase();
+}
+
+function exampleSuggestionList(raw: unknown): ExampleSuggestion[] {
+  if (!Array.isArray(raw)) return [];
+  const suggestions: ExampleSuggestion[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const text = String((item as { text?: unknown }).text ?? '').trim();
+    if (!text) continue;
+    const form = String((item as { form?: unknown }).form ?? '').trim();
+    suggestions.push({ text, form });
+  }
+  return suggestions;
+}
+
+function readExampleSuggestionStore(): Record<string, unknown> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(EXAMPLE_SUGGESTIONS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function readExampleSuggestions(elementId: string): Record<string, ExampleSuggestion[]> {
+  if (!elementId) return {};
+  const raw = readExampleSuggestionStore()[elementId];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const lists: Record<string, ExampleSuggestion[]> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const sense = key.trim().toLowerCase();
+    const list = exampleSuggestionList(value);
+    if (sense && list.length) lists[sense] = list;
+  }
+  return lists;
+}
+
+function watchExampleSuggestions(listener: (elementId: string) => void): () => void {
+  exampleSuggestionListeners.add(listener);
+  return () => exampleSuggestionListeners.delete(listener);
+}
+
+const exampleSuggestionListeners = new Set<(elementId: string) => void>();
+
+function writeExampleSuggestions(
+  elementId: string,
+  lists: Record<string, ExampleSuggestion[]>,
+): void {
+  if (typeof localStorage === 'undefined' || !elementId) return;
+  const stored = readExampleSuggestionStore();
+  const bucket: Record<string, ExampleSuggestion[]> = {};
+  for (const [key, list] of Object.entries(lists)) {
+    const sense = key.trim().toLowerCase();
+    if (sense && list.length) bucket[sense] = list;
+  }
+  if (Object.keys(bucket).length) stored[elementId] = bucket;
+  else delete stored[elementId];
+  if (Object.keys(stored).length) {
+    localStorage.setItem(EXAMPLE_SUGGESTIONS_KEY, JSON.stringify(stored));
+  } else localStorage.removeItem(EXAMPLE_SUGGESTIONS_KEY);
+  for (const listener of exampleSuggestionListeners) listener(elementId);
+}
 
 @Component({
   selector: 'app-element-modal',
@@ -118,7 +274,7 @@ type ConfirmDelete =
                 aria-label="Ask AI for definitions"
                 title="Ask AI for definitions"
                 [attr.aria-busy]="asking() ? true : null"
-                [disabled]="busy() || asking() || askingForms() !== null"
+                [disabled]="aiBusy()"
                 (click)="askDefinitions()"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -136,7 +292,7 @@ type ConfirmDelete =
                 class="icon-btn"
                 aria-label="Add a definition"
                 title="Add a definition"
-                [disabled]="busy() || asking() || askingForms() !== null"
+                [disabled]="aiBusy()"
                 (click)="openDefinition(null)"
               >
                 <svg viewBox="0 0 24 24">
@@ -201,7 +357,7 @@ type ConfirmDelete =
                   <button
                     type="button"
                     class="btn btn-primary add-suggestion"
-                    [disabled]="busy() || asking() || askingForms() !== null"
+                    [disabled]="aiBusy()"
                     (click)="addSuggestion(index)"
                   >
                     Add
@@ -281,20 +437,87 @@ type ConfirmDelete =
                   <section class="group">
                     <div class="section-heading">
                       <h3>Examples</h3>
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Add an example"
-                        title="Add an example"
-                        [disabled]="busy()"
-                        (click)="openExample(index, null)"
-                      >
-                        <svg viewBox="0 0 24 24">
-                          <path d="M5 12h14" />
-                          <path d="M12 5v14" />
-                        </svg>
-                      </button>
+                      <div class="header-actions">
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Ask AI for examples"
+                          title="Ask AI for examples"
+                          [attr.aria-busy]="askingExamples() === index ? true : null"
+                          [disabled]="aiBusy()"
+                          (click)="openExampleEngineer(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                            />
+                            <path d="M5 3v4" />
+                            <path d="M3 5h4" />
+                            <path d="M19 17v4" />
+                            <path d="M17 19h4" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Add an example"
+                          title="Add an example"
+                          [disabled]="aiBusy()"
+                          (click)="openExample(index, null)"
+                        >
+                          <svg viewBox="0 0 24 24">
+                            <path d="M5 12h14" />
+                            <path d="M12 5v14" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
+                    @if (stagedExamples(index); as staged) {
+                      @if (staged.length) {
+                        <ul class="examples">
+                          @for (item of staged; track item.text; let stagedIndex = $index) {
+                            <li class="sense suggestion">
+                              <div class="sense-main">
+                                <div class="sense-copy">
+                                  @let passage = parsePassage(item.text);
+                                  @if (passage.text) {
+                                    <q class="passage">{{ passage.text }}</q>
+                                  }
+                                  @if (passage.translations.length) {
+                                    <ul class="equivalents">
+                                      @for (translation of passage.translations; track $index) {
+                                        <li>{{ translation.text }}</li>
+                                      }
+                                    </ul>
+                                  }
+                                  @if (item.form) {
+                                    <p class="hint">Using {{ item.form }}</p>
+                                  }
+                                </div>
+                                <button
+                                  type="button"
+                                  class="icon-btn"
+                                  aria-label="Dismiss example"
+                                  title="Dismiss example"
+                                  [disabled]="busy()"
+                                  (click)="dismissStagedExample(index, stagedIndex)"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                class="btn btn-primary add-suggestion"
+                                [disabled]="aiBusy()"
+                                (click)="addStagedExample(index, stagedIndex)"
+                              >
+                                Add
+                              </button>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    }
                     @if (definition.examples.length) {
                       <ul class="examples">
                         @for (
@@ -370,7 +593,7 @@ type ConfirmDelete =
                           </li>
                         }
                       </ul>
-                    } @else {
+                    } @else if (!stagedExamples(index).length) {
                       <p class="hint">No examples yet.</p>
                     }
                   </section>
@@ -385,7 +608,7 @@ type ConfirmDelete =
                           aria-label="Ask AI for forms"
                           title="Ask AI for forms"
                           [attr.aria-busy]="askingForms() === index ? true : null"
-                          [disabled]="busy() || asking() || askingForms() !== null"
+                          [disabled]="aiBusy()"
                           (click)="askForms(index)"
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -403,7 +626,7 @@ type ConfirmDelete =
                           class="icon-btn"
                           aria-label="Add a form"
                           title="Add a form"
-                          [disabled]="busy() || asking() || askingForms() !== null"
+                          [disabled]="aiBusy()"
                           (click)="openForm(index)"
                         >
                           <svg viewBox="0 0 24 24">
@@ -805,6 +1028,108 @@ type ConfirmDelete =
                     {{ current.kind === 'definition' ? 'Delete definition' : 'Delete example' }}
                   </button>
                 }
+              </div>
+            </section>
+          </div>
+        }
+
+        @if (exampleEngineer(); as engineer) {
+          <div class="sheet-backdrop" (click)="closeExampleEngineer($event)">
+            <section
+              class="sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Ask AI for examples"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>Ask AI for examples</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  [disabled]="askingExamples() !== null"
+                  (click)="exampleEngineer.set(null)"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <label class="field-label" for="example-note">Note</label>
+              <textarea
+                id="example-note"
+                rows="3"
+                [value]="engineer.instruction"
+                [attr.maxlength]="exampleInstructionMax"
+                [disabled]="askingExamples() !== null"
+                placeholder="A walk to the market"
+                aria-label="Note"
+                (input)="onEngineerInstruction($event)"
+              ></textarea>
+              @if (definitionForms(engineer.definitionIndex); as forms) {
+                @if (forms.length) {
+                  <button
+                    type="button"
+                    class="forms-toggle"
+                    [attr.aria-expanded]="engineer.formsOpen"
+                    [disabled]="askingExamples() !== null"
+                    (click)="toggleEngineerForms()"
+                  >
+                    <span>Forms</span>
+                    <span class="forms-toggle-side">
+                      @if (!engineer.formsOpen && engineer.forms.length) {
+                        <span>{{ engineer.forms.join(', ') }}</span>
+                      }
+                      <svg viewBox="0 0 24 24" aria-hidden="true" [class.open]="engineer.formsOpen">
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </span>
+                  </button>
+                  @if (engineer.formsOpen) {
+                    <p class="hint">
+                      Select forms to require. More than one picks a form at random.
+                    </p>
+                    <ul class="equivalent-choices">
+                      @for (form of forms; track form) {
+                        <li>
+                          <button
+                            type="button"
+                            [class.selected]="engineerFormChosen(form)"
+                            [attr.aria-pressed]="engineerFormChosen(form)"
+                            [disabled]="askingExamples() !== null"
+                            (click)="toggleEngineerForm(form)"
+                          >
+                            {{ form }}
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                }
+              }
+              @if (error()) {
+                <p class="error">{{ error() }}</p>
+              }
+              <div class="sheet-actions">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  [disabled]="askingExamples() !== null"
+                  [attr.aria-busy]="askingExamples() !== null ? true : null"
+                  (click)="generateEngineeredExample()"
+                >
+                  Generate
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  [disabled]="askingExamples() !== null"
+                  (click)="exampleEngineer.set(null)"
+                >
+                  Cancel
+                </button>
               </div>
             </section>
           </div>
@@ -1382,6 +1707,56 @@ type ConfirmDelete =
       color: var(--text-muted);
     }
 
+    .forms-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 650;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .forms-toggle:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .forms-toggle-side {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-width: 0;
+      font-weight: 500;
+    }
+
+    .forms-toggle-side span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .forms-toggle svg {
+      width: 1rem;
+      height: 1rem;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .forms-toggle svg.open {
+      transform: rotate(180deg);
+    }
+
     input,
     textarea {
       width: 100%;
@@ -1423,6 +1798,7 @@ export class ElementModal {
   readonly formMaxLength = FORM_MAX_LENGTH;
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
+  readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
   readonly parsePassage = parsePassage;
   readonly editor = signal<Editor | null>(null);
   readonly equivalentDraft = signal('');
@@ -1448,11 +1824,16 @@ export class ElementModal {
   readonly busy = signal(false);
   readonly asking = signal(false);
   readonly askingForms = signal<number | null>(null);
-  readonly suggestions = signal<Array<{ text: string; metadata: ElementMetadata }>>([]);
+  readonly askingExamples = signal<number | null>(null);
+  readonly suggestions = signal<DefinitionSuggestion[]>([]);
+  readonly exampleSuggestions = signal<Record<string, ExampleSuggestion[]>>({});
+  readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly error = signal('');
 
   private translateTicket = 0;
+  private exampleJob = 0;
   private trackedElementId = '';
+  private engineerDrafts = new Map<string, EngineerDraft>();
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly draftField = viewChild<ElementRef<HTMLTextAreaElement>>('draftField');
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
@@ -1474,11 +1855,37 @@ export class ElementModal {
       this.collision.set(null);
       this.confirm.set(null);
       this.askingForms.set(null);
-      this.suggestions.set([]);
+      this.askingExamples.set(null);
+      this.exampleEngineer.set(null);
+      this.engineerDrafts.clear();
+      this.loadExampleSuggestions(id);
+      const saved = new Set(
+        this.element().definitions.map((definition) =>
+          parsePassage(definition.text).text.trim().toLowerCase(),
+        ),
+      );
+      const stored = readDefinitionSuggestions(id).filter((suggestion) => {
+        const gloss = parsePassage(suggestion.text).text.trim().toLowerCase();
+        return gloss && !saved.has(gloss);
+      });
+      this.suggestions.set(stored);
+      if (stored.length !== readDefinitionSuggestions(id).length) {
+        writeDefinitionSuggestions(id, stored);
+      }
+    });
+    const stopWatching = watchDefinitionSuggestions((elementId) => {
+      if (elementId !== this.trackedElementId) return;
+      this.suggestions.set(readDefinitionSuggestions(elementId));
+    });
+    const stopWatchingExamples = watchExampleSuggestions((elementId) => {
+      if (elementId !== this.trackedElementId) return;
+      this.exampleSuggestions.set(readExampleSuggestions(elementId));
     });
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     inject(DestroyRef).onDestroy(() => {
+      stopWatching();
+      stopWatchingExamples();
       document.body.style.overflow = previous;
     });
     afterNextRender(() => this.closeButton()?.nativeElement.focus());
@@ -1508,6 +1915,10 @@ export class ElementModal {
     }
     if (this.formEdit()) {
       this.formEdit.set(null);
+      return;
+    }
+    if (this.exampleEngineer()) {
+      this.closeExampleEngineer();
       return;
     }
     this.closed.emit();
@@ -1570,8 +1981,14 @@ export class ElementModal {
     return editor.exampleIndex == null ? 'Add an example' : 'Edit example';
   }
 
+  aiBusy(): boolean {
+    return (
+      this.busy() || this.asking() || this.askingForms() !== null || this.askingExamples() !== null
+    );
+  }
+
   async askDefinitions(): Promise<void> {
-    if (this.asking() || this.busy()) return;
+    if (this.aiBusy()) return;
     const element = this.element();
     const title = element.title.trim();
     if (!title) return;
@@ -1592,10 +2009,14 @@ export class ElementModal {
           })),
         ],
       });
+      const current =
+        this.element().id === element.id
+          ? this.suggestions()
+          : readDefinitionSuggestions(element.id);
       const seen = new Set(
         [
           ...element.definitions.map((definition) => definition.text),
-          ...this.suggestions().map((suggestion) => suggestion.text),
+          ...current.map((item) => item.text),
         ].map((text) => parsePassage(text).text.trim().toLowerCase()),
       );
       const next = senses.filter((sense) => {
@@ -1605,24 +2026,27 @@ export class ElementModal {
         return true;
       });
       if (!next.length) {
-        this.error.set('No further definitions.');
+        if (this.element().id === element.id) this.error.set('No further definitions.');
         return;
       }
-      this.suggestions.update((list) => [...list, ...next]);
+      this.replaceSuggestions(element.id, [...current, ...next]);
     } catch {
-      this.error.set('Could not ask for definitions.');
+      if (this.element().id === element.id) this.error.set('Could not ask for definitions.');
     } finally {
-      this.asking.set(false);
+      if (this.element().id === element.id) this.asking.set(false);
     }
   }
 
   dismissSuggestion(index: number): void {
     if (this.busy()) return;
-    this.suggestions.update((list) => list.filter((_, at) => at !== index));
+    this.replaceSuggestions(
+      this.element().id,
+      this.suggestions().filter((_, at) => at !== index),
+    );
   }
 
   async addSuggestion(index: number): Promise<void> {
-    if (this.asking() || this.askingForms() !== null || this.busy()) return;
+    if (this.aiBusy()) return;
     const suggestion = this.suggestions()[index];
     if (!suggestion) return;
     const element = this.element();
@@ -1635,8 +2059,16 @@ export class ElementModal {
     };
     const definitions = [created, ...this.copyDefinitions()];
     if (!(await this.persist(definitions, element.equivalents))) return;
-    this.suggestions.update((list) => list.filter((item) => item !== suggestion));
+    this.replaceSuggestions(
+      element.id,
+      this.suggestions().filter((item) => item !== suggestion),
+    );
     this.shiftDefinitionIndexes(1);
+  }
+
+  private replaceSuggestions(elementId: string, list: DefinitionSuggestion[]): void {
+    writeDefinitionSuggestions(elementId, list);
+    if (this.element().id === elementId) this.suggestions.set(list);
   }
 
   private shiftDefinitionIndexes(by: number): void {
@@ -1658,10 +2090,16 @@ export class ElementModal {
     if (pending?.kind === 'example') {
       this.confirm.set({ ...pending, definitionIndex: pending.definitionIndex + by });
     }
+    const asking = this.askingExamples();
+    if (asking != null) this.askingExamples.set(asking + by);
+    const engineer = this.exampleEngineer();
+    if (engineer) {
+      this.exampleEngineer.set({ ...engineer, definitionIndex: engineer.definitionIndex + by });
+    }
   }
 
   async askForms(index: number): Promise<void> {
-    if (this.asking() || this.askingForms() !== null || this.busy()) return;
+    if (this.aiBusy()) return;
     const element = this.element();
     const definition = element.definitions[index];
     const gloss = parsePassage(definition?.text ?? '').text.trim();
@@ -1703,6 +2141,7 @@ export class ElementModal {
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
+    this.exampleEngineer.set(null);
     this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
     const equivalentId = definition?.equivalentId ?? null;
     const known =
@@ -1724,10 +2163,180 @@ export class ElementModal {
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
+    this.exampleEngineer.set(null);
     this.sheetMetadata.set({ ...(example?.metadata ?? {}) });
     this.beginSheet(example?.text ?? '');
     this.editor.set({ kind: 'example', definitionIndex, exampleIndex });
     this.focusDraft();
+  }
+
+  stagedExamples(index: number): ExampleSuggestion[] {
+    const definition = this.element().definitions[index];
+    const key = senseKey(definition?.text ?? '');
+    if (!key) return [];
+    return this.exampleSuggestions()[key] ?? [];
+  }
+
+  definitionForms(index: number): string[] {
+    return this.element().definitions[index]?.forms.map((form) => form.text) ?? [];
+  }
+
+  openExampleEngineer(index: number): void {
+    if (this.aiBusy()) return;
+    const definition = this.element().definitions[index];
+    const key = senseKey(definition?.text ?? '');
+    if (!definition || !key) return;
+    this.editor.set(null);
+    this.formEdit.set(null);
+    this.formInfo.set(null);
+    this.formFeatureEdit.set(null);
+    this.metaEdit.set(null);
+    this.confirm.set(null);
+    const draft = this.engineerDrafts.get(key) ?? { instruction: '', forms: [] };
+    const available = new Set(definition.forms.map((form) => form.text.toLowerCase()));
+    this.exampleEngineer.set({
+      definitionIndex: index,
+      instruction: draft.instruction,
+      forms: draft.forms.filter((form) => available.has(form.toLowerCase())),
+      formsOpen: false,
+    });
+  }
+
+  closeExampleEngineer(event?: MouseEvent): void {
+    if (event && event.target !== event.currentTarget) return;
+    if (this.askingExamples() !== null) return;
+    this.exampleEngineer.set(null);
+  }
+
+  toggleEngineerForms(): void {
+    const engineer = this.exampleEngineer();
+    if (!engineer || this.askingExamples() !== null) return;
+    this.exampleEngineer.set({ ...engineer, formsOpen: !engineer.formsOpen });
+  }
+
+  onEngineerInstruction(event: Event): void {
+    this.patchEngineer({
+      instruction: this.inputValue(event).slice(0, MAX_EXAMPLE_INSTRUCTION),
+    });
+  }
+
+  engineerFormChosen(form: string): boolean {
+    const key = form.trim().toLowerCase();
+    return this.exampleEngineer()?.forms.some((item) => item.toLowerCase() === key) ?? false;
+  }
+
+  toggleEngineerForm(form: string): void {
+    const engineer = this.exampleEngineer();
+    if (!engineer || this.askingExamples() !== null) return;
+    const key = form.toLowerCase();
+    const forms = engineer.forms.some((item) => item.toLowerCase() === key)
+      ? engineer.forms.filter((item) => item.toLowerCase() !== key)
+      : [...engineer.forms, form];
+    this.patchEngineer({ forms });
+  }
+
+  async generateEngineeredExample(): Promise<void> {
+    const engineer = this.exampleEngineer();
+    if (!engineer || this.aiBusy()) return;
+    const element = this.element();
+    const definition = element.definitions[engineer.definitionIndex];
+    const gloss = parsePassage(definition?.text ?? '').text.trim();
+    const sense = senseKey(gloss);
+    if (!definition || !sense) return;
+    const available = new Map(definition.forms.map((form) => [form.text.toLowerCase(), form.text]));
+    const selected = engineer.forms.flatMap((form) => {
+      const text = available.get(form.toLowerCase());
+      return text ? [text] : [];
+    });
+    const required = selected.length ? selected[Math.floor(Math.random() * selected.length)] : '';
+    const job = ++this.exampleJob;
+    const index = engineer.definitionIndex;
+    this.askingExamples.set(index);
+    this.error.set('');
+    try {
+      const staged = (
+        this.element().id === element.id
+          ? (this.exampleSuggestions()[sense] ?? [])
+          : (readExampleSuggestions(element.id)[sense] ?? [])
+      ).map((item) => parsePassage(item.text).text);
+      const examples = await generateExamples({
+        language: element.language,
+        title: element.title,
+        gloss,
+        partOfSpeech: definition.metadata['part of speech'],
+        existingExamples: [
+          ...definition.examples.map((example) => parsePassage(example.text).text),
+          ...staged,
+        ],
+        forms: required ? [] : definition.forms.map((form) => form.text),
+        exampleWords: [],
+        exampleInstruction: engineer.instruction,
+        ...(required ? { requiredForm: required } : {}),
+      });
+      const sentence = examples[0];
+      const showing = this.element().id === element.id;
+      if (!sentence) {
+        if (showing) this.error.set('No further examples.');
+        return;
+      }
+      const primary = parsePassage(sentence.text).text;
+      if (required && !sentenceUsesForm(primary, required)) {
+        if (showing) this.error.set('The example did not use the chosen form.');
+        return;
+      }
+      const current =
+        this.element().id === element.id
+          ? { ...this.exampleSuggestions() }
+          : readExampleSuggestions(element.id);
+      const list = current[sense] ?? [];
+      if (list.some((item) => senseKey(item.text) === senseKey(sentence.text))) {
+        if (showing) this.error.set('No further examples.');
+        return;
+      }
+      this.replaceExampleSuggestions(element.id, sense, [
+        ...list,
+        { text: sentence.text, form: required },
+      ]);
+      if (showing) this.exampleEngineer.set(null);
+    } catch {
+      if (this.element().id === element.id) this.error.set('Could not ask for examples.');
+    } finally {
+      if (this.exampleJob === job && this.element().id === element.id)
+        this.askingExamples.set(null);
+    }
+  }
+
+  dismissStagedExample(definitionIndex: number, stagedIndex: number): void {
+    if (this.busy()) return;
+    const definition = this.element().definitions[definitionIndex];
+    const sense = senseKey(definition?.text ?? '');
+    const list = sense ? (this.exampleSuggestions()[sense] ?? []) : [];
+    if (!sense || !list[stagedIndex]) return;
+    this.replaceExampleSuggestions(
+      this.element().id,
+      sense,
+      list.filter((_, at) => at !== stagedIndex),
+    );
+  }
+
+  async addStagedExample(definitionIndex: number, stagedIndex: number): Promise<void> {
+    if (this.aiBusy()) return;
+    const element = this.element();
+    const definition = element.definitions[definitionIndex];
+    const sense = senseKey(definition?.text ?? '');
+    const suggestion = sense ? this.exampleSuggestions()[sense]?.[stagedIndex] : undefined;
+    if (!definition || !sense || !suggestion) return;
+    const definitions = this.copyDefinitions();
+    const target = definitions[definitionIndex];
+    if (!target) return;
+    target.examples.push({ text: suggestion.text, metadata: {} });
+    if (!(await this.persist(definitions, element.equivalents))) return;
+    const list = this.exampleSuggestions()[sense] ?? [];
+    this.replaceExampleSuggestions(
+      element.id,
+      sense,
+      list.filter((item) => item !== suggestion),
+    );
   }
 
   openFormInfo(definitionIndex: number, text: string): void {
@@ -1736,6 +2345,7 @@ export class ElementModal {
       (item) => item.text === text,
     );
     if (!form) return;
+    this.exampleEngineer.set(null);
     this.formInfo.set({ definitionIndex, text });
     setTimeout(() => this.formInfoClose()?.nativeElement.focus());
   }
@@ -2041,22 +2651,43 @@ export class ElementModal {
       return;
     }
     const definitions = this.copyDefinitions();
+    const removed =
+      pending.kind === 'definition' ? senseKey(definitions[pending.index]?.text ?? '') : '';
     if (pending.kind === 'definition') {
       definitions.splice(pending.index, 1);
       const info = this.formInfo();
       if (info && info.definitionIndex >= pending.index) this.formInfo.set(null);
     } else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
-    if (await this.persist(definitions, this.element().equivalents)) {
-      this.confirm.set(null);
-      this.editor.set(null);
+    if (!(await this.persist(definitions, this.element().equivalents))) return;
+    if (pending.kind === 'definition') {
+      if (removed && !definitions.some((definition) => senseKey(definition.text) === removed)) {
+        this.engineerDrafts.delete(removed);
+        this.replaceExampleSuggestions(this.element().id, removed, []);
+      }
+      const engineer = this.exampleEngineer();
+      if (engineer?.definitionIndex === pending.index) this.exampleEngineer.set(null);
+      else if (engineer && engineer.definitionIndex > pending.index) {
+        this.exampleEngineer.set({
+          ...engineer,
+          definitionIndex: engineer.definitionIndex - 1,
+        });
+      }
+      const asking = this.askingExamples();
+      if (asking === pending.index) this.askingExamples.set(null);
+      else if (asking != null && asking > pending.index) this.askingExamples.set(asking - 1);
     }
+    this.confirm.set(null);
+    this.editor.set(null);
   }
 
   private async removeElement(): Promise<void> {
     this.busy.set(true);
     this.error.set('');
     try {
-      await deleteElement(this.element().id);
+      const id = this.element().id;
+      await deleteElement(id);
+      writeDefinitionSuggestions(id, []);
+      writeExampleSuggestions(id, {});
       this.confirm.set(null);
       this.deleted.emit();
     } catch {
@@ -2065,6 +2696,67 @@ export class ElementModal {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  private patchEngineer(patch: Partial<EngineerDraft>): void {
+    const engineer = this.exampleEngineer();
+    if (!engineer) return;
+    const next = { ...engineer, ...patch };
+    this.exampleEngineer.set(next);
+    const sense = senseKey(this.element().definitions[next.definitionIndex]?.text ?? '');
+    if (!sense) return;
+    this.engineerDrafts.set(sense, {
+      instruction: next.instruction,
+      forms: [...next.forms],
+    });
+  }
+
+  private loadExampleSuggestions(id: string): void {
+    const stored = readExampleSuggestions(id);
+    const savedBySense = new Map<string, Set<string>>();
+    for (const definition of this.element().definitions) {
+      const sense = senseKey(definition.text);
+      if (!sense) continue;
+      const saved = savedBySense.get(sense) ?? new Set<string>();
+      for (const example of definition.examples) {
+        const key = senseKey(example.text);
+        if (key) saved.add(key);
+      }
+      savedBySense.set(sense, saved);
+    }
+    const kept: Record<string, ExampleSuggestion[]> = {};
+    let dirty = false;
+    for (const [sense, list] of Object.entries(stored)) {
+      const saved = savedBySense.get(sense);
+      if (!saved) {
+        dirty = true;
+        continue;
+      }
+      const next = list.filter((item) => {
+        const key = senseKey(item.text);
+        return !!key && !saved.has(key);
+      });
+      if (next.length !== list.length) dirty = true;
+      if (next.length) kept[sense] = next;
+    }
+    if (Object.keys(kept).length !== Object.keys(stored).length) dirty = true;
+    this.exampleSuggestions.set(kept);
+    if (dirty) writeExampleSuggestions(id, kept);
+  }
+
+  private replaceExampleSuggestions(
+    elementId: string,
+    sense: string,
+    list: ExampleSuggestion[],
+  ): void {
+    const current =
+      this.element().id === elementId
+        ? { ...this.exampleSuggestions() }
+        : readExampleSuggestions(elementId);
+    if (list.length) current[sense] = list;
+    else delete current[sense];
+    writeExampleSuggestions(elementId, current);
+    if (this.element().id === elementId) this.exampleSuggestions.set(current);
   }
 
   private copyDefinitions(): ElementDefinition[] {
