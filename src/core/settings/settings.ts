@@ -27,15 +27,18 @@ const AI_PROVIDERS: ProviderOption[] = [
   template: `
     <main>
       <header>
-        <button type="button" class="back" (click)="back()">
-          <span class="gem gem-mark" aria-hidden="true"></span>
-          <span>Settings</span>
+        <button type="button" class="back" aria-label="Back" (click)="back()">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+          <span>Back</span>
         </button>
+        <h1>Settings</h1>
       </header>
 
       <form (submit)="save($event)">
         <div class="copy">
-          <h1>AI provider</h1>
+          <h2>AI provider</h2>
           <p>The key stays on this device and is used to translate.</p>
         </div>
         <label for="settings-ai-provider">
@@ -91,24 +94,42 @@ const AI_PROVIDERS: ProviderOption[] = [
     header {
       display: flex;
       align-items: center;
+      gap: 0.75rem;
     }
 
     .back {
       display: inline-flex;
       align-items: center;
-      gap: 0.65rem;
+      gap: 0.15rem;
       border: 0;
-      padding: 0;
+      padding: 0.35rem 0.55rem 0.35rem 0.2rem;
+      border-radius: 999px;
       background: transparent;
-      color: var(--text);
-      font-size: 1.15rem;
+      color: var(--accent-text);
+      font-size: 1rem;
       font-weight: 650;
-      letter-spacing: -0.03em;
       cursor: pointer;
     }
 
-    .gem-mark {
-      --gem-size: 1.35rem;
+    .back:hover {
+      background: rgba(139, 144, 165, 0.16);
+    }
+
+    .back svg {
+      width: 1.35rem;
+      height: 1.35rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 650;
+      letter-spacing: -0.03em;
     }
 
     form {
@@ -123,7 +144,7 @@ const AI_PROVIDERS: ProviderOption[] = [
       gap: 0.4rem;
     }
 
-    h1 {
+    h2 {
       margin: 0;
       font-size: 1.6rem;
       font-weight: 650;
