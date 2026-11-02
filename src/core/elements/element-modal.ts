@@ -246,11 +246,7 @@ function writeExampleSuggestions(
             <h2>{{ element().title }}</h2>
             @if (headerEquivalents(); as equivalents) {
               @if (equivalents.length) {
-                <ul class="equivalents">
-                  @for (equivalent of equivalents; track $index) {
-                    <li>{{ equivalent }}</li>
-                  }
-                </ul>
+                <p class="equivalents">{{ equivalents.join(', ') }}</p>
               }
             }
           </div>
@@ -428,17 +424,20 @@ function writeExampleSuggestions(
                           }
                         </ul>
                       }
-                      @if (entries(definition.metadata); as meta) {
-                        @if (meta.length) {
-                          <ul class="sense-meta">
-                            @for (entry of meta; track entry.key) {
-                              <li>
-                                <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                                {{ label(entry.value) }}
-                              </li>
-                            }
-                          </ul>
-                        }
+                      @let equivalent = equivalentText(definition);
+                      @let meta = entries(definition.metadata);
+                      @if (equivalent || meta.length) {
+                        <ul class="sense-meta">
+                          @if (equivalent) {
+                            <li class="sense-equivalent">{{ equivalent }}</li>
+                          }
+                          @for (entry of meta; track entry.key) {
+                            <li>
+                              <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                              {{ label(entry.value) }}
+                            </li>
+                          }
+                        </ul>
                       }
                     </div>
                   </div>
@@ -1942,6 +1941,13 @@ function writeExampleSuggestions(
     .sense-meta-key {
       margin-right: 0.35rem;
       font-weight: 600;
+    }
+
+    .sense-meta li.sense-equivalent {
+      border-color: rgba(var(--accent-rgb), 0.45);
+      background: rgba(var(--accent-rgb), 0.12);
+      color: var(--accent-text);
+      font-weight: 650;
     }
 
     .suggestion .sense-meta li {
