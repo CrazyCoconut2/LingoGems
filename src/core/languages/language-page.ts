@@ -204,7 +204,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     }
                   }
                 </span>
-                <app-score-gauge [score]="element.score" />
+                <app-score-gauge [score]="element.score" size="md" />
               </button>
             </li>
           }

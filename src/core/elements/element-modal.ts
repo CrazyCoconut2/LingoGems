@@ -2323,10 +2323,11 @@ function writeExampleSuggestions(
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      margin-right: 0.2rem;
+      width: 1.8rem;
+      height: 1.8rem;
       border: 0;
       border-radius: 0.4rem;
-      padding: 0 0.1rem;
+      padding: 0;
       background: transparent;
       cursor: pointer;
     }
