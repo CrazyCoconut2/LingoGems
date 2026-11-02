@@ -47,9 +47,14 @@ export {
 
 export {
   DEFINITIONS_SYSTEM_PROMPT,
+  FORMS_SYSTEM_PROMPT,
   buildDefinitionsUserMessage,
+  buildFormsUserMessage,
   generateDefinitions,
+  generateForms,
   parseGeneratedDefinitions,
+  parseGeneratedForms,
   type GenerateDefinitionsInput,
+  type GenerateFormsInput,
   type GeneratedDefinition,
 } from './definitions';

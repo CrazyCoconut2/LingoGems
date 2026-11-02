@@ -28,7 +28,7 @@ import {
   type PassageTranslation,
   type StoredElement,
 } from 'collection';
-import { generateDefinitions } from 'ai';
+import { generateDefinitions, generateForms } from 'ai';
 import { translatePhrase } from '../translate/translate';
 
 const FORM_MAX_LENGTH = 100;
@@ -119,7 +119,7 @@ type ConfirmDelete =
                 title="Add a definition"
                 [attr.aria-expanded]="addMenu()"
                 [attr.aria-busy]="asking() ? true : null"
-                [disabled]="busy() || asking()"
+                [disabled]="busy() || asking() || askingForms() !== null"
                 (click)="toggleAddMenu($event)"
               >
                 <svg viewBox="0 0 24 24">
@@ -148,6 +148,58 @@ type ConfirmDelete =
           }
           @if (error()) {
             <p class="error">{{ error() }}</p>
+          }
+          @if (suggestions().length) {
+            <ol class="definitions">
+              @for (suggestion of suggestions(); track suggestion.text; let index = $index) {
+                <li class="sense suggestion">
+                  <div class="sense-main">
+                    <div class="sense-copy">
+                      @let passage = parsePassage(suggestion.text);
+                      @if (passage.text) {
+                        <p class="passage">{{ passage.text }}</p>
+                      }
+                      @if (passage.translations.length) {
+                        <ul class="equivalents">
+                          @for (translation of passage.translations; track $index) {
+                            <li>{{ translation.text }}</li>
+                          }
+                        </ul>
+                      }
+                      @if (entries(suggestion.metadata); as meta) {
+                        @if (meta.length) {
+                          <ul class="pills">
+                            @for (entry of meta; track entry.key) {
+                              <li>
+                                <span>{{ entry.key }}: {{ entry.value }}</span>
+                              </li>
+                            }
+                          </ul>
+                        }
+                      }
+                    </div>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Dismiss definition"
+                      title="Dismiss definition"
+                      [disabled]="busy()"
+                      (click)="dismissSuggestion(index)"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-primary add-suggestion"
+                    [disabled]="busy() || asking() || askingForms() !== null"
+                    (click)="addSuggestion(index)"
+                  >
+                    Add
+                  </button>
+                </li>
+              }
+            </ol>
           }
           @if (element().definitions.length) {
             <ol class="definitions">
@@ -317,19 +369,40 @@ type ConfirmDelete =
                   <section class="group">
                     <div class="section-heading">
                       <h3>Forms</h3>
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Add a form"
-                        title="Add a form"
-                        [disabled]="busy()"
-                        (click)="openForm(index)"
-                      >
-                        <svg viewBox="0 0 24 24">
-                          <path d="M5 12h14" />
-                          <path d="M12 5v14" />
-                        </svg>
-                      </button>
+                      <div class="header-actions">
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Ask AI for forms"
+                          title="Ask AI for forms"
+                          [attr.aria-busy]="askingForms() === index ? true : null"
+                          [disabled]="busy() || asking() || askingForms() !== null"
+                          (click)="askForms(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                            />
+                            <path d="M5 3v4" />
+                            <path d="M3 5h4" />
+                            <path d="M19 17v4" />
+                            <path d="M17 19h4" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Add a form"
+                          title="Add a form"
+                          [disabled]="busy() || asking() || askingForms() !== null"
+                          (click)="openForm(index)"
+                        >
+                          <svg viewBox="0 0 24 24">
+                            <path d="M5 12h14" />
+                            <path d="M12 5v14" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                     @if (formEdit(); as editing) {
                       @if (editing.definitionIndex === index) {
@@ -496,7 +569,7 @@ type ConfirmDelete =
                 </li>
               }
             </ol>
-          } @else {
+          } @else if (!suggestions().length) {
             <p class="empty">No definitions yet.</p>
           }
           <button
@@ -1090,6 +1163,25 @@ type ConfirmDelete =
       background: rgba(255, 255, 255, 0.02);
     }
 
+    .suggestion {
+      border-style: dashed;
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+    }
+
+    .suggestion .passage {
+      color: var(--accent-text);
+    }
+
+    .suggestion .pills li {
+      background: rgba(var(--accent-rgb), 0.16);
+      color: var(--accent-text);
+    }
+
+    .add-suggestion {
+      align-self: flex-end;
+    }
+
     .sense-main {
       display: flex;
       align-items: flex-start;
@@ -1381,6 +1473,8 @@ export class ElementModal {
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
   readonly asking = signal(false);
+  readonly askingForms = signal<number | null>(null);
+  readonly suggestions = signal<Array<{ text: string; metadata: ElementMetadata }>>([]);
   readonly addMenu = signal(false);
   readonly error = signal('');
 
@@ -1407,6 +1501,8 @@ export class ElementModal {
       this.collision.set(null);
       this.confirm.set(null);
       this.addMenu.set(false);
+      this.askingForms.set(null);
+      this.suggestions.set([]);
     });
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -1513,7 +1609,7 @@ export class ElementModal {
 
   toggleAddMenu(event: MouseEvent): void {
     event.stopPropagation();
-    if (this.busy() || this.asking()) return;
+    if (this.busy() || this.asking() || this.askingForms() !== null) return;
     this.addMenu.update((open) => !open);
   }
 
@@ -1534,27 +1630,119 @@ export class ElementModal {
       const senses = await generateDefinitions({
         language: element.language,
         title,
-        existingGlosses: element.definitions.map((definition) => definition.text),
+        existingDefinitions: [
+          ...element.definitions.map((definition) => ({
+            text: definition.text,
+            metadata: definition.metadata,
+          })),
+          ...this.suggestions().map((suggestion) => ({
+            text: suggestion.text,
+            metadata: suggestion.metadata,
+          })),
+        ],
       });
-      if (!senses.length) {
+      const seen = new Set(
+        [
+          ...element.definitions.map((definition) => definition.text),
+          ...this.suggestions().map((suggestion) => suggestion.text),
+        ].map((text) => parsePassage(text).text.trim().toLowerCase()),
+      );
+      const next = senses.filter((sense) => {
+        const key = parsePassage(sense.text).text.trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      if (!next.length) {
         this.error.set('No further definitions.');
         return;
       }
-      const definitions = [
-        ...senses.map((sense) => ({
-          text: sense.text,
-          equivalentId: null,
-          forms: sense.forms,
-          examples: [],
-          metadata: sense.metadata,
-        })),
-        ...this.copyDefinitions(),
-      ];
-      await this.persist(definitions, this.element().equivalents);
+      this.suggestions.update((list) => [...list, ...next]);
     } catch {
       this.error.set('Could not ask for definitions.');
     } finally {
       this.asking.set(false);
+    }
+  }
+
+  dismissSuggestion(index: number): void {
+    if (this.busy()) return;
+    this.suggestions.update((list) => list.filter((_, at) => at !== index));
+  }
+
+  async addSuggestion(index: number): Promise<void> {
+    if (this.asking() || this.askingForms() !== null || this.busy()) return;
+    const suggestion = this.suggestions()[index];
+    if (!suggestion) return;
+    const element = this.element();
+    const created: ElementDefinition = {
+      text: suggestion.text,
+      equivalentId: null,
+      forms: [],
+      examples: [],
+      metadata: { ...suggestion.metadata },
+    };
+    const definitions = [created, ...this.copyDefinitions()];
+    if (!(await this.persist(definitions, element.equivalents))) return;
+    this.suggestions.update((list) => list.filter((item) => item !== suggestion));
+    this.shiftDefinitionIndexes(1);
+  }
+
+  private shiftDefinitionIndexes(by: number): void {
+    const editing = this.formEdit();
+    if (editing) this.formEdit.set({ definitionIndex: editing.definitionIndex + by });
+    const info = this.formInfo();
+    if (info) this.formInfo.set({ ...info, definitionIndex: info.definitionIndex + by });
+    const editor = this.editor();
+    if (editor?.kind === 'definition' && editor.index != null) {
+      this.editor.set({ kind: 'definition', index: editor.index + by });
+    }
+    if (editor?.kind === 'example') {
+      this.editor.set({ ...editor, definitionIndex: editor.definitionIndex + by });
+    }
+    const pending = this.confirm();
+    if (pending?.kind === 'definition') {
+      this.confirm.set({ kind: 'definition', index: pending.index + by });
+    }
+    if (pending?.kind === 'example') {
+      this.confirm.set({ ...pending, definitionIndex: pending.definitionIndex + by });
+    }
+  }
+
+  async askForms(index: number): Promise<void> {
+    if (this.asking() || this.askingForms() !== null || this.busy()) return;
+    const element = this.element();
+    const definition = element.definitions[index];
+    const gloss = parsePassage(definition?.text ?? '').text.trim();
+    if (!definition || !gloss) return;
+    this.askingForms.set(index);
+    this.error.set('');
+    try {
+      const forms = await generateForms({
+        language: element.language,
+        title: element.title,
+        gloss,
+        existingForms: definition.forms.map((form) => form.text),
+      });
+      if (!forms.length) {
+        this.error.set('No further forms.');
+        return;
+      }
+      const definitions = this.copyDefinitions();
+      const target = definitions[index];
+      if (!target) return;
+      const seen = new Set(target.forms.map((form) => form.text.toLowerCase()));
+      for (const form of forms) {
+        const key = form.text.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        target.forms.push(form);
+      }
+      await this.persist(definitions, element.equivalents);
+    } catch {
+      this.error.set('Could not ask for forms.');
+    } finally {
+      this.askingForms.set(null);
     }
   }
 

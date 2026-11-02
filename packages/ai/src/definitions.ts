@@ -15,12 +15,15 @@ const MAX_SENSES = 8;
 const META_KEY_MAX_LENGTH = 40;
 const META_VALUE_MAX_LENGTH = 100;
 const FORM_MAX_LENGTH = 100;
-const DEFINITIONS_MAX_TOKENS = 8192;
+const DEFINITIONS_MAX_TOKENS = 4096;
+const FORMS_MAX_TOKENS = 8192;
+const MAX_FORMS = 80;
 
 const DEFINITION_METADATA_KEYS = ['part of speech', 'gender', 'transitivity', 'register'] as const;
 const FORM_METADATA_KEYS = ['tense', 'person', 'number', 'mood'] as const;
 
-const SENSE_SHAPE = `{"gloss":"<definition in writeFieldsIn>","metadata":{"part of speech":"<part of speech>"},"forms":[{"text":"<one surface form>","metadata":{"tense":"<tense>","person":"<person>","number":"<number>","mood":"<mood>"}},{"text":"<another surface form>","metadata":{"tense":"<tense>","person":"<person>","number":"<number>","mood":"<mood>"}}]}`;
+const SENSE_SHAPE = `{"gloss":"<definition in writeFieldsIn>","metadata":{"part of speech":"<part of speech>"}}`;
+const FORM_SHAPE = `{"text":"<surface form>","metadata":{"tense":"<tense>","person":"<person>","number":"<number>","mood":"<mood>"}}`;
 
 export const DEFINITIONS_SYSTEM_PROMPT = `You write dictionary senses for one headword.
 JSON keys stay in English.
@@ -29,34 +32,48 @@ Do not use English for a gloss unless writeFieldsIn is English.
 Do not copy English labels into metadata; write those values in writeFieldsIn.
 Rules:
 - One sense per distinct meaning
-- Do not repeat a meaning or a gloss already listed in existingGlosses
+- Do not repeat a meaning or a gloss already listed in existingDefinitions. Those are senses already kept, and they include no forms
 - Return at most ${MAX_SENSES} senses
 - One short dictionary-style gloss per sense
-- Do not include examples
-- Do not add citations or bracket tags such as [en:…]
-- Spelling MUST be correct in every gloss, English gloss, and form
-- forms lists every distinct inflected surface form of that sense, not one example. For a verb, cover person, number, tense, and mood, plus the participle and gerund when they exist. For a noun or adjective, cover gender and number. Keep going until that paradigm is covered. Omit a form you cannot spell correctly
-- The forms array in the shape shows the fields. It is not a limit of two forms. If the reply must be shorter, return fewer senses rather than one form per sense
-- Do not include the headword. Do not repeat a form on the same sense
-- No wildcards, regex, parentheses, or asterisks in a form
-- metadata is key-value pairs that apply to that definition or form. Omit a pair when it does not apply
+- Do not include examples, forms, or citations
+- Do not add bracket tags such as [en:…]
+- Spelling MUST be correct in every gloss and English gloss
+- metadata is key-value pairs that apply to that definition. Omit a pair when it does not apply
 - Definition metadata keys are only "part of speech", "gender", "transitivity", and "register"
-- Form metadata keys are only "tense", "person", "number", and "mood"
-translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense. When translateFieldsIn is absent, omit "english".
+translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".
 Return JSON only with this shape:
 {"senses":[${SENSE_SHAPE}]}
 When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.`;
 
+export const FORMS_SYSTEM_PROMPT = `You list the surface forms of one dictionary sense.
+JSON keys stay in English.
+Do not copy English labels into metadata; write those values in writeFieldsIn.
+Rules:
+- forms lists every distinct inflected surface form of this sense, not one example. For a verb, cover person, number, tense, and mood, plus the participle and gerund when they exist. For a noun or adjective, cover gender and number. Keep going until that paradigm is covered. Omit a form you cannot spell correctly
+- The forms array in the shape shows the fields. It is not a limit of one form
+- Do not include the headword in lemma. Do not repeat a form listed in existingForms
+- No wildcards, regex, parentheses, or asterisks in a form
+- Form metadata keys are only "tense", "person", "number", and "mood". Omit a pair when it does not apply
+- Spelling MUST be correct in every form
+Return JSON only with this shape:
+{"forms":[${FORM_SHAPE}]}`;
+
 export type GenerateDefinitionsInput = {
   language: string;
   title: string;
-  existingGlosses: string[];
+  existingDefinitions: ReadonlyArray<{ text: string; metadata: ElementMetadata }>;
 };
 
 export type GeneratedDefinition = {
   text: string;
   metadata: ElementMetadata;
-  forms: ElementForm[];
+};
+
+export type GenerateFormsInput = {
+  language: string;
+  title: string;
+  gloss: string;
+  existingForms: string[];
 };
 
 export function buildDefinitionsUserMessage(input: GenerateDefinitionsInput): string {
@@ -68,7 +85,7 @@ export function buildDefinitionsUserMessage(input: GenerateDefinitionsInput): st
     writeFieldsIn,
     ...(translateFieldsIn ? { translateFieldsIn } : {}),
     lemma: input.title.trim(),
-    existingGlosses: glossesOf(input.existingGlosses),
+    existingDefinitions: describedDefinitions(input.existingDefinitions),
   });
 }
 
@@ -84,8 +101,11 @@ export function parseGeneratedDefinitions(
   const list = source ? source['senses'] : null;
   if (!Array.isArray(list)) return null;
   const language = input.language.trim().toLowerCase();
-  const title = input.title.trim().toLowerCase();
-  const taken = new Set(glossesOf(input.existingGlosses).map((gloss) => gloss.toLowerCase()));
+  const taken = new Set(
+    describedDefinitions(input.existingDefinitions).map((definition) =>
+      definition.gloss.toLowerCase(),
+    ),
+  );
   const definitions: GeneratedDefinition[] = [];
   for (const item of list) {
     if (definitions.length >= MAX_SENSES) break;
@@ -99,7 +119,6 @@ export function parseGeneratedDefinitions(
     definitions.push({
       text: english ? embedTranslation(gloss, 'en', english) : gloss,
       metadata: pickMetadata(sense['metadata'], DEFINITION_METADATA_KEYS),
-      forms: parseForms(sense['forms'], title),
     });
   }
   return definitions;
@@ -132,17 +151,26 @@ export async function generateDefinitions(
   }
 }
 
-function glossesOf(values: readonly string[]): string[] {
-  const glosses: string[] = [];
+function describedDefinitions(
+  definitions: ReadonlyArray<{ text: string; metadata: ElementMetadata }>,
+): Array<{ gloss: string; english?: string; metadata?: ElementMetadata }> {
+  const described: Array<{ gloss: string; english?: string; metadata?: ElementMetadata }> = [];
   const seen = new Set<string>();
-  for (const value of values) {
-    const gloss = parsePassage(String(value ?? '')).text.trim();
+  for (const definition of definitions) {
+    const passage = parsePassage(definition.text ?? '');
+    const gloss = passage.text.trim();
     const key = gloss.toLowerCase();
     if (!gloss || seen.has(key)) continue;
     seen.add(key);
-    glosses.push(gloss);
+    const english = passage.translations.find((item) => item.language === 'en')?.text.trim();
+    const metadata = pickMetadata(definition.metadata, DEFINITION_METADATA_KEYS);
+    described.push({
+      gloss,
+      ...(english ? { english } : {}),
+      ...(Object.keys(metadata).length ? { metadata } : {}),
+    });
   }
-  return glosses;
+  return described;
 }
 
 function glossText(value: unknown): string {
@@ -168,11 +196,68 @@ function pickMetadata(value: unknown, keys: readonly string[]): ElementMetadata 
   return metadata;
 }
 
-function parseForms(value: unknown, title: string): ElementForm[] {
+export function buildFormsUserMessage(input: GenerateFormsInput): string {
+  const language = input.language.trim().toLowerCase();
+  const writeFieldsIn = languageDisplayName(language) || language;
+  return JSON.stringify({
+    language,
+    writeFieldsIn,
+    lemma: input.title.trim(),
+    gloss: input.gloss.trim(),
+    existingForms: input.existingForms.map((form) => form.trim()).filter(Boolean),
+  });
+}
+
+/** Usable forms, or null when the reply has no forms array. */
+export function parseGeneratedForms(
+  parsed: unknown,
+  input: GenerateFormsInput,
+): ElementForm[] | null {
+  const source =
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  const list = source ? source['forms'] : null;
+  if (!Array.isArray(list)) return null;
+  const title = input.title.trim().toLowerCase();
+  const taken = new Set(
+    input.existingForms.map((form) => form.trim().toLowerCase()).filter(Boolean),
+  );
+  return parseForms(list, title, taken);
+}
+
+/** Ask the saved model for surface forms of one sense. */
+export async function generateForms(request: GenerateFormsInput): Promise<ElementForm[]> {
+  const title = request.title.trim();
+  const language = request.language.trim().toLowerCase();
+  const gloss = request.gloss.trim();
+  if (!title || !language || !gloss) return [];
+  const input: CompleteJsonInput = {
+    system: FORMS_SYSTEM_PROMPT,
+    user: buildFormsUserMessage({ ...request, title, language, gloss }),
+    maxTokens: FORMS_MAX_TOKENS,
+    temperature: 0,
+  };
+  const keys = readStoredAiCredentials().keys;
+  const complete = () =>
+    runWithKeyFallback(keys, (provider, credentials) => completeJson(provider, input, credentials));
+  try {
+    let forms = parseGeneratedForms(await complete(), { ...request, title, language, gloss });
+    if (!forms)
+      forms = parseGeneratedForms(await complete(), { ...request, title, language, gloss });
+    if (!forms) aiError(AI_ERROR.RESPONSE_INVALID);
+    return forms;
+  } catch (err) {
+    throw attachAiPrompt(err, input);
+  }
+}
+
+function parseForms(value: unknown, title: string, taken: ReadonlySet<string>): ElementForm[] {
   if (!Array.isArray(value)) return [];
-  const seen = new Set<string>();
+  const seen = new Set(taken);
   const forms: ElementForm[] = [];
   for (const item of value) {
+    if (forms.length >= MAX_FORMS) break;
     const source =
       typeof item === 'string'
         ? item
