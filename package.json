@@ -1,6 +1,6 @@
 {
   "name": "lingogem",
-  "version": "1.0.33",
+  "version": "1.0.36",
   "workspaces": [
     "packages/*"
   ],
@@ -8,7 +8,7 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "node scripts/bump-version.mjs && npm run build && wrangler deploy"
   },
   "private": true,
   "packageManager": "npm@10.9.8",

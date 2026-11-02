@@ -333,10 +333,10 @@ function writeExampleSuggestions(
                       }
                       @if (entries(suggestion.metadata); as meta) {
                         @if (meta.length) {
-                          <ul class="pills">
+                          <ul class="sense-meta">
                             @for (entry of meta; track entry.key) {
                               <li>
-                                <span>{{ entry.key }}: {{ entry.value }}</span>
+                                <span class="sense-meta-key">{{ label(entry.key) }}</span> {{ label(entry.value) }}
                               </li>
                             }
                           </ul>
@@ -410,10 +410,10 @@ function writeExampleSuggestions(
                       }
                       @if (entries(definition.metadata); as meta) {
                         @if (meta.length) {
-                          <ul class="pills">
+                          <ul class="sense-meta">
                             @for (entry of meta; track entry.key) {
                               <li>
-                                <span>{{ entry.key }}: {{ entry.value }}</span>
+                                <span class="sense-meta-key">{{ label(entry.key) }}</span> {{ label(entry.value) }}
                               </li>
                             }
                           </ul>
@@ -481,7 +481,7 @@ function writeExampleSuggestions(
                                 <div class="sense-copy">
                                   @let passage = parsePassage(item.text);
                                   @if (passage.text) {
-                                    <q class="passage">{{ passage.text }}</q>
+                                    <p class="passage">{{ passage.text }}</p>
                                   }
                                   @if (passage.translations.length) {
                                     <ul class="equivalents">
@@ -529,7 +529,7 @@ function writeExampleSuggestions(
                             <div class="example-copy">
                               @let passage = parsePassage(example.text);
                               @if (passage.text) {
-                                <q class="passage">
+                                <p class="passage">
                                   @for (
                                     part of highlightPassage(passage.text, index);
                                     track $index
@@ -557,7 +557,7 @@ function writeExampleSuggestions(
                                       <span [textContent]="part.text"></span>
                                     }
                                   }
-                                </q>
+                                </p>
                               }
                               @if (passage.translations.length) {
                                 <ul class="equivalents">
@@ -1036,7 +1036,7 @@ function writeExampleSuggestions(
         @if (exampleEngineer(); as engineer) {
           <div class="sheet-backdrop" (click)="closeExampleEngineer($event)">
             <section
-              class="sheet"
+              class="sheet engineer-sheet"
               role="dialog"
               aria-modal="true"
               aria-label="Ask AI for examples"
@@ -1088,24 +1088,26 @@ function writeExampleSuggestions(
                     </span>
                   </button>
                   @if (engineer.formsOpen) {
-                    <p class="hint">
-                      Select forms to require. More than one picks a form at random.
-                    </p>
-                    <ul class="equivalent-choices">
-                      @for (form of forms; track form) {
-                        <li>
-                          <button
-                            type="button"
-                            [class.selected]="engineerFormChosen(form)"
-                            [attr.aria-pressed]="engineerFormChosen(form)"
-                            [disabled]="askingExamples() !== null"
-                            (click)="toggleEngineerForm(form)"
-                          >
-                            {{ form }}
-                          </button>
-                        </li>
-                      }
-                    </ul>
+                    <div class="engineer-forms">
+                      <p class="hint">
+                        Select forms to require. More than one picks a form at random.
+                      </p>
+                      <ul class="equivalent-choices">
+                        @for (form of forms; track form) {
+                          <li>
+                            <button
+                              type="button"
+                              [class.selected]="engineerFormChosen(form)"
+                              [attr.aria-pressed]="engineerFormChosen(form)"
+                              [disabled]="askingExamples() !== null"
+                              (click)="toggleEngineerForm(form)"
+                            >
+                              {{ form }}
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                    </div>
                   }
                 }
               }
@@ -1472,8 +1474,33 @@ function writeExampleSuggestions(
       color: var(--accent-text);
     }
 
-    .suggestion .pills li {
-      background: rgba(var(--accent-rgb), 0.16);
+    .sense-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sense-meta li {
+      display: inline-flex;
+      align-items: baseline;
+      padding: 0.12rem 0.45rem;
+      border: 1px solid rgba(139, 144, 165, 0.4);
+      border-radius: 0.35rem;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+    }
+
+    .sense-meta-key {
+      margin-right: 0.35rem;
+      font-weight: 600;
+    }
+
+    .suggestion .sense-meta li {
+      border-color: var(--accent-border);
       color: var(--accent-text);
     }
 
@@ -1633,10 +1660,6 @@ function writeExampleSuggestions(
       gap: 0.25rem;
     }
 
-    q {
-      quotes: '“' '”';
-    }
-
     .meta {
       display: flex;
       flex-direction: column;
@@ -1684,6 +1707,21 @@ function writeExampleSuggestions(
       border-radius: var(--radius);
       background: var(--surface);
       box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
+    }
+
+    .engineer-sheet {
+      overflow: hidden;
+    }
+
+    .engineer-sheet textarea {
+      flex: none;
+      height: 5.6rem;
+      resize: none;
+    }
+
+    .engineer-forms {
+      max-height: 9rem;
+      overflow: auto;
     }
 
     .sheet h3 {
@@ -1968,6 +2006,11 @@ export class ElementModal {
 
   entries(metadata: ElementMetadata): Array<{ key: string; value: string }> {
     return Object.entries(metadata).map(([key, value]) => ({ key, value }));
+  }
+
+  /** First letter of a metadata label, leaving the rest of the wording alone. */
+  label(value: string): string {
+    return value.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase());
   }
 
   inputValue(event: Event): string {
