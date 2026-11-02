@@ -1,3 +1,4 @@
+import { type HighlightStyle } from './appearance';
 import { compileFormSources } from './forms';
 import { stickTrailingPunctuation } from './stick-punctuation';
 
@@ -12,15 +13,29 @@ export type DefinitionHighlightPart = {
   current: boolean;
   /** Other elements whose forms cover this span. */
   matches: DefinitionHighlightMatch[];
+  /** Underline color of the element that won the span. */
+  color: string;
+  /** Underline style of the element that won the span. */
+  style: HighlightStyle;
 };
 
 type HighlightRegex = { source: string; flags?: string };
+
+type HighlightSource = {
+  id: string;
+  title: string;
+  forms: readonly string[];
+  color: string;
+  style: HighlightStyle;
+};
 
 type HighlightRule = {
   id: number;
   lemma: string;
   elementId: string | null;
   regexes: HighlightRegex[];
+  color: string;
+  style: HighlightStyle;
 };
 
 type HighlightSpan = {
@@ -37,6 +52,8 @@ type HighlightHit = {
   text: string;
   elementId: string | null;
   matches: HighlightSpan[];
+  color: string;
+  style: HighlightStyle;
 };
 
 const compiledRegexCache = new Map<string, RegExp | null>();
@@ -95,6 +112,8 @@ function collectHighlightMatches(text: string, rules: readonly HighlightRule[]):
           text: text.slice(start, end),
           elementId: rule.elementId,
           matches: [{ lemma: rule.lemma, id: rule.id, elementId: rule.elementId }],
+          color: rule.color,
+          style: rule.style,
         });
         if (match[0].length === 0) matcher.lastIndex += 1;
       }
@@ -126,15 +145,17 @@ function resolveHighlightOverlaps(matches: HighlightHit[]): HighlightHit[] {
   return resolved;
 }
 
-function ruleFor(
-  id: number,
-  title: string,
-  forms: readonly string[],
-  elementId: string,
-): HighlightRule | null {
-  const source = buildFormsRegex(forms);
-  if (!source) return null;
-  return { id, lemma: title.trim(), elementId, regexes: [{ source, flags: 'iu' }] };
+function ruleFor(id: number, source: HighlightSource): HighlightRule | null {
+  const pattern = buildFormsRegex(source.forms);
+  if (!pattern) return null;
+  return {
+    id,
+    lemma: source.title.trim(),
+    elementId: source.id,
+    regexes: [{ source: pattern, flags: 'iu' }],
+    color: source.color,
+    style: source.style,
+  };
 }
 
 /**
@@ -144,32 +165,38 @@ function ruleFor(
  */
 export function highlightDefinitionPassage(
   text: string,
-  current: { id: string; title: string; forms: readonly string[] },
-  others: readonly { id: string; title: string; forms: readonly string[] }[],
+  current: HighlightSource,
+  others: readonly HighlightSource[],
 ): DefinitionHighlightPart[] {
   if (!text) return [];
   const rules: HighlightRule[] = [];
   let nextId = 1;
   for (const other of others) {
     if (!other.id || other.id === current.id) continue;
-    const rule = ruleFor(nextId, other.title, other.forms, other.id);
+    const rule = ruleFor(nextId, other);
     if (!rule) continue;
     rules.push(rule);
     nextId += 1;
   }
-  const currentRule = ruleFor(CURRENT_ID, current.title, current.forms, current.id);
+  const currentRule = ruleFor(CURRENT_ID, current);
   if (currentRule) rules.push(currentRule);
-  if (!rules.length) return [{ text, current: false, matches: [] }];
+  if (!rules.length) return [{ text, current: false, matches: [], color: '', style: 'solid' }];
 
   const hits = resolveHighlightOverlaps(collectHighlightMatches(text, rules));
-  if (!hits.length) return [{ text, current: false, matches: [] }];
+  if (!hits.length) return [{ text, current: false, matches: [], color: '', style: 'solid' }];
   hits.sort((left, right) => left.start - right.start);
 
   const parts: DefinitionHighlightPart[] = [];
   let cursor = 0;
   for (const hit of hits) {
     if (hit.start > cursor) {
-      parts.push({ text: text.slice(cursor, hit.start), current: false, matches: [] });
+      parts.push({
+        text: text.slice(cursor, hit.start),
+        current: false,
+        matches: [],
+        color: '',
+        style: 'solid',
+      });
     }
     const spans =
       hit.matches.length > 1
@@ -192,11 +219,19 @@ export function highlightDefinitionPassage(
       text: hit.text,
       current: hit.id === CURRENT_ID,
       matches,
+      color: hit.color,
+      style: hit.style,
     });
     cursor = hit.end;
   }
   if (cursor < text.length) {
-    parts.push({ text: text.slice(cursor), current: false, matches: [] });
+    parts.push({
+      text: text.slice(cursor),
+      current: false,
+      matches: [],
+      color: '',
+      style: 'solid',
+    });
   }
 
   return stickTrailingPunctuation(
@@ -205,5 +240,11 @@ export function highlightDefinitionPassage(
       hit: part.current || part.matches.length > 0,
       lemma: part.current ? null : (part.matches[0]?.title ?? null),
     })),
-  ).map(({ text: partText, current, matches }) => ({ text: partText, current, matches }));
+  ).map(({ text: partText, current, matches, color, style }) => ({
+    text: partText,
+    current,
+    matches,
+    color,
+    style,
+  }));
 }

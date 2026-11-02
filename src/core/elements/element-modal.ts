@@ -13,18 +13,26 @@ import {
 } from '@angular/core';
 import {
   assignEquivalent,
+  comfortChipBg,
+  comfortColor,
+  comfortColorHex,
   deleteElement,
   embedTranslation,
   formTexts,
+  HIGHLIGHT_STYLES,
   highlightDefinitionPassage,
   isValidForm,
   parsePassage,
+  resolveHighlightColor,
+  resolveHighlightStyle,
+  sanitizeHighlightColor,
   saveElement,
   type DefinitionHighlightMatch,
   type DefinitionHighlightPart,
   type ElementDefinition,
   type ElementEquivalent,
   type ElementMetadata,
+  type HighlightStyle,
   type PassageTranslation,
   type StoredElement,
 } from 'collection';
@@ -57,6 +65,14 @@ type Editor =
 type FormEdit = { definitionIndex: number };
 
 type MetadataEdit = { previousKey: string | null };
+
+type HighlightSource = {
+  id: string;
+  title: string;
+  forms: string[];
+  color: string;
+  style: HighlightStyle;
+};
 
 function writeMetadata(
   metadata: ElementMetadata,
@@ -482,6 +498,33 @@ function writeExampleSuggestions(
             }
           }
           <div class="header-actions">
+            <button
+              type="button"
+              class="icon-btn highlight-btn"
+              aria-label="Highlight color"
+              title="Highlight color"
+              [attr.aria-expanded]="colorOpen()"
+              [disabled]="aiBusy()"
+              [style.--swatch]="highlightColor(element())"
+              (click)="openHighlight()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 11-6 6v3h9l3-3" />
+                <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="score-pill"
+              aria-label="Learning score"
+              title="Learning score"
+              [attr.aria-expanded]="scoreOpen()"
+              [disabled]="aiBusy()"
+              [style.color]="comfortColor(element().score)"
+              (click)="scoreOpen.set(true)"
+            >
+              {{ element().score }} / 10
+            </button>
             @if (canHear(element().title)) {
               <button
                 type="button"
@@ -627,6 +670,8 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 class="linguagem-highlighted"
+                                [style.--highlight-color]="part.color"
+                                [style.--highlight-style]="part.style"
                                 [textContent]="part.text"
                                 (click)="showCollision($event, part.matches)"
                               ></button>
@@ -634,12 +679,16 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 class="linguagem-highlighted"
+                                [style.--highlight-color]="part.color"
+                                [style.--highlight-style]="part.style"
                                 [textContent]="part.text"
                                 (click)="visitHighlight(part.matches[0].elementId)"
                               ></button>
                             } @else if (part.current) {
                               <span
                                 class="linguagem-highlighted linguagem-highlighted--current"
+                                [style.--highlight-color]="part.color"
+                                [style.--highlight-style]="part.style"
                                 [textContent]="part.text"
                               ></span>
                             } @else {
@@ -843,6 +892,8 @@ function writeExampleSuggestions(
                                       <button
                                         type="button"
                                         class="linguagem-highlighted"
+                                        [style.--highlight-color]="part.color"
+                                        [style.--highlight-style]="part.style"
                                         [textContent]="part.text"
                                         (click)="showCollision($event, part.matches)"
                                       ></button>
@@ -850,12 +901,16 @@ function writeExampleSuggestions(
                                       <button
                                         type="button"
                                         class="linguagem-highlighted"
+                                        [style.--highlight-color]="part.color"
+                                        [style.--highlight-style]="part.style"
                                         [textContent]="part.text"
                                         (click)="visitHighlight(part.matches[0].elementId)"
                                       ></button>
                                     } @else if (part.current) {
                                       <span
                                         class="linguagem-highlighted linguagem-highlighted--current"
+                                        [style.--highlight-color]="part.color"
+                                        [style.--highlight-style]="part.style"
                                         [textContent]="part.text"
                                       ></span>
                                     } @else {
@@ -2017,6 +2072,150 @@ function writeExampleSuggestions(
           </div>
         }
 
+        @if (scoreOpen()) {
+          <div class="sheet-backdrop" (click)="closeScore($event)">
+            <section
+              class="sheet score-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Learning score"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>Learning score</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  [disabled]="busy()"
+                  (click)="scoreOpen.set(false)"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div class="comfort-strip" role="radiogroup" aria-label="Learning score">
+                @for (level of comfortLevels; track level) {
+                  <button
+                    type="button"
+                    class="comfort-step"
+                    [class.selected]="element().score === level"
+                    [style.--step-color]="comfortColor(level)"
+                    [style.--step-bg]="comfortChipBg(level)"
+                    [disabled]="busy()"
+                    [attr.aria-label]="'' + level"
+                    [attr.aria-pressed]="element().score === level"
+                    (click)="selectScore(level)"
+                  >
+                    {{ level }}
+                  </button>
+                }
+              </div>
+              <div class="comfort-labels" aria-hidden="true">
+                <span>Not comfortable</span>
+                <span>Very comfortable</span>
+              </div>
+            </section>
+          </div>
+        }
+
+        @if (colorOpen()) {
+          <div class="sheet-backdrop" (click)="closeHighlight($event)">
+            <section
+              class="sheet highlight-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Highlight color"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>Highlight</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  [disabled]="busy()"
+                  (click)="colorOpen.set(false)"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div
+                class="color-sv"
+                [style.background]="colorSvBackground()"
+                (pointerdown)="onColorPointer($event)"
+                (pointermove)="onColorPointer($event)"
+              >
+                <span
+                  class="color-sv-thumb"
+                  [style.left.%]="colorSat() * 100"
+                  [style.top.%]="(1 - colorVal()) * 100"
+                  [style.background]="colorDraft()"
+                ></span>
+              </div>
+              <input
+                class="color-hue"
+                type="range"
+                min="0"
+                max="360"
+                step="1"
+                aria-label="Hue"
+                [value]="colorHue()"
+                [disabled]="busy()"
+                (input)="onHueInput($event)"
+              />
+              <div class="underline-styles">
+                @for (style of highlightStyles; track style) {
+                  <button
+                    type="button"
+                    class="underline-style"
+                    [class.selected]="styleDraft() === style"
+                    [style.--highlight-color]="colorDraft()"
+                    [style.--highlight-style]="style"
+                    [disabled]="busy()"
+                    [attr.aria-label]="style + ' underline'"
+                    [attr.aria-pressed]="styleDraft() === style"
+                    (click)="styleDraft.set(style)"
+                  >
+                    Aa
+                  </button>
+                }
+              </div>
+              <div class="sheet-actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  [disabled]="busy() || !canResetHighlight()"
+                  (click)="resetHighlight()"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  [disabled]="busy()"
+                  (click)="colorOpen.set(false)"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  [disabled]="busy() || !highlightDirty()"
+                  (click)="saveHighlight()"
+                >
+                  Save
+                </button>
+              </div>
+            </section>
+          </div>
+        }
+
         @if (confirm(); as pending) {
           <div class="sheet-backdrop" (click)="closeSheet($event)">
             <section
@@ -2116,6 +2315,132 @@ function writeExampleSuggestions(
 
     header > .header-actions {
       justify-content: flex-end;
+    }
+
+    .score-pill {
+      display: inline-flex;
+      align-items: center;
+      height: 1.8rem;
+      margin-right: 0.2rem;
+      border: 0;
+      border-radius: 0.4rem;
+      padding: 0 0.35rem;
+      background: transparent;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .score-pill:hover:not(:disabled) {
+      background: rgba(139, 144, 165, 0.16);
+    }
+
+    .score-pill:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .comfort-strip {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(0, 1fr));
+      gap: 0.3rem;
+    }
+
+    .comfort-step {
+      border: 0;
+      border-radius: 8px;
+      padding: 0.45rem 0;
+      background: var(--step-bg);
+      color: var(--step-color);
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .comfort-step.selected {
+      box-shadow: inset 0 0 0 2px var(--step-color);
+    }
+
+    .comfort-step:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .comfort-labels {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+    }
+
+    .color-sv {
+      position: relative;
+      height: 8rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    .color-sv-thumb {
+      position: absolute;
+      width: 0.9rem;
+      height: 0.9rem;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .color-hue {
+      width: 100%;
+      height: 0.85rem;
+      margin: 0;
+      appearance: none;
+      border-radius: 999px;
+      background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+      cursor: pointer;
+    }
+
+    .color-hue::-webkit-slider-thumb {
+      appearance: none;
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      background: transparent;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+    }
+
+    .underline-styles {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.35rem;
+    }
+
+    .underline-style {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-2);
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+      padding: 0.45rem 0;
+      text-decoration-line: underline;
+      text-decoration-style: var(--highlight-style, solid);
+      text-decoration-color: var(--highlight-color, currentColor);
+      text-underline-offset: 0.18em;
+    }
+
+    .underline-style.selected {
+      box-shadow:
+        0 0 0 2px var(--surface),
+        0 0 0 4px var(--accent);
     }
 
     .title-row {
@@ -2227,6 +2552,11 @@ function writeExampleSuggestions(
     .icon-btn:hover:not(:disabled) {
       color: var(--text);
       background: rgba(139, 144, 165, 0.16);
+    }
+
+    .icon-btn.highlight-btn,
+    .icon-btn.highlight-btn:hover:not(:disabled) {
+      color: var(--swatch, var(--accent));
     }
 
     .icon-btn {
@@ -2956,6 +3286,10 @@ export class ElementModal {
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
+  readonly comfortLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  readonly highlightStyles = HIGHLIGHT_STYLES;
+  readonly comfortColor = comfortColor;
+  readonly comfortChipBg = comfortChipBg;
   readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
   readonly relatedPickMax = MAX_RELATED_PICKS;
@@ -3001,6 +3335,13 @@ export class ElementModal {
   readonly wordingSuggestions = signal<Record<string, WordingSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
+  readonly scoreOpen = signal(false);
+  readonly colorOpen = signal(false);
+  readonly colorHue = signal(0);
+  readonly colorSat = signal(1);
+  readonly colorVal = signal(1);
+  readonly colorDraft = signal(comfortColorHex(1));
+  readonly styleDraft = signal<HighlightStyle>('solid');
   readonly engineerGloss = signal('');
   readonly engineerEnglish = signal('');
   readonly error = signal('');
@@ -3049,6 +3390,8 @@ export class ElementModal {
       this.addDefinitionOpen.set(false);
       this.addExampleFor.set(null);
       this.addFormFor.set(null);
+      this.scoreOpen.set(false);
+      this.colorOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
       this.equivalentTicket += 1;
@@ -3098,6 +3441,14 @@ export class ElementModal {
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
+    if (this.colorOpen()) {
+      if (!this.busy()) this.colorOpen.set(false);
+      return;
+    }
+    if (this.scoreOpen()) {
+      if (!this.busy()) this.scoreOpen.set(false);
+      return;
+    }
     if (this.addFormFor() != null) {
       if (this.askingForms() === null) this.addFormFor.set(null);
       return;
@@ -4338,18 +4689,139 @@ export class ElementModal {
   highlightPassage(text: string, definitionIndex: number): DefinitionHighlightPart[] {
     const element = this.element();
     const definition = element.definitions[definitionIndex];
-    const others: { id: string; title: string; forms: string[] }[] = [];
+    const others: HighlightSource[] = [];
     for (const item of this.collection()) {
       if (item.id === element.id) continue;
+      const paint = appearanceOf(item);
       for (const sense of item.definitions) {
-        others.push({ id: item.id, title: item.title, forms: formTexts(sense.forms) });
+        others.push({ id: item.id, title: item.title, forms: formTexts(sense.forms), ...paint });
       }
     }
     return highlightDefinitionPassage(
       text,
-      { id: element.id, title: element.title, forms: formTexts(definition?.forms ?? []) },
+      {
+        id: element.id,
+        title: element.title,
+        forms: formTexts(definition?.forms ?? []),
+        ...appearanceOf(element),
+      },
       others,
     );
+  }
+
+  highlightColor(element: StoredElement): string {
+    return resolveHighlightColor(element.highlightColor, element.score);
+  }
+
+  closeScore(event: MouseEvent): void {
+    if (event.target !== event.currentTarget || this.busy()) return;
+    this.scoreOpen.set(false);
+  }
+
+  async selectScore(level: number): Promise<void> {
+    if (this.busy()) return;
+    if (this.element().score === level) {
+      this.scoreOpen.set(false);
+      return;
+    }
+    if (await this.saveAppearance({ score: level })) this.scoreOpen.set(false);
+  }
+
+  openHighlight(): void {
+    if (this.aiBusy()) return;
+    const element = this.element();
+    this.applyHighlightHex(resolveHighlightColor(element.highlightColor, element.score));
+    this.styleDraft.set(resolveHighlightStyle(element.highlightStyle));
+    this.colorOpen.set(true);
+  }
+
+  closeHighlight(event: MouseEvent): void {
+    if (event.target !== event.currentTarget || this.busy()) return;
+    this.colorOpen.set(false);
+  }
+
+  colorSvBackground(): string {
+    return `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hsvToHex(this.colorHue(), 1, 1)})`;
+  }
+
+  canResetHighlight(): boolean {
+    const element = this.element();
+    return (
+      element.highlightColor != null ||
+      element.highlightStyle != null ||
+      this.colorDraft() !== comfortColorHex(element.score) ||
+      this.styleDraft() !== 'solid'
+    );
+  }
+
+  resetHighlight(): void {
+    if (this.busy() || !this.canResetHighlight()) return;
+    this.applyHighlightHex(comfortColorHex(this.element().score));
+    this.styleDraft.set('solid');
+  }
+
+  highlightDirty(): boolean {
+    const element = this.element();
+    return (
+      this.colorDraft() !== resolveHighlightColor(element.highlightColor, element.score) ||
+      this.styleDraft() !== resolveHighlightStyle(element.highlightStyle)
+    );
+  }
+
+  async saveHighlight(): Promise<void> {
+    if (this.busy() || !this.highlightDirty()) return;
+    const element = this.element();
+    const fallback = comfortColorHex(element.score);
+    const color = this.colorDraft() === fallback ? null : sanitizeHighlightColor(this.colorDraft());
+    const style = this.styleDraft() === 'solid' ? null : this.styleDraft();
+    if (await this.saveAppearance({ highlightColor: color, highlightStyle: style })) {
+      this.colorOpen.set(false);
+    }
+  }
+
+  onHueInput(event: Event): void {
+    if (this.busy()) return;
+    this.colorHue.set(Number((event.target as HTMLInputElement).value));
+    this.colorDraft.set(hsvToHex(this.colorHue(), this.colorSat(), this.colorVal()));
+  }
+
+  onColorPointer(event: PointerEvent): void {
+    if (this.busy()) return;
+    const map = event.currentTarget as HTMLElement;
+    if (event.type === 'pointerdown') map.setPointerCapture(event.pointerId);
+    if (!map.hasPointerCapture(event.pointerId) && event.type !== 'pointerdown') return;
+    event.preventDefault();
+    const rect = map.getBoundingClientRect();
+    this.colorSat.set(clamp01((event.clientX - rect.left) / (rect.width || 1)));
+    this.colorVal.set(clamp01(1 - (event.clientY - rect.top) / (rect.height || 1)));
+    this.colorDraft.set(hsvToHex(this.colorHue(), this.colorSat(), this.colorVal()));
+  }
+
+  private applyHighlightHex(hex: string): void {
+    const color = sanitizeHighlightColor(hex) ?? comfortColorHex(this.element().score);
+    const hsv = hexToHsv(color);
+    this.colorDraft.set(color);
+    this.colorHue.set(hsv.h);
+    this.colorSat.set(hsv.s);
+    this.colorVal.set(hsv.v);
+  }
+
+  private async saveAppearance(
+    patch: Partial<Pick<StoredElement, 'score' | 'highlightColor' | 'highlightStyle'>>,
+  ): Promise<boolean> {
+    if (this.busy()) return false;
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      const saved = await saveElement({ ...this.element(), ...patch });
+      this.changed.emit(saved);
+      return true;
+    } catch {
+      this.error.set('Could not save this element.');
+      return false;
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   showCollision(event: MouseEvent, matches: DefinitionHighlightMatch[]): void {
@@ -4855,4 +5327,68 @@ export class ElementModal {
   private focusDraft(): void {
     setTimeout(() => this.draftField()?.nativeElement.focus());
   }
+}
+
+function appearanceOf(element: StoredElement): { color: string; style: HighlightStyle } {
+  return {
+    color: resolveHighlightColor(element.highlightColor, element.score),
+    style: resolveHighlightStyle(element.highlightStyle),
+  };
+}
+
+function clamp01(value: number): number {
+  if (Number.isNaN(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+function hexToHsv(hex: string): { h: number; s: number; v: number } {
+  const color = sanitizeHighlightColor(hex) ?? comfortColorHex(1);
+  const r = Number.parseInt(color.slice(1, 3), 16) / 255;
+  const g = Number.parseInt(color.slice(3, 5), 16) / 255;
+  const b = Number.parseInt(color.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  let h = 0;
+  if (delta > 0) {
+    if (max === r) h = ((g - b) / delta + 6) % 6;
+    else if (max === g) h = (b - r) / delta + 2;
+    else h = (r - g) / delta + 4;
+    h *= 60;
+  }
+  return { h, s: max === 0 ? 0 : delta / max, v: max };
+}
+
+function hsvToHex(h: number, s: number, v: number): string {
+  const hue = ((h % 360) + 360) % 360;
+  const chroma = v * s;
+  const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = v - chroma;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (hue < 60) {
+    r = chroma;
+    g = x;
+  } else if (hue < 120) {
+    r = x;
+    g = chroma;
+  } else if (hue < 180) {
+    g = chroma;
+    b = x;
+  } else if (hue < 240) {
+    g = x;
+    b = chroma;
+  } else if (hue < 300) {
+    r = x;
+    b = chroma;
+  } else {
+    r = chroma;
+    b = x;
+  }
+  const toHex = (channel: number) =>
+    Math.round((channel + m) * 255)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }

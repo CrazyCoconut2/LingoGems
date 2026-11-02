@@ -1,5 +1,11 @@
 import { ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
 import { isLearnableLanguage, type LearnableLanguage } from '../languages/catalog';
+import {
+  normalizeScore,
+  sanitizeHighlightColor,
+  sanitizeHighlightStyle,
+  type HighlightStyle,
+} from './appearance';
 
 export type ElementMetadata = Record<string, string>;
 
@@ -37,6 +43,12 @@ export type StoredElement = {
   title: string;
   equivalents: ElementEquivalent[];
   definitions: ElementDefinition[];
+  /** Learning note, always 1–10. */
+  score: number;
+  /** Custom underline color. Null uses the score color. */
+  highlightColor: string | null;
+  /** Custom underline style. Null is solid. */
+  highlightStyle: HighlightStyle | null;
   createdAt: number;
 };
 
@@ -88,6 +100,9 @@ export async function addElement(language: string, title: string): Promise<Store
     title: name,
     equivalents: [],
     definitions: [],
+    score: 1,
+    highlightColor: null,
+    highlightStyle: null,
     createdAt: Date.now(),
   };
   await putElement(created);
@@ -113,6 +128,7 @@ export async function saveElement(element: StoredElement): Promise<StoredElement
     title,
     equivalents: content.equivalents,
     definitions: content.definitions,
+    ...appearanceOf(element),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
@@ -151,8 +167,21 @@ function normalizeElement(raw: unknown): StoredElement | null {
     title,
     equivalents: content.equivalents,
     definitions: content.definitions,
+    ...appearanceOf(source),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
+  };
+}
+
+function appearanceOf(source: Partial<StoredElement> | null | undefined): {
+  score: number;
+  highlightColor: string | null;
+  highlightStyle: HighlightStyle | null;
+} {
+  return {
+    score: normalizeScore(source?.score),
+    highlightColor: sanitizeHighlightColor(source?.highlightColor),
+    highlightStyle: sanitizeHighlightStyle(source?.highlightStyle),
   };
 }
 

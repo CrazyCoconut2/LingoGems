@@ -32,6 +32,20 @@ export {
   type StoredElement,
 } from './elements/element-store';
 
+export {
+  DEFAULT_HIGHLIGHT_COLOR,
+  HIGHLIGHT_STYLES,
+  comfortChipBg,
+  comfortColor,
+  comfortColorHex,
+  normalizeScore,
+  resolveHighlightColor,
+  resolveHighlightStyle,
+  sanitizeHighlightColor,
+  sanitizeHighlightStyle,
+  type HighlightStyle,
+} from './elements/appearance';
+
 export { isValidForm } from './elements/forms';
 
 export {

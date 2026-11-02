@@ -17,11 +17,14 @@ import {
   DEFAULT_ELEMENT_SORT,
   ELEMENT_FACETS,
   ELEMENT_SEARCH_MAX_LENGTH,
+  comfortColor,
   elementHighlightParts,
   elementMatchesFacets,
   elementMatchesPrefix,
   elementPrefixSearch,
   languageDisplayName,
+  resolveHighlightColor,
+  resolveHighlightStyle,
   parseElementFacets,
   parseElementSort,
   readElements,
@@ -185,7 +188,13 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
         <ul class="elements">
           @for (element of visible(); track element.id) {
             <li>
-              <button type="button" class="element" (click)="openElement(element.id)">
+              <button
+                type="button"
+                class="element"
+                [style.--highlight-color]="highlightColor(element)"
+                [style.--highlight-style]="highlightStyle(element)"
+                (click)="openElement(element.id)"
+              >
                 <span class="title">
                   @for (part of highlight(element.title); track $index) {
                     @if (part.hit) {
@@ -194,6 +203,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       <span>{{ part.text }}</span>
                     }
                   }
+                </span>
+                <span class="score" [style.color]="comfortColor(element.score)">
+                  {{ element.score }} / 10
                 </span>
               </button>
             </li>
@@ -711,10 +723,10 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       justify-content: center;
       gap: 0.35rem;
       padding: 0.85rem 1rem;
-      border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
-      border-left: 3px solid color-mix(in srgb, var(--accent-rgb) 70%, transparent);
+      border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 28%, transparent);
+      border-left: 3px solid var(--highlight-color, var(--accent));
       border-radius: var(--radius);
-      background: color-mix(in srgb, var(--bg) 72%, var(--surface));
+      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 14%, var(--surface));
       color: inherit;
       font: inherit;
       text-align: left;
@@ -729,6 +741,16 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       font-size: 1.05rem;
       font-weight: 650;
       letter-spacing: -0.02em;
+      text-decoration-line: underline;
+      text-decoration-style: var(--highlight-style, solid);
+      text-decoration-color: var(--highlight-color, #6c63ff);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.18em;
+    }
+
+    .score {
+      font-size: 0.78rem;
+      font-weight: 650;
     }
 
     .skeleton {
@@ -1184,6 +1206,16 @@ export class LanguagePage {
       queryParams: { element: null },
       queryParamsHandling: 'merge',
     });
+  }
+
+  readonly comfortColor = comfortColor;
+
+  highlightColor(element: StoredElement): string {
+    return resolveHighlightColor(element.highlightColor, element.score);
+  }
+
+  highlightStyle(element: StoredElement): string {
+    return resolveHighlightStyle(element.highlightStyle);
   }
 
   highlight(text: string): ElementSearchPart[] {
