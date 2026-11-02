@@ -229,6 +229,11 @@ function normalizePlainText(value: unknown): string {
 
 const TRANSLATION_MARKER = /\[([a-z]{2}):\s*([^\]]*)]/gi;
 
+/** First letter of a translation phrase, leaving the rest of the wording alone. */
+function capitalizePhrase(value: string): string {
+  return value.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase('en'));
+}
+
 export type PassageTranslation = {
   language: string;
   text: string;
@@ -245,7 +250,11 @@ export function parsePassage(value: string): ParsedPassage {
   const text = value
     .replace(TRANSLATION_MARKER, (_match, language: string, body: string) => {
       const translation = body.trim();
-      if (translation) translations.push({ language: language.toLowerCase(), text: translation });
+      if (translation)
+        translations.push({
+          language: language.toLowerCase(),
+          text: capitalizePhrase(translation),
+        });
       return '';
     })
     .replace(/[ \t]+\n/g, '\n')
@@ -259,7 +268,7 @@ export function parsePassage(value: string): ParsedPassage {
 /** Store a translation on a phrase as `Primary [en: …]`, replacing that language's tag. */
 export function embedTranslation(raw: string, lang: string, text: string): string {
   const key = lang.trim().toLowerCase().split('-')[0];
-  const value = text.replace(/]/g, '').trim();
+  const value = capitalizePhrase(text.replace(/]/g, '').trim());
   const parsed = parsePassage(raw);
   const translations = new Map<string, string>();
   for (const item of parsed.translations) {
