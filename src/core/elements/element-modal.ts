@@ -36,6 +36,7 @@ import {
   sentenceUsesForm,
 } from 'ai';
 import { translatePhrase } from '../translate/translate';
+import { canSpeak, speakText, stopSpeaking } from './speech';
 
 const FORM_MAX_LENGTH = 100;
 const META_KEY_MAX_LENGTH = 40;
@@ -336,7 +337,8 @@ function writeExampleSuggestions(
                           <ul class="sense-meta">
                             @for (entry of meta; track entry.key) {
                               <li>
-                                <span class="sense-meta-key">{{ label(entry.key) }}</span> {{ label(entry.value) }}
+                                <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                                {{ label(entry.value) }}
                               </li>
                             }
                           </ul>
@@ -413,30 +415,143 @@ function writeExampleSuggestions(
                           <ul class="sense-meta">
                             @for (entry of meta; track entry.key) {
                               <li>
-                                <span class="sense-meta-key">{{ label(entry.key) }}</span> {{ label(entry.value) }}
+                                <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                                {{ label(entry.value) }}
                               </li>
                             }
                           </ul>
                         }
                       }
                     </div>
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Edit definition"
-                      title="Edit definition"
-                      [disabled]="busy()"
-                      (click)="openDefinition(index)"
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                      </svg>
-                    </button>
+                  </div>
+                  <div class="item-actions">
+                    @if (element().definitions.length > 1) {
+                      <span class="item-actions-move">
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Move definition up"
+                          title="Move definition up"
+                          [disabled]="aiBusy() || index === 0"
+                          (click)="moveDefinition(index, -1)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m18 15-6-6-6 6" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Move definition down"
+                          title="Move definition down"
+                          [disabled]="aiBusy() || index === element().definitions.length - 1"
+                          (click)="moveDefinition(index, 1)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m6 9 6 6 6-6" />
+                          </svg>
+                        </button>
+                      </span>
+                    }
+                    <span class="item-actions-main">
+                      @if (canHear(definition.text)) {
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          [class.active]="speaking() === 'definition:' + index"
+                          [attr.aria-pressed]="speaking() === 'definition:' + index"
+                          [attr.aria-label]="
+                            speaking() === 'definition:' + index
+                              ? 'Stop speaking'
+                              : 'Hear definition'
+                          "
+                          [attr.title]="
+                            speaking() === 'definition:' + index
+                              ? 'Stop speaking'
+                              : 'Hear definition'
+                          "
+                          (click)="hear('definition:' + index, definition.text)"
+                        >
+                          @if (speaking() === 'definition:' + index) {
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <rect class="solid" width="10" height="10" x="7" y="7" rx="1" />
+                            </svg>
+                          } @else {
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                            </svg>
+                          }
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        [class.copied]="copied() === 'definition:' + index"
+                        [attr.aria-label]="
+                          copied() === 'definition:' + index ? 'Copied' : 'Copy definition'
+                        "
+                        [attr.title]="
+                          copied() === 'definition:' + index ? 'Copied' : 'Copy definition'
+                        "
+                        (click)="copyText('definition:' + index, definition.text)"
+                      >
+                        @if (copied() === 'definition:' + index) {
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20 6 9 17l-5-5" />
+                          </svg>
+                        } @else {
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                          </svg>
+                        }
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Edit definition"
+                        title="Edit definition"
+                        [disabled]="aiBusy()"
+                        (click)="openDefinition(index)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn danger"
+                        aria-label="Delete definition"
+                        title="Delete definition"
+                        [disabled]="aiBusy()"
+                        (click)="askDeleteDefinition(index)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                          <path d="M10 11v6" />
+                          <path d="M14 11v6" />
+                        </svg>
+                      </button>
+                    </span>
                   </div>
 
                   <section class="group">
                     <div class="section-heading">
-                      <h3>Examples</h3>
+                      <h3 class="section-title">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                          />
+                          <path
+                            d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                          />
+                        </svg>
+                        Examples
+                      </h3>
                       <div class="header-actions">
                         <button
                           type="button"
@@ -476,9 +591,9 @@ function writeExampleSuggestions(
                       @if (staged.length) {
                         <ul class="examples">
                           @for (item of staged; track item.text; let stagedIndex = $index) {
-                            <li class="sense suggestion">
+                            <li class="staged-example">
                               <div class="sense-main">
-                                <div class="sense-copy">
+                                <div class="example-quote">
                                   @let passage = parsePassage(item.text);
                                   @if (passage.text) {
                                     <p class="passage">{{ passage.text }}</p>
@@ -525,8 +640,8 @@ function writeExampleSuggestions(
                           track $index;
                           let exampleIndex = $index
                         ) {
-                          <li>
-                            <div class="example-copy">
+                          <li class="saved-example">
+                            <div class="example-quote">
                               @let passage = parsePassage(example.text);
                               @if (passage.text) {
                                 <p class="passage">
@@ -578,18 +693,115 @@ function writeExampleSuggestions(
                                 }
                               }
                             </div>
-                            <button
-                              type="button"
-                              class="icon-btn"
-                              aria-label="Edit example"
-                              title="Edit example"
-                              [disabled]="busy()"
-                              (click)="openExample(index, exampleIndex)"
-                            >
-                              <svg viewBox="0 0 24 24">
-                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                              </svg>
-                            </button>
+                            <div class="item-actions">
+                              <span class="item-actions-main">
+                                @if (canHear(example.text)) {
+                                  <button
+                                    type="button"
+                                    class="icon-btn"
+                                    [class.active]="
+                                      speaking() === 'example:' + index + ':' + exampleIndex
+                                    "
+                                    [attr.aria-pressed]="
+                                      speaking() === 'example:' + index + ':' + exampleIndex
+                                    "
+                                    [attr.aria-label]="
+                                      speaking() === 'example:' + index + ':' + exampleIndex
+                                        ? 'Stop speaking'
+                                        : 'Hear example'
+                                    "
+                                    [attr.title]="
+                                      speaking() === 'example:' + index + ':' + exampleIndex
+                                        ? 'Stop speaking'
+                                        : 'Hear example'
+                                    "
+                                    (click)="
+                                      hear('example:' + index + ':' + exampleIndex, example.text)
+                                    "
+                                  >
+                                    @if (speaking() === 'example:' + index + ':' + exampleIndex) {
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <rect
+                                          class="solid"
+                                          width="10"
+                                          height="10"
+                                          x="7"
+                                          y="7"
+                                          rx="1"
+                                        />
+                                      </svg>
+                                    } @else {
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                                      </svg>
+                                    }
+                                  </button>
+                                }
+                                <button
+                                  type="button"
+                                  class="icon-btn"
+                                  [class.copied]="
+                                    copied() === 'example:' + index + ':' + exampleIndex
+                                  "
+                                  [attr.aria-label]="
+                                    copied() === 'example:' + index + ':' + exampleIndex
+                                      ? 'Copied'
+                                      : 'Copy example'
+                                  "
+                                  [attr.title]="
+                                    copied() === 'example:' + index + ':' + exampleIndex
+                                      ? 'Copied'
+                                      : 'Copy example'
+                                  "
+                                  (click)="
+                                    copyText('example:' + index + ':' + exampleIndex, example.text)
+                                  "
+                                >
+                                  @if (copied() === 'example:' + index + ':' + exampleIndex) {
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                      <path d="M20 6 9 17l-5-5" />
+                                    </svg>
+                                  } @else {
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                                      <path
+                                        d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
+                                      />
+                                    </svg>
+                                  }
+                                </button>
+                                <button
+                                  type="button"
+                                  class="icon-btn"
+                                  aria-label="Edit example"
+                                  title="Edit example"
+                                  [disabled]="aiBusy()"
+                                  (click)="openExample(index, exampleIndex)"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  class="icon-btn danger"
+                                  aria-label="Delete example"
+                                  title="Delete example"
+                                  [disabled]="aiBusy()"
+                                  (click)="askDeleteExample(index, exampleIndex)"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 6h18" />
+                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                    <path d="M10 11v6" />
+                                    <path d="M14 11v6" />
+                                  </svg>
+                                </button>
+                              </span>
+                            </div>
                           </li>
                         }
                       </ul>
@@ -600,7 +812,16 @@ function writeExampleSuggestions(
 
                   <section class="group">
                     <div class="section-heading">
-                      <h3>Forms</h3>
+                      <h3 class="section-title">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
+                          />
+                          <path d="m22 12.5-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5" />
+                          <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
+                        </svg>
+                        Forms
+                      </h3>
                       <div class="header-actions">
                         <button
                           type="button"
@@ -1014,18 +1235,14 @@ function writeExampleSuggestions(
                 >
                   Save
                 </button>
-                @if (
-                  current.kind === 'definition'
-                    ? current.index != null
-                    : current.exampleIndex != null
-                ) {
+                @if (current.kind === 'example' && current.exampleIndex != null) {
                   <button
                     type="button"
                     class="btn btn-danger"
                     [disabled]="busy()"
                     (click)="askDelete()"
                   >
-                    {{ current.kind === 'definition' ? 'Delete definition' : 'Delete example' }}
+                    Delete example
                   </button>
                 }
               </div>
@@ -1380,6 +1597,23 @@ function writeExampleSuggestions(
       cursor: not-allowed;
     }
 
+    .icon-btn.active,
+    .icon-btn.active:hover:not(:disabled) {
+      color: var(--accent-text);
+      background: var(--accent-soft);
+    }
+
+    .icon-btn.copied,
+    .icon-btn.copied:hover:not(:disabled) {
+      color: #7ddea8;
+      background: rgba(125, 222, 168, 0.14);
+    }
+
+    .icon-btn.danger:hover:not(:disabled) {
+      color: var(--danger);
+      background: color-mix(in srgb, var(--danger) 12%, transparent);
+    }
+
     .icon-btn svg {
       display: block;
       width: 1rem;
@@ -1389,6 +1623,28 @@ function writeExampleSuggestions(
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .icon-btn svg .solid {
+      fill: currentColor;
+      stroke: none;
+    }
+
+    .item-actions,
+    .item-actions-move,
+    .item-actions-main {
+      display: flex;
+      align-items: center;
+      gap: 0.15rem;
+      min-width: 0;
+    }
+
+    .item-actions {
+      justify-content: space-between;
+    }
+
+    .item-actions-main {
+      margin-left: auto;
     }
 
     .body {
@@ -1426,6 +1682,24 @@ function writeExampleSuggestions(
       letter-spacing: 0.06em;
       line-height: 1;
       text-transform: uppercase;
+    }
+
+    h3.section-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    h3.section-title svg {
+      display: block;
+      width: 1.15rem;
+      height: 1.15rem;
+      flex: none;
+      fill: none;
+      stroke: var(--accent-text);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .empty,
@@ -1652,12 +1926,41 @@ function writeExampleSuggestions(
       gap: 0.45rem;
     }
 
-    .example-copy {
-      flex: 1;
-      min-width: 0;
+    .examples li.saved-example,
+    .examples li.staged-example {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.35rem;
+    }
+
+    .example-quote {
       display: flex;
+      flex: 1;
       flex-direction: column;
       gap: 0.25rem;
+      min-width: 0;
+      padding: 0.1rem 0 0.1rem 0.85rem;
+      border-left: 3px solid rgba(var(--accent-rgb), 0.45);
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    .example-quote .passage {
+      margin: 0;
+    }
+
+    .example-quote .equivalents {
+      font-size: 0.82rem;
+    }
+
+    .staged-example .example-quote {
+      border-left-style: dashed;
+      border-left-color: var(--accent-border);
+    }
+
+    .staged-example .example-quote .passage {
+      color: var(--accent-text);
     }
 
     .meta {
@@ -1867,8 +2170,11 @@ export class ElementModal {
   readonly exampleSuggestions = signal<Record<string, ExampleSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly error = signal('');
+  readonly speaking = signal<string | null>(null);
+  readonly copied = signal<string | null>(null);
 
   private translateTicket = 0;
+  private copiedTimer: ReturnType<typeof setTimeout> | null = null;
   private exampleJob = 0;
   private trackedElementId = '';
   private engineerDrafts = new Map<string, EngineerDraft>();
@@ -1880,10 +2186,13 @@ export class ElementModal {
   private readonly metaKeyField = viewChild<ElementRef<HTMLInputElement>>('metaKeyField');
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => stopSpeaking());
     effect(() => {
       const id = this.element().id;
       if (id === this.trackedElementId) return;
       this.trackedElementId = id;
+      this.stopSpeech();
+      this.clearCopied();
       this.editor.set(null);
       this.formEdit.set(null);
       this.formInfo.set(null);
@@ -1924,6 +2233,7 @@ export class ElementModal {
     inject(DestroyRef).onDestroy(() => {
       stopWatching();
       stopWatchingExamples();
+      this.clearCopied();
       document.body.style.overflow = previous;
     });
     afterNextRender(() => this.closeButton()?.nativeElement.focus());
@@ -2114,6 +2424,41 @@ export class ElementModal {
     if (this.element().id === elementId) this.suggestions.set(list);
   }
 
+  private stopSpeech(): void {
+    stopSpeaking();
+    this.speaking.set(null);
+  }
+
+  private swapDefinitionIndexes(from: number, to: number): void {
+    const map = (index: number): number => (index === from ? to : index === to ? from : index);
+    const editing = this.formEdit();
+    if (editing) this.formEdit.set({ definitionIndex: map(editing.definitionIndex) });
+    const info = this.formInfo();
+    if (info) this.formInfo.set({ ...info, definitionIndex: map(info.definitionIndex) });
+    const editor = this.editor();
+    if (editor?.kind === 'definition' && editor.index != null) {
+      this.editor.set({ kind: 'definition', index: map(editor.index) });
+    }
+    if (editor?.kind === 'example') {
+      this.editor.set({ ...editor, definitionIndex: map(editor.definitionIndex) });
+    }
+    const pending = this.confirm();
+    if (pending?.kind === 'definition') {
+      this.confirm.set({ kind: 'definition', index: map(pending.index) });
+    }
+    if (pending?.kind === 'example') {
+      this.confirm.set({ ...pending, definitionIndex: map(pending.definitionIndex) });
+    }
+    const asking = this.askingExamples();
+    if (asking != null) this.askingExamples.set(map(asking));
+    const forms = this.askingForms();
+    if (forms != null) this.askingForms.set(map(forms));
+    const engineer = this.exampleEngineer();
+    if (engineer) {
+      this.exampleEngineer.set({ ...engineer, definitionIndex: map(engineer.definitionIndex) });
+    }
+  }
+
   private shiftDefinitionIndexes(by: number): void {
     const editing = this.formEdit();
     if (editing) this.formEdit.set({ definitionIndex: editing.definitionIndex + by });
@@ -2176,6 +2521,62 @@ export class ElementModal {
     } finally {
       this.askingForms.set(null);
     }
+  }
+
+  canHear(text: string): boolean {
+    return canSpeak() && !!parsePassage(text).text.trim();
+  }
+
+  hear(key: string, text: string): void {
+    const line = parsePassage(text).text.trim();
+    if (!line) return;
+    if (this.speaking() === key) {
+      this.stopSpeech();
+      return;
+    }
+    const started = speakText(line, this.element().language, () => {
+      if (this.speaking() === key) this.speaking.set(null);
+    });
+    this.speaking.set(started ? key : null);
+  }
+
+  async copyText(key: string, text: string): Promise<void> {
+    const value = parsePassage(text).text.trim();
+    if (!value || !navigator.clipboard?.writeText) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      return;
+    }
+    this.clearCopied();
+    this.copied.set(key);
+    this.copiedTimer = setTimeout(() => {
+      this.copied.set(null);
+      this.copiedTimer = null;
+    }, 1500);
+  }
+
+  askDeleteExample(definitionIndex: number, exampleIndex: number): void {
+    if (this.aiBusy()) return;
+    this.confirm.set({ kind: 'example', definitionIndex, exampleIndex });
+  }
+
+  askDeleteDefinition(index: number): void {
+    if (this.aiBusy() || !this.element().definitions[index]) return;
+    this.confirm.set({ kind: 'definition', index });
+  }
+
+  async moveDefinition(index: number, delta: -1 | 1): Promise<void> {
+    if (this.aiBusy()) return;
+    const target = index + delta;
+    const definitions = this.copyDefinitions();
+    const current = definitions[index];
+    if (!current || !definitions[target]) return;
+    definitions.splice(index, 1);
+    definitions.splice(target, 0, current);
+    this.stopSpeech();
+    if (!(await this.persist(definitions, this.element().equivalents))) return;
+    this.swapDefinitionIndexes(index, target);
   }
 
   openDefinition(index: number | null): void {
@@ -2672,18 +3073,12 @@ export class ElementModal {
 
   askDelete(): void {
     const editor = this.editor();
-    if (!editor) return;
-    if (editor.kind === 'definition' && editor.index != null) {
-      this.confirm.set({ kind: 'definition', index: editor.index });
-      return;
-    }
-    if (editor.kind === 'example' && editor.exampleIndex != null) {
-      this.confirm.set({
-        kind: 'example',
-        definitionIndex: editor.definitionIndex,
-        exampleIndex: editor.exampleIndex,
-      });
-    }
+    if (editor?.kind !== 'example' || editor.exampleIndex == null) return;
+    this.confirm.set({
+      kind: 'example',
+      definitionIndex: editor.definitionIndex,
+      exampleIndex: editor.exampleIndex,
+    });
   }
 
   async confirmDelete(): Promise<void> {
@@ -2720,7 +3115,23 @@ export class ElementModal {
       else if (asking != null && asking > pending.index) this.askingExamples.set(asking - 1);
     }
     this.confirm.set(null);
-    this.editor.set(null);
+    if (pending.kind === 'definition') this.editor.set(null);
+    else this.adjustExampleEditor(pending.definitionIndex, pending.exampleIndex);
+  }
+
+  private clearCopied(): void {
+    if (this.copiedTimer) clearTimeout(this.copiedTimer);
+    this.copiedTimer = null;
+    this.copied.set(null);
+  }
+
+  private adjustExampleEditor(definitionIndex: number, exampleIndex: number): void {
+    const editor = this.editor();
+    if (editor?.kind !== 'example' || editor.definitionIndex !== definitionIndex) return;
+    if (editor.exampleIndex === exampleIndex) this.editor.set(null);
+    else if (editor.exampleIndex != null && editor.exampleIndex > exampleIndex) {
+      this.editor.set({ ...editor, exampleIndex: editor.exampleIndex - 1 });
+    }
   }
 
   private async removeElement(): Promise<void> {
