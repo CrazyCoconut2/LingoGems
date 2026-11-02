@@ -76,3 +76,23 @@ export {
   type GenerateExamplesInput,
   type GeneratedExample,
 } from './examples';
+
+export {
+  DEFINITION_PHRASE_SYSTEM_PROMPT,
+  DEFINITION_RELATIONS,
+  MAX_DEFINITION_INSTRUCTION,
+  MAX_DEFINITION_WORDING,
+  MAX_RELATED_PICKS,
+  RELATED_WORDS_SYSTEM_PROMPT,
+  buildDefinitionPhraseUserMessage,
+  buildRelatedWordsUserMessage,
+  generateRelatedWords,
+  parseGeneratedDefinitionPhrase,
+  parseGeneratedRelatedWords,
+  verbalizeDefinition,
+  type DefinitionRelation,
+  type GenerateDefinitionPhraseInput,
+  type GenerateRelatedWordsInput,
+  type GeneratedDefinitionPhrase,
+  type RelatedWord,
+} from './definition-engineer';

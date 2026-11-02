@@ -29,12 +29,17 @@ import {
   type StoredElement,
 } from 'collection';
 import {
+  MAX_DEFINITION_INSTRUCTION,
   MAX_EXAMPLE_INSTRUCTION,
+  MAX_RELATED_PICKS,
   generateDefinitions,
   generateEquivalent,
   generateExamples,
   generateForms,
+  generateRelatedWords,
   sentenceUsesForm,
+  verbalizeDefinition,
+  type RelatedWord,
 } from 'ai';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
@@ -159,10 +164,43 @@ type ExampleEngineer = EngineerDraft & {
   formsOpen: boolean;
 };
 
+type DefinitionEngineerDraft = {
+  instruction: string;
+  words: RelatedWord[];
+  selected: string[];
+};
+
+type DefinitionEngineer = DefinitionEngineerDraft & {
+  definitionIndex: number;
+};
+
+type WordingSuggestion = { text: string };
+
 const EXAMPLE_SUGGESTIONS_KEY = 'lingogem.example-suggestions.v1';
 
 function senseKey(text: string): string {
   return parsePassage(text).text.trim().toLowerCase();
+}
+
+function appendDefinitionPhrase(current: string, addition: string): string {
+  const base = parsePassage(current);
+  const extra = parsePassage(addition);
+  const gloss = [base.text, extra.text].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  const languages = new Set<string>();
+  for (const item of [...base.translations, ...extra.translations]) {
+    if (item.language) languages.add(item.language);
+  }
+  let text = gloss;
+  for (const language of [...languages].sort()) {
+    const joined = [base, extra]
+      .map((passage) => passage.translations.find((item) => item.language === language)?.text ?? '')
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (joined) text = embedTranslation(text, language, joined);
+  }
+  return text;
 }
 
 function exampleSuggestionList(raw: unknown): ExampleSuggestion[] {
@@ -210,6 +248,72 @@ function watchExampleSuggestions(listener: (elementId: string) => void): () => v
 }
 
 const exampleSuggestionListeners = new Set<(elementId: string) => void>();
+
+const WORDING_SUGGESTIONS_KEY = 'lingogem.definition-wording.v1';
+
+function wordingSuggestionList(raw: unknown): WordingSuggestion[] {
+  if (!Array.isArray(raw)) return [];
+  const suggestions: WordingSuggestion[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const text = String((item as { text?: unknown }).text ?? '').trim();
+    if (!text) continue;
+    suggestions.push({ text });
+  }
+  return suggestions;
+}
+
+function readWordingSuggestionStore(): Record<string, unknown> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(WORDING_SUGGESTIONS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function readWordingSuggestions(elementId: string): Record<string, WordingSuggestion[]> {
+  if (!elementId) return {};
+  const raw = readWordingSuggestionStore()[elementId];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const lists: Record<string, WordingSuggestion[]> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const sense = key.trim().toLowerCase();
+    const list = wordingSuggestionList(value);
+    if (sense && list.length) lists[sense] = list;
+  }
+  return lists;
+}
+
+function watchWordingSuggestions(listener: (elementId: string) => void): () => void {
+  wordingSuggestionListeners.add(listener);
+  return () => wordingSuggestionListeners.delete(listener);
+}
+
+const wordingSuggestionListeners = new Set<(elementId: string) => void>();
+
+function writeWordingSuggestions(
+  elementId: string,
+  lists: Record<string, WordingSuggestion[]>,
+): void {
+  if (typeof localStorage === 'undefined' || !elementId) return;
+  const stored = readWordingSuggestionStore();
+  const bucket: Record<string, WordingSuggestion[]> = {};
+  for (const [key, list] of Object.entries(lists)) {
+    const sense = key.trim().toLowerCase();
+    if (sense && list.length) bucket[sense] = list;
+  }
+  if (Object.keys(bucket).length) stored[elementId] = bucket;
+  else delete stored[elementId];
+  if (Object.keys(stored).length) {
+    localStorage.setItem(WORDING_SUGGESTIONS_KEY, JSON.stringify(stored));
+  } else localStorage.removeItem(WORDING_SUGGESTIONS_KEY);
+  for (const listener of wordingSuggestionListeners) listener(elementId);
+}
 
 function writeExampleSuggestions(
   elementId: string,
@@ -494,6 +598,25 @@ function writeExampleSuggestions(
                       </span>
                     }
                     <span class="item-actions-main">
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Engineer definition"
+                        title="Engineer definition"
+                        [attr.aria-busy]="definitionEngineerBusy(index) ? true : null"
+                        [disabled]="aiBusy()"
+                        (click)="openDefinitionEngineer(index)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                          />
+                          <path d="M5 3v4" />
+                          <path d="M3 5h4" />
+                          <path d="M19 17v4" />
+                          <path d="M17 19h4" />
+                        </svg>
+                      </button>
                       @if (canHear(definition.text)) {
                         <button
                           type="button"
@@ -1521,6 +1644,151 @@ function writeExampleSuggestions(
           </div>
         }
 
+        @if (definitionEngineer(); as engineer) {
+          <div class="sheet-backdrop definition-layer" (click)="closeDefinitionEngineer($event)">
+            <section
+              class="sheet definition-engineer"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Engineer definition"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <div class="sheet-title">
+                  <h3>Engineer definition</h3>
+                  <p class="hint">{{ element().title }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  [disabled]="definitionSheetBusy()"
+                  (click)="definitionEngineer.set(null)"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <label class="field-label" for="definition-note">Note</label>
+              <textarea
+                id="definition-note"
+                rows="3"
+                [value]="engineer.instruction"
+                [attr.maxlength]="definitionInstructionMax"
+                [disabled]="definitionSheetBusy()"
+                placeholder="How this word sits among the others"
+                aria-label="Note"
+                (input)="onDefinitionEngineerInstruction($event)"
+              ></textarea>
+              <div class="related-block">
+                <div class="section-heading">
+                  <span class="field-label">Related</span>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    [disabled]="definitionSheetBusy()"
+                    [attr.aria-busy]="askingRelated() !== null ? true : null"
+                    (click)="findRelatedWords()"
+                  >
+                    Find related
+                  </button>
+                </div>
+                @if (engineer.words.length) {
+                  <p class="hint">Select up to four.</p>
+                  <div class="engineer-words">
+                    <ul class="equivalent-choices">
+                      @for (word of engineer.words; track word.text) {
+                        <li>
+                          <button
+                            type="button"
+                            class="related-chip"
+                            [class.selected]="relatedWordChosen(word)"
+                            [attr.aria-pressed]="relatedWordChosen(word)"
+                            [disabled]="definitionSheetBusy()"
+                            (click)="toggleRelatedWord(word)"
+                          >
+                            <span class="related-word">{{ word.text }}</span>
+                            <span class="relation">{{ label(word.relation) }}</span>
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                } @else {
+                  <p class="hint">Words tied to this definition show up here.</p>
+                }
+              </div>
+              @if (stagedWording(engineer.definitionIndex); as staged) {
+                @if (staged.length) {
+                  <ul class="staged-wording">
+                    @for (item of staged; track item.text; let stagedIndex = $index) {
+                      <li>
+                        <div class="sense-main">
+                          <div class="sense-copy">
+                            @let passage = parsePassage(item.text);
+                            @if (passage.text) {
+                              <p class="passage">{{ passage.text }}</p>
+                            }
+                            @if (passage.translations.length) {
+                              <ul class="equivalents">
+                                @for (translation of passage.translations; track $index) {
+                                  <li>{{ translation.text }}</li>
+                                }
+                              </ul>
+                            }
+                          </div>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Dismiss phrase"
+                            title="Dismiss phrase"
+                            [disabled]="busy()"
+                            (click)="dismissStagedWording(engineer.definitionIndex, stagedIndex)"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          class="btn btn-primary add-suggestion"
+                          [disabled]="aiBusy()"
+                          (click)="addStagedWording(engineer.definitionIndex, stagedIndex)"
+                        >
+                          Add
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+              }
+              @if (error()) {
+                <p class="error">{{ error() }}</p>
+              }
+              <div class="sheet-actions">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  [disabled]="definitionSheetBusy() || !engineer.selected.length"
+                  [attr.aria-busy]="askingWording() !== null ? true : null"
+                  (click)="generateEngineeredDefinition()"
+                >
+                  Generate
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  [disabled]="definitionSheetBusy()"
+                  (click)="definitionEngineer.set(null)"
+                >
+                  Cancel
+                </button>
+              </div>
+            </section>
+          </div>
+        }
+
         @if (formInfo(); as info) {
           <div class="sheet-backdrop" (click)="closeFormInfo($event)">
             <section
@@ -2070,7 +2338,6 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
-      padding-inline-start: 1.5rem;
     }
 
     .forms {
@@ -2238,9 +2505,137 @@ function writeExampleSuggestions(
       resize: none;
     }
 
-    .engineer-forms {
+    .engineer-forms,
+    .engineer-words {
       max-height: 9rem;
       overflow: auto;
+    }
+
+    .definition-layer {
+      overflow: hidden;
+      align-items: stretch;
+      justify-content: stretch;
+      padding: 0;
+      background: transparent;
+    }
+
+    .definition-engineer {
+      flex: 1 1 auto;
+      width: 100%;
+      max-width: none;
+      height: auto;
+      min-height: 0;
+      overflow: hidden;
+      border: 0;
+      border-radius: inherit;
+      box-shadow: none;
+      padding: 0.9rem 1.15rem 1rem;
+    }
+
+    .definition-engineer textarea {
+      flex: none;
+      height: 5.6rem;
+      resize: none;
+    }
+
+    .definition-engineer .sheet-title {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .definition-engineer .sheet-title h3,
+    .definition-engineer .sheet-title .hint {
+      margin: 0;
+    }
+
+    .definition-engineer .sheet-title .hint {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .definition-engineer .sheet-actions,
+    .definition-engineer .error,
+    .definition-engineer .staged-wording {
+      flex: none;
+    }
+
+    .definition-engineer .staged-wording {
+      max-height: 12rem;
+      overflow: auto;
+    }
+
+    .definition-engineer .section-heading .btn {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8125rem;
+    }
+
+    .related-block {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      gap: 0.45rem;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .definition-engineer .engineer-words {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
+    }
+
+    .engineer-words .equivalent-choices li {
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .related-chip {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.4rem;
+      max-width: 100%;
+      white-space: normal;
+      text-align: left;
+      line-height: 1.35;
+    }
+
+    .related-word {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .engineer-words .relation {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+    }
+
+    .engineer-words button.selected .relation {
+      color: var(--accent-text);
+    }
+
+    .staged-wording {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .staged-wording li {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: 0.65rem 0.75rem;
+      border: 1px dashed var(--accent-border);
+      border-radius: var(--radius);
+      background: var(--accent-soft);
+    }
+
+    .staged-wording .passage {
+      margin: 0;
+      color: var(--accent-text);
     }
 
     .sheet h3 {
@@ -2356,6 +2751,8 @@ export class ElementModal {
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
+  readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
+  readonly relatedPickMax = MAX_RELATED_PICKS;
   readonly parsePassage = parsePassage;
   readonly editor = signal<Editor | null>(null);
   readonly equivalentDraft = signal('');
@@ -2386,9 +2783,13 @@ export class ElementModal {
   readonly asking = signal(false);
   readonly askingForms = signal<number | null>(null);
   readonly askingExamples = signal<number | null>(null);
+  readonly askingRelated = signal<number | null>(null);
+  readonly askingWording = signal<number | null>(null);
   readonly suggestions = signal<DefinitionSuggestion[]>([]);
   readonly exampleSuggestions = signal<Record<string, ExampleSuggestion[]>>({});
+  readonly wordingSuggestions = signal<Record<string, WordingSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
+  readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
   readonly error = signal('');
   readonly speaking = signal<string | null>(null);
   readonly copied = signal<string | null>(null);
@@ -2397,8 +2798,11 @@ export class ElementModal {
   private equivalentTicket = 0;
   private copiedTimer: ReturnType<typeof setTimeout> | null = null;
   private exampleJob = 0;
+  private relatedJob = 0;
+  private wordingJob = 0;
   private trackedElementId = '';
   private engineerDrafts = new Map<string, EngineerDraft>();
+  private definitionEngineerDrafts = new Map<string, DefinitionEngineerDraft>();
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly draftField = viewChild<ElementRef<HTMLTextAreaElement>>('draftField');
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
@@ -2425,12 +2829,17 @@ export class ElementModal {
       this.confirm.set(null);
       this.askingForms.set(null);
       this.askingExamples.set(null);
+      this.askingRelated.set(null);
+      this.askingWording.set(null);
       this.exampleEngineer.set(null);
+      this.definitionEngineer.set(null);
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
       this.dismissTranslations();
       this.engineerDrafts.clear();
+      this.definitionEngineerDrafts.clear();
       this.loadExampleSuggestions(id);
+      this.loadWordingSuggestions(id);
       const saved = new Set(
         this.element().definitions.map((definition) =>
           parsePassage(definition.text).text.trim().toLowerCase(),
@@ -2453,11 +2862,16 @@ export class ElementModal {
       if (elementId !== this.trackedElementId) return;
       this.exampleSuggestions.set(readExampleSuggestions(elementId));
     });
+    const stopWatchingWording = watchWordingSuggestions((elementId) => {
+      if (elementId !== this.trackedElementId) return;
+      this.wordingSuggestions.set(readWordingSuggestions(elementId));
+    });
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     inject(DestroyRef).onDestroy(() => {
       stopWatching();
       stopWatchingExamples();
+      stopWatchingWording();
       this.clearCopied();
       document.body.style.overflow = previous;
     });
@@ -2498,6 +2912,10 @@ export class ElementModal {
       this.closeExampleEngineer();
       return;
     }
+    if (this.definitionEngineer()) {
+      this.closeDefinitionEngineer();
+      return;
+    }
     this.closed.emit();
   }
 
@@ -2522,6 +2940,7 @@ export class ElementModal {
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.exampleEngineer.set(null);
+    this.definitionEngineer.set(null);
     this.confirm.set(null);
     this.titleTranslationDraft.set('');
     this.translationEditId.set(null);
@@ -2690,7 +3109,12 @@ export class ElementModal {
 
   aiBusy(): boolean {
     return (
-      this.busy() || this.asking() || this.askingForms() !== null || this.askingExamples() !== null
+      this.busy() ||
+      this.asking() ||
+      this.askingForms() !== null ||
+      this.askingExamples() !== null ||
+      this.askingRelated() !== null ||
+      this.askingWording() !== null
     );
   }
 
@@ -2805,11 +3229,22 @@ export class ElementModal {
     }
     const asking = this.askingExamples();
     if (asking != null) this.askingExamples.set(map(asking));
+    const related = this.askingRelated();
+    if (related != null) this.askingRelated.set(map(related));
+    const wording = this.askingWording();
+    if (wording != null) this.askingWording.set(map(wording));
     const forms = this.askingForms();
     if (forms != null) this.askingForms.set(map(forms));
     const engineer = this.exampleEngineer();
     if (engineer) {
       this.exampleEngineer.set({ ...engineer, definitionIndex: map(engineer.definitionIndex) });
+    }
+    const definitionEngineer = this.definitionEngineer();
+    if (definitionEngineer) {
+      this.definitionEngineer.set({
+        ...definitionEngineer,
+        definitionIndex: map(definitionEngineer.definitionIndex),
+      });
     }
   }
 
@@ -2834,9 +3269,20 @@ export class ElementModal {
     }
     const asking = this.askingExamples();
     if (asking != null) this.askingExamples.set(asking + by);
+    const related = this.askingRelated();
+    if (related != null) this.askingRelated.set(related + by);
+    const wording = this.askingWording();
+    if (wording != null) this.askingWording.set(wording + by);
     const engineer = this.exampleEngineer();
     if (engineer) {
       this.exampleEngineer.set({ ...engineer, definitionIndex: engineer.definitionIndex + by });
+    }
+    const definitionEngineer = this.definitionEngineer();
+    if (definitionEngineer) {
+      this.definitionEngineer.set({
+        ...definitionEngineer,
+        definitionIndex: definitionEngineer.definitionIndex + by,
+      });
     }
   }
 
@@ -2940,6 +3386,7 @@ export class ElementModal {
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.exampleEngineer.set(null);
+    this.definitionEngineer.set(null);
     this.dismissTranslations();
     this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
     const equivalentId = definition?.equivalentId ?? null;
@@ -2963,6 +3410,7 @@ export class ElementModal {
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.exampleEngineer.set(null);
+    this.definitionEngineer.set(null);
     this.dismissTranslations();
     this.sheetMetadata.set({ ...(example?.metadata ?? {}) });
     this.beginSheet(example?.text ?? '');
@@ -2986,6 +3434,7 @@ export class ElementModal {
     const definition = this.element().definitions[index];
     const key = senseKey(definition?.text ?? '');
     if (!definition || !key) return;
+    this.definitionEngineer.set(null);
     this.editor.set(null);
     this.formEdit.set(null);
     this.formInfo.set(null);
@@ -3006,6 +3455,208 @@ export class ElementModal {
     if (event && event.target !== event.currentTarget) return;
     if (this.askingExamples() !== null) return;
     this.exampleEngineer.set(null);
+  }
+
+  definitionEngineerBusy(index: number): boolean {
+    return this.askingRelated() === index || this.askingWording() === index;
+  }
+
+  definitionSheetBusy(): boolean {
+    return this.askingRelated() !== null || this.askingWording() !== null;
+  }
+
+  stagedWording(index: number): WordingSuggestion[] {
+    const definition = this.element().definitions[index];
+    const key = senseKey(definition?.text ?? '');
+    if (!key) return [];
+    return this.wordingSuggestions()[key] ?? [];
+  }
+
+  openDefinitionEngineer(index: number): void {
+    if (this.aiBusy()) return;
+    const definition = this.element().definitions[index];
+    const key = senseKey(definition?.text ?? '');
+    if (!definition || !key) return;
+    this.editor.set(null);
+    this.formEdit.set(null);
+    this.formInfo.set(null);
+    this.formFeatureEdit.set(null);
+    this.metaEdit.set(null);
+    this.confirm.set(null);
+    this.exampleEngineer.set(null);
+    this.dismissTranslations();
+    const draft = this.definitionEngineerDrafts.get(key) ?? {
+      instruction: '',
+      words: [],
+      selected: [],
+    };
+    const known = new Set(draft.words.map((word) => word.text.toLowerCase()));
+    this.definitionEngineer.set({
+      definitionIndex: index,
+      instruction: draft.instruction,
+      words: draft.words,
+      selected: draft.selected.filter((text) => known.has(text.toLowerCase())),
+    });
+  }
+
+  closeDefinitionEngineer(event?: MouseEvent): void {
+    if (event && event.target !== event.currentTarget) return;
+    if (this.definitionSheetBusy()) return;
+    this.definitionEngineer.set(null);
+  }
+
+  onDefinitionEngineerInstruction(event: Event): void {
+    this.patchDefinitionEngineer({
+      instruction: this.inputValue(event).slice(0, MAX_DEFINITION_INSTRUCTION),
+    });
+  }
+
+  relatedWordChosen(word: RelatedWord): boolean {
+    const key = word.text.toLowerCase();
+    return this.definitionEngineer()?.selected.some((text) => text.toLowerCase() === key) ?? false;
+  }
+
+  toggleRelatedWord(word: RelatedWord): void {
+    const engineer = this.definitionEngineer();
+    if (!engineer || this.definitionSheetBusy()) return;
+    const key = word.text.toLowerCase();
+    const selected = engineer.selected.some((text) => text.toLowerCase() === key)
+      ? engineer.selected.filter((text) => text.toLowerCase() !== key)
+      : engineer.selected.length >= this.relatedPickMax
+        ? engineer.selected
+        : [...engineer.selected, word.text];
+    this.patchDefinitionEngineer({ selected });
+  }
+
+  async findRelatedWords(): Promise<void> {
+    const engineer = this.definitionEngineer();
+    if (!engineer || this.aiBusy()) return;
+    const element = this.element();
+    const definition = element.definitions[engineer.definitionIndex];
+    const gloss = parsePassage(definition?.text ?? '').text.trim();
+    const sense = senseKey(gloss);
+    if (!definition || !sense) return;
+    const job = ++this.relatedJob;
+    const index = engineer.definitionIndex;
+    this.askingRelated.set(index);
+    this.error.set('');
+    try {
+      const words = await generateRelatedWords({
+        language: element.language,
+        title: element.title,
+        gloss,
+        metadata: definition.metadata,
+        existingWords: engineer.words.map((word) => word.text),
+        definitionInstruction: engineer.instruction,
+      });
+      const showing = this.element().id === element.id;
+      const current = showing ? this.definitionEngineer() : null;
+      const sameSense =
+        showing && senseKey(this.element().definitions[index]?.text ?? '') === sense;
+      if (!showing || !current || current.definitionIndex !== index || !sameSense) return;
+      const seen = new Set(current.words.map((word) => word.text.toLowerCase()));
+      const added = words.filter((word) => !seen.has(word.text.toLowerCase()));
+      if (!added.length) {
+        this.error.set('No further related words.');
+        return;
+      }
+      this.patchDefinitionEngineer({ words: [...current.words, ...added] });
+    } catch {
+      if (this.element().id === element.id) this.error.set('Could not ask for related words.');
+    } finally {
+      if (this.relatedJob === job && this.element().id === element.id) this.askingRelated.set(null);
+    }
+  }
+
+  async generateEngineeredDefinition(): Promise<void> {
+    const engineer = this.definitionEngineer();
+    if (!engineer || this.aiBusy() || !engineer.selected.length) return;
+    const element = this.element();
+    const definition = element.definitions[engineer.definitionIndex];
+    const gloss = parsePassage(definition?.text ?? '').text.trim();
+    const sense = senseKey(gloss);
+    if (!definition || !sense) return;
+    const picked = engineer.selected.flatMap((text) => {
+      const word = engineer.words.find((item) => item.text.toLowerCase() === text.toLowerCase());
+      return word ? [word] : [];
+    });
+    if (!picked.length || picked.length > this.relatedPickMax) return;
+    const job = ++this.wordingJob;
+    const index = engineer.definitionIndex;
+    this.askingWording.set(index);
+    this.error.set('');
+    try {
+      const phrases = await verbalizeDefinition({
+        language: element.language,
+        title: element.title,
+        gloss,
+        words: picked,
+        definitionInstruction: engineer.instruction,
+      });
+      const phrase = phrases[0];
+      const showing = this.element().id === element.id;
+      if (!phrase) {
+        if (showing) this.error.set('Could not forge a definition.');
+        return;
+      }
+      const primary = parsePassage(phrase.text).text;
+      if (picked.some((word) => !sentenceUsesForm(primary, word.text))) {
+        if (showing) this.error.set('The phrase did not use every chosen word.');
+        return;
+      }
+      const current =
+        this.element().id === element.id
+          ? { ...this.wordingSuggestions() }
+          : readWordingSuggestions(element.id);
+      const list = current[sense] ?? [];
+      if (list.some((item) => senseKey(item.text) === senseKey(phrase.text))) {
+        if (showing) this.error.set('Could not forge a definition.');
+        return;
+      }
+      this.replaceWordingSuggestions(element.id, sense, [...list, { text: phrase.text }]);
+    } catch {
+      if (this.element().id === element.id) this.error.set('Could not forge a definition.');
+    } finally {
+      if (this.wordingJob === job && this.element().id === element.id) this.askingWording.set(null);
+    }
+  }
+
+  dismissStagedWording(definitionIndex: number, stagedIndex: number): void {
+    if (this.busy()) return;
+    const definition = this.element().definitions[definitionIndex];
+    const sense = senseKey(definition?.text ?? '');
+    const list = sense ? (this.wordingSuggestions()[sense] ?? []) : [];
+    if (!sense || !list[stagedIndex]) return;
+    this.replaceWordingSuggestions(
+      this.element().id,
+      sense,
+      list.filter((_, at) => at !== stagedIndex),
+    );
+  }
+
+  async addStagedWording(definitionIndex: number, stagedIndex: number): Promise<void> {
+    if (this.aiBusy()) return;
+    const element = this.element();
+    const definition = element.definitions[definitionIndex];
+    const sense = senseKey(definition?.text ?? '');
+    const suggestion = sense ? this.wordingSuggestions()[sense]?.[stagedIndex] : undefined;
+    if (!definition || !sense || !suggestion) return;
+    const definitions = this.copyDefinitions();
+    const target = definitions[definitionIndex];
+    if (!target) return;
+    const nextText = appendDefinitionPhrase(target.text, suggestion.text);
+    if (nextText === target.text) return;
+    const nextSense = senseKey(nextText);
+    target.text = nextText;
+    if (!(await this.persist(definitions, element.equivalents))) return;
+    const list = this.wordingSuggestions()[sense] ?? [];
+    const remaining = list.filter((item) => item !== suggestion);
+    if (nextSense && nextSense !== sense) {
+      this.rekeyWordingSuggestions(element.id, sense, nextSense, remaining);
+      this.rekeyDefinitionEngineerDraft(sense, nextSense);
+    } else {
+      this.replaceWordingSuggestions(element.id, sense, remaining);
+    }
   }
 
   toggleEngineerForms(): void {
@@ -3146,6 +3797,7 @@ export class ElementModal {
     );
     if (!form) return;
     this.exampleEngineer.set(null);
+    this.definitionEngineer.set(null);
     this.formInfo.set({ definitionIndex, text });
     setTimeout(() => this.formInfoClose()?.nativeElement.focus());
   }
@@ -3471,7 +4123,9 @@ export class ElementModal {
     if (pending.kind === 'definition') {
       if (removed && !definitions.some((definition) => senseKey(definition.text) === removed)) {
         this.engineerDrafts.delete(removed);
+        this.definitionEngineerDrafts.delete(removed);
         this.replaceExampleSuggestions(this.element().id, removed, []);
+        this.replaceWordingSuggestions(this.element().id, removed, []);
       }
       const engineer = this.exampleEngineer();
       if (engineer?.definitionIndex === pending.index) this.exampleEngineer.set(null);
@@ -3481,9 +4135,23 @@ export class ElementModal {
           definitionIndex: engineer.definitionIndex - 1,
         });
       }
+      const definitionEngineer = this.definitionEngineer();
+      if (definitionEngineer?.definitionIndex === pending.index) this.definitionEngineer.set(null);
+      else if (definitionEngineer && definitionEngineer.definitionIndex > pending.index) {
+        this.definitionEngineer.set({
+          ...definitionEngineer,
+          definitionIndex: definitionEngineer.definitionIndex - 1,
+        });
+      }
       const asking = this.askingExamples();
       if (asking === pending.index) this.askingExamples.set(null);
       else if (asking != null && asking > pending.index) this.askingExamples.set(asking - 1);
+      const related = this.askingRelated();
+      if (related === pending.index) this.askingRelated.set(null);
+      else if (related != null && related > pending.index) this.askingRelated.set(related - 1);
+      const wording = this.askingWording();
+      if (wording === pending.index) this.askingWording.set(null);
+      else if (wording != null && wording > pending.index) this.askingWording.set(wording - 1);
     }
     this.confirm.set(null);
     if (pending.kind === 'definition') this.editor.set(null);
@@ -3513,6 +4181,7 @@ export class ElementModal {
       await deleteElement(id);
       writeDefinitionSuggestions(id, []);
       writeExampleSuggestions(id, {});
+      writeWordingSuggestions(id, {});
       this.confirm.set(null);
       this.deleted.emit();
     } catch {
@@ -3534,6 +4203,80 @@ export class ElementModal {
       instruction: next.instruction,
       forms: [...next.forms],
     });
+  }
+
+  private patchDefinitionEngineer(patch: Partial<DefinitionEngineerDraft>): void {
+    const engineer = this.definitionEngineer();
+    if (!engineer) return;
+    const next = { ...engineer, ...patch };
+    this.definitionEngineer.set(next);
+    const sense = senseKey(this.element().definitions[next.definitionIndex]?.text ?? '');
+    if (!sense) return;
+    this.definitionEngineerDrafts.set(sense, {
+      instruction: next.instruction,
+      words: next.words.map((word) => ({ ...word })),
+      selected: [...next.selected],
+    });
+  }
+
+  private rekeyDefinitionEngineerDraft(from: string, to: string): void {
+    if (!from || !to || from === to) return;
+    const draft = this.definitionEngineerDrafts.get(from);
+    if (!draft) return;
+    this.definitionEngineerDrafts.delete(from);
+    this.definitionEngineerDrafts.set(to, draft);
+  }
+
+  private loadWordingSuggestions(id: string): void {
+    const stored = readWordingSuggestions(id);
+    const senses = new Set(
+      this.element()
+        .definitions.map((definition) => senseKey(definition.text))
+        .filter(Boolean),
+    );
+    const kept: Record<string, WordingSuggestion[]> = {};
+    let dirty = false;
+    for (const [sense, list] of Object.entries(stored)) {
+      if (!senses.has(sense)) {
+        dirty = true;
+        continue;
+      }
+      if (list.length) kept[sense] = list;
+    }
+    if (Object.keys(kept).length !== Object.keys(stored).length) dirty = true;
+    this.wordingSuggestions.set(kept);
+    if (dirty) writeWordingSuggestions(id, kept);
+  }
+
+  private replaceWordingSuggestions(
+    elementId: string,
+    sense: string,
+    list: WordingSuggestion[],
+  ): void {
+    const current =
+      this.element().id === elementId
+        ? { ...this.wordingSuggestions() }
+        : readWordingSuggestions(elementId);
+    if (list.length) current[sense] = list;
+    else delete current[sense];
+    writeWordingSuggestions(elementId, current);
+    if (this.element().id === elementId) this.wordingSuggestions.set(current);
+  }
+
+  private rekeyWordingSuggestions(
+    elementId: string,
+    from: string,
+    to: string,
+    remaining: WordingSuggestion[],
+  ): void {
+    const current =
+      this.element().id === elementId
+        ? { ...this.wordingSuggestions() }
+        : readWordingSuggestions(elementId);
+    delete current[from];
+    if (remaining.length && to) current[to] = [...(current[to] ?? []), ...remaining];
+    writeWordingSuggestions(elementId, current);
+    if (this.element().id === elementId) this.wordingSuggestions.set(current);
   }
 
   private loadExampleSuggestions(id: string): void {
