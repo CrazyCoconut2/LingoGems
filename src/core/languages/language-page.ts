@@ -11,13 +11,13 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
+import { ScoreGauge } from '../elements/score-gauge';
 import {
   addElement,
   compareElements,
   DEFAULT_ELEMENT_SORT,
   ELEMENT_FACETS,
   ELEMENT_SEARCH_MAX_LENGTH,
-  comfortColor,
   elementHighlightParts,
   elementMatchesFacets,
   elementMatchesPrefix,
@@ -50,7 +50,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
 @Component({
   selector: 'app-language-page',
-  imports: [RouterLink, ElementModal],
+  imports: [RouterLink, ElementModal, ScoreGauge],
   template: `
     <main>
       <header>
@@ -204,9 +204,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     }
                   }
                 </span>
-                <span class="score" [style.color]="comfortColor(element.score)">
-                  {{ element.score }} / 10
-                </span>
+                <app-score-gauge [score]="element.score" />
               </button>
             </li>
           }
@@ -719,9 +717,10 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       box-sizing: border-box;
       width: 100%;
       display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 0.35rem;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
       padding: 0.85rem 1rem;
       border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 28%, transparent);
       border-left: 3px solid var(--highlight-color, var(--accent));
@@ -738,6 +737,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .title {
+      flex: 1;
+      min-width: 0;
       font-size: 1.05rem;
       font-weight: 650;
       letter-spacing: -0.02em;
@@ -746,11 +747,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       text-decoration-color: var(--highlight-color, #6c63ff);
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
-    }
-
-    .score {
-      font-size: 0.78rem;
-      font-weight: 650;
     }
 
     .skeleton {
@@ -1207,8 +1203,6 @@ export class LanguagePage {
       queryParamsHandling: 'merge',
     });
   }
-
-  readonly comfortColor = comfortColor;
 
   highlightColor(element: StoredElement): string {
     return resolveHighlightColor(element.highlightColor, element.score);

@@ -51,6 +51,7 @@ import {
   verbalizeDefinition,
   type RelatedWord,
 } from 'ai';
+import { ScoreGauge } from './score-gauge';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
@@ -470,6 +471,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
+  imports: [ScoreGauge],
   template: `
     <div
       class="backdrop"
@@ -516,14 +518,13 @@ function writeExampleSuggestions(
             <button
               type="button"
               class="score-pill"
-              aria-label="Learning score"
+              [attr.aria-label]="'Learning score ' + element().score + ' out of 10'"
               title="Learning score"
               [attr.aria-expanded]="scoreOpen()"
               [disabled]="aiBusy()"
-              [style.color]="comfortColor(element().score)"
               (click)="scoreOpen.set(true)"
             >
-              {{ element().score }} / 10
+              <app-score-gauge [score]="element().score" />
             </button>
             @if (canHear(element().title)) {
               <button
@@ -2096,6 +2097,7 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
+              <app-score-gauge [score]="element().score" size="lg" />
               <div class="comfort-strip" role="radiogroup" aria-label="Learning score">
                 @for (level of comfortLevels; track level) {
                   <button
@@ -2320,16 +2322,18 @@ function writeExampleSuggestions(
     .score-pill {
       display: inline-flex;
       align-items: center;
-      height: 1.8rem;
+      justify-content: center;
       margin-right: 0.2rem;
       border: 0;
       border-radius: 0.4rem;
-      padding: 0 0.35rem;
+      padding: 0 0.1rem;
       background: transparent;
-      font: inherit;
-      font-size: 0.82rem;
-      font-weight: 650;
       cursor: pointer;
+    }
+
+    .score-sheet app-score-gauge {
+      align-self: center;
+      margin-bottom: 0.15rem;
     }
 
     .score-pill:hover:not(:disabled) {
