@@ -30,12 +30,40 @@ import {
 import { translatePhrase } from '../translate/translate';
 
 const FORM_MAX_LENGTH = 100;
+const META_KEY_MAX_LENGTH = 40;
+const META_VALUE_MAX_LENGTH = 100;
 
 type Editor =
   | { kind: 'definition'; index: number | null }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number | null };
 
 type FormEdit = { definitionIndex: number; previous: string | null };
+
+type MetadataEdit = { previousKey: string | null };
+
+function writeMetadata(
+  metadata: ElementMetadata,
+  previousKey: string | null,
+  key: string,
+  value: string,
+): ElementMetadata {
+  const next: ElementMetadata = {};
+  let placed = false;
+  for (const [currentKey, currentValue] of Object.entries(metadata)) {
+    const samePrevious = previousKey != null && currentKey === previousKey;
+    const sameKey = currentKey.toLowerCase() === key.toLowerCase();
+    if (samePrevious || sameKey) {
+      if (!placed) {
+        next[key] = value;
+        placed = true;
+      }
+      continue;
+    }
+    next[currentKey] = currentValue;
+  }
+  if (!placed) next[key] = value;
+  return next;
+}
 
 type ConfirmDelete =
   | { kind: 'element' }
@@ -167,14 +195,13 @@ type ConfirmDelete =
                       }
                       @if (entries(definition.metadata); as meta) {
                         @if (meta.length) {
-                          <dl>
+                          <ul class="pills">
                             @for (entry of meta; track entry.key) {
-                              <div>
-                                <dt>{{ entry.key }}</dt>
-                                <dd>{{ entry.value }}</dd>
-                              </div>
+                              <li>
+                                <span>{{ entry.key }}: {{ entry.value }}</span>
+                              </li>
                             }
-                          </dl>
+                          </ul>
                         }
                       }
                     </div>
@@ -259,14 +286,13 @@ type ConfirmDelete =
                               }
                               @if (entries(example.metadata); as meta) {
                                 @if (meta.length) {
-                                  <dl>
+                                  <ul class="pills">
                                     @for (entry of meta; track entry.key) {
-                                      <div>
-                                        <dt>{{ entry.key }}</dt>
-                                        <dd>{{ entry.value }}</dd>
-                                      </div>
+                                      <li>
+                                        <span>{{ entry.key }}: {{ entry.value }}</span>
+                                      </li>
                                     }
-                                  </dl>
+                                  </ul>
                                 }
                               }
                             </div>
@@ -479,6 +505,96 @@ type ConfirmDelete =
                   placeholder="Type a new equivalent"
                 />
               }
+              <div class="meta">
+                <div class="section-heading">
+                  <h3>Metadata</h3>
+                  @if (!metaEdit()) {
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Add metadata"
+                      title="Add metadata"
+                      [disabled]="busy()"
+                      (click)="openMetadata(null)"
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M5 12h14" />
+                        <path d="M12 5v14" />
+                      </svg>
+                    </button>
+                  }
+                </div>
+                @if (metaEdit(); as editing) {
+                  <div class="meta-edit">
+                    <input
+                      #metaKeyField
+                      [value]="metaKey()"
+                      [attr.maxlength]="metaKeyMaxLength"
+                      placeholder="Key"
+                      aria-label="Metadata key"
+                      (input)="metaKey.set(inputValue($event))"
+                      (keydown.enter)="saveMetadata()"
+                    />
+                    <input
+                      [value]="metaValue()"
+                      [attr.maxlength]="metaValueMaxLength"
+                      placeholder="Value"
+                      aria-label="Metadata value"
+                      (input)="metaValue.set(inputValue($event))"
+                      (keydown.enter)="saveMetadata()"
+                    />
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      [disabled]="busy() || !metaKey().trim() || !metaValue().trim()"
+                      [attr.aria-label]="editing.previousKey ? 'Save metadata' : 'Add metadata'"
+                      (click)="saveMetadata()"
+                    >
+                      <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Cancel"
+                      (click)="cancelMetadata()"
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                }
+                @if (entries(sheetMetadata()); as meta) {
+                  @if (meta.length) {
+                    <ul class="pills">
+                      @for (entry of meta; track entry.key) {
+                        @if (metaEdit()?.previousKey !== entry.key) {
+                          <li>
+                            <button
+                              type="button"
+                              [disabled]="busy()"
+                              [attr.aria-label]="'Edit metadata ' + entry.key"
+                              (click)="openMetadata(entry.key)"
+                            >
+                              {{ entry.key }}: {{ entry.value }}
+                            </button>
+                            <button
+                              type="button"
+                              class="tag-remove"
+                              [disabled]="busy()"
+                              [attr.aria-label]="'Remove metadata ' + entry.key"
+                              (click)="removeMetadata(entry.key)"
+                            >
+                              ×
+                            </button>
+                          </li>
+                        }
+                      }
+                    </ul>
+                  }
+                }
+              </div>
               <div class="sheet-actions">
                 <button
                   type="button"
@@ -712,6 +828,7 @@ type ConfirmDelete =
 
     .icon-btn:disabled,
     .forms button:disabled,
+    .pills button:disabled,
     .tag-remove:disabled {
       opacity: 0.45;
       cursor: not-allowed;
@@ -759,7 +876,8 @@ type ConfirmDelete =
 
     .definitions,
     .examples,
-    .forms {
+    .forms,
+    .pills {
       margin: 0;
       padding: 0;
       list-style: none;
@@ -862,7 +980,8 @@ type ConfirmDelete =
       gap: 0.4rem;
     }
 
-    .forms li {
+    .forms li,
+    .pills li {
       display: inline-flex;
       align-items: center;
       border-radius: 999px;
@@ -871,7 +990,8 @@ type ConfirmDelete =
       font-size: 0.8125rem;
     }
 
-    .forms button {
+    .forms button,
+    .pills button {
       border: 0;
       background: transparent;
       color: inherit;
@@ -879,8 +999,14 @@ type ConfirmDelete =
       cursor: pointer;
     }
 
-    .forms li > button:first-child {
+    .forms li > button:first-child,
+    .pills li > button:first-child,
+    .pills li > span {
       padding: 0.2rem 0.15rem 0.2rem 0.55rem;
+    }
+
+    .pills li > span {
+      padding-inline-end: 0.55rem;
     }
 
     .tag-remove {
@@ -922,26 +1048,27 @@ type ConfirmDelete =
       quotes: '“' '”';
     }
 
-    dl {
+    .meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .meta-edit {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .meta-edit input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .pills {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.35rem 0.8rem;
-      margin: 0.35rem 0 0;
-    }
-
-    dl div {
-      display: flex;
-      gap: 0.35rem;
-      color: var(--text-muted);
-      font-size: 0.8125rem;
-    }
-
-    dt {
-      font-weight: 650;
-    }
-
-    dd {
-      margin: 0;
+      gap: 0.4rem;
     }
 
     .sheet-backdrop {
@@ -1030,6 +1157,8 @@ export class ElementModal {
   readonly visit = output<string>();
 
   readonly formMaxLength = FORM_MAX_LENGTH;
+  readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
+  readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly parsePassage = parsePassage;
   readonly editor = signal<Editor | null>(null);
   readonly equivalentDraft = signal('');
@@ -1041,6 +1170,10 @@ export class ElementModal {
   readonly formEdit = signal<FormEdit | null>(null);
   readonly formDraft = signal('');
   readonly formError = signal('');
+  readonly metaEdit = signal<MetadataEdit | null>(null);
+  readonly metaKey = signal('');
+  readonly metaValue = signal('');
+  readonly sheetMetadata = signal<ElementMetadata>({});
   readonly collision = signal<DefinitionHighlightMatch[] | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
@@ -1051,6 +1184,7 @@ export class ElementModal {
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly draftField = viewChild<ElementRef<HTMLTextAreaElement>>('draftField');
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
+  private readonly metaKeyField = viewChild<ElementRef<HTMLInputElement>>('metaKeyField');
 
   constructor() {
     effect(() => {
@@ -1060,6 +1194,7 @@ export class ElementModal {
       this.editor.set(null);
       this.formEdit.set(null);
       this.formError.set('');
+      this.metaEdit.set(null);
       this.collision.set(null);
       this.confirm.set(null);
     });
@@ -1075,6 +1210,10 @@ export class ElementModal {
   onEscape(): void {
     if (this.confirm()) {
       this.confirm.set(null);
+      return;
+    }
+    if (this.metaEdit()) {
+      this.metaEdit.set(null);
       return;
     }
     if (this.editor()) {
@@ -1149,6 +1288,8 @@ export class ElementModal {
     const definition = index == null ? null : this.element().definitions[index];
     if (index != null && !definition) return;
     this.formEdit.set(null);
+    this.metaEdit.set(null);
+    this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
     const equivalentId = definition?.equivalentId ?? null;
     const known =
       equivalentId && this.element().equivalents.some((item) => item.id === equivalentId)
@@ -1167,6 +1308,8 @@ export class ElementModal {
     const example = exampleIndex == null ? null : definition.examples[exampleIndex];
     if (exampleIndex != null && !example) return;
     this.formEdit.set(null);
+    this.metaEdit.set(null);
+    this.sheetMetadata.set({ ...(example?.metadata ?? {}) });
     this.beginSheet(example?.text ?? '');
     this.editor.set({ kind: 'example', definitionIndex, exampleIndex });
     this.focusDraft();
@@ -1175,6 +1318,7 @@ export class ElementModal {
   openForm(definitionIndex: number, previous: string | null): void {
     if (!this.element().definitions[definitionIndex]) return;
     this.editor.set(null);
+    this.metaEdit.set(null);
     this.formError.set('');
     this.formDraft.set(previous ?? '');
     this.formEdit.set({ definitionIndex, previous });
@@ -1189,6 +1333,18 @@ export class ElementModal {
   cancelForm(): void {
     this.formError.set('');
     this.formEdit.set(null);
+  }
+
+  openMetadata(previousKey: string | null): void {
+    const metadata = this.sheetMetadata();
+    this.metaKey.set(previousKey ?? '');
+    this.metaValue.set(previousKey ? (metadata[previousKey] ?? '') : '');
+    this.metaEdit.set({ previousKey });
+    setTimeout(() => this.metaKeyField()?.nativeElement.focus());
+  }
+
+  cancelMetadata(): void {
+    this.metaEdit.set(null);
   }
 
   highlightPassage(text: string, definitionIndex: number): DefinitionHighlightPart[] {
@@ -1276,7 +1432,7 @@ export class ElementModal {
         equivalentId: linked.equivalentId,
         forms: current?.forms ?? [],
         examples: current?.examples ?? [],
-        metadata: current?.metadata ?? {},
+        metadata: this.metadataToStore(),
       };
       if (editor.index == null) definitions.push(next);
       else definitions[editor.index] = next;
@@ -1289,7 +1445,7 @@ export class ElementModal {
     if (editor.exampleIndex != null && !current) return;
     const next = {
       text,
-      metadata: current?.metadata ?? {},
+      metadata: this.metadataToStore(),
     };
     if (editor.exampleIndex == null) definition.examples.push(next);
     else definition.examples[editor.exampleIndex] = next;
@@ -1330,6 +1486,36 @@ export class ElementModal {
     if (await this.persist(definitions, this.element().equivalents)) this.cancelForm();
   }
 
+  private metadataToStore(): ElementMetadata {
+    const editing = this.metaEdit();
+    const key = this.metaKey().trim().slice(0, META_KEY_MAX_LENGTH);
+    const value = this.metaValue().trim().slice(0, META_VALUE_MAX_LENGTH);
+    if (!editing || !key || !value) return { ...this.sheetMetadata() };
+    return writeMetadata(this.sheetMetadata(), editing.previousKey, key, value);
+  }
+
+  saveMetadata(): void {
+    const editing = this.metaEdit();
+    const key = this.metaKey().trim().slice(0, META_KEY_MAX_LENGTH);
+    const value = this.metaValue().trim().slice(0, META_VALUE_MAX_LENGTH);
+    if (!editing || !key || !value || this.busy()) return;
+    const current = this.sheetMetadata();
+    if (editing.previousKey === key && current[key] === value) {
+      this.cancelMetadata();
+      return;
+    }
+    this.sheetMetadata.set(writeMetadata(current, editing.previousKey, key, value));
+    this.cancelMetadata();
+  }
+
+  removeMetadata(key: string): void {
+    if (this.busy()) return;
+    const next = { ...this.sheetMetadata() };
+    delete next[key];
+    this.sheetMetadata.set(next);
+    if (this.metaEdit()?.previousKey === key) this.cancelMetadata();
+  }
+
   async removeForm(definitionIndex: number, form: string): Promise<void> {
     if (this.busy()) return;
     const definitions = this.copyDefinitions();
@@ -1349,6 +1535,7 @@ export class ElementModal {
     if (this.busy()) return;
     this.editor.set(null);
     this.formEdit.set(null);
+    this.metaEdit.set(null);
     this.confirm.set({ kind: 'element' });
   }
 
