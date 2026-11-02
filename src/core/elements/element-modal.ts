@@ -96,22 +96,6 @@ type ConfirmDelete =
           </div>
           <div class="header-actions">
             <button
-              type="button"
-              class="icon-btn danger"
-              aria-label="Delete element"
-              title="Delete element"
-              [disabled]="busy()"
-              (click)="askDeleteElement()"
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M3 6h18" />
-                <path d="M8 6V4h8v2" />
-                <path d="M19 6l-1 14H6L5 6" />
-                <path d="M10 11v6" />
-                <path d="M14 11v6" />
-              </svg>
-            </button>
-            <button
               #closeButton
               type="button"
               class="close"
@@ -409,6 +393,21 @@ type ConfirmDelete =
           } @else {
             <p class="empty">No definitions yet.</p>
           }
+          <button
+            type="button"
+            class="btn btn-danger delete-element"
+            [disabled]="busy()"
+            (click)="askDeleteElement()"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 6h18" />
+              <path d="M8 6V4h8v2" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+            </svg>
+            Delete
+          </button>
         </div>
 
         @if (editor(); as current) {
@@ -817,15 +816,6 @@ type ConfirmDelete =
       border-radius: 0.4rem;
     }
 
-    .icon-btn.danger {
-      color: var(--danger);
-    }
-
-    .icon-btn.danger:hover:not(:disabled) {
-      color: var(--danger);
-      background: color-mix(in srgb, var(--danger) 12%, transparent);
-    }
-
     .icon-btn:disabled,
     .forms button:disabled,
     .pills button:disabled,
@@ -846,12 +836,31 @@ type ConfirmDelete =
     }
 
     .body {
+      flex: 1;
       min-height: 0;
       overflow: auto;
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
       padding: 1rem 1.15rem 1.25rem;
+    }
+
+    .delete-element {
+      align-self: stretch;
+      gap: 0.45rem;
+      width: 100%;
+      margin-top: auto;
+    }
+
+    .delete-element svg {
+      display: block;
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     h3 {
