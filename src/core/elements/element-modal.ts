@@ -1071,23 +1071,6 @@ function writeExampleSuggestions(
                 >
                   {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
                 </label>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
-                  [attr.title]="translating() ? 'Translating…' : 'Translate'"
-                  [disabled]="!canTranslate()"
-                  (click)="translateDraft()"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="m5 8 6 6" />
-                    <path d="m4 14 6-6 2-3" />
-                    <path d="M2 5h12" />
-                    <path d="M7 2h1" />
-                    <path d="m22 22-5-10-5 10" />
-                    <path d="M14 18h6" />
-                  </svg>
-                </button>
               </div>
               <textarea
                 #draftField
@@ -1096,12 +1079,34 @@ function writeExampleSuggestions(
                 [value]="textDraft()"
                 (input)="textDraft.set(inputValue($event))"
               ></textarea>
-              @if (sheetTranslations().length) {
-                <ul class="equivalents">
-                  @for (translation of sheetTranslations(); track $index) {
-                    <li>{{ translation.text }}</li>
-                  }
-                </ul>
+              @if (showTranslationField()) {
+                <div class="field-heading">
+                  <label for="translation-text">Translation</label>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
+                    [attr.title]="translating() ? 'Translating…' : 'Translate'"
+                    [disabled]="!canTranslate()"
+                    (click)="translateDraft()"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="m5 8 6 6" />
+                      <path d="m4 14 6-6 2-3" />
+                      <path d="M2 5h12" />
+                      <path d="M7 2h1" />
+                      <path d="m22 22-5-10-5 10" />
+                      <path d="M14 18h6" />
+                    </svg>
+                  </button>
+                </div>
+                <textarea
+                  id="translation-text"
+                  rows="2"
+                  [value]="translationDraft()"
+                  (input)="setTranslationDraft(inputValue($event))"
+                  placeholder="English"
+                ></textarea>
               }
               @if (sheetError()) {
                 <p class="error">{{ sheetError() }}</p>
@@ -2918,6 +2923,20 @@ export class ElementModal {
     this.collision.set(null);
     if (!id || id === this.element().id) return;
     this.visit.emit(id);
+  }
+
+  showTranslationField(): boolean {
+    return this.element().language !== 'en' || this.sheetTranslations().length > 0;
+  }
+
+  translationDraft(): string {
+    return this.sheetTranslations().find((item) => item.language === 'en')?.text ?? '';
+  }
+
+  setTranslationDraft(value: string): void {
+    const rest = this.sheetTranslations().filter((item) => item.language !== 'en');
+    const text = value.replace(/]/g, '');
+    this.sheetTranslations.set(text.trim() ? [...rest, { language: 'en', text }] : rest);
   }
 
   canTranslate(): boolean {
