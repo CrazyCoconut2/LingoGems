@@ -46,6 +46,80 @@ export function parseGeneratedTranslations(
   return list.map((item) => String(item ?? '').trim());
 }
 
+export const EQUIVALENT_SYSTEM_PROMPT = `You give one translation of a headword for a single dictionary sense.
+JSON keys stay in English.
+Return the headword's equivalent in targetLang for this sense only: a word or short phrase a dictionary would list as the translation of the lemma.
+Use the definition to choose the sense. Do not translate the definition sentence itself.
+When english is present, it is the English gloss of that definition.
+Capitalize the first letter.
+Spelling in targetLang MUST be correct.
+JSON only: {"translation":"<equivalent>"}`;
+
+const EQUIVALENT_MAX_TOKENS = 512;
+
+export type GenerateEquivalentInput = {
+  lemma: string;
+  sourceLang: string;
+  definition: string;
+  english?: string | null;
+  targetLang?: string | null;
+};
+
+export function buildEquivalentUserMessage(input: GenerateEquivalentInput): string {
+  const sourceRaw = String(input.sourceLang || '').trim();
+  const sourceLang = sourceRaw ? languageDisplayName(sourceRaw) || sourceRaw : '';
+  const targetRaw = String(input.targetLang || 'en').trim() || 'en';
+  const targetLang = languageDisplayName(targetRaw) || targetRaw;
+  const english = String(input.english || '').trim();
+  return JSON.stringify({
+    lemma: String(input.lemma || '').trim(),
+    ...(sourceLang ? { sourceLang } : {}),
+    targetLang,
+    definition: String(input.definition || '').trim(),
+    ...(english ? { english } : {}),
+  });
+}
+
+/** One headword equivalent, or null when the reply has no translation string. */
+export function parseGeneratedEquivalent(parsed: unknown): string | null {
+  const source =
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  if (!source) return null;
+  const text = capitalizePhrase(String(source['translation'] ?? ''));
+  return text || null;
+}
+
+/** Ask for the headword's translation in this sense. The definition picks the sense. */
+export async function generateEquivalent(request: GenerateEquivalentInput): Promise<string> {
+  const lemma = String(request.lemma || '').trim();
+  const definition = String(request.definition || '').trim();
+  if (!lemma || !definition) return '';
+  const input: CompleteJsonInput = {
+    system: EQUIVALENT_SYSTEM_PROMPT,
+    user: buildEquivalentUserMessage({ ...request, lemma, definition }),
+    maxTokens: EQUIVALENT_MAX_TOKENS,
+    temperature: 0,
+  };
+  const keys = readStoredAiCredentials().keys;
+  const complete = () =>
+    runWithKeyFallback(keys, (provider, credentials) => completeJson(provider, input, credentials));
+  try {
+    let equivalent = parseGeneratedEquivalent(await complete());
+    if (!equivalent) equivalent = parseGeneratedEquivalent(await complete());
+    if (!equivalent) aiError(AI_ERROR.RESPONSE_INVALID);
+    return equivalent;
+  } catch (err) {
+    throw attachAiPrompt(err, input);
+  }
+}
+
+function capitalizePhrase(value: string): string {
+  const text = value.replace(/]/g, '').trim();
+  return text.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase('en'));
+}
+
 /** Translate with the saved keys. Each request goes straight to that key's model provider. */
 export async function translateTexts(request: GenerateTranslatePromptInput): Promise<string[]> {
   const texts = request.texts.map((item) => String(item ?? '').trim());

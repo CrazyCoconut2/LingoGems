@@ -31,6 +31,7 @@ import {
 import {
   MAX_EXAMPLE_INSTRUCTION,
   generateDefinitions,
+  generateEquivalent,
   generateExamples,
   generateForms,
   sentenceUsesForm,
@@ -246,7 +247,7 @@ function writeExampleSuggestions(
             @if (headerEquivalents(); as equivalents) {
               @if (equivalents.length) {
                 <ul class="equivalents">
-                  @for (equivalent of equivalents; track equivalent) {
+                  @for (equivalent of equivalents; track $index) {
                     <li>{{ equivalent }}</li>
                   }
                 </ul>
@@ -254,6 +255,23 @@ function writeExampleSuggestions(
             }
           </div>
           <div class="header-actions">
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Translations"
+              title="Translations"
+              [disabled]="busy()"
+              (click)="openTranslations()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m5 8 6 6" />
+                <path d="m4 14 6-6 2-3" />
+                <path d="M2 5h12" />
+                <path d="M7 2h1" />
+                <path d="m22 22-5-10-5 10" />
+                <path d="M14 18h6" />
+              </svg>
+            </button>
             <button
               #closeButton
               type="button"
@@ -511,14 +529,21 @@ function writeExampleSuggestions(
                       <button
                         type="button"
                         class="icon-btn"
-                        aria-label="Edit definition"
-                        title="Edit definition"
+                        [attr.aria-label]="
+                          definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                        "
+                        [attr.title]="
+                          definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                        "
                         [disabled]="aiBusy()"
                         (click)="openDefinition(index)"
                       >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                           <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                         </svg>
+                        @if (!definition.equivalentId) {
+                          <span class="notify" aria-hidden="true"></span>
+                        }
                       </button>
                       <button
                         type="button"
@@ -1042,6 +1067,90 @@ function writeExampleSuggestions(
           </button>
         </div>
 
+        @if (translationsOpen()) {
+          <div class="sheet-backdrop" (click)="closeTranslations($event)">
+            <section
+              class="sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Translations"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>Translations</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  (click)="dismissTranslations()"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <label for="title-translation">Translation</label>
+              <div class="form-edit">
+                <input
+                  #translationField
+                  id="title-translation"
+                  [value]="titleTranslationDraft()"
+                  placeholder="English"
+                  autocomplete="off"
+                  [disabled]="busy()"
+                  (input)="titleTranslationDraft.set(inputValue($event))"
+                  (keydown.enter)="saveTitleTranslation()"
+                />
+                <button
+                  type="button"
+                  class="icon-btn"
+                  [disabled]="busy() || !titleTranslationDraft().trim()"
+                  [attr.aria-label]="translationEditId() ? 'Save translation' : 'Add translation'"
+                  [attr.title]="translationEditId() ? 'Save translation' : 'Add translation'"
+                  (click)="saveTitleTranslation()"
+                >
+                  @if (translationEditId()) {
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  } @else {
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 12h14" />
+                      <path d="M12 5v14" />
+                    </svg>
+                  }
+                </button>
+              </div>
+              @if (element().equivalents.length) {
+                <ul class="pills">
+                  @for (item of element().equivalents; track item.id) {
+                    <li>
+                      <button
+                        type="button"
+                        [disabled]="busy()"
+                        [attr.aria-label]="'Edit translation ' + item.text"
+                        (click)="editTitleTranslation(item.id)"
+                      >
+                        {{ item.text }}
+                      </button>
+                      <button
+                        type="button"
+                        class="tag-remove"
+                        [disabled]="busy()"
+                        [attr.aria-label]="'Remove translation ' + item.text"
+                        (click)="removeTitleTranslation(item.id)"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            </section>
+          </div>
+        }
+
         @if (editor(); as current) {
           <div class="sheet-backdrop" (click)="closeSheet($event)">
             <section
@@ -1112,34 +1221,65 @@ function writeExampleSuggestions(
                 <p class="error">{{ sheetError() }}</p>
               }
               @if (current.kind === 'definition') {
-                @if (element().equivalents.length) {
-                  <p class="field-label">Equivalent</p>
-                  <ul class="equivalent-choices">
-                    @for (item of element().equivalents; track item.id) {
-                      <li>
-                        <button
-                          type="button"
-                          [class.selected]="equivalentSelected(item.id)"
-                          [attr.aria-pressed]="equivalentSelected(item.id)"
-                          [disabled]="busy()"
-                          (click)="chooseEquivalent(item.id)"
-                        >
-                          {{ item.text }}
-                        </button>
-                      </li>
+                <div class="equivalent-block" [class.missing]="equivalentMissing()">
+                  <div class="field-heading">
+                    @if (element().equivalents.length) {
+                      <p class="field-label">Equivalent</p>
+                    } @else {
+                      <label for="definition-equivalent">Equivalent</label>
                     }
-                  </ul>
-                }
-                <label for="definition-equivalent">
-                  {{ element().equivalents.length ? 'New equivalent' : 'Equivalent' }}
-                </label>
-                <input
-                  id="definition-equivalent"
-                  [value]="equivalentDraft()"
-                  (input)="equivalentDraft.set(inputValue($event))"
-                  autocomplete="off"
-                  placeholder="Type a new equivalent"
-                />
+                    @if (element().language !== 'en') {
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        [attr.aria-label]="
+                          askingEquivalent() ? 'Finding an equivalent…' : 'Ask AI for an equivalent'
+                        "
+                        [attr.title]="
+                          askingEquivalent() ? 'Finding an equivalent…' : 'Ask AI for an equivalent'
+                        "
+                        [attr.aria-busy]="askingEquivalent() ? true : null"
+                        [disabled]="!canAskEquivalent()"
+                        (click)="askEquivalent()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                          />
+                          <path d="M5 3v4" />
+                          <path d="M3 5h4" />
+                          <path d="M19 17v4" />
+                          <path d="M17 19h4" />
+                        </svg>
+                      </button>
+                    }
+                  </div>
+                  @if (element().equivalents.length) {
+                    <ul class="equivalent-choices">
+                      @for (item of element().equivalents; track item.id) {
+                        <li>
+                          <button
+                            type="button"
+                            [class.selected]="equivalentSelected(item.id)"
+                            [attr.aria-pressed]="equivalentSelected(item.id)"
+                            [disabled]="busy()"
+                            (click)="chooseEquivalent(item.id)"
+                          >
+                            {{ item.text }}
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                    <label for="definition-equivalent">New equivalent</label>
+                  }
+                  <input
+                    id="definition-equivalent"
+                    [value]="equivalentDraft()"
+                    (input)="equivalentDraft.set(inputValue($event))"
+                    autocomplete="off"
+                    placeholder="Type a new equivalent"
+                  />
+                </div>
               }
               <div class="meta">
                 <div class="section-heading">
@@ -1235,7 +1375,7 @@ function writeExampleSuggestions(
                 <button
                   type="button"
                   class="btn btn-primary"
-                  [disabled]="busy() || translating() || !textDraft().trim()"
+                  [disabled]="busy() || translating() || askingEquivalent() || !textDraft().trim()"
                   (click)="saveEditor()"
                 >
                   Save
@@ -1542,6 +1682,20 @@ function writeExampleSuggestions(
       cursor: not-allowed;
     }
 
+    .equivalent-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      padding: 0.55rem;
+      border: 1px solid transparent;
+      border-radius: 12px;
+    }
+
+    .equivalent-block.missing {
+      border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+      background: color-mix(in srgb, var(--danger) 12%, transparent);
+    }
+
     h2,
     h3,
     p {
@@ -1589,9 +1743,21 @@ function writeExampleSuggestions(
     }
 
     .icon-btn {
+      position: relative;
       width: 1.8rem;
       height: 1.8rem;
       border-radius: 0.4rem;
+    }
+
+    .notify {
+      position: absolute;
+      top: 0.12rem;
+      right: 0.12rem;
+      width: 0.42rem;
+      height: 0.42rem;
+      border-radius: 999px;
+      background: var(--danger);
+      box-shadow: 0 0 0 2px var(--surface);
     }
 
     .icon-btn:disabled,
@@ -2158,6 +2324,10 @@ export class ElementModal {
   readonly textDraft = signal('');
   readonly sheetTranslations = signal<PassageTranslation[]>([]);
   readonly translating = signal(false);
+  readonly askingEquivalent = signal(false);
+  readonly translationsOpen = signal(false);
+  readonly titleTranslationDraft = signal('');
+  readonly translationEditId = signal<string | null>(null);
   readonly sheetError = signal('');
   readonly formEdit = signal<FormEdit | null>(null);
   readonly formInfo = signal<{ definitionIndex: number; text: string } | null>(null);
@@ -2185,6 +2355,7 @@ export class ElementModal {
   readonly copied = signal<string | null>(null);
 
   private translateTicket = 0;
+  private equivalentTicket = 0;
   private copiedTimer: ReturnType<typeof setTimeout> | null = null;
   private exampleJob = 0;
   private trackedElementId = '';
@@ -2195,6 +2366,7 @@ export class ElementModal {
   private readonly formInfoClose = viewChild<ElementRef<HTMLButtonElement>>('formInfoClose');
   private readonly formFeatureField = viewChild<ElementRef<HTMLInputElement>>('formFeatureField');
   private readonly metaKeyField = viewChild<ElementRef<HTMLInputElement>>('metaKeyField');
+  private readonly translationField = viewChild<ElementRef<HTMLInputElement>>('translationField');
 
   constructor() {
     inject(DestroyRef).onDestroy(() => stopSpeaking());
@@ -2215,6 +2387,9 @@ export class ElementModal {
       this.askingForms.set(null);
       this.askingExamples.set(null);
       this.exampleEngineer.set(null);
+      this.equivalentTicket += 1;
+      this.askingEquivalent.set(false);
+      this.dismissTranslations();
       this.engineerDrafts.clear();
       this.loadExampleSuggestions(id);
       const saved = new Set(
@@ -2264,6 +2439,10 @@ export class ElementModal {
       this.editor.set(null);
       return;
     }
+    if (this.translationsOpen()) {
+      this.dismissTranslations();
+      return;
+    }
     if (this.formFeatureEdit()) {
       this.formFeatureEdit.set(null);
       return;
@@ -2294,15 +2473,87 @@ export class ElementModal {
   }
 
   headerEquivalents(): string[] {
-    const seen = new Set<string>();
-    const texts: string[] = [];
-    for (const definition of this.element().definitions) {
-      const text = this.equivalentText(definition);
-      if (!text || seen.has(text)) continue;
-      seen.add(text);
-      texts.push(text);
+    return this.element().equivalents.map((item) => item.text);
+  }
+
+  openTranslations(): void {
+    if (this.busy()) return;
+    this.editor.set(null);
+    this.formEdit.set(null);
+    this.formFeatureEdit.set(null);
+    this.metaEdit.set(null);
+    this.exampleEngineer.set(null);
+    this.confirm.set(null);
+    this.titleTranslationDraft.set('');
+    this.translationEditId.set(null);
+    this.translationsOpen.set(true);
+    setTimeout(() => this.translationField()?.nativeElement.focus());
+  }
+
+  dismissTranslations(): void {
+    this.translationsOpen.set(false);
+    this.titleTranslationDraft.set('');
+    this.translationEditId.set(null);
+  }
+
+  closeTranslations(event: MouseEvent): void {
+    if (event.target !== event.currentTarget) return;
+    this.dismissTranslations();
+  }
+
+  editTitleTranslation(id: string): void {
+    const item = this.element().equivalents.find((entry) => entry.id === id);
+    if (!item || this.busy()) return;
+    this.translationEditId.set(id);
+    this.titleTranslationDraft.set(item.text);
+    setTimeout(() => this.translationField()?.nativeElement.focus());
+  }
+
+  async saveTitleTranslation(): Promise<void> {
+    if (this.busy()) return;
+    const text = this.titleTranslationDraft().trim();
+    if (!text) return;
+    const editId = this.translationEditId();
+    const equivalents = this.element().equivalents.map((item) => ({ ...item }));
+    const definitions = this.copyDefinitions();
+    if (editId) {
+      const current = equivalents.find((item) => item.id === editId);
+      if (!current) return;
+      const duplicate = equivalents.find((item) => item.id !== editId && item.text === text);
+      if (duplicate) {
+        for (const definition of definitions) {
+          if (definition.equivalentId === editId) definition.equivalentId = duplicate.id;
+        }
+        const next = equivalents.filter((item) => item.id !== editId);
+        if (!(await this.persist(definitions, next))) return;
+      } else if (current.text !== text) {
+        current.text = text;
+        if (!(await this.persist(definitions, equivalents))) return;
+      }
+    } else {
+      const linked = assignEquivalent(equivalents, text);
+      if (linked.equivalents.length === equivalents.length) {
+        this.titleTranslationDraft.set('');
+        return;
+      }
+      if (!(await this.persist(definitions, linked.equivalents))) return;
     }
-    return texts;
+    this.titleTranslationDraft.set('');
+    this.translationEditId.set(null);
+  }
+
+  async removeTitleTranslation(id: string): Promise<void> {
+    if (this.busy() || !this.element().equivalents.some((item) => item.id === id)) return;
+    const equivalents = this.element().equivalents.filter((item) => item.id !== id);
+    const definitions = this.copyDefinitions().map((definition) =>
+      definition.equivalentId === id ? { ...definition, equivalentId: null } : definition,
+    );
+    if (!(await this.persist(definitions, equivalents))) return;
+    if (this.translationEditId() === id) {
+      this.translationEditId.set(null);
+      this.titleTranslationDraft.set('');
+    }
+    if (this.equivalentIdDraft() === id) this.equivalentIdDraft.set(null);
   }
 
   equivalentSelected(id: string): boolean {
@@ -2317,6 +2568,59 @@ export class ElementModal {
     const selected = this.equivalentSelected(id);
     this.equivalentDraft.set('');
     this.equivalentIdDraft.set(selected ? null : id);
+  }
+
+  equivalentMissing(): boolean {
+    return !this.equivalentIdDraft() && !this.equivalentDraft().trim();
+  }
+
+  canAskEquivalent(): boolean {
+    return (
+      this.element().language !== 'en' &&
+      this.textDraft().trim().length > 0 &&
+      !this.translating() &&
+      !this.askingEquivalent() &&
+      !this.aiBusy()
+    );
+  }
+
+  async askEquivalent(): Promise<void> {
+    if (!this.canAskEquivalent()) return;
+    const element = this.element();
+    const definition = this.textDraft().trim();
+    const english = this.sheetTranslations().find((item) => item.language === 'en')?.text ?? '';
+    const ticket = ++this.equivalentTicket;
+    this.askingEquivalent.set(true);
+    this.sheetError.set('');
+    try {
+      const translation = await generateEquivalent({
+        lemma: element.title,
+        sourceLang: element.language,
+        definition,
+        english,
+      });
+      if (ticket !== this.equivalentTicket) return;
+      if (!translation) {
+        this.sheetError.set('Could not find an equivalent.');
+        return;
+      }
+      const folded = translation.toLocaleLowerCase();
+      const match = this.element().equivalents.find(
+        (item) => item.text.toLocaleLowerCase() === folded,
+      );
+      if (match) {
+        this.equivalentDraft.set('');
+        this.equivalentIdDraft.set(match.id);
+      } else {
+        this.equivalentDraft.set(translation);
+        this.equivalentIdDraft.set(null);
+      }
+    } catch {
+      if (ticket !== this.equivalentTicket) return;
+      this.sheetError.set('Could not find an equivalent.');
+    } finally {
+      if (ticket === this.equivalentTicket) this.askingEquivalent.set(false);
+    }
   }
 
   equivalentText(definition: ElementDefinition): string {
@@ -2597,6 +2901,7 @@ export class ElementModal {
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.exampleEngineer.set(null);
+    this.dismissTranslations();
     this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
     const equivalentId = definition?.equivalentId ?? null;
     const known =
@@ -2619,6 +2924,7 @@ export class ElementModal {
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.exampleEngineer.set(null);
+    this.dismissTranslations();
     this.sheetMetadata.set({ ...(example?.metadata ?? {}) });
     this.beginSheet(example?.text ?? '');
     this.editor.set({ kind: 'example', definitionIndex, exampleIndex });
@@ -2947,6 +3253,7 @@ export class ElementModal {
       this.sheetTranslations().length === 0 &&
       parsePassage(draft).translations.length === 0 &&
       !this.translating() &&
+      !this.askingEquivalent() &&
       !this.busy()
     );
   }
@@ -2973,7 +3280,7 @@ export class ElementModal {
   async saveEditor(): Promise<void> {
     const editor = this.editor();
     const primary = this.textDraft().trim();
-    if (!editor || !primary || this.busy() || this.translating()) return;
+    if (!editor || !primary || this.busy() || this.translating() || this.askingEquivalent()) return;
     const text = this.phraseToStore();
     const definitions = this.copyDefinitions();
     if (editor.kind === 'definition') {
@@ -3270,6 +3577,8 @@ export class ElementModal {
 
   private beginSheet(text: string): void {
     this.translateTicket += 1;
+    this.equivalentTicket += 1;
+    this.askingEquivalent.set(false);
     const passage = parsePassage(text);
     this.textDraft.set(passage.text);
     this.sheetTranslations.set(passage.translations);

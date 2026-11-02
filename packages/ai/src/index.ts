@@ -38,10 +38,15 @@ export {
 } from './errors';
 
 export {
+  EQUIVALENT_SYSTEM_PROMPT,
   TRANSLATE_SYSTEM_PROMPT,
+  buildEquivalentUserMessage,
   buildTranslateUserMessage,
+  generateEquivalent,
+  parseGeneratedEquivalent,
   parseGeneratedTranslations,
   translateTexts,
+  type GenerateEquivalentInput,
   type GenerateTranslatePromptInput,
 } from './translate';
 
