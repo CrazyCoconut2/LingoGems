@@ -111,30 +111,39 @@ type ConfirmDelete =
         <div class="body">
           <div class="section-heading">
             <h3>Definitions</h3>
-            <div class="add-menu">
+            <div class="header-actions">
+              <button
+                type="button"
+                class="icon-btn"
+                aria-label="Ask AI for definitions"
+                title="Ask AI for definitions"
+                [attr.aria-busy]="asking() ? true : null"
+                [disabled]="busy() || asking() || askingForms() !== null"
+                (click)="askDefinitions()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                  />
+                  <path d="M5 3v4" />
+                  <path d="M3 5h4" />
+                  <path d="M19 17v4" />
+                  <path d="M17 19h4" />
+                </svg>
+              </button>
               <button
                 type="button"
                 class="icon-btn"
                 aria-label="Add a definition"
                 title="Add a definition"
-                [attr.aria-expanded]="addMenu()"
-                [attr.aria-busy]="asking() ? true : null"
                 [disabled]="busy() || asking() || askingForms() !== null"
-                (click)="toggleAddMenu($event)"
+                (click)="openDefinition(null)"
               >
                 <svg viewBox="0 0 24 24">
                   <path d="M5 12h14" />
                   <path d="M12 5v14" />
                 </svg>
               </button>
-              @if (addMenu()) {
-                <div class="menu" role="menu" aria-label="Add a definition">
-                  <button type="button" role="menuitem" (click)="writeDefinition()">
-                    Write a definition
-                  </button>
-                  <button type="button" role="menuitem" (click)="askDefinitions()">Ask AI</button>
-                </div>
-              }
             </div>
           </div>
           @if (collision(); as matches) {
@@ -931,41 +940,6 @@ type ConfirmDelete =
       justify-content: space-between;
     }
 
-    .add-menu {
-      position: relative;
-    }
-
-    .menu {
-      position: absolute;
-      top: calc(100% + 0.35rem);
-      right: 0;
-      z-index: 3;
-      display: flex;
-      flex-direction: column;
-      min-width: 12.5rem;
-      padding: 0.3rem;
-      border: 1px solid var(--border);
-      border-radius: 0.7rem;
-      background: var(--surface);
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-    }
-
-    .menu button {
-      border: 0;
-      background: transparent;
-      color: var(--text);
-      font: inherit;
-      font-size: 0.875rem;
-      text-align: left;
-      padding: 0.45rem 0.65rem;
-      border-radius: 0.45rem;
-      cursor: pointer;
-    }
-
-    .menu button:hover {
-      background: var(--surface-2);
-    }
-
     header {
       align-items: flex-start;
       gap: 1rem;
@@ -1475,7 +1449,6 @@ export class ElementModal {
   readonly asking = signal(false);
   readonly askingForms = signal<number | null>(null);
   readonly suggestions = signal<Array<{ text: string; metadata: ElementMetadata }>>([]);
-  readonly addMenu = signal(false);
   readonly error = signal('');
 
   private translateTicket = 0;
@@ -1500,7 +1473,6 @@ export class ElementModal {
       this.metaEdit.set(null);
       this.collision.set(null);
       this.confirm.set(null);
-      this.addMenu.set(false);
       this.askingForms.set(null);
       this.suggestions.set([]);
     });
@@ -1512,17 +1484,8 @@ export class ElementModal {
     afterNextRender(() => this.closeButton()?.nativeElement.focus());
   }
 
-  @HostListener('document:click')
-  closeAddMenu(): void {
-    this.addMenu.set(false);
-  }
-
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    if (this.addMenu()) {
-      this.addMenu.set(false);
-      return;
-    }
     if (this.confirm()) {
       this.confirm.set(null);
       return;
@@ -1607,19 +1570,7 @@ export class ElementModal {
     return editor.exampleIndex == null ? 'Add an example' : 'Edit example';
   }
 
-  toggleAddMenu(event: MouseEvent): void {
-    event.stopPropagation();
-    if (this.busy() || this.asking() || this.askingForms() !== null) return;
-    this.addMenu.update((open) => !open);
-  }
-
-  writeDefinition(): void {
-    this.addMenu.set(false);
-    this.openDefinition(null);
-  }
-
   async askDefinitions(): Promise<void> {
-    this.addMenu.set(false);
     if (this.asking() || this.busy()) return;
     const element = this.element();
     const title = element.title.trim();
