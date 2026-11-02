@@ -710,25 +710,6 @@ function writeExampleSuggestions(
                       </span>
                     }
                     <span class="item-actions-main">
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Engineer definition"
-                        title="Engineer definition"
-                        [attr.aria-busy]="definitionEngineerBusy(index) ? true : null"
-                        [disabled]="aiBusy()"
-                        (click)="openDefinitionEngineer(index)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                          />
-                          <path d="M5 3v4" />
-                          <path d="M3 5h4" />
-                          <path d="M19 17v4" />
-                          <path d="M17 19h4" />
-                        </svg>
-                      </button>
                       @if (canHear(definition.text)) {
                         <button
                           type="button"
@@ -1437,6 +1418,27 @@ function writeExampleSuggestions(
                 >
                   {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
                 </label>
+                @if (current.kind === 'definition' && current.index != null) {
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Engineer definition"
+                    title="Engineer definition"
+                    [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
+                    [disabled]="aiBusy()"
+                    (click)="openDefinitionEngineer(current.index)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                      />
+                      <path d="M5 3v4" />
+                      <path d="M3 5h4" />
+                      <path d="M19 17v4" />
+                      <path d="M17 19h4" />
+                    </svg>
+                  </button>
+                }
               </div>
               <textarea
                 #draftField
@@ -2089,14 +2091,14 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
-      padding: 0.55rem;
-      border: 1px solid transparent;
       border-radius: 12px;
     }
 
     .equivalent-block.missing {
-      border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+      margin-inline: -0.55rem;
+      padding: 0.55rem;
       background: color-mix(in srgb, var(--danger) 12%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 55%, transparent);
     }
 
     h2,
@@ -3594,6 +3596,8 @@ export class ElementModal {
     const definition = this.element().definitions[index];
     const key = senseKey(definition?.text ?? '');
     if (!definition || !key) return;
+    const editor = this.editor();
+    const editing = editor?.kind === 'definition' && editor.index === index;
     this.editor.set(null);
     this.formEdit.set(null);
     this.formInfo.set(null);
@@ -3607,10 +3611,12 @@ export class ElementModal {
       words: [],
       selected: [],
     };
-    const passage = parsePassage(definition.text);
+    const passage = parsePassage(editing ? this.textDraft() : definition.text);
     this.engineerGloss.set(passage.text);
     this.engineerEnglish.set(
-      passage.translations.find((item) => item.language === 'en')?.text ?? '',
+      editing
+        ? this.translationDraft()
+        : (passage.translations.find((item) => item.language === 'en')?.text ?? ''),
     );
     const known = new Set(draft.words.map((word) => word.text.toLowerCase()));
     this.definitionEngineer.set({
