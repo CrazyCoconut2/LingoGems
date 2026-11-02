@@ -8,6 +8,7 @@ import {
 } from 'collection';
 import { completeJson, runWithKeyFallback } from './complete';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
+import { MAX_EXAMPLE_LENGTH } from './examples';
 import { readStoredAiCredentials } from './storage';
 import type { CompleteJsonInput } from './types';
 
@@ -45,6 +46,26 @@ Return JSON only with this shape:
 {"senses":[${SENSE_SHAPE}]}
 When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.`;
 
+export const DEFINITION_FROM_EXAMPLE_SYSTEM_PROMPT = `You write one dictionary sense for a headword from one example sentence.
+JSON keys stay in English.
+The gloss MUST be in the language named by writeFieldsIn.
+Do not use English for a gloss unless writeFieldsIn is English.
+Do not copy English labels into metadata; write those values in writeFieldsIn.
+Rules:
+- Return exactly one sense: the meaning of the lemma as it is used in example
+- Do not define a different meaning
+- Do not repeat a meaning or a gloss already listed in existingDefinitions
+- One short dictionary-style gloss
+- Do not include the example, other examples, forms, or citations
+- Do not add bracket tags such as [en:…]
+- Spelling MUST be correct in the gloss and the English gloss
+- metadata is key-value pairs that apply to that definition. Omit a pair when it does not apply
+- Definition metadata keys are only "part of speech", "gender", "transitivity", and "register"
+translateFieldsIn, when present, is English. Then the sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".
+Return JSON only with this shape:
+{"senses":[${SENSE_SHAPE}]}
+When translateFieldsIn is present, add "english":"<gloss in English>" on the sense.`;
+
 export const FORMS_SYSTEM_PROMPT = `You list the surface forms of one dictionary sense.
 JSON keys stay in English.
 Do not copy English labels into metadata; write those values in writeFieldsIn.
@@ -62,6 +83,10 @@ export type GenerateDefinitionsInput = {
   language: string;
   title: string;
   existingDefinitions: ReadonlyArray<{ text: string; metadata: ElementMetadata }>;
+};
+
+export type GenerateDefinitionFromExampleInput = GenerateDefinitionsInput & {
+  example: string;
 };
 
 export type GeneratedDefinition = {
@@ -122,6 +147,50 @@ export function parseGeneratedDefinitions(
     });
   }
   return definitions;
+}
+
+export function buildDefinitionFromExampleUserMessage(
+  input: GenerateDefinitionFromExampleInput,
+): string {
+  const language = input.language.trim().toLowerCase();
+  const writeFieldsIn = languageDisplayName(language) || language;
+  const translateFieldsIn = language && language !== 'en' ? 'English' : '';
+  return JSON.stringify({
+    language,
+    writeFieldsIn,
+    ...(translateFieldsIn ? { translateFieldsIn } : {}),
+    lemma: input.title.trim(),
+    example: input.example.trim().slice(0, MAX_EXAMPLE_LENGTH),
+    existingDefinitions: describedDefinitions(input.existingDefinitions),
+  });
+}
+
+/** One sense for the way the headword is used in the example, or null when nothing usable comes back. */
+export async function generateDefinitionFromExample(
+  request: GenerateDefinitionFromExampleInput,
+): Promise<GeneratedDefinition | null> {
+  const title = request.title.trim();
+  const language = request.language.trim().toLowerCase();
+  const example = request.example.trim().slice(0, MAX_EXAMPLE_LENGTH);
+  if (!title || !language || !example) return null;
+  const prepared = { ...request, title, language, example };
+  const input: CompleteJsonInput = {
+    system: DEFINITION_FROM_EXAMPLE_SYSTEM_PROMPT,
+    user: buildDefinitionFromExampleUserMessage(prepared),
+    maxTokens: 1024,
+    temperature: 0,
+  };
+  const keys = readStoredAiCredentials().keys;
+  const complete = () =>
+    runWithKeyFallback(keys, (provider, credentials) => completeJson(provider, input, credentials));
+  try {
+    let senses = parseGeneratedDefinitions(await complete(), prepared);
+    if (!senses) senses = parseGeneratedDefinitions(await complete(), prepared);
+    if (!senses) aiError(AI_ERROR.RESPONSE_INVALID);
+    return senses[0] ?? null;
+  } catch (err) {
+    throw attachAiPrompt(err, input);
+  }
 }
 
 /** Ask the saved model for senses this headword does not already have. */

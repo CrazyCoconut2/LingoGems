@@ -31,7 +31,9 @@ import {
 import {
   MAX_DEFINITION_INSTRUCTION,
   MAX_EXAMPLE_INSTRUCTION,
+  MAX_EXAMPLE_LENGTH,
   MAX_RELATED_PICKS,
+  generateDefinitionFromExample,
   generateDefinitions,
   generateEquivalent,
   generateExamples,
@@ -85,7 +87,7 @@ type ConfirmDelete =
   | { kind: 'definition'; index: number }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number };
 
-type DefinitionSuggestion = { text: string; metadata: ElementMetadata };
+type DefinitionSuggestion = { text: string; metadata: ElementMetadata; example?: string };
 
 const SUGGESTIONS_KEY = 'lingogem.definition-suggestions.v1';
 
@@ -108,9 +110,13 @@ function suggestionList(raw: unknown): DefinitionSuggestion[] {
     if (!item || typeof item !== 'object') continue;
     const text = String((item as { text?: unknown }).text ?? '').trim();
     if (!text) continue;
+    const example = String((item as { example?: unknown }).example ?? '')
+      .trim()
+      .slice(0, MAX_EXAMPLE_LENGTH);
     suggestions.push({
       text,
       metadata: suggestionMetadata((item as { metadata?: unknown }).metadata),
+      ...(example ? { example } : {}),
     });
   }
   return suggestions;
@@ -525,29 +531,10 @@ function writeExampleSuggestions(
               <button
                 type="button"
                 class="icon-btn"
-                aria-label="Ask AI for definitions"
-                title="Ask AI for definitions"
-                [attr.aria-busy]="asking() ? true : null"
-                [disabled]="aiBusy()"
-                (click)="askDefinitions()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                  />
-                  <path d="M5 3v4" />
-                  <path d="M3 5h4" />
-                  <path d="M19 17v4" />
-                  <path d="M17 19h4" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="icon-btn"
                 aria-label="Add a definition"
                 title="Add a definition"
                 [disabled]="aiBusy()"
-                (click)="openDefinition(null)"
+                (click)="openAddDefinition()"
               >
                 <svg viewBox="0 0 24 24">
                   <path d="M5 12h14" />
@@ -596,6 +583,11 @@ function writeExampleSuggestions(
                             }
                           </ul>
                         }
+                      }
+                      @if (suggestion.example) {
+                        <div class="example-quote">
+                          <p class="passage">{{ suggestion.example }}</p>
+                        </div>
                       }
                     </div>
                     <button
@@ -819,29 +811,10 @@ function writeExampleSuggestions(
                         <button
                           type="button"
                           class="icon-btn"
-                          aria-label="Ask AI for examples"
-                          title="Ask AI for examples"
-                          [attr.aria-busy]="askingExamples() === index ? true : null"
-                          [disabled]="aiBusy()"
-                          (click)="openExampleEngineer(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                            />
-                            <path d="M5 3v4" />
-                            <path d="M3 5h4" />
-                            <path d="M19 17v4" />
-                            <path d="M17 19h4" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
                           aria-label="Add an example"
                           title="Add an example"
                           [disabled]="aiBusy()"
-                          (click)="openExample(index, null)"
+                          (click)="openAddExample(index)"
                         >
                           <svg viewBox="0 0 24 24">
                             <path d="M5 12h14" />
@@ -850,59 +823,13 @@ function writeExampleSuggestions(
                         </button>
                       </div>
                     </div>
-                    @if (stagedExamples(index); as staged) {
-                      @if (staged.length) {
-                        <ul class="examples">
-                          @for (item of staged; track item.text; let stagedIndex = $index) {
-                            <li class="staged-example">
-                              <div class="sense-main">
-                                <div class="example-quote">
-                                  @let passage = parsePassage(item.text);
-                                  @if (passage.text) {
-                                    <p class="passage">{{ passage.text }}</p>
-                                  }
-                                  @if (passage.translations.length) {
-                                    <ul class="equivalents">
-                                      @for (translation of passage.translations; track $index) {
-                                        <li>{{ translation.text }}</li>
-                                      }
-                                    </ul>
-                                  }
-                                  @if (item.form) {
-                                    <p class="hint">Using {{ item.form }}</p>
-                                  }
-                                </div>
-                                <button
-                                  type="button"
-                                  class="icon-btn"
-                                  aria-label="Dismiss example"
-                                  title="Dismiss example"
-                                  [disabled]="busy()"
-                                  (click)="dismissStagedExample(index, stagedIndex)"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                              <button
-                                type="button"
-                                class="btn btn-primary add-suggestion"
-                                [disabled]="aiBusy()"
-                                (click)="addStagedExample(index, stagedIndex)"
-                              >
-                                Add
-                              </button>
-                            </li>
-                          }
-                        </ul>
-                      }
-                    }
                     @if (definition.examples.length) {
                       <ul class="examples">
                         @for (
-                          example of definition.examples;
-                          track $index;
-                          let exampleIndex = $index
+                          exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
+                          track exampleIndex
                         ) {
+                          @let example = definition.examples[exampleIndex];
                           <li class="saved-example">
                             <div class="example-quote">
                               @let passage = parsePassage(example.text);
@@ -1068,7 +995,7 @@ function writeExampleSuggestions(
                           </li>
                         }
                       </ul>
-                    } @else if (!stagedExamples(index).length) {
+                    } @else {
                       <p class="hint">No examples yet.</p>
                     }
                   </section>
@@ -1089,29 +1016,10 @@ function writeExampleSuggestions(
                         <button
                           type="button"
                           class="icon-btn"
-                          aria-label="Ask AI for forms"
-                          title="Ask AI for forms"
-                          [attr.aria-busy]="askingForms() === index ? true : null"
-                          [disabled]="aiBusy()"
-                          (click)="askForms(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                            />
-                            <path d="M5 3v4" />
-                            <path d="M3 5h4" />
-                            <path d="M19 17v4" />
-                            <path d="M17 19h4" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
                           aria-label="Add a form"
                           title="Add a form"
                           [disabled]="aiBusy()"
-                          (click)="openForm(index)"
+                          (click)="openAddForm(index)"
                         >
                           <svg viewBox="0 0 24 24">
                             <path d="M5 12h14" />
@@ -1120,138 +1028,6 @@ function writeExampleSuggestions(
                         </button>
                       </div>
                     </div>
-                    @if (formEdit(); as editing) {
-                      @if (editing.definitionIndex === index) {
-                        <div class="form-edit">
-                          <input
-                            #formField
-                            [value]="formDraft()"
-                            [attr.maxlength]="formMaxLength"
-                            placeholder="walked"
-                            aria-label="New form"
-                            (input)="onFormInput($event)"
-                            (keydown.enter)="saveForm()"
-                          />
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            [disabled]="busy() || !formDraft().trim()"
-                            aria-label="Add form"
-                            (click)="saveForm()"
-                          >
-                            <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Cancel"
-                            (click)="cancelForm()"
-                          >
-                            <svg viewBox="0 0 24 24">
-                              <path d="M18 6 6 18" />
-                              <path d="m6 6 12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                        @if (formError()) {
-                          <p class="error">{{ formError() }}</p>
-                        }
-                        <div class="meta">
-                          <div class="section-heading">
-                            <h3>Features</h3>
-                            @if (!formFeatureEdit()) {
-                              <button
-                                type="button"
-                                class="icon-btn"
-                                aria-label="Add feature"
-                                title="Add feature"
-                                [disabled]="busy()"
-                                (click)="openFormFeature(null)"
-                              >
-                                <svg viewBox="0 0 24 24">
-                                  <path d="M5 12h14" />
-                                  <path d="M12 5v14" />
-                                </svg>
-                              </button>
-                            }
-                          </div>
-                          @if (formFeatureEdit(); as feature) {
-                            <div class="meta-edit">
-                              <input
-                                #formFeatureField
-                                [value]="formFeatureKey()"
-                                [attr.maxlength]="metaKeyMaxLength"
-                                placeholder="Key"
-                                aria-label="Feature key"
-                                (input)="formFeatureKey.set(inputValue($event))"
-                                (keydown.enter)="saveFormFeature()"
-                              />
-                              <input
-                                [value]="formFeatureValue()"
-                                [attr.maxlength]="metaValueMaxLength"
-                                placeholder="Value"
-                                aria-label="Feature value"
-                                (input)="formFeatureValue.set(inputValue($event))"
-                                (keydown.enter)="saveFormFeature()"
-                              />
-                              <button
-                                type="button"
-                                class="icon-btn"
-                                [disabled]="
-                                  busy() || !formFeatureKey().trim() || !formFeatureValue().trim()
-                                "
-                                [attr.aria-label]="
-                                  feature.previousKey ? 'Save feature' : 'Add feature'
-                                "
-                                (click)="saveFormFeature()"
-                              >
-                                <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
-                              </button>
-                              <button
-                                type="button"
-                                class="icon-btn"
-                                aria-label="Cancel"
-                                (click)="cancelFormFeature()"
-                              >
-                                <svg viewBox="0 0 24 24">
-                                  <path d="M18 6 6 18" />
-                                  <path d="m6 6 12 12" />
-                                </svg>
-                              </button>
-                            </div>
-                          }
-                          @if (entries(formFeatures()); as features) {
-                            @if (features.length) {
-                              <ul class="pills">
-                                @for (entry of features; track entry.key) {
-                                  @if (formFeatureEdit()?.previousKey !== entry.key) {
-                                    <li>
-                                      <button
-                                        type="button"
-                                        [disabled]="busy()"
-                                        [attr.aria-label]="'Edit feature ' + entry.key"
-                                        (click)="openFormFeature(entry.key)"
-                                      >
-                                        {{ entry.key }}: {{ entry.value }}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        class="tag-remove"
-                                        [disabled]="busy()"
-                                        [attr.aria-label]="'Remove feature ' + entry.key"
-                                        (click)="removeFormFeature(entry.key)"
-                                      >
-                                        ×
-                                      </button>
-                                    </li>
-                                  }
-                                }
-                              </ul>
-                            }
-                          }
-                        </div>
-                      }
-                    }
                     @if (definition.forms.length) {
                       <ul class="forms">
                         @for (form of definition.forms; track form.text) {
@@ -1278,7 +1054,7 @@ function writeExampleSuggestions(
                           </li>
                         }
                       </ul>
-                    } @else if (formEdit()?.definitionIndex !== index) {
+                    } @else {
                       <p class="hint">No forms yet.</p>
                     }
                   </section>
@@ -1894,6 +1670,148 @@ function writeExampleSuggestions(
           </div>
         }
 
+        @if (formEdit()) {
+          <div class="sheet-backdrop" (click)="closeFormSheet($event)">
+            <section
+              class="sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Add a form"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>Add a form</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  [disabled]="busy()"
+                  (click)="cancelForm()"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <label for="new-form">Form</label>
+              <input
+                #formField
+                id="new-form"
+                [value]="formDraft()"
+                [attr.maxlength]="formMaxLength"
+                placeholder="walked"
+                autocomplete="off"
+                (input)="onFormInput($event)"
+                (keydown.enter)="saveForm()"
+              />
+              @if (formError()) {
+                <p class="error">{{ formError() }}</p>
+              }
+              <div class="meta">
+                <div class="section-heading">
+                  <h3>Metadata</h3>
+                  @if (!formFeatureEdit()) {
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Add metadata"
+                      title="Add metadata"
+                      [disabled]="busy()"
+                      (click)="openFormFeature(null)"
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M5 12h14" />
+                        <path d="M12 5v14" />
+                      </svg>
+                    </button>
+                  }
+                </div>
+                @if (formFeatureEdit(); as feature) {
+                  <div class="meta-edit">
+                    <input
+                      #formFeatureField
+                      [value]="formFeatureKey()"
+                      [attr.maxlength]="metaKeyMaxLength"
+                      placeholder="Key"
+                      aria-label="Metadata key"
+                      (input)="formFeatureKey.set(inputValue($event))"
+                      (keydown.enter)="saveFormFeature()"
+                    />
+                    <input
+                      [value]="formFeatureValue()"
+                      [attr.maxlength]="metaValueMaxLength"
+                      placeholder="Value"
+                      aria-label="Metadata value"
+                      (input)="formFeatureValue.set(inputValue($event))"
+                      (keydown.enter)="saveFormFeature()"
+                    />
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      [disabled]="busy() || !formFeatureKey().trim() || !formFeatureValue().trim()"
+                      [attr.aria-label]="feature.previousKey ? 'Save metadata' : 'Add metadata'"
+                      (click)="saveFormFeature()"
+                    >
+                      <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Cancel"
+                      (click)="cancelFormFeature()"
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                }
+                @if (entries(formFeatures()); as features) {
+                  @if (features.length) {
+                    <ul class="pills">
+                      @for (entry of features; track entry.key) {
+                        @if (formFeatureEdit()?.previousKey !== entry.key) {
+                          <li>
+                            <button
+                              type="button"
+                              [disabled]="busy()"
+                              [attr.aria-label]="'Edit metadata ' + entry.key"
+                              (click)="openFormFeature(entry.key)"
+                            >
+                              {{ entry.key }}: {{ entry.value }}
+                            </button>
+                            <button
+                              type="button"
+                              class="tag-remove"
+                              [disabled]="busy()"
+                              [attr.aria-label]="'Remove metadata ' + entry.key"
+                              (click)="removeFormFeature(entry.key)"
+                            >
+                              ×
+                            </button>
+                          </li>
+                        }
+                      }
+                    </ul>
+                  }
+                }
+              </div>
+              <div class="sheet-actions">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  [disabled]="busy() || !formDraft().trim()"
+                  (click)="saveForm()"
+                >
+                  Save
+                </button>
+              </div>
+            </section>
+          </div>
+        }
+
         @if (formInfo(); as info) {
           <div class="sheet-backdrop" (click)="closeFormInfo($event)">
             <section
@@ -1930,6 +1848,170 @@ function writeExampleSuggestions(
                 } @else {
                   <p class="hint">No metadata yet.</p>
                 }
+              }
+            </section>
+          </div>
+        }
+
+        @if (addFormFor() != null) {
+          <div class="sheet-backdrop" (click)="closeAddForm($event)">
+            <section
+              class="sheet add-definition"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Add a form"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>Add a form</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  [disabled]="askingForms() !== null"
+                  (click)="addFormFor.set(null)"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div class="add-choices">
+                <button
+                  type="button"
+                  class="btn btn-secondary add-choice"
+                  [disabled]="askingForms() !== null"
+                  (click)="addFormManually()"
+                >
+                  Write it yourself
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary add-choice"
+                  [disabled]="askingForms() !== null"
+                  [attr.aria-busy]="askingForms() !== null ? true : null"
+                  (click)="addFormWithAi()"
+                >
+                  Ask AI
+                </button>
+              </div>
+              @if (error()) {
+                <p class="error">{{ error() }}</p>
+              }
+            </section>
+          </div>
+        }
+
+        @if (addExampleFor() != null) {
+          <div class="sheet-backdrop" (click)="closeAddExample($event)">
+            <section
+              class="sheet add-definition"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Add an example"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>Add an example</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  (click)="addExampleFor.set(null)"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div class="add-choices">
+                <button
+                  type="button"
+                  class="btn btn-secondary add-choice"
+                  (click)="addExampleManually()"
+                >
+                  Write it yourself
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary add-choice"
+                  (click)="addExampleWithAi()"
+                >
+                  Ask AI
+                </button>
+              </div>
+            </section>
+          </div>
+        }
+
+        @if (addDefinitionOpen()) {
+          <div class="sheet-backdrop" (click)="closeAddDefinition($event)">
+            <section
+              class="sheet add-definition"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Add a definition"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>Add a definition</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  [disabled]="asking()"
+                  (click)="addDefinitionOpen.set(false)"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div class="add-choices">
+                <button
+                  type="button"
+                  class="btn btn-secondary add-choice"
+                  [disabled]="asking()"
+                  (click)="addDefinitionManually()"
+                >
+                  Write it yourself
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary add-choice"
+                  [disabled]="asking()"
+                  [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
+                  (click)="addMissingDefinitions()"
+                >
+                  Add missing definitions
+                </button>
+              </div>
+              <div class="add-example">
+                <label class="field-label" for="definition-example">From an example</label>
+                <textarea
+                  id="definition-example"
+                  rows="3"
+                  [value]="definitionExample()"
+                  [attr.maxlength]="exampleLengthMax"
+                  [disabled]="asking()"
+                  placeholder="A sentence that uses this word"
+                  (input)="definitionExample.set(inputValue($event))"
+                ></textarea>
+                <button
+                  type="button"
+                  class="btn btn-primary add-choice"
+                  [disabled]="asking() || !definitionExample().trim()"
+                  [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
+                  (click)="addDefinitionFromExample()"
+                >
+                  Add this definition
+                </button>
+              </div>
+              @if (error()) {
+                <p class="error">{{ error() }}</p>
               }
             </section>
           </div>
@@ -2514,8 +2596,7 @@ function writeExampleSuggestions(
       gap: 0.45rem;
     }
 
-    .examples li.saved-example,
-    .examples li.staged-example {
+    .examples li.saved-example {
       flex-direction: column;
       align-items: stretch;
       gap: 0.35rem;
@@ -2540,15 +2621,6 @@ function writeExampleSuggestions(
 
     .example-quote .equivalents {
       font-size: 0.82rem;
-    }
-
-    .staged-example .example-quote {
-      border-left-style: dashed;
-      border-left-color: var(--accent-border);
-    }
-
-    .staged-example .example-quote .passage {
-      color: var(--accent-text);
     }
 
     .meta {
@@ -2583,6 +2655,22 @@ function writeExampleSuggestions(
       justify-content: center;
       padding: 0.85rem;
       background: rgba(8, 10, 16, 0.55);
+    }
+
+    .add-definition {
+      gap: 0.75rem;
+    }
+
+    .add-choices,
+    .add-example {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .add-choice {
+      width: 100%;
+      border-radius: 12px;
     }
 
     .sheet {
@@ -2868,6 +2956,7 @@ export class ElementModal {
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
+  readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
   readonly relatedPickMax = MAX_RELATED_PICKS;
   readonly parsePassage = parsePassage;
@@ -2898,6 +2987,11 @@ export class ElementModal {
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
   readonly asking = signal(false);
+  readonly addDefinitionOpen = signal(false);
+  readonly addExampleFor = signal<number | null>(null);
+  readonly addFormFor = signal<number | null>(null);
+  readonly addingDefinitions = signal<'missing' | 'example' | null>(null);
+  readonly definitionExample = signal('');
   readonly askingForms = signal<number | null>(null);
   readonly askingExamples = signal<number | null>(null);
   readonly askingRelated = signal<number | null>(null);
@@ -2952,12 +3046,17 @@ export class ElementModal {
       this.askingWording.set(null);
       this.exampleEngineer.set(null);
       this.definitionEngineer.set(null);
+      this.addDefinitionOpen.set(false);
+      this.addExampleFor.set(null);
+      this.addFormFor.set(null);
+      this.definitionExample.set('');
+      this.addingDefinitions.set(null);
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
       this.dismissTranslations();
       this.engineerDrafts.clear();
       this.definitionEngineerDrafts = readRelatedDrafts(id);
-      this.loadExampleSuggestions(id);
+      void this.commitStoredExamples(id);
       this.loadWordingSuggestions(id);
       const saved = new Set(
         this.element().definitions.map((definition) =>
@@ -2999,6 +3098,18 @@ export class ElementModal {
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
+    if (this.addFormFor() != null) {
+      if (this.askingForms() === null) this.addFormFor.set(null);
+      return;
+    }
+    if (this.addExampleFor() != null) {
+      this.addExampleFor.set(null);
+      return;
+    }
+    if (this.addDefinitionOpen()) {
+      if (!this.asking()) this.addDefinitionOpen.set(false);
+      return;
+    }
     if (this.confirm()) {
       this.confirm.set(null);
       return;
@@ -3024,7 +3135,7 @@ export class ElementModal {
       return;
     }
     if (this.formEdit()) {
-      this.formEdit.set(null);
+      if (!this.busy()) this.cancelForm();
       return;
     }
     if (this.exampleEngineer()) {
@@ -3060,6 +3171,9 @@ export class ElementModal {
     this.metaEdit.set(null);
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
+    this.addDefinitionOpen.set(false);
+    this.addExampleFor.set(null);
+    this.addFormFor.set(null);
     this.confirm.set(null);
     this.titleTranslationDraft.set('');
     this.translationEditId.set(null);
@@ -3237,6 +3351,171 @@ export class ElementModal {
     );
   }
 
+  openAddDefinition(): void {
+    if (this.aiBusy()) return;
+    this.error.set('');
+    this.definitionExample.set('');
+    this.editor.set(null);
+    this.formEdit.set(null);
+    this.formFeatureEdit.set(null);
+    this.metaEdit.set(null);
+    this.exampleEngineer.set(null);
+    this.definitionEngineer.set(null);
+    this.confirm.set(null);
+    this.addExampleFor.set(null);
+    this.addFormFor.set(null);
+    this.dismissTranslations();
+    this.addDefinitionOpen.set(true);
+  }
+
+  openAddExample(index: number): void {
+    if (this.aiBusy() || !this.element().definitions[index]) return;
+    this.editor.set(null);
+    this.formEdit.set(null);
+    this.formFeatureEdit.set(null);
+    this.metaEdit.set(null);
+    this.exampleEngineer.set(null);
+    this.definitionEngineer.set(null);
+    this.confirm.set(null);
+    this.addDefinitionOpen.set(false);
+    this.addFormFor.set(null);
+    this.dismissTranslations();
+    this.addExampleFor.set(index);
+  }
+
+  openAddForm(index: number): void {
+    if (this.aiBusy() || !this.element().definitions[index]) return;
+    this.error.set('');
+    this.editor.set(null);
+    this.formEdit.set(null);
+    this.formFeatureEdit.set(null);
+    this.metaEdit.set(null);
+    this.exampleEngineer.set(null);
+    this.definitionEngineer.set(null);
+    this.confirm.set(null);
+    this.addDefinitionOpen.set(false);
+    this.addExampleFor.set(null);
+    this.dismissTranslations();
+    this.addFormFor.set(index);
+  }
+
+  closeAddForm(event?: MouseEvent): void {
+    if (event && event.target !== event.currentTarget) return;
+    if (this.askingForms() !== null) return;
+    this.addFormFor.set(null);
+  }
+
+  addFormManually(): void {
+    const index = this.addFormFor();
+    if (index == null || this.askingForms() !== null) return;
+    this.addFormFor.set(null);
+    this.openForm(index);
+  }
+
+  async addFormWithAi(): Promise<void> {
+    const index = this.addFormFor();
+    if (index == null || this.aiBusy()) return;
+    await this.askForms(index);
+    if (!this.error() && this.addFormFor() === index) this.addFormFor.set(null);
+  }
+
+  closeAddExample(event?: MouseEvent): void {
+    if (event && event.target !== event.currentTarget) return;
+    this.addExampleFor.set(null);
+  }
+
+  addExampleManually(): void {
+    const index = this.addExampleFor();
+    if (index == null) return;
+    this.addExampleFor.set(null);
+    this.openExample(index, null);
+  }
+
+  addExampleWithAi(): void {
+    const index = this.addExampleFor();
+    if (index == null) return;
+    this.addExampleFor.set(null);
+    this.openExampleEngineer(index);
+  }
+
+  closeAddDefinition(event?: MouseEvent): void {
+    if (event && event.target !== event.currentTarget) return;
+    if (this.asking()) return;
+    this.addDefinitionOpen.set(false);
+  }
+
+  addDefinitionManually(): void {
+    if (this.asking()) return;
+    this.addDefinitionOpen.set(false);
+    this.openDefinition(null);
+  }
+
+  async addMissingDefinitions(): Promise<void> {
+    if (this.aiBusy() || !this.element().title.trim()) return;
+    this.addingDefinitions.set('missing');
+    try {
+      await this.askDefinitions();
+      if (!this.error()) this.addDefinitionOpen.set(false);
+    } finally {
+      this.addingDefinitions.set(null);
+    }
+  }
+
+  async addDefinitionFromExample(): Promise<void> {
+    if (this.aiBusy()) return;
+    const example = this.definitionExample().trim().slice(0, MAX_EXAMPLE_LENGTH);
+    const element = this.element();
+    const title = element.title.trim();
+    if (!example || !title) return;
+    this.addingDefinitions.set('example');
+    this.asking.set(true);
+    this.error.set('');
+    try {
+      const sense = await generateDefinitionFromExample({
+        language: element.language,
+        title,
+        example,
+        existingDefinitions: [
+          ...element.definitions.map((definition) => ({
+            text: definition.text,
+            metadata: definition.metadata,
+          })),
+          ...this.suggestions().map((suggestion) => ({
+            text: suggestion.text,
+            metadata: suggestion.metadata,
+          })),
+        ],
+      });
+      if (this.element().id !== element.id) return;
+      if (!sense) {
+        this.error.set('Could not write a definition from that example.');
+        return;
+      }
+      const current = this.suggestions();
+      const seen = new Set(
+        [
+          ...element.definitions.map((definition) => definition.text),
+          ...current.map((item) => item.text),
+        ].map((text) => parsePassage(text).text.trim().toLowerCase()),
+      );
+      const key = parsePassage(sense.text).text.trim().toLowerCase();
+      if (!key || seen.has(key)) {
+        this.error.set('That sense is already here.');
+        return;
+      }
+      this.replaceSuggestions(element.id, [...current, { ...sense, example }]);
+      this.definitionExample.set('');
+      this.addDefinitionOpen.set(false);
+    } catch {
+      if (this.element().id === element.id) {
+        this.error.set('Could not write a definition from that example.');
+      }
+    } finally {
+      if (this.element().id === element.id) this.asking.set(false);
+      this.addingDefinitions.set(null);
+    }
+  }
+
   async askDefinitions(): Promise<void> {
     if (this.aiBusy()) return;
     const element = this.element();
@@ -3304,7 +3583,7 @@ export class ElementModal {
       text: suggestion.text,
       equivalentId: null,
       forms: [],
-      examples: [],
+      examples: suggestion.example ? [{ text: suggestion.example, metadata: {} }] : [],
       metadata: { ...suggestion.metadata },
     };
     const definitions = [created, ...this.copyDefinitions()];
@@ -3348,6 +3627,10 @@ export class ElementModal {
     }
     const asking = this.askingExamples();
     if (asking != null) this.askingExamples.set(map(asking));
+    const addingExample = this.addExampleFor();
+    if (addingExample != null) this.addExampleFor.set(map(addingExample));
+    const addingForm = this.addFormFor();
+    if (addingForm != null) this.addFormFor.set(map(addingForm));
     const related = this.askingRelated();
     if (related != null) this.askingRelated.set(map(related));
     const wording = this.askingWording();
@@ -3388,6 +3671,12 @@ export class ElementModal {
     }
     const asking = this.askingExamples();
     if (asking != null) this.askingExamples.set(asking + by);
+    const addingExample = this.addExampleFor();
+    if (addingExample != null) this.addExampleFor.set(addingExample + by);
+    const addingForm = this.addFormFor();
+    if (addingForm != null) this.addFormFor.set(addingForm + by);
+    const forms = this.askingForms();
+    if (forms != null) this.askingForms.set(forms + by);
     const related = this.askingRelated();
     if (related != null) this.askingRelated.set(related + by);
     const wording = this.askingWording();
@@ -3506,6 +3795,9 @@ export class ElementModal {
     this.metaEdit.set(null);
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
+    this.addDefinitionOpen.set(false);
+    this.addExampleFor.set(null);
+    this.addFormFor.set(null);
     this.dismissTranslations();
     this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
     const equivalentId = definition?.equivalentId ?? null;
@@ -3530,6 +3822,9 @@ export class ElementModal {
     this.metaEdit.set(null);
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
+    this.addDefinitionOpen.set(false);
+    this.addExampleFor.set(null);
+    this.addFormFor.set(null);
     this.dismissTranslations();
     this.sheetMetadata.set({ ...(example?.metadata ?? {}) });
     this.beginSheet(example?.text ?? '');
@@ -3537,11 +3832,10 @@ export class ElementModal {
     this.focusDraft();
   }
 
-  stagedExamples(index: number): ExampleSuggestion[] {
-    const definition = this.element().definitions[index];
-    const key = senseKey(definition?.text ?? '');
-    if (!key) return [];
-    return this.exampleSuggestions()[key] ?? [];
+  exampleIndexesNewestFirst(count: number): number[] {
+    const indexes: number[] = [];
+    for (let index = count - 1; index >= 0; index -= 1) indexes.push(index);
+    return indexes;
   }
 
   definitionForms(index: number): string[] {
@@ -3554,6 +3848,9 @@ export class ElementModal {
     const key = senseKey(definition?.text ?? '');
     if (!definition || !key) return;
     this.definitionEngineer.set(null);
+    this.addDefinitionOpen.set(false);
+    this.addExampleFor.set(null);
+    this.addFormFor.set(null);
     this.editor.set(null);
     this.formEdit.set(null);
     this.formInfo.set(null);
@@ -3604,6 +3901,9 @@ export class ElementModal {
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.confirm.set(null);
+    this.addDefinitionOpen.set(false);
+    this.addExampleFor.set(null);
+    this.addFormFor.set(null);
     this.exampleEngineer.set(null);
     this.dismissTranslations();
     const draft = this.definitionEngineerDrafts.get(key) ?? {
@@ -3874,20 +4174,12 @@ export class ElementModal {
     this.askingExamples.set(index);
     this.error.set('');
     try {
-      const staged = (
-        this.element().id === element.id
-          ? (this.exampleSuggestions()[sense] ?? [])
-          : (readExampleSuggestions(element.id)[sense] ?? [])
-      ).map((item) => parsePassage(item.text).text);
       const examples = await generateExamples({
         language: element.language,
         title: element.title,
         gloss,
         partOfSpeech: definition.metadata['part of speech'],
-        existingExamples: [
-          ...definition.examples.map((example) => parsePassage(example.text).text),
-          ...staged,
-        ],
+        existingExamples: definition.examples.map((example) => parsePassage(example.text).text),
         forms: required ? [] : definition.forms.map((form) => form.text),
         exampleWords: [],
         exampleInstruction: engineer.instruction,
@@ -3904,59 +4196,27 @@ export class ElementModal {
         if (showing) this.error.set('The example did not use the chosen form.');
         return;
       }
-      const current =
-        this.element().id === element.id
-          ? { ...this.exampleSuggestions() }
-          : readExampleSuggestions(element.id);
-      const list = current[sense] ?? [];
-      if (list.some((item) => senseKey(item.text) === senseKey(sentence.text))) {
-        if (showing) this.error.set('No further examples.');
+      if (!showing) return;
+      const definitions = this.copyDefinitions();
+      const target = definitions.find((item) => senseKey(item.text) === sense);
+      if (!target) return;
+      const sentenceKey = senseKey(sentence.text);
+      if (
+        !sentenceKey ||
+        target.examples.some((example) => senseKey(example.text) === sentenceKey)
+      ) {
+        this.error.set('No further examples.');
         return;
       }
-      this.replaceExampleSuggestions(element.id, sense, [
-        ...list,
-        { text: sentence.text, form: required },
-      ]);
-      if (showing) this.exampleEngineer.set(null);
+      target.examples.push({ text: sentence.text, metadata: {} });
+      if (!(await this.persist(definitions, this.element().equivalents))) return;
+      if (this.element().id === element.id) this.exampleEngineer.set(null);
     } catch {
       if (this.element().id === element.id) this.error.set('Could not ask for examples.');
     } finally {
       if (this.exampleJob === job && this.element().id === element.id)
         this.askingExamples.set(null);
     }
-  }
-
-  dismissStagedExample(definitionIndex: number, stagedIndex: number): void {
-    if (this.busy()) return;
-    const definition = this.element().definitions[definitionIndex];
-    const sense = senseKey(definition?.text ?? '');
-    const list = sense ? (this.exampleSuggestions()[sense] ?? []) : [];
-    if (!sense || !list[stagedIndex]) return;
-    this.replaceExampleSuggestions(
-      this.element().id,
-      sense,
-      list.filter((_, at) => at !== stagedIndex),
-    );
-  }
-
-  async addStagedExample(definitionIndex: number, stagedIndex: number): Promise<void> {
-    if (this.aiBusy()) return;
-    const element = this.element();
-    const definition = element.definitions[definitionIndex];
-    const sense = senseKey(definition?.text ?? '');
-    const suggestion = sense ? this.exampleSuggestions()[sense]?.[stagedIndex] : undefined;
-    if (!definition || !sense || !suggestion) return;
-    const definitions = this.copyDefinitions();
-    const target = definitions[definitionIndex];
-    if (!target) return;
-    target.examples.push({ text: suggestion.text, metadata: {} });
-    if (!(await this.persist(definitions, element.equivalents))) return;
-    const list = this.exampleSuggestions()[sense] ?? [];
-    this.replaceExampleSuggestions(
-      element.id,
-      sense,
-      list.filter((item) => item !== suggestion),
-    );
   }
 
   openFormInfo(definitionIndex: number, text: string): void {
@@ -3975,6 +4235,11 @@ export class ElementModal {
     if (event.target === event.currentTarget) this.formInfo.set(null);
   }
 
+  closeFormSheet(event: MouseEvent): void {
+    if (event.target !== event.currentTarget || this.busy()) return;
+    this.cancelForm();
+  }
+
   formMetadata(info: { definitionIndex: number; text: string }): Array<{
     key: string;
     value: string;
@@ -3987,8 +4252,16 @@ export class ElementModal {
 
   openForm(definitionIndex: number): void {
     if (!this.element().definitions[definitionIndex]) return;
+    this.addFormFor.set(null);
+    this.addExampleFor.set(null);
+    this.addDefinitionOpen.set(false);
     this.editor.set(null);
+    this.formInfo.set(null);
+    this.exampleEngineer.set(null);
+    this.definitionEngineer.set(null);
+    this.confirm.set(null);
     this.metaEdit.set(null);
+    this.dismissTranslations();
     this.formError.set('');
     this.formFeatureEdit.set(null);
     this.formFeatures.set({});
@@ -4316,6 +4589,19 @@ export class ElementModal {
       const asking = this.askingExamples();
       if (asking === pending.index) this.askingExamples.set(null);
       else if (asking != null && asking > pending.index) this.askingExamples.set(asking - 1);
+      const addingExample = this.addExampleFor();
+      if (addingExample === pending.index) this.addExampleFor.set(null);
+      else if (addingExample != null && addingExample > pending.index) {
+        this.addExampleFor.set(addingExample - 1);
+      }
+      const addingForm = this.addFormFor();
+      if (addingForm === pending.index) this.addFormFor.set(null);
+      else if (addingForm != null && addingForm > pending.index) {
+        this.addFormFor.set(addingForm - 1);
+      }
+      const forms = this.askingForms();
+      if (forms === pending.index) this.askingForms.set(null);
+      else if (forms != null && forms > pending.index) this.askingForms.set(forms - 1);
       const related = this.askingRelated();
       if (related === pending.index) this.askingRelated.set(null);
       else if (related != null && related > pending.index) this.askingRelated.set(related - 1);
@@ -4466,37 +4752,41 @@ export class ElementModal {
     if (this.element().id === elementId) this.wordingSuggestions.set(current);
   }
 
-  private loadExampleSuggestions(id: string): void {
+  /** Examples generated before they were saved immediately. */
+  private async commitStoredExamples(id: string): Promise<void> {
     const stored = readExampleSuggestions(id);
-    const savedBySense = new Map<string, Set<string>>();
-    for (const definition of this.element().definitions) {
+    if (this.element().id !== id) return;
+    if (!Object.keys(stored).length) {
+      this.exampleSuggestions.set({});
+      return;
+    }
+    const definitions = this.copyDefinitions();
+    let changed = false;
+    for (const definition of definitions) {
       const sense = senseKey(definition.text);
-      if (!sense) continue;
-      const saved = savedBySense.get(sense) ?? new Set<string>();
-      for (const example of definition.examples) {
-        const key = senseKey(example.text);
-        if (key) saved.add(key);
-      }
-      savedBySense.set(sense, saved);
-    }
-    const kept: Record<string, ExampleSuggestion[]> = {};
-    let dirty = false;
-    for (const [sense, list] of Object.entries(stored)) {
-      const saved = savedBySense.get(sense);
-      if (!saved) {
-        dirty = true;
-        continue;
-      }
-      const next = list.filter((item) => {
+      const list = sense ? stored[sense] : undefined;
+      if (!list?.length) continue;
+      const saved = new Set(
+        definition.examples.map((example) => senseKey(example.text)).filter(Boolean),
+      );
+      for (const item of list) {
         const key = senseKey(item.text);
-        return !!key && !saved.has(key);
-      });
-      if (next.length !== list.length) dirty = true;
-      if (next.length) kept[sense] = next;
+        if (!key || saved.has(key)) continue;
+        definition.examples.push({ text: item.text, metadata: {} });
+        saved.add(key);
+        changed = true;
+      }
     }
-    if (Object.keys(kept).length !== Object.keys(stored).length) dirty = true;
-    this.exampleSuggestions.set(kept);
-    if (dirty) writeExampleSuggestions(id, kept);
+    if (!changed) {
+      writeExampleSuggestions(id, {});
+      this.exampleSuggestions.set({});
+      return;
+    }
+    if (this.element().id !== id) return;
+    if (!(await this.persist(definitions, this.element().equivalents))) return;
+    if (this.element().id !== id) return;
+    writeExampleSuggestions(id, {});
+    this.exampleSuggestions.set({});
   }
 
   private replaceExampleSuggestions(

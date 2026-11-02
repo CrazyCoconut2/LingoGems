@@ -51,14 +51,18 @@ export {
 } from './translate';
 
 export {
+  DEFINITION_FROM_EXAMPLE_SYSTEM_PROMPT,
   DEFINITIONS_SYSTEM_PROMPT,
   FORMS_SYSTEM_PROMPT,
+  buildDefinitionFromExampleUserMessage,
   buildDefinitionsUserMessage,
   buildFormsUserMessage,
+  generateDefinitionFromExample,
   generateDefinitions,
   generateForms,
   parseGeneratedDefinitions,
   parseGeneratedForms,
+  type GenerateDefinitionFromExampleInput,
   type GenerateDefinitionsInput,
   type GenerateFormsInput,
   type GeneratedDefinition,
