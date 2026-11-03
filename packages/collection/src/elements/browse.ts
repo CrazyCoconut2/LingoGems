@@ -6,7 +6,7 @@ export const ELEMENT_SORTS = [
   'created-desc',
   'created-asc',
   'definitions-desc',
-  'examples-desc',
+  'translations-desc',
   'none',
 ] as const;
 
@@ -37,10 +37,6 @@ export function elementDefinitionCount(element: StoredElement): number {
   return element.definitions.length;
 }
 
-function elementExampleCount(element: StoredElement): number {
-  return element.definitions.reduce((count, definition) => count + definition.examples.length, 0);
-}
-
 /** Keep an element whose translation and definition counts meet each minimum. */
 export function elementMatchesMinimums(
   element: StoredElement,
@@ -64,6 +60,6 @@ export function compareElements(
     const diff = left.createdAt - right.createdAt;
     return (sort === 'created-desc' ? -diff : diff) || title;
   }
-  const count = sort === 'definitions-desc' ? elementDefinitionCount : elementExampleCount;
+  const count = sort === 'definitions-desc' ? elementDefinitionCount : elementTranslationCount;
   return count(right) - count(left) || title;
 }

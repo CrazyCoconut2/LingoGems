@@ -59,13 +59,16 @@ export {
   buildFormsUserMessage,
   generateDefinitionFromExample,
   generateDefinitions,
+  generateElementFromSelection,
   generateForms,
   parseGeneratedDefinitions,
   parseGeneratedForms,
   type GenerateDefinitionFromExampleInput,
   type GenerateDefinitionsInput,
+  type GenerateElementFromSelectionInput,
   type GenerateFormsInput,
   type GeneratedDefinition,
+  type GeneratedElement,
 } from './definitions';
 
 export {

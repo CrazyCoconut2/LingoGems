@@ -46,6 +46,26 @@ Return JSON only with this shape:
 {"senses":[${SENSE_SHAPE}]}
 When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.`;
 
+export const ELEMENT_FROM_SELECTION_SYSTEM_PROMPT = `You add one dictionary element from a selected word or phrase.
+JSON keys stay in English.
+Every gloss MUST be in the language named by writeFieldsIn.
+Do not use English for a gloss unless writeFieldsIn is English.
+Do not copy English labels into metadata; write those values in writeFieldsIn.
+Rules:
+- lemma is the citation form of the selection, the root headword, in the selection's language. When the selection is already that form, lemma is the selection. Do not choose a different word
+- One sense per distinct meaning of that lemma
+- Return at most ${MAX_SENSES} senses
+- One short dictionary-style gloss per sense
+- Do not include examples, forms, or citations
+- Do not add bracket tags such as [en:…]
+- Spelling MUST be correct in the lemma, every gloss, and every English gloss
+- metadata is key-value pairs that apply to that definition. Omit a pair when it does not apply
+- Definition metadata keys are only "part of speech", "gender", "transitivity", and "register"
+translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".
+Return JSON only with this shape:
+{"lemma":"<root lemma>","senses":[${SENSE_SHAPE}]}
+When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.`;
+
 export const DEFINITION_FROM_EXAMPLE_SYSTEM_PROMPT = `You write one dictionary sense for a headword from one example sentence.
 JSON keys stay in English.
 The gloss MUST be in the language named by writeFieldsIn.
@@ -72,7 +92,7 @@ Do not copy English labels into metadata; write those values in writeFieldsIn.
 Rules:
 - forms lists every distinct inflected surface form of this sense, not one example. For a verb, cover person, number, tense, and mood, plus the participle and gerund when they exist. For a noun or adjective, cover gender and number. Keep going until that paradigm is covered. Omit a form you cannot spell correctly
 - The forms array in the shape shows the fields. It is not a limit of one form
-- Do not include the headword in lemma. Do not repeat a form listed in existingForms
+- Include the headword itself as one form. Do not repeat a form listed in existingForms
 - No wildcards, regex, parentheses, or asterisks in a form
 - Form metadata keys are only "tense", "person", "number", and "mood". Omit a pair when it does not apply
 - Spelling MUST be correct in every form
@@ -193,6 +213,80 @@ export async function generateDefinitionFromExample(
   }
 }
 
+export type GenerateElementFromSelectionInput = {
+  language: string;
+  selected: string;
+  context: string;
+};
+
+export type GeneratedElement = {
+  lemma: string;
+  definitions: GeneratedDefinition[];
+};
+
+export function buildElementFromSelectionUserMessage(
+  input: GenerateElementFromSelectionInput,
+): string {
+  const language = input.language.trim().toLowerCase();
+  const writeFieldsIn = languageDisplayName(language) || language;
+  const translateFieldsIn = language && language !== 'en' ? 'English' : '';
+  const context = input.context.trim().slice(0, MAX_EXAMPLE_LENGTH);
+  return JSON.stringify({
+    language,
+    writeFieldsIn,
+    ...(translateFieldsIn ? { translateFieldsIn } : {}),
+    selected: input.selected.trim(),
+    ...(context ? { context } : {}),
+  });
+}
+
+/** The root lemma and its senses, or null when the reply has neither. */
+export async function generateElementFromSelection(
+  request: GenerateElementFromSelectionInput,
+): Promise<GeneratedElement | null> {
+  const selected = request.selected.trim();
+  const language = request.language.trim().toLowerCase();
+  const context = request.context.trim().slice(0, MAX_EXAMPLE_LENGTH);
+  if (!selected || !language) return null;
+  const prepared = { ...request, selected, language, context };
+  const input: CompleteJsonInput = {
+    system: ELEMENT_FROM_SELECTION_SYSTEM_PROMPT,
+    user: buildElementFromSelectionUserMessage(prepared),
+    maxTokens: DEFINITIONS_MAX_TOKENS,
+    temperature: 0,
+  };
+  const keys = readStoredAiCredentials().keys;
+  const complete = () =>
+    runWithKeyFallback(keys, (provider, credentials) => completeJson(provider, input, credentials));
+  try {
+    let element = parseGeneratedElement(await complete(), prepared);
+    if (!element) element = parseGeneratedElement(await complete(), prepared);
+    if (!element) aiError(AI_ERROR.RESPONSE_INVALID);
+    return element;
+  } catch (err) {
+    throw attachAiPrompt(err, input);
+  }
+}
+
+function parseGeneratedElement(
+  parsed: unknown,
+  input: GenerateElementFromSelectionInput,
+): GeneratedElement | null {
+  const source =
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  const lemma = plainText(source?.['lemma']).replace(/\s+/g, ' ').slice(0, FORM_MAX_LENGTH);
+  if (!lemma) return null;
+  const definitions = parseGeneratedDefinitions(parsed, {
+    language: input.language,
+    title: lemma,
+    existingDefinitions: [],
+  });
+  if (!definitions) return null;
+  return { lemma, definitions };
+}
+
 /** Ask the saved model for senses this headword does not already have. */
 export async function generateDefinitions(
   request: GenerateDefinitionsInput,
@@ -288,7 +382,7 @@ export function parseGeneratedForms(
       : null;
   const list = source ? source['forms'] : null;
   if (!Array.isArray(list)) return null;
-  const title = input.title.trim().toLowerCase();
+  const title = input.title.trim();
   const taken = new Set(
     input.existingForms.map((form) => form.trim().toLowerCase()).filter(Boolean),
   );
@@ -323,6 +417,8 @@ export async function generateForms(request: GenerateFormsInput): Promise<Elemen
 
 function parseForms(value: unknown, title: string, taken: ReadonlySet<string>): ElementForm[] {
   if (!Array.isArray(value)) return [];
+  const lemma = title.trim();
+  const lemmaKey = lemma.toLowerCase();
   const seen = new Set(taken);
   const forms: ElementForm[] = [];
   for (const item of value) {
@@ -335,14 +431,22 @@ function parseForms(value: unknown, title: string, taken: ReadonlySet<string>): 
           : '';
     const text = plainText(source).replace(/\s+/g, ' ').slice(0, FORM_MAX_LENGTH);
     const key = text.toLowerCase();
-    if (!text || key === title || seen.has(key) || /[*()|]/.test(text) || !isValidForm(text))
-      continue;
+    if (!text || seen.has(key) || /[*()|]/.test(text) || !isValidForm(text)) continue;
     seen.add(key);
     const metadata =
       item && typeof item === 'object'
         ? pickMetadata((item as { metadata?: unknown }).metadata, FORM_METADATA_KEYS)
         : {};
     forms.push({ text, metadata });
+  }
+  if (
+    lemma &&
+    !seen.has(lemmaKey) &&
+    forms.length < MAX_FORMS &&
+    !/[*()|]/.test(lemma) &&
+    isValidForm(lemma)
+  ) {
+    forms.unshift({ text: lemma, metadata: {} });
   }
   return forms;
 }

@@ -43,6 +43,7 @@ import {
   MAX_RELATED_PICKS,
   generateDefinitionFromExample,
   generateDefinitions,
+  generateElementFromSelection,
   generateEquivalent,
   generateExamples,
   generateForms,
@@ -66,6 +67,17 @@ type Editor =
 type FormEdit = { definitionIndex: number; originalText: string | null };
 
 type MetadataEdit = { previousKey: string | null };
+
+type PassageSelection = {
+  text: string;
+  definitionIndex: number;
+  exampleIndex: number | null;
+};
+
+type PreparedElement = {
+  title: string;
+  definitions: ElementDefinition[];
+};
 
 type HighlightSource = {
   id: string;
@@ -483,7 +495,60 @@ function writeExampleSuggestions(
       <div class="panel">
         <header>
           <div class="title-row">
-            <h2>{{ element().title }}</h2>
+            @if (canGoBack()) {
+              <button
+                type="button"
+                class="icon-btn"
+                aria-label="Back"
+                title="Back"
+                [disabled]="busy()"
+                (click)="back.emit()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+            }
+            @if (titleEdit()) {
+              <form class="title-edit" (submit)="saveTitle($event)">
+                <input
+                  #titleField
+                  aria-label="Title"
+                  [value]="titleDraft()"
+                  [attr.maxlength]="formMaxLength"
+                  autocomplete="off"
+                  [disabled]="busy()"
+                  (input)="titleDraft.set(inputValue($event))"
+                />
+                <button
+                  type="submit"
+                  class="icon-btn"
+                  aria-label="Save title"
+                  title="Save title"
+                  [disabled]="busy() || !titleDraft().trim()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                </button>
+              </form>
+            } @else {
+              <div class="title-main">
+                <h2>{{ element().title }}</h2>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Edit title"
+                  title="Edit title"
+                  [disabled]="aiBusy()"
+                  (click)="openTitle()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  </svg>
+                </button>
+              </div>
+            }
             <button
               #closeButton
               type="button"
@@ -494,6 +559,9 @@ function writeExampleSuggestions(
               ×
             </button>
           </div>
+          @if (titleError()) {
+            <p class="error">{{ titleError() }}</p>
+          }
           @if (headerEquivalents(); as equivalents) {
             @if (equivalents.length) {
               <p class="equivalents">{{ equivalents.join(', ') }}</p>
@@ -674,8 +742,11 @@ function writeExampleSuggestions(
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
                       @if (passage.text) {
-                        <p class="passage">
-                          @for (part of highlightPassage(passage.text, index); track $index) {
+                        <p
+                          class="passage sense-selectable"
+                          [attr.data-definition-index]="index"
+                        >
+                          @for (part of highlightPassage(passage.text); track $index) {
                             @if (part.matches.length > 1) {
                               <button
                                 type="button"
@@ -732,6 +803,38 @@ function writeExampleSuggestions(
                     </div>
                   </div>
                   <div class="item-actions">
+                    @if (passagePick(index, null); as pick) {
+                      <span class="lookup-actions">
+                        <button
+                          type="button"
+                          class="lookup-chip"
+                          aria-label="Add element"
+                          [disabled]="aiBusy()"
+                          (pointerdown)="confirmPassagePick($event, pick.text)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12h14" />
+                            <path d="M12 5v14" />
+                          </svg>
+                          Add
+                        </button>
+                        <button
+                          type="button"
+                          class="lookup-chip"
+                          aria-label="Add element with AI"
+                          [disabled]="aiBusy()"
+                          [attr.aria-busy]="addingSelection() ? true : null"
+                          (pointerdown)="confirmPassagePick($event, pick.text, true)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                            />
+                          </svg>
+                          Ask AI
+                        </button>
+                      </span>
+                    } @else {
                     @if (element().definitions.length > 1) {
                       <span class="item-actions-move">
                         <button
@@ -851,6 +954,7 @@ function writeExampleSuggestions(
                         </svg>
                       </button>
                     </span>
+                    }
                   </div>
 
                   <section class="group">
@@ -893,9 +997,13 @@ function writeExampleSuggestions(
                             <div class="example-quote">
                               @let passage = parsePassage(example.text);
                               @if (passage.text) {
-                                <p class="passage">
+                                <p
+                                  class="passage sense-selectable"
+                                  [attr.data-definition-index]="index"
+                                  [attr.data-example-index]="exampleIndex"
+                                >
                                   @for (
-                                    part of highlightPassage(passage.text, index);
+                                    part of highlightPassage(passage.text);
                                     track $index
                                   ) {
                                     @if (part.matches.length > 1) {
@@ -949,6 +1057,38 @@ function writeExampleSuggestions(
                               }
                             </div>
                             <div class="item-actions">
+                              @if (passagePick(index, exampleIndex); as pick) {
+                                <span class="lookup-actions">
+                                  <button
+                                    type="button"
+                                    class="lookup-chip"
+                                    aria-label="Add element"
+                                    [disabled]="aiBusy()"
+                                    (pointerdown)="confirmPassagePick($event, pick.text)"
+                                  >
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                      <path d="M5 12h14" />
+                                      <path d="M12 5v14" />
+                                    </svg>
+                                    Add
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="lookup-chip"
+                                    aria-label="Add element with AI"
+                                    [disabled]="aiBusy()"
+                                    [attr.aria-busy]="addingSelection() ? true : null"
+                                    (pointerdown)="confirmPassagePick($event, pick.text, true)"
+                                  >
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                      <path
+                                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                                      />
+                                    </svg>
+                                    Ask AI
+                                  </button>
+                                </span>
+                              } @else {
                               <span class="item-actions-main">
                                 @if (canHear(example.text)) {
                                   <button
@@ -1056,6 +1196,7 @@ function writeExampleSuggestions(
                                   </svg>
                                 </button>
                               </span>
+                              }
                             </div>
                           </li>
                         }
@@ -2424,8 +2565,36 @@ function writeExampleSuggestions(
       min-width: 0;
     }
 
-    .title-row h2 {
+    .title-row h2,
+    .title-edit,
+    .title-main {
       flex: 1;
+      min-width: 0;
+    }
+
+    .title-main {
+      display: flex;
+      align-items: center;
+      gap: 0.15rem;
+    }
+
+    .title-main h2 {
+      flex: 0 1 auto;
+    }
+
+    .title-edit {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .title-edit input {
+      flex: 1;
+      min-width: 0;
+      font: inherit;
+      font-size: 1.35rem;
+      font-weight: 650;
+      letter-spacing: -0.03em;
     }
 
     .equivalents {
@@ -2606,6 +2775,47 @@ function writeExampleSuggestions(
 
     .item-actions-move {
       margin-right: auto;
+    }
+
+    .lookup-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.35rem;
+      margin-left: auto;
+    }
+
+    .lookup-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      height: 2rem;
+      padding: 0 0.7rem 0 0.5rem;
+      border: 1px solid rgba(var(--accent-rgb), 0.45);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--accent-text);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 650;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .lookup-chip svg {
+      display: block;
+      width: 0.9rem;
+      height: 0.9rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .lookup-chip:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .body {
@@ -3250,10 +3460,14 @@ function writeExampleSuggestions(
 export class ElementModal {
   readonly element = input.required<StoredElement>();
   readonly collection = input<StoredElement[]>([]);
+  readonly canGoBack = input(false);
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
   readonly deleted = output<void>();
   readonly visit = output<string>();
+  readonly back = output<void>();
+  readonly addSelection = output<string>();
+  readonly addPrepared = output<PreparedElement>();
 
   readonly formMaxLength = FORM_MAX_LENGTH;
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
@@ -3290,9 +3504,14 @@ export class ElementModal {
   readonly metaValue = signal('');
   readonly sheetMetadata = signal<ElementMetadata>({});
   readonly collision = signal<DefinitionHighlightMatch[] | null>(null);
+  readonly passageSelection = signal<PassageSelection | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
   readonly asking = signal(false);
+  readonly addingSelection = signal(false);
+  readonly titleEdit = signal(false);
+  readonly titleDraft = signal('');
+  readonly titleError = signal('');
   readonly addDefinitionOpen = signal(false);
   readonly addExampleFor = signal<number | null>(null);
   readonly addFormFor = signal<number | null>(null);
@@ -3335,6 +3554,7 @@ export class ElementModal {
   private readonly formFeatureField = viewChild<ElementRef<HTMLInputElement>>('formFeatureField');
   private readonly metaKeyField = viewChild<ElementRef<HTMLInputElement>>('metaKeyField');
   private readonly translationField = viewChild<ElementRef<HTMLInputElement>>('translationField');
+  private readonly titleField = viewChild<ElementRef<HTMLInputElement>>('titleField');
 
   constructor() {
     inject(DestroyRef).onDestroy(() => stopSpeaking());
@@ -3350,6 +3570,10 @@ export class ElementModal {
       this.formFeatureEdit.set(null);
       this.metaEdit.set(null);
       this.collision.set(null);
+      this.passageSelection.set(null);
+      this.addingSelection.set(false);
+      this.titleEdit.set(false);
+      this.titleError.set('');
       this.confirm.set(null);
       this.askingForms.set(null);
       this.askingExamples.set(null);
@@ -3399,11 +3623,17 @@ export class ElementModal {
     });
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    document.addEventListener('selectionchange', this.syncPassageSelection);
+    document.addEventListener('pointerdown', this.onSelectionPointerDown, true);
+    document.addEventListener('pointerup', this.syncPassageSelection, true);
     inject(DestroyRef).onDestroy(() => {
       stopWatching();
       stopWatchingExamples();
       stopWatchingWording();
       this.clearCopied();
+      document.removeEventListener('selectionchange', this.syncPassageSelection);
+      document.removeEventListener('pointerdown', this.onSelectionPointerDown, true);
+      document.removeEventListener('pointerup', this.syncPassageSelection, true);
       document.body.style.overflow = previous;
     });
     afterNextRender(() => this.closeButton()?.nativeElement.focus());
@@ -3411,6 +3641,10 @@ export class ElementModal {
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
+    if (this.titleEdit()) {
+      if (!this.busy()) this.cancelTitle();
+      return;
+    }
     if (this.colorOpen()) {
       if (!this.busy()) this.colorOpen.set(false);
       return;
@@ -3463,6 +3697,10 @@ export class ElementModal {
       this.closeDefinitionEngineer();
       return;
     }
+    if (this.canGoBack()) {
+      if (!this.busy()) this.back.emit();
+      return;
+    }
     this.closed.emit();
   }
 
@@ -3474,6 +3712,66 @@ export class ElementModal {
     if (event.target !== event.currentTarget) return;
     if (this.confirm()) this.confirm.set(null);
     else this.editor.set(null);
+  }
+
+  openTitle(): void {
+    if (this.aiBusy() || this.titleEdit()) return;
+    this.titleError.set('');
+    this.titleDraft.set(this.element().title);
+    this.titleEdit.set(true);
+    setTimeout(() => {
+      const field = this.titleField()?.nativeElement;
+      field?.focus();
+      field?.select();
+    });
+  }
+
+  cancelTitle(): void {
+    this.titleEdit.set(false);
+    this.titleError.set('');
+  }
+
+  async saveTitle(event?: Event): Promise<void> {
+    event?.preventDefault();
+    if (!this.titleEdit() || this.busy()) return;
+    const name = this.titleDraft().replace(/\s+/g, ' ').trim().slice(0, FORM_MAX_LENGTH);
+    const element = this.element();
+    if (!name) {
+      this.titleError.set('A title is required.');
+      return;
+    }
+    if (name === element.title) {
+      this.cancelTitle();
+      return;
+    }
+    const taken = this.collection().some(
+      (item) => item.id !== element.id && sameTitle(item.title, name),
+    );
+    if (taken) {
+      this.titleError.set('That title is already there.');
+      return;
+    }
+    const definitions = this.copyDefinitions().map((definition) => ({
+      ...definition,
+      forms: retitleForms(definition.forms, element.title, name),
+    }));
+    const editing = this.formEdit();
+    this.busy.set(true);
+    this.titleError.set('');
+    try {
+      const saved = await saveElement({ ...element, title: name, definitions });
+      if (this.element().id !== element.id) return;
+      if (editing?.originalText && sameTitle(editing.originalText, element.title)) {
+        this.formEdit.set({ ...editing, originalText: name });
+        if (sameTitle(this.formDraft(), element.title)) this.formDraft.set(name);
+      }
+      this.titleEdit.set(false);
+      this.changed.emit(saved);
+    } catch {
+      if (this.element().id === element.id) this.titleError.set('Could not save this element.');
+    } finally {
+      if (this.element().id === element.id) this.busy.set(false);
+    }
   }
 
   headerEquivalents(): string[] {
@@ -3661,6 +3959,7 @@ export class ElementModal {
     return (
       this.busy() ||
       this.asking() ||
+      this.addingSelection() ||
       this.askingForms() !== null ||
       this.askingExamples() !== null ||
       this.askingRelated() !== null ||
@@ -4036,6 +4335,7 @@ export class ElementModal {
         seen.add(key);
         target.forms.push(form);
       }
+      ensureRootLemma(target.forms, element.title);
       await this.persist(definitions, element.equivalents);
     } catch {
       this.error.set('Could not ask for forms.');
@@ -4631,23 +4931,24 @@ export class ElementModal {
     this.metaEdit.set(null);
   }
 
-  highlightPassage(text: string, definitionIndex: number): DefinitionHighlightPart[] {
+  highlightPassage(text: string): DefinitionHighlightPart[] {
     const element = this.element();
-    const definition = element.definitions[definitionIndex];
     const others: HighlightSource[] = [];
     for (const item of this.collection()) {
       if (item.id === element.id) continue;
-      const paint = appearanceOf(item);
-      for (const sense of item.definitions) {
-        others.push({ id: item.id, title: item.title, forms: formTexts(sense.forms), ...paint });
-      }
+      others.push({
+        id: item.id,
+        title: item.title,
+        forms: elementFormTexts(item),
+        ...appearanceOf(item),
+      });
     }
     return highlightDefinitionPassage(
       text,
       {
         id: element.id,
         title: element.title,
-        forms: formTexts(definition?.forms ?? []),
+        forms: elementFormTexts(element),
         ...appearanceOf(element),
       },
       others,
@@ -4781,6 +5082,96 @@ export class ElementModal {
     this.visit.emit(id);
   }
 
+  passagePick(definitionIndex: number, exampleIndex: number | null): PassageSelection | null {
+    const pick = this.passageSelection();
+    if (!pick || pick.definitionIndex !== definitionIndex || pick.exampleIndex !== exampleIndex) {
+      return null;
+    }
+    return pick;
+  }
+
+  confirmPassagePick(event: Event, text: string, ai = false): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const title = text.replace(/\s+/g, ' ').trim();
+    if (!title || this.aiBusy()) return;
+    if (ai) this.addingSelection.set(true);
+    this.blockPassageSelectionUntil = Date.now() + 400;
+    window.getSelection()?.removeAllRanges();
+    if (!ai) {
+      this.passageSelection.set(null);
+      this.addSelection.emit(title);
+      return;
+    }
+    void this.askSelectionElement(title, this.passageSelection());
+  }
+
+  private async askSelectionElement(
+    title: string,
+    pick: PassageSelection | null,
+  ): Promise<void> {
+    const element = this.element();
+    const definition = pick ? element.definitions[pick.definitionIndex] : undefined;
+    const source =
+      pick?.exampleIndex == null
+        ? definition?.text
+        : definition?.examples[pick.exampleIndex]?.text;
+    const context = parsePassage(source ?? '').text;
+    this.addingSelection.set(true);
+    this.error.set('');
+    try {
+      const generated = await generateElementFromSelection({
+        language: element.language,
+        selected: title,
+        context,
+      });
+      if (this.element().id !== element.id) return;
+      if (!generated) {
+        this.error.set('Could not add that element.');
+        return;
+      }
+      this.passageSelection.set(null);
+      this.addPrepared.emit({
+        title: generated.lemma,
+        definitions: generated.definitions.map((sense) => ({
+          text: sense.text,
+          equivalentId: null,
+          forms: selectionForms(generated.lemma, title),
+          examples: [],
+          metadata: { ...sense.metadata },
+        })),
+      });
+    } catch {
+      if (this.element().id === element.id) this.error.set('Could not add that element.');
+    } finally {
+      if (this.element().id === element.id) this.addingSelection.set(false);
+    }
+  }
+
+  private blockPassageSelectionUntil = 0;
+
+  private readonly syncPassageSelection = (): void => {
+    if (Date.now() < this.blockPassageSelectionUntil) {
+      window.getSelection()?.removeAllRanges();
+      if (!this.addingSelection()) this.passageSelection.set(null);
+      return;
+    }
+    if (this.addingSelection()) return;
+    this.passageSelection.set(readPassageSelection());
+  };
+
+  private readonly onSelectionPointerDown = (event: Event): void => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('.sense-selectable, .lookup-chip')) return;
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+    const anchor = selection.anchorNode;
+    const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+    if (!element?.closest('.sense-selectable')) return;
+    selection.removeAllRanges();
+    this.passageSelection.set(null);
+  };
+
   showTranslationField(): boolean {
     return this.element().language !== 'en' || this.sheetTranslations().length > 0;
   }
@@ -4879,10 +5270,6 @@ export class ElementModal {
     const definitions = this.copyDefinitions();
     const definition = definitions[editing.definitionIndex];
     if (!definition) return;
-    if (form === this.element().title.trim()) {
-      this.formError.set('That form is not valid.');
-      return;
-    }
     if (!isValidForm(form)) {
       this.formError.set('That form is not valid.');
       return;
@@ -4903,6 +5290,7 @@ export class ElementModal {
       if (index < 0) return;
       definition.forms[index] = next;
     }
+    ensureRootLemma(definition.forms, this.element().title);
     if (await this.persist(definitions, this.element().equivalents)) this.cancelForm();
   }
 
@@ -5281,11 +5669,88 @@ export class ElementModal {
   }
 }
 
+function readPassageSelection(): PassageSelection | null {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
+  const text = selection.toString().replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+  const range = selection.getRangeAt(0);
+  const node = range.commonAncestorContainer;
+  const anchor = node instanceof Element ? node : node.parentElement;
+  const passage = anchor?.closest('.sense-selectable');
+  if (!passage) return null;
+  if (selectionCoversPassage(passage, range)) return null;
+  const definitionIndex = Number(passage.getAttribute('data-definition-index'));
+  if (!Number.isInteger(definitionIndex) || definitionIndex < 0) return null;
+  const exampleRaw = passage.getAttribute('data-example-index');
+  const exampleIndex = exampleRaw == null ? null : Number(exampleRaw);
+  if (exampleIndex != null && (!Number.isInteger(exampleIndex) || exampleIndex < 0)) return null;
+  return { text, definitionIndex, exampleIndex };
+}
+
+function selectionCoversPassage(passage: Element, range: Range): boolean {
+  const covered = document.createRange();
+  covered.selectNodeContents(passage);
+  return (
+    range.compareBoundaryPoints(Range.START_TO_START, covered) <= 0 &&
+    range.compareBoundaryPoints(Range.END_TO_END, covered) >= 0
+  );
+}
+
 function appearanceOf(element: StoredElement): { color: string; style: HighlightStyle } {
   return {
     color: resolveHighlightColor(element.highlightColor, element.score),
     style: resolveHighlightStyle(element.highlightStyle),
   };
+}
+
+function elementFormTexts(element: StoredElement): string[] {
+  return element.definitions.flatMap((definition) => formTexts(definition.forms));
+}
+
+function selectionForms(
+  lemma: string,
+  selected: string,
+): Array<{ text: string; metadata: ElementMetadata }> {
+  const forms: Array<{ text: string; metadata: ElementMetadata }> = [];
+  const add = (value: string) => {
+    const text = value.trim();
+    if (!text || /[*()|]/.test(text) || !isValidForm(text)) return;
+    if (forms.some((form) => form.text.toLowerCase() === text.toLowerCase())) return;
+    forms.push({ text, metadata: {} });
+  };
+  add(lemma);
+  add(selected);
+  return forms;
+}
+
+function sameTitle(left: string, right: string): boolean {
+  return left.localeCompare(right, undefined, { sensitivity: 'accent' }) === 0;
+}
+
+function retitleForms(
+  forms: Array<{ text: string; metadata: ElementMetadata }>,
+  previous: string,
+  next: string,
+): Array<{ text: string; metadata: ElementMetadata }> {
+  const previousKey = previous.trim().toLowerCase();
+  const nextName = next.trim();
+  const nextValid = !!nextName && !/[*()|]/.test(nextName) && isValidForm(nextName);
+  const updated = forms.flatMap((form) => {
+    if (form.text.trim().toLowerCase() !== previousKey) return [form];
+    if (!nextValid) return [];
+    return [{ ...form, text: nextName }];
+  });
+  ensureRootLemma(updated, nextName);
+  return updated;
+}
+
+function ensureRootLemma(forms: { text: string; metadata: ElementMetadata }[], title: string): void {
+  const lemma = title.trim();
+  if (!lemma || /[*()|]/.test(lemma) || !isValidForm(lemma)) return;
+  const key = lemma.toLowerCase();
+  if (forms.some((form) => form.text.toLowerCase() === key)) return;
+  forms.unshift({ text: lemma, metadata: {} });
 }
 
 function clamp01(value: number): number {

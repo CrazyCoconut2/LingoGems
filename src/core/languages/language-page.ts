@@ -26,8 +26,10 @@ import {
   parseElementSort,
   readElements,
   readLanguages,
+  saveElement,
   resolveHighlightColor,
   resolveHighlightStyle,
+  type ElementDefinition,
   type ElementSearch,
   type ElementSearchPart,
   type ElementSort,
@@ -425,10 +427,14 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
         <app-element-modal
           [element]="element"
           [collection]="elements()"
+          [canGoBack]="canGoBack()"
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
           (deleted)="onElementDeleted()"
-          (visit)="openElement($event)"
+          (visit)="visitElement($event)"
+          (back)="backElement()"
+          (addSelection)="addFromSelection($event)"
+          (addPrepared)="addPrepared($event)"
         />
       }
     </main>
@@ -1200,7 +1206,7 @@ export class LanguagePage {
     { value: 'created-desc', label: 'Most recent' },
     { value: 'created-asc', label: 'Least recent' },
     { value: 'definitions-desc', label: 'Most definitions' },
-    { value: 'examples-desc', label: 'Most examples' },
+    { value: 'translations-desc', label: 'Most translations' },
   ];
   readonly code = signal('');
   readonly name = signal('');
@@ -1215,6 +1221,8 @@ export class LanguagePage {
   readonly filtersOpen = signal(false);
   readonly expanded = signal<'translations' | 'definitions' | null>('translations');
   readonly elementId = signal('');
+  readonly trail = signal<string[]>([]);
+  readonly canGoBack = computed(() => this.trail().length > 1);
   readonly draft = signal('');
   readonly opened = computed(() => {
     const id = this.elementId();
@@ -1252,7 +1260,10 @@ export class LanguagePage {
       void this.load(params.get('code') ?? '');
     });
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
-      this.elementId.set(params.get('element')?.trim() ?? '');
+      const id = params.get('element')?.trim() ?? '';
+      this.elementId.set(id);
+      if (!id) this.trail.set([]);
+      else if (this.trail().at(-1) !== id) this.trail.set([id]);
       this.reconcileOpen();
     });
   }
@@ -1272,11 +1283,49 @@ export class LanguagePage {
   }
 
   openElement(id: string): void {
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { element: id },
-      queryParamsHandling: 'merge',
-    });
+    if (!id) return;
+    this.trail.set([id]);
+    this.writeElement(id, false);
+  }
+
+  visitElement(id: string): void {
+    if (!id || id === this.elementId()) return;
+    this.trail.update((trail) => [...trail, id]);
+    this.writeElement(id, true);
+  }
+
+  backElement(): void {
+    const trail = this.trail();
+    if (trail.length < 2) return;
+    const next = trail.slice(0, -1);
+    this.trail.set(next);
+    this.writeElement(next[next.length - 1] ?? '', true);
+  }
+
+  async addFromSelection(title: string): Promise<void> {
+    const name = title.replace(/\s+/g, ' ').trim();
+    const code = this.code();
+    if (!name || !code) return;
+    const created = await addElement(code, name);
+    this.elements.set(await readElements(code));
+    if (created.id === this.elementId()) return;
+    this.visitElement(created.id);
+  }
+
+  async addPrepared(prepared: {
+    title: string;
+    definitions: ElementDefinition[];
+  }): Promise<void> {
+    const name = prepared.title.replace(/\s+/g, ' ').trim();
+    const code = this.code();
+    if (!name || !code) return;
+    let created = await addElement(code, name);
+    if (!created.definitions.length && prepared.definitions.length) {
+      created = await saveElement({ ...created, definitions: prepared.definitions });
+    }
+    this.elements.set(await readElements(code));
+    if (created.id === this.elementId()) return;
+    this.visitElement(created.id);
   }
 
   replaceElement(saved: StoredElement): void {
@@ -1291,10 +1340,16 @@ export class LanguagePage {
 
   closeElement(): void {
     if (!this.elementId()) return;
+    this.trail.set([]);
+    this.writeElement(null, false);
+  }
+
+  private writeElement(id: string | null, replace: boolean): void {
     void this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { element: null },
+      queryParams: { element: id || null },
       queryParamsHandling: 'merge',
+      replaceUrl: replace,
     });
   }
 

@@ -82,9 +82,9 @@ function toRegExp(regex: HighlightRegex): RegExp | null {
   }
 }
 
-/** Forms underline regex. Invalid forms are skipped. The title is not included. */
-function buildFormsRegex(forms: readonly string[]): string {
-  const parts = compileFormSources(forms);
+/** Title and forms underline regex. Invalid strings are skipped. */
+function buildLemmaFormsRegex(title: string, forms: readonly string[]): string {
+  const parts = compileFormSources([title, ...forms]);
   if (parts.length === 0) return '';
   if (parts.length === 1) return parts[0]!;
   return `(?:${parts.join('|')})`;
@@ -146,7 +146,7 @@ function resolveHighlightOverlaps(matches: HighlightHit[]): HighlightHit[] {
 }
 
 function ruleFor(id: number, source: HighlightSource): HighlightRule | null {
-  const pattern = buildFormsRegex(source.forms);
+  const pattern = buildLemmaFormsRegex(source.title, source.forms);
   if (!pattern) return null;
   return {
     id,
@@ -159,8 +159,7 @@ function ruleFor(id: number, source: HighlightSource): HighlightRule | null {
 }
 
 /**
- * Highlight `text` from this definition's forms, then each other definition's
- * forms. The element title is only the label on a match. Other elements are
+ * Highlight `text` from each element's title and forms. Other elements are
  * matched first, so an equal overlap keeps the other element.
  */
 export function highlightDefinitionPassage(
