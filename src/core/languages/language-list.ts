@@ -6,7 +6,6 @@ import {
   languageDisplayName,
   readLanguages,
   saveLanguage,
-  type LanguageMode,
   type StoredLanguage,
 } from 'collection';
 
@@ -48,22 +47,6 @@ import {
                 <span class="gem gem-stone" aria-hidden="true"></span>
                 <span class="name">{{ displayName(language.code) }}</span>
               </a>
-              <div class="cut" role="group" [attr.aria-label]="displayName(language.code)">
-                <button
-                  type="button"
-                  [attr.aria-pressed]="language.mode === 'settler'"
-                  (click)="chooseMode(language, 'settler')"
-                >
-                  Settler
-                </button>
-                <button
-                  type="button"
-                  [attr.aria-pressed]="language.mode === 'explorer'"
-                  (click)="chooseMode(language, 'explorer')"
-                >
-                  Explorer
-                </button>
-              </div>
             </li>
           }
         </ul>
@@ -225,30 +208,6 @@ import {
       font-weight: 650;
     }
 
-    .cut {
-      display: flex;
-      padding: 0.2rem;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: var(--surface-2);
-    }
-
-    .cut button {
-      border: 0;
-      border-radius: 999px;
-      padding: 0.45rem 0.8rem;
-      background: transparent;
-      color: var(--muted);
-      font-size: 0.875rem;
-      font-weight: 650;
-      cursor: pointer;
-    }
-
-    .cut button[aria-pressed='true'] {
-      background: var(--accent);
-      color: white;
-    }
-
     dialog {
       width: min(100% - 2rem, 24rem);
       margin: auto;
@@ -311,20 +270,6 @@ import {
     form .btn {
       align-self: flex-end;
     }
-
-    @media (max-width: 640px) {
-      .stone {
-        flex-wrap: wrap;
-      }
-
-      .cut {
-        width: 100%;
-      }
-
-      .cut button {
-        flex: 1;
-      }
-    }
   `,
 })
 export class LanguageList implements OnInit {
@@ -374,26 +319,13 @@ export class LanguageList implements OnInit {
     if (!isLearnableLanguage(code) || this.languages().some((language) => language.code === code)) {
       return;
     }
-    const created: StoredLanguage = { code, mode: 'settler', createdAt: Date.now() };
+    const created: StoredLanguage = { code, createdAt: Date.now() };
     this.languages.update((list) => [...list, created]);
     this.selected.set(this.available()[0] ?? '');
     this.closeAdd();
     void saveLanguage(created).catch(() => {
       this.languages.update((list) => list.filter((language) => language.code !== code));
       this.selected.set(code);
-    });
-  }
-
-  chooseMode(language: StoredLanguage, mode: LanguageMode): void {
-    if (language.mode === mode) return;
-    const next: StoredLanguage = { ...language, mode };
-    this.languages.update((list) =>
-      list.map((item) => (item.code === language.code ? next : item)),
-    );
-    void saveLanguage(next).catch(() => {
-      this.languages.update((list) =>
-        list.map((item) => (item.code === language.code ? language : item)),
-      );
     });
   }
 }

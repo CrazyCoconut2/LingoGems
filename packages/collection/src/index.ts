@@ -9,7 +9,6 @@ export {
   addLanguage,
   readLanguages,
   saveLanguage,
-  type LanguageMode,
   type StoredLanguage,
 } from './languages/language-store';
 

@@ -1,21 +1,30 @@
 import { idbRequest, LANGUAGES_STORE, openDatabase } from '../database';
 import { isLearnableLanguage, type LearnableLanguage } from './catalog';
 
-export type LanguageMode = 'settler' | 'explorer';
-
 export type StoredLanguage = {
   code: LearnableLanguage;
-  mode: LanguageMode;
   createdAt: number;
 };
 
 export async function readLanguages(): Promise<StoredLanguage[]> {
   if (typeof indexedDB === 'undefined') return [];
   const records = await getAll();
-  return records
+  const languages = records
     .map(normalizeLanguage)
     .filter((language): language is StoredLanguage => language !== null)
     .sort((left, right) => left.createdAt - right.createdAt || left.code.localeCompare(right.code));
+  const stale = records.filter(
+    (record) => record && typeof record === 'object' && 'mode' in record,
+  );
+  if (stale.length) {
+    await Promise.all(
+      stale.map(async (record) => {
+        const language = normalizeLanguage(record);
+        if (language) await putLanguage(language);
+      }),
+    );
+  }
+  return languages;
 }
 
 export async function addLanguage(code: string): Promise<StoredLanguage> {
@@ -27,7 +36,6 @@ export async function addLanguage(code: string): Promise<StoredLanguage> {
   if (existing) return existing;
   const created: StoredLanguage = {
     code: normalized,
-    mode: 'settler',
     createdAt: Date.now(),
   };
   await putLanguage(created);
@@ -38,7 +46,6 @@ export async function saveLanguage(language: StoredLanguage): Promise<void> {
   if (!isLearnableLanguage(language.code)) return;
   await putLanguage({
     code: language.code,
-    mode: language.mode === 'explorer' ? 'explorer' : 'settler',
     createdAt: language.createdAt,
   });
 }
@@ -59,11 +66,9 @@ function normalizeLanguage(raw: unknown): StoredLanguage | null {
     .trim()
     .toLowerCase();
   if (!isLearnableLanguage(code)) return null;
-  const modeValue = String((raw as { mode?: unknown }).mode ?? '').trim();
   const createdAtValue = (raw as { createdAt?: unknown }).createdAt;
   return {
     code,
-    mode: modeValue === 'explorer' ? 'explorer' : 'settler',
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
