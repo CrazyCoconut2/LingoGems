@@ -17,6 +17,16 @@ export const DEFAULT_DEFINITION_METADATA_FIELDS: readonly AiMetadataField[] = [
   { key: 'gender', prompt: '' },
   { key: 'transitivity', prompt: '' },
   { key: 'register', prompt: '' },
+  {
+    key: 'region',
+    prompt:
+      'the country or region this sense belongs to. Omit it when the sense is not specific to a place',
+  },
+  {
+    key: 'semantic domain',
+    prompt:
+      'the subject area of this sense, such as food, law, or kinship. Omit it when the sense is not tied to one area',
+  },
 ];
 
 export const DEFAULT_EXAMPLE_METADATA_FIELDS: readonly AiMetadataField[] = [];
