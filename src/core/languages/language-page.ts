@@ -1315,13 +1315,25 @@ export class LanguagePage {
   async addPrepared(prepared: {
     title: string;
     definitions: ElementDefinition[];
+    example?: string;
   }): Promise<void> {
     const name = prepared.title.replace(/\s+/g, ' ').trim();
     const code = this.code();
     if (!name || !code) return;
+    const example = prepared.example?.replace(/\s+/g, ' ').trim() ?? '';
     let created = await addElement(code, name);
     if (!created.definitions.length && prepared.definitions.length) {
       created = await saveElement({ ...created, definitions: prepared.definitions });
+    } else if (example && created.definitions.length && !hasExample(created, example)) {
+      const definitions = created.definitions.map((definition, index) =>
+        index === 0
+          ? {
+              ...definition,
+              examples: [{ text: example, metadata: {} }, ...definition.examples],
+            }
+          : definition,
+      );
+      created = await saveElement({ ...created, definitions });
     }
     this.elements.set(await readElements(code));
     if (created.id === this.elementId()) return;
@@ -1533,4 +1545,11 @@ export class LanguagePage {
     if (this.elements().some((element) => element.id === id)) return;
     this.closeElement();
   }
+}
+
+function hasExample(element: StoredElement, example: string): boolean {
+  const key = example.trim().toLowerCase();
+  return element.definitions.some((definition) =>
+    definition.examples.some((item) => item.text.trim().toLowerCase() === key),
+  );
 }

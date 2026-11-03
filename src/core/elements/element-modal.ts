@@ -77,6 +77,7 @@ type PassageSelection = {
 type PreparedElement = {
   title: string;
   definitions: ElementDefinition[];
+  example: string;
 };
 
 type HighlightSource = {
@@ -707,7 +708,17 @@ function writeExampleSuggestions(
                       }
                       @if (suggestion.example) {
                         <div class="example-quote">
-                          <p class="passage">{{ suggestion.example }}</p>
+                          <p class="passage example-line">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path
+                                d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                              />
+                              <path
+                                d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                              />
+                            </svg>
+                            <span>{{ suggestion.example }}</span>
+                          </p>
                         </div>
                       }
                     </div>
@@ -2156,15 +2167,25 @@ function writeExampleSuggestions(
               </div>
               <div class="add-example">
                 <label class="field-label" for="definition-example">From an example</label>
-                <textarea
-                  id="definition-example"
-                  rows="3"
-                  [value]="definitionExample()"
-                  [attr.maxlength]="exampleLengthMax"
-                  [disabled]="asking()"
-                  placeholder="A sentence that uses this word"
-                  (input)="definitionExample.set(inputValue($event))"
-                ></textarea>
+                <div class="example-entry">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                    />
+                    <path
+                      d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                    />
+                  </svg>
+                  <textarea
+                    id="definition-example"
+                    rows="3"
+                    [value]="definitionExample()"
+                    [attr.maxlength]="exampleLengthMax"
+                    [disabled]="asking()"
+                    placeholder="A sentence that uses this word"
+                    (input)="definitionExample.set(inputValue($event))"
+                  ></textarea>
+                </div>
                 <button
                   type="button"
                   class="btn btn-primary add-choice"
@@ -3179,6 +3200,44 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
+    }
+
+    .example-entry {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.55rem;
+    }
+
+    .example-entry svg,
+    .example-line svg {
+      display: block;
+      width: 1.15rem;
+      height: 1.15rem;
+      flex: none;
+      fill: none;
+      stroke: var(--accent-text);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .example-entry svg {
+      margin-top: 0.65rem;
+    }
+
+    .example-entry textarea {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .example-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.45rem;
+    }
+
+    .example-line svg {
+      margin-top: 0.15rem;
     }
 
     .add-choice {
@@ -5117,6 +5176,7 @@ export class ElementModal {
         ? definition?.text
         : definition?.examples[pick.exampleIndex]?.text;
     const context = parsePassage(source ?? '').text;
+    const example = pick?.exampleIndex == null ? '' : context;
     this.addingSelection.set(true);
     this.error.set('');
     try {
@@ -5133,11 +5193,12 @@ export class ElementModal {
       this.passageSelection.set(null);
       this.addPrepared.emit({
         title: generated.lemma,
-        definitions: generated.definitions.map((sense) => ({
+        example,
+        definitions: generated.definitions.map((sense, index) => ({
           text: sense.text,
           equivalentId: null,
           forms: selectionForms(generated.lemma, title),
-          examples: [],
+          examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
         })),
       });
