@@ -1,39 +1,10 @@
 import { Component, computed, input } from '@angular/core';
-import { comfortColor } from 'collection';
 
-type GaugeSegment = { transform: string };
-
-/**
- * Ten blocks on a horseshoe, matching the repairability badge:
- * a thick band from the lower left, over the top, to the lower right.
- */
-const GAUGE_SEGMENTS: GaugeSegment[] = Array.from({ length: 10 }, (_, index) => {
-  const angle = ((205.5 - 25.6 * index) * Math.PI) / 180;
-  const x = 32 + Math.cos(angle) * 16.8;
-  const y = 28.5 - Math.sin(angle) * 16.8;
-  const rot = (Math.atan2(Math.cos(angle), Math.sin(angle)) * 180) / Math.PI;
-  return {
-    transform: `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${rot.toFixed(2)})`,
-  };
-});
-
+/** Horseshoe badge for a score from 1 to 10. The artwork lives in `public/scores`. */
 @Component({
   selector: 'app-score-gauge',
   template: `
-    <svg viewBox="9 5 46 38" aria-hidden="true">
-      @for (segment of segments; track $index) {
-        <rect
-          x="-3.2"
-          y="-4"
-          width="6.4"
-          height="8"
-          rx="0.45"
-          [class.on]="$index < score()"
-          [attr.transform]="segment.transform"
-        />
-      }
-      <text x="32" y="36.4" text-anchor="middle" font-size="15">{{ score() }}</text>
-    </svg>
+    <img [src]="src()" alt="" />
     <span class="of">{{ score() }} / 10</span>
   `,
   styles: `
@@ -42,39 +13,24 @@ const GAUGE_SEGMENTS: GaugeSegment[] = Array.from({ length: 10 }, (_, index) => 
       display: inline-flex;
       flex: none;
       width: 1.7rem;
-      height: 1.4rem;
-      line-height: 1;
+      height: 1.2rem;
     }
 
     :host(.md) {
       width: 3.15rem;
-      height: 2.6rem;
+      height: 2.22rem;
     }
 
     :host(.lg) {
       width: 8.4rem;
-      height: 6.93rem;
+      height: 5.91rem;
     }
 
-    svg {
+    img {
       display: block;
       width: 100%;
       height: 100%;
-      overflow: visible;
-    }
-
-    rect {
-      fill: color-mix(in srgb, var(--text) 18%, transparent);
-    }
-
-    rect.on {
-      fill: currentColor;
-    }
-
-    text {
-      font-family: inherit;
-      font-weight: 800;
-      fill: var(--text);
+      object-fit: contain;
     }
 
     .of {
@@ -92,12 +48,13 @@ const GAUGE_SEGMENTS: GaugeSegment[] = Array.from({ length: 10 }, (_, index) => 
   host: {
     '[class.md]': 'size() === "md"',
     '[class.lg]': 'size() === "lg"',
-    '[style.color]': 'tone()',
   },
 })
 export class ScoreGauge {
   readonly score = input.required<number>();
   readonly size = input<'sm' | 'md' | 'lg'>('sm');
-  readonly tone = computed(() => comfortColor(this.score()));
-  readonly segments = GAUGE_SEGMENTS;
+  readonly src = computed(() => {
+    const score = Math.min(10, Math.max(1, Math.round(Number(this.score())) || 1));
+    return `/scores/${score}.svg`;
+  });
 }
