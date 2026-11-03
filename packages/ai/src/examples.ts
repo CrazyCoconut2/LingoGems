@@ -23,9 +23,7 @@ export const MAX_EXAMPLE_WORDS = 20;
 export const MAX_EXAMPLE_INSTRUCTION = 400;
 const EXAMPLES_MAX_TOKENS = 1024;
 
-export function examplesSystemPrompt(
-  fields: readonly AiMetadataField[] = readExampleMetadataFields(),
-): string {
+export function examplesSystemPrompt(fields: readonly AiMetadataField[]): string {
   const lines = [
     'You write one dictionary example sentence for one sense.',
     'JSON keys stay in English.',
@@ -74,7 +72,7 @@ export type GeneratedExample = { text: string; metadata: ElementMetadata };
 export function buildExamplesUserMessage(input: GenerateExamplesInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, readGenerateExampleTranslations());
+  const translateFieldsIn = translationLanguage(language, readGenerateExampleTranslations(language));
   const title = input.title.trim();
   const requiredForm = input.requiredForm?.trim() ?? '';
   const forms = requiredForm ? [] : uniqueTexts(input.forms);
@@ -127,13 +125,13 @@ export function parseGeneratedExamples(
     const key = sentence.toLowerCase();
     if (!sentence || sentence.length > MAX_EXAMPLE_LENGTH || taken.has(key)) continue;
     const english =
-      language === 'en' || !readGenerateExampleTranslations()
+      language === 'en' || !readGenerateExampleTranslations(language)
         ? ''
         : parsePassage(plainText(example['english'])).text.slice(0, MAX_EXAMPLE_LENGTH);
     return [
       {
         text: english ? embedTranslation(sentence, 'en', english) : sentence,
-        metadata: pickMetadata(example['metadata'], metadataFieldKeys(readExampleMetadataFields())),
+        metadata: pickMetadata(example['metadata'], metadataFieldKeys(readExampleMetadataFields(language))),
       },
     ];
   }
@@ -150,7 +148,7 @@ export async function generateExamples(
   if (!title || !language || !gloss) return [];
   const ready = { ...request, title, language, gloss };
   const input: CompleteJsonInput = {
-    system: examplesSystemPrompt(),
+    system: examplesSystemPrompt(readExampleMetadataFields(language)),
     user: buildExamplesUserMessage(ready),
     maxTokens: EXAMPLES_MAX_TOKENS,
     temperature: 0.4,

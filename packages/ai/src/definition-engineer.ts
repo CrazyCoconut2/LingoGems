@@ -118,7 +118,7 @@ export function buildRelatedWordsUserMessage(input: GenerateRelatedWordsInput): 
 export function buildDefinitionPhraseUserMessage(input: GenerateDefinitionPhraseInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations());
+  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations(language));
   const instruction = (input.definitionInstruction ?? '')
     .trim()
     .slice(0, MAX_DEFINITION_INSTRUCTION);
@@ -175,7 +175,7 @@ export function parseGeneratedDefinitionPhrase(
     const sentence = parsePassage(plainText(phrase['text'])).text.replace(/\s+/g, ' ').trim();
     if (!sentence || sentence.length > MAX_DEFINITION_WORDING) continue;
     const english =
-      language === 'en' || !readGenerateDefinitionTranslations()
+      language === 'en' || !readGenerateDefinitionTranslations(language)
         ? ''
         : parsePassage(plainText(phrase['english'])).text.slice(0, MAX_DEFINITION_WORDING);
     return [{ text: english ? embedTranslation(sentence, 'en', english) : sentence }];

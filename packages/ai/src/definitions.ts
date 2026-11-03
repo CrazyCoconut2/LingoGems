@@ -35,9 +35,7 @@ const FORM_METADATA_KEYS = ['tense', 'person', 'number', 'mood'] as const;
 
 const FORM_SHAPE = `{"text":"<surface form>","metadata":{"tense":"<tense>","person":"<person>","number":"<number>","mood":"<mood>"}}`;
 
-export function definitionsSystemPrompt(
-  fields: readonly AiMetadataField[] = readDefinitionMetadataFields(),
-): string {
+export function definitionsSystemPrompt(fields: readonly AiMetadataField[]): string {
   return joinPrompt([
     'You write dictionary senses for one headword.',
     'JSON keys stay in English.',
@@ -60,9 +58,7 @@ export function definitionsSystemPrompt(
   ]);
 }
 
-export function elementFromSelectionSystemPrompt(
-  fields: readonly AiMetadataField[] = readDefinitionMetadataFields(),
-): string {
+export function elementFromSelectionSystemPrompt(fields: readonly AiMetadataField[]): string {
   return joinPrompt([
     'You add one dictionary element from a selected word or phrase.',
     'JSON keys stay in English.',
@@ -85,9 +81,7 @@ export function elementFromSelectionSystemPrompt(
   ]);
 }
 
-export function definitionFromExampleSystemPrompt(
-  fields: readonly AiMetadataField[] = readDefinitionMetadataFields(),
-): string {
+export function definitionFromExampleSystemPrompt(fields: readonly AiMetadataField[]): string {
   return joinPrompt([
     'You write one dictionary sense for a headword from one example sentence.',
     'JSON keys stay in English.',
@@ -158,13 +152,13 @@ export type GenerateFormsInput = {
 export function buildDefinitionsUserMessage(input: GenerateDefinitionsInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations());
+  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations(language));
   return JSON.stringify({
     language,
     writeFieldsIn,
     ...(translateFieldsIn ? { translateFieldsIn } : {}),
     lemma: input.title.trim(),
-    existingDefinitions: describedDefinitions(input.existingDefinitions),
+    existingDefinitions: describedDefinitions(language, input.existingDefinitions),
   });
 }
 
@@ -181,7 +175,7 @@ export function parseGeneratedDefinitions(
   if (!Array.isArray(list)) return null;
   const language = input.language.trim().toLowerCase();
   const taken = new Set(
-    describedDefinitions(input.existingDefinitions).map((definition) =>
+    describedDefinitions(language, input.existingDefinitions).map((definition) =>
       definition.gloss.toLowerCase(),
     ),
   );
@@ -194,12 +188,12 @@ export function parseGeneratedDefinitions(
     if (!gloss || taken.has(gloss.toLowerCase())) continue;
     taken.add(gloss.toLowerCase());
     const english =
-      language === 'en' || !readGenerateDefinitionTranslations()
+      language === 'en' || !readGenerateDefinitionTranslations(language)
         ? ''
         : plainText(sense['english']).slice(0, META_VALUE_MAX_LENGTH);
     definitions.push({
       text: english ? embedTranslation(gloss, 'en', english) : gloss,
-      metadata: pickMetadata(sense['metadata'], metadataFieldKeys(readDefinitionMetadataFields())),
+      metadata: pickMetadata(sense['metadata'], metadataFieldKeys(readDefinitionMetadataFields(language))),
     });
   }
   return definitions;
@@ -210,14 +204,14 @@ export function buildDefinitionFromExampleUserMessage(
 ): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations());
+  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations(language));
   return JSON.stringify({
     language,
     writeFieldsIn,
     ...(translateFieldsIn ? { translateFieldsIn } : {}),
     lemma: input.title.trim(),
     example: input.example.trim().slice(0, MAX_EXAMPLE_LENGTH),
-    existingDefinitions: describedDefinitions(input.existingDefinitions),
+    existingDefinitions: describedDefinitions(language, input.existingDefinitions),
   });
 }
 
@@ -231,7 +225,7 @@ export async function generateDefinitionFromExample(
   if (!title || !language || !example) return null;
   const prepared = { ...request, title, language, example };
   const input: CompleteJsonInput = {
-    system: definitionFromExampleSystemPrompt(),
+    system: definitionFromExampleSystemPrompt(readDefinitionMetadataFields(language)),
     user: buildDefinitionFromExampleUserMessage(prepared),
     maxTokens: 1024,
     temperature: 0,
@@ -265,7 +259,7 @@ export function buildElementFromSelectionUserMessage(
 ): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations());
+  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations(language));
   const context = input.context.trim().slice(0, MAX_EXAMPLE_LENGTH);
   return JSON.stringify({
     language,
@@ -286,7 +280,7 @@ export async function generateElementFromSelection(
   if (!selected || !language) return null;
   const prepared = { ...request, selected, language, context };
   const input: CompleteJsonInput = {
-    system: elementFromSelectionSystemPrompt(),
+    system: elementFromSelectionSystemPrompt(readDefinitionMetadataFields(language)),
     user: buildElementFromSelectionUserMessage(prepared),
     maxTokens: DEFINITIONS_MAX_TOKENS,
     temperature: 0,
@@ -331,7 +325,7 @@ export async function generateDefinitions(
   const language = request.language.trim().toLowerCase();
   if (!title || !language) return [];
   const input: CompleteJsonInput = {
-    system: definitionsSystemPrompt(),
+    system: definitionsSystemPrompt(readDefinitionMetadataFields(language)),
     user: buildDefinitionsUserMessage({ ...request, title, language }),
     maxTokens: DEFINITIONS_MAX_TOKENS,
     temperature: 0,
@@ -351,6 +345,7 @@ export async function generateDefinitions(
 }
 
 function describedDefinitions(
+  language: string,
   definitions: ReadonlyArray<{ text: string; metadata: ElementMetadata }>,
 ): Array<{ gloss: string; english?: string; metadata?: ElementMetadata }> {
   const described: Array<{ gloss: string; english?: string; metadata?: ElementMetadata }> = [];
@@ -364,7 +359,7 @@ function describedDefinitions(
     const english = passage.translations.find((item) => item.language === 'en')?.text.trim();
     const metadata = pickMetadata(
       definition.metadata,
-      metadataFieldKeys(readDefinitionMetadataFields()),
+      metadataFieldKeys(readDefinitionMetadataFields(language)),
     );
     described.push({
       gloss,

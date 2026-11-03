@@ -3,26 +3,9 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
-  DEFAULT_DEFINITION_METADATA_FIELDS,
-  DEFAULT_EXAMPLE_METADATA_FIELDS,
-  MAX_METADATA_FIELD_KEY,
-  MAX_METADATA_FIELD_PROMPT,
-  MAX_METADATA_FIELDS,
   isAiProvider,
-  readDefinitionMetadataFields,
-  readExampleMetadataFields,
-  readGenerateDefinitionTranslations,
-  readGenerateExampleTranslations,
   readStoredAiCredentials,
-  recommendMetadataFields,
-  resetDefinitionMetadataFields,
-  resetExampleMetadataFields,
-  writeDefinitionMetadataFields,
-  writeExampleMetadataFields,
-  writeGenerateDefinitionTranslations,
-  writeGenerateExampleTranslations,
   writeStoredAiCredentials,
-  type AiMetadataField,
   type AiProviderId,
 } from 'ai';
 import {
@@ -32,6 +15,7 @@ import {
   writeScoreColor,
 } from 'collection';
 import { ScoreGauge } from '../elements/score-gauge';
+import { blurTranslations, writeBlurTranslations } from '../elements/blur-translations';
 
 type ProviderOption = {
   id: AiProviderId;
@@ -97,212 +81,19 @@ const AI_PROVIDERS: ProviderOption[] = [
         </div>
       </form>
 
-      <section class="metadata" aria-label="Definition metadata">
-        <div class="score-head">
-          <div class="copy">
-            <h2>Definition metadata</h2>
-            <p>
-              Asked when fetching definitions. The note is what the AI is told for that field. Leave
-              it empty to accept whatever fits.
-            </p>
-          </div>
-          <button
-            type="button"
-            class="score-reset"
-            [disabled]="!definitionFieldsChanged()"
-            (click)="resetDefinitionFields()"
-          >
-            Reset
-          </button>
+      <section class="translations" aria-label="Translations">
+        <div class="copy">
+          <h2>Translations</h2>
+          <p>Hide a translation until you click it.</p>
         </div>
         <label class="translation-toggle">
           <input
             type="checkbox"
-            [checked]="generateDefinitionTranslations()"
-            (change)="setGenerateDefinitionTranslations($event)"
+            [checked]="blurTranslations()"
+            (change)="setBlurTranslations($event)"
           />
-          Generate with an English translation
+          Blur translations
         </label>
-        @if (definitionFields().length) {
-          <ul class="metadata-list">
-            @for (field of definitionFields(); track $index) {
-              <li class="metadata-field">
-                <div class="metadata-key-row">
-                  <input
-                    [attr.aria-label]="'Definition metadata key ' + ($index + 1)"
-                    [attr.maxlength]="metadataKeyMax"
-                    placeholder="Key"
-                    [value]="field.key"
-                    (input)="setDefinitionField($index, 'key', inputValue($event))"
-                  />
-                  <button
-                    type="button"
-                    class="metadata-remove"
-                    [attr.aria-label]="'Remove definition metadata ' + ($index + 1)"
-                    (click)="removeDefinitionField($index)"
-                  >
-                    ×
-                  </button>
-                </div>
-                <textarea
-                  [attr.aria-label]="'Note for definition metadata ' + ($index + 1)"
-                  [attr.maxlength]="metadataPromptMax"
-                  placeholder="Whatever fits"
-                  rows="2"
-                  [value]="field.prompt"
-                  (input)="setDefinitionField($index, 'prompt', inputValue($event))"
-                ></textarea>
-              </li>
-            }
-          </ul>
-        }
-        <div class="metadata-actions">
-          <button
-            type="button"
-            class="metadata-add"
-            [disabled]="definitionFields().length >= metadataFieldMax"
-            (click)="addDefinitionField()"
-          >
-            Add field
-          </button>
-          <button
-            type="button"
-            class="metadata-add"
-            [disabled]="recommendingDefinitions()"
-            [attr.aria-busy]="recommendingDefinitions() ? true : null"
-            (click)="recommendDefinitions()"
-          >
-            Recommend
-          </button>
-        </div>
-        @if (definitionRecommendError()) {
-          <p class="recommend-error">{{ definitionRecommendError() }}</p>
-        }
-        @let definitionPicks = openSuggestions(definitionSuggestions(), definitionFields());
-        @if (definitionPicks.length) {
-          <ul class="metadata-suggestions">
-            @for (field of definitionPicks; track field.key) {
-              <li class="metadata-suggestion">
-                <div>
-                  <strong>{{ field.key }}</strong>
-                  <p>{{ field.prompt || 'Whatever fits' }}</p>
-                </div>
-                <button
-                  type="button"
-                  class="metadata-add"
-                  [disabled]="!canAccept(definitionFields())"
-                  (click)="acceptDefinitionSuggestion(field)"
-                >
-                  Add
-                </button>
-              </li>
-            }
-          </ul>
-        }
-      </section>
-
-      <section class="metadata" aria-label="Example metadata">
-        <div class="score-head">
-          <div class="copy">
-            <h2>Example metadata</h2>
-            <p>
-              Asked when fetching examples. The note is what the AI is told for that field. Leave it
-              empty to accept whatever fits.
-            </p>
-          </div>
-          <button
-            type="button"
-            class="score-reset"
-            [disabled]="!exampleFieldsChanged()"
-            (click)="resetExampleFields()"
-          >
-            Reset
-          </button>
-        </div>
-        <label class="translation-toggle">
-          <input
-            type="checkbox"
-            [checked]="generateExampleTranslations()"
-            (change)="setGenerateExampleTranslations($event)"
-          />
-          Generate with an English translation
-        </label>
-        @if (exampleFields().length) {
-          <ul class="metadata-list">
-            @for (field of exampleFields(); track $index) {
-              <li class="metadata-field">
-                <div class="metadata-key-row">
-                  <input
-                    [attr.aria-label]="'Example metadata key ' + ($index + 1)"
-                    [attr.maxlength]="metadataKeyMax"
-                    placeholder="Key"
-                    [value]="field.key"
-                    (input)="setExampleField($index, 'key', inputValue($event))"
-                  />
-                  <button
-                    type="button"
-                    class="metadata-remove"
-                    [attr.aria-label]="'Remove example metadata ' + ($index + 1)"
-                    (click)="removeExampleField($index)"
-                  >
-                    ×
-                  </button>
-                </div>
-                <textarea
-                  [attr.aria-label]="'Note for example metadata ' + ($index + 1)"
-                  [attr.maxlength]="metadataPromptMax"
-                  placeholder="Whatever fits"
-                  rows="2"
-                  [value]="field.prompt"
-                  (input)="setExampleField($index, 'prompt', inputValue($event))"
-                ></textarea>
-              </li>
-            }
-          </ul>
-        }
-        <div class="metadata-actions">
-          <button
-            type="button"
-            class="metadata-add"
-            [disabled]="exampleFields().length >= metadataFieldMax"
-            (click)="addExampleField()"
-          >
-            Add field
-          </button>
-          <button
-            type="button"
-            class="metadata-add"
-            [disabled]="recommendingExamples()"
-            [attr.aria-busy]="recommendingExamples() ? true : null"
-            (click)="recommendExamples()"
-          >
-            Recommend
-          </button>
-        </div>
-        @if (exampleRecommendError()) {
-          <p class="recommend-error">{{ exampleRecommendError() }}</p>
-        }
-        @let examplePicks = openSuggestions(exampleSuggestions(), exampleFields());
-        @if (examplePicks.length) {
-          <ul class="metadata-suggestions">
-            @for (field of examplePicks; track field.key) {
-              <li class="metadata-suggestion">
-                <div>
-                  <strong>{{ field.key }}</strong>
-                  <p>{{ field.prompt || 'Whatever fits' }}</p>
-                </div>
-                <button
-                  type="button"
-                  class="metadata-add"
-                  [disabled]="!canAccept(exampleFields())"
-                  (click)="acceptExampleSuggestion(field)"
-                >
-                  Add
-                </button>
-              </li>
-            }
-          </ul>
-        }
       </section>
 
       <section class="score-colors" aria-label="Score colors">
@@ -432,8 +223,7 @@ const AI_PROVIDERS: ProviderOption[] = [
     }
 
     input,
-    select,
-    textarea {
+    select {
       padding: 0.75rem 0.85rem;
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -442,14 +232,25 @@ const AI_PROVIDERS: ProviderOption[] = [
       font: inherit;
     }
 
-    textarea {
-      width: 100%;
-      box-sizing: border-box;
-      min-height: 4.5rem;
-      resize: vertical;
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.75rem;
     }
 
-    .metadata {
+    .saved {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    .score-colors {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+
+    .translations {
       display: flex;
       flex-direction: column;
       gap: 0.9rem;
@@ -469,133 +270,6 @@ const AI_PROVIDERS: ProviderOption[] = [
       margin: 0;
       padding: 0;
       accent-color: var(--accent, #6c63ff);
-    }
-
-    .metadata-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .metadata-field {
-      display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
-    }
-
-    .metadata-key-row {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .metadata-key-row input {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .metadata-remove {
-      flex: none;
-      width: 2.25rem;
-      height: 2.25rem;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: var(--surface);
-      color: var(--text);
-      font: inherit;
-      font-size: 1.15rem;
-      line-height: 1;
-      cursor: pointer;
-    }
-
-    .metadata-add {
-      align-self: flex-start;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 0.35rem 0.75rem;
-      background: var(--surface);
-      color: var(--text);
-      font: inherit;
-      font-size: 0.8125rem;
-      font-weight: 650;
-      cursor: pointer;
-    }
-
-    .metadata-add:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .metadata-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-    }
-
-    .metadata-suggestions {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .metadata-suggestion {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 0.75rem;
-      padding: 0.7rem 0.75rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface);
-    }
-
-    .metadata-suggestion div {
-      display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
-      min-width: 0;
-    }
-
-    .metadata-suggestion strong {
-      font-size: 0.9rem;
-    }
-
-    .metadata-suggestion p {
-      font-size: 0.85rem;
-    }
-
-    .metadata-suggestion .metadata-add {
-      flex: none;
-      margin-top: 0.1rem;
-    }
-
-    .recommend-error {
-      color: var(--text);
-      font-size: 0.875rem;
-    }
-
-    .actions {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 0.75rem;
-    }
-
-    .saved {
-      color: var(--text-muted);
-      font-size: 0.875rem;
-    }
-
-    .score-colors {
-      display: flex;
-      flex-direction: column;
-      gap: 0.9rem;
     }
 
     .score-head {
@@ -679,21 +353,7 @@ export class Settings {
   readonly ready = computed(() => this.apiKey().trim().length > 0);
   readonly scoreLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   readonly scoreColors = signal(readScoreColorOverrides());
-  readonly metadataKeyMax = MAX_METADATA_FIELD_KEY;
-  readonly metadataPromptMax = MAX_METADATA_FIELD_PROMPT;
-  readonly metadataFieldMax = MAX_METADATA_FIELDS;
-  readonly definitionFields = signal<AiMetadataField[]>(readDefinitionMetadataFields());
-  readonly exampleFields = signal<AiMetadataField[]>(readExampleMetadataFields());
-  readonly generateDefinitionTranslations = signal(readGenerateDefinitionTranslations());
-  readonly generateExampleTranslations = signal(readGenerateExampleTranslations());
-  readonly recommendingDefinitions = signal(false);
-  readonly recommendingExamples = signal(false);
-  readonly definitionSuggestions = signal<AiMetadataField[]>([]);
-  readonly exampleSuggestions = signal<AiMetadataField[]>([]);
-  readonly definitionRecommendError = signal('');
-  readonly exampleRecommendError = signal('');
-  private definitionRecommendJob = 0;
-  private exampleRecommendJob = 0;
+  readonly blurTranslations = blurTranslations;
   private keyId = this.stored?.id ?? '';
   private rememberedProvider = this.stored?.provider;
   private rememberedModel = this.stored?.model ?? '';
@@ -723,134 +383,9 @@ export class Settings {
     this.saved.set(true);
   }
 
-  setGenerateDefinitionTranslations(event: Event): void {
+  setBlurTranslations(event: Event): void {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
-    this.generateDefinitionTranslations.set(enabled);
-    writeGenerateDefinitionTranslations(enabled);
-  }
-
-  setGenerateExampleTranslations(event: Event): void {
-    const enabled = event.target instanceof HTMLInputElement && event.target.checked;
-    this.generateExampleTranslations.set(enabled);
-    writeGenerateExampleTranslations(enabled);
-  }
-
-  definitionFieldsChanged(): boolean {
-    return fieldsDiffer(this.definitionFields(), DEFAULT_DEFINITION_METADATA_FIELDS);
-  }
-
-  exampleFieldsChanged(): boolean {
-    return fieldsDiffer(this.exampleFields(), DEFAULT_EXAMPLE_METADATA_FIELDS);
-  }
-
-  setDefinitionField(index: number, part: 'key' | 'prompt', value: string): void {
-    this.definitionFields.update((fields) => replaceField(fields, index, part, value));
-    writeDefinitionMetadataFields(this.definitionFields());
-  }
-
-  setExampleField(index: number, part: 'key' | 'prompt', value: string): void {
-    this.exampleFields.update((fields) => replaceField(fields, index, part, value));
-    writeExampleMetadataFields(this.exampleFields());
-  }
-
-  addDefinitionField(): void {
-    this.definitionFields.update((fields) => appendField(fields));
-  }
-
-  addExampleField(): void {
-    this.exampleFields.update((fields) => appendField(fields));
-  }
-
-  recommendDefinitions(): void {
-    void this.recommend('definition');
-  }
-
-  recommendExamples(): void {
-    void this.recommend('example');
-  }
-
-  openSuggestions(
-    suggestions: readonly AiMetadataField[],
-    fields: readonly AiMetadataField[],
-  ): AiMetadataField[] {
-    const taken = new Set(fields.map((field) => field.key.trim().toLowerCase()).filter(Boolean));
-    return suggestions.filter((field) => !taken.has(field.key.toLowerCase()));
-  }
-
-  canAccept(fields: readonly AiMetadataField[]): boolean {
-    return fields.length < MAX_METADATA_FIELDS || fields.some((field) => !field.key.trim());
-  }
-
-  acceptDefinitionSuggestion(field: AiMetadataField): void {
-    this.acceptSuggestion('definition', field);
-  }
-
-  acceptExampleSuggestion(field: AiMetadataField): void {
-    this.acceptSuggestion('example', field);
-  }
-
-  removeDefinitionField(index: number): void {
-    this.definitionFields.update((fields) => fields.filter((_, item) => item !== index));
-    writeDefinitionMetadataFields(this.definitionFields());
-  }
-
-  removeExampleField(index: number): void {
-    this.exampleFields.update((fields) => fields.filter((_, item) => item !== index));
-    writeExampleMetadataFields(this.exampleFields());
-  }
-
-  resetDefinitionFields(): void {
-    resetDefinitionMetadataFields();
-    this.definitionFields.set(readDefinitionMetadataFields());
-  }
-
-  resetExampleFields(): void {
-    resetExampleMetadataFields();
-    this.exampleFields.set(readExampleMetadataFields());
-  }
-
-  private async recommend(kind: 'definition' | 'example'): Promise<void> {
-    const definitions = kind === 'definition';
-    const recommending = definitions ? this.recommendingDefinitions : this.recommendingExamples;
-    const error = definitions ? this.definitionRecommendError : this.exampleRecommendError;
-    const suggestions = definitions ? this.definitionSuggestions : this.exampleSuggestions;
-    if (!readStoredAiCredentials().keys.length) {
-      error.set('Save an API key first.');
-      return;
-    }
-    const job = definitions ? ++this.definitionRecommendJob : ++this.exampleRecommendJob;
-    recommending.set(true);
-    error.set('');
-    const existing = definitions ? this.definitionFields() : this.exampleFields();
-    try {
-      const fields = await recommendMetadataFields(kind, existing);
-      if (!this.recommendCurrent(kind, job)) return;
-      suggestions.set(fields);
-      if (!fields.length) error.set('No further fields.');
-    } catch {
-      if (this.recommendCurrent(kind, job)) error.set('Could not recommend fields.');
-    } finally {
-      if (this.recommendCurrent(kind, job)) recommending.set(false);
-    }
-  }
-
-  private acceptSuggestion(kind: 'definition' | 'example', field: AiMetadataField): void {
-    const definitions = kind === 'definition';
-    const source = definitions ? this.definitionFields : this.exampleFields;
-    if (!this.canAccept(source())) return;
-    source.update((fields) => acceptField(fields, field));
-    if (definitions) writeDefinitionMetadataFields(source());
-    else writeExampleMetadataFields(source());
-    const suggestions = definitions ? this.definitionSuggestions : this.exampleSuggestions;
-    suggestions.update((fields) =>
-      fields.filter((item) => item.key.toLowerCase() !== field.key.toLowerCase()),
-    );
-  }
-
-  private recommendCurrent(kind: 'definition' | 'example', job: number): boolean {
-    return kind === 'definition'
-      ? job === this.definitionRecommendJob
-      : job === this.exampleRecommendJob;
+    writeBlurTranslations(enabled);
   }
 
   colorFor(level: number): string {
@@ -887,45 +422,6 @@ export class Settings {
     }
     void this.router.navigateByUrl('/');
   }
-}
-
-function fieldsDiffer(
-  fields: readonly AiMetadataField[],
-  defaults: readonly AiMetadataField[],
-): boolean {
-  if (fields.length !== defaults.length) return true;
-  return fields.some(
-    (field, index) =>
-      field.key !== defaults[index]?.key || field.prompt !== defaults[index]?.prompt,
-  );
-}
-
-function replaceField(
-  fields: readonly AiMetadataField[],
-  index: number,
-  part: 'key' | 'prompt',
-  value: string,
-): AiMetadataField[] {
-  return fields.map((field, item) => (item === index ? { ...field, [part]: value } : field));
-}
-
-function appendField(fields: readonly AiMetadataField[]): AiMetadataField[] {
-  if (fields.length >= MAX_METADATA_FIELDS) return [...fields];
-  return [...fields, { key: '', prompt: '' }];
-}
-
-function acceptField(
-  fields: readonly AiMetadataField[],
-  field: AiMetadataField,
-): AiMetadataField[] {
-  const blank = fields.findIndex((item) => !item.key.trim());
-  if (blank >= 0) {
-    return fields.map((item, index) =>
-      index === blank ? { key: field.key, prompt: field.prompt } : item,
-    );
-  }
-  if (fields.length >= MAX_METADATA_FIELDS) return [...fields];
-  return [...fields, { key: field.key, prompt: field.prompt }];
 }
 
 function newKeyId(): string {

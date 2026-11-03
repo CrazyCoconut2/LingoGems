@@ -12,6 +12,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
 import { ScoreGauge } from '../elements/score-gauge';
+import { LanguageAiSettings } from './language-ai-settings';
 import {
   addElement,
   compareElements,
@@ -51,7 +52,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
 @Component({
   selector: 'app-language-page',
-  imports: [RouterLink, ElementModal, ScoreGauge],
+  imports: [RouterLink, ElementModal, ScoreGauge, LanguageAiSettings],
   template: `
     <main>
       <header>
@@ -63,6 +64,25 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
         </a>
         <h1>{{ name() }}</h1>
         <div class="header-actions">
+          <button
+            type="button"
+            class="settings"
+            aria-label="Definition and example settings"
+            title="Definition and example settings"
+            (click)="openAiSettings()"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 21v-7" />
+              <path d="M4 10V3" />
+              <path d="M12 21v-9" />
+              <path d="M12 8V3" />
+              <path d="M20 21v-5" />
+              <path d="M20 12V3" />
+              <path d="M2 14h4" />
+              <path d="M10 8h4" />
+              <path d="M18 16h4" />
+            </svg>
+          </button>
           <a class="settings" routerLink="/settings" aria-label="Settings" title="Settings">
             <svg viewBox="0 0 24 24">
               <path
@@ -279,6 +299,14 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           <button type="submit" class="btn btn-primary">Add</button>
         </form>
       </dialog>
+
+      @if (aiSettingsOpen()) {
+        <app-language-ai-settings
+          [language]="code()"
+          [languageName]="name()"
+          (closed)="closeAiSettings()"
+        />
+      }
 
       @if (filtersOpen()) {
         <div
@@ -519,9 +547,12 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       justify-content: center;
       width: 2.25rem;
       height: 2.25rem;
+      border: 0;
       border-radius: 999px;
+      background: transparent;
       color: var(--text-muted);
       text-decoration: none;
+      cursor: pointer;
     }
 
     .settings:hover {
@@ -1258,6 +1289,7 @@ export class LanguagePage {
   readonly minDefinitions = signal<number | null>(null);
   readonly sortOpen = signal(false);
   readonly filtersOpen = signal(false);
+  readonly aiSettingsOpen = signal(false);
   readonly expanded = signal<'translations' | 'definitions' | null>('translations');
   readonly elementId = signal('');
   readonly trail = signal<string[]>([]);
@@ -1293,7 +1325,7 @@ export class LanguagePage {
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       if (this.searchTimer) clearTimeout(this.searchTimer);
-      if (this.filtersOpen()) this.unlockScroll();
+      if (this.filtersOpen() || this.aiSettingsOpen()) this.unlockScroll();
     });
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       void this.load(params.get('code') ?? '');
@@ -1314,6 +1346,10 @@ export class LanguagePage {
 
   @HostListener('document:keydown.escape')
   closeMenusOnEscape(): void {
+    if (this.aiSettingsOpen()) {
+      this.closeAiSettings();
+      return;
+    }
     if (this.filtersOpen()) {
       this.closeFilters();
       return;
@@ -1458,6 +1494,20 @@ export class LanguagePage {
     this.writeBrowse();
   }
 
+  openAiSettings(): void {
+    this.sortOpen.set(false);
+    if (this.filtersOpen()) this.closeFilters();
+    if (this.aiSettingsOpen()) return;
+    this.aiSettingsOpen.set(true);
+    this.lockScroll();
+  }
+
+  closeAiSettings(): void {
+    if (!this.aiSettingsOpen()) return;
+    this.aiSettingsOpen.set(false);
+    this.unlockScroll();
+  }
+
   openFilters(event: Event): void {
     event.stopPropagation();
     this.sortOpen.set(false);
@@ -1539,6 +1589,7 @@ export class LanguagePage {
     this.minDefinitions.set(parseElementMinimum(params.get('definitions')));
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
+    if (this.aiSettingsOpen()) this.closeAiSettings();
     this.code.set(code);
     this.name.set(languageDisplayName(code));
     this.ready.set(false);
