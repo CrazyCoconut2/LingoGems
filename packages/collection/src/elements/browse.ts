@@ -1,9 +1,5 @@
 import type { StoredElement } from './element-store';
 
-export const ELEMENT_FACETS = ['definitions', 'forms', 'examples'] as const;
-
-export type ElementFacet = (typeof ELEMENT_FACETS)[number];
-
 export const ELEMENT_SORTS = [
   'title-asc',
   'title-desc',
@@ -18,41 +14,41 @@ export type ElementSort = (typeof ELEMENT_SORTS)[number];
 
 export const DEFAULT_ELEMENT_SORT: ElementSort = 'created-desc';
 
-const FACET_SET = new Set<string>(ELEMENT_FACETS);
 const SORT_SET = new Set<string>(ELEMENT_SORTS);
-
-export function parseElementFacets(raw: string | null): ElementFacet[] {
-  if (!raw) return [];
-  const chosen = new Set<ElementFacet>();
-  for (const part of raw.split(',')) {
-    const value = part.trim();
-    if (FACET_SET.has(value)) chosen.add(value as ElementFacet);
-  }
-  return ELEMENT_FACETS.filter((facet) => chosen.has(facet));
-}
 
 export function parseElementSort(raw: string | null): ElementSort {
   if (raw && SORT_SET.has(raw)) return raw as ElementSort;
   return DEFAULT_ELEMENT_SORT;
 }
 
-export function elementFacetCount(element: StoredElement, facet: ElementFacet): number {
-  if (facet === 'definitions') return element.definitions.length;
-  if (facet === 'forms') {
-    return element.definitions.reduce((count, definition) => count + definition.forms.length, 0);
-  }
+/** A missing or invalid value means no minimum. */
+export function parseElementMinimum(raw: string | null): number | null {
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1) return null;
+  return Math.min(value, 99);
+}
+
+export function elementTranslationCount(element: StoredElement): number {
+  return element.equivalents.length;
+}
+
+export function elementDefinitionCount(element: StoredElement): number {
+  return element.definitions.length;
+}
+
+function elementExampleCount(element: StoredElement): number {
   return element.definitions.reduce((count, definition) => count + definition.examples.length, 0);
 }
 
-/** Include keeps an element that has any chosen facet. Exclude hides an element that has any chosen facet. */
-export function elementMatchesFacets(
+/** Keep an element whose translation and definition counts meet each minimum. */
+export function elementMatchesMinimums(
   element: StoredElement,
-  include: readonly ElementFacet[],
-  exclude: readonly ElementFacet[],
+  translations: number | null,
+  definitions: number | null,
 ): boolean {
-  const has = (facet: ElementFacet) => elementFacetCount(element, facet) > 0;
-  if (exclude.some(has)) return false;
-  if (include.length > 0 && !include.some(has)) return false;
+  if (translations != null && elementTranslationCount(element) < translations) return false;
+  if (definitions != null && elementDefinitionCount(element) < definitions) return false;
   return true;
 }
 
@@ -68,7 +64,6 @@ export function compareElements(
     const diff = left.createdAt - right.createdAt;
     return (sort === 'created-desc' ? -diff : diff) || title;
   }
-  const facet = sort === 'definitions-desc' ? 'definitions' : 'examples';
-  const diff = elementFacetCount(left, facet) - elementFacetCount(right, facet);
-  return -diff || title;
+  const count = sort === 'definitions-desc' ? elementDefinitionCount : elementExampleCount;
+  return count(right) - count(left) || title;
 }

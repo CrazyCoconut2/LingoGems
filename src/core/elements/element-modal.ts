@@ -63,7 +63,7 @@ type Editor =
   | { kind: 'definition'; index: number | null }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number | null };
 
-type FormEdit = { definitionIndex: number };
+type FormEdit = { definitionIndex: number; originalText: string | null };
 
 type MetadataEdit = { previousKey: string | null };
 
@@ -570,7 +570,16 @@ function writeExampleSuggestions(
         </header>
         <div class="body">
           <div class="section-heading">
-            <h3>Definitions</h3>
+            <h3 class="section-title">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
+                />
+                <path d="m8 13 4-7 4 7" />
+                <path d="M9.1 11h5.7" />
+              </svg>
+              Definitions
+            </h3>
             <div class="header-actions">
               <button
                 type="button"
@@ -1092,8 +1101,8 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 [disabled]="busy()"
-                                [attr.aria-label]="'Show metadata for ' + form.text"
-                                (click)="openFormInfo(index, form.text)"
+                                [attr.aria-label]="'Edit form ' + form.text"
+                                (click)="openExistingForm(index, form.text)"
                               >
                                 {{ form.text }}
                               </button>
@@ -1726,17 +1735,17 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (formEdit()) {
+        @if (formEdit(); as editing) {
           <div class="sheet-backdrop" (click)="closeFormSheet($event)">
             <section
               class="sheet"
               role="dialog"
               aria-modal="true"
-              aria-label="Add a form"
+              [attr.aria-label]="editing.originalText ? 'Edit form' : 'Add a form'"
               (click)="$event.stopPropagation()"
             >
               <div class="sheet-head">
-                <h3>Add a form</h3>
+                <h3>{{ editing.originalText ? 'Edit form' : 'Add a form' }}</h3>
                 <button
                   type="button"
                   class="icon-btn"
@@ -1864,47 +1873,6 @@ function writeExampleSuggestions(
                   Save
                 </button>
               </div>
-            </section>
-          </div>
-        }
-
-        @if (formInfo(); as info) {
-          <div class="sheet-backdrop" (click)="closeFormInfo($event)">
-            <section
-              class="sheet"
-              role="dialog"
-              aria-modal="true"
-              [attr.aria-label]="'Metadata for ' + info.text"
-              (click)="$event.stopPropagation()"
-            >
-              <div class="sheet-head">
-                <h3>{{ info.text }}</h3>
-                <button
-                  #formInfoClose
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  (click)="formInfo.set(null)"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
-              </div>
-              @if (formMetadata(info); as features) {
-                @if (features.length) {
-                  <ul class="pills">
-                    @for (entry of features; track entry.key) {
-                      <li>
-                        <span>{{ entry.key }}: {{ entry.value }}</span>
-                      </li>
-                    }
-                  </ul>
-                } @else {
-                  <p class="hint">No metadata yet.</p>
-                }
-              }
             </section>
           </div>
         }
@@ -3311,7 +3279,6 @@ export class ElementModal {
   readonly translationEditId = signal<string | null>(null);
   readonly sheetError = signal('');
   readonly formEdit = signal<FormEdit | null>(null);
-  readonly formInfo = signal<{ definitionIndex: number; text: string } | null>(null);
   readonly formDraft = signal('');
   readonly formError = signal('');
   readonly formFeatures = signal<ElementMetadata>({});
@@ -3365,7 +3332,6 @@ export class ElementModal {
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly draftField = viewChild<ElementRef<HTMLTextAreaElement>>('draftField');
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
-  private readonly formInfoClose = viewChild<ElementRef<HTMLButtonElement>>('formInfoClose');
   private readonly formFeatureField = viewChild<ElementRef<HTMLInputElement>>('formFeatureField');
   private readonly metaKeyField = viewChild<ElementRef<HTMLInputElement>>('metaKeyField');
   private readonly translationField = viewChild<ElementRef<HTMLInputElement>>('translationField');
@@ -3380,7 +3346,6 @@ export class ElementModal {
       this.clearCopied();
       this.editor.set(null);
       this.formEdit.set(null);
-      this.formInfo.set(null);
       this.formError.set('');
       this.formFeatureEdit.set(null);
       this.metaEdit.set(null);
@@ -3484,10 +3449,6 @@ export class ElementModal {
     }
     if (this.formFeatureEdit()) {
       this.formFeatureEdit.set(null);
-      return;
-    }
-    if (this.formInfo()) {
-      this.formInfo.set(null);
       return;
     }
     if (this.formEdit()) {
@@ -3964,9 +3925,7 @@ export class ElementModal {
   private swapDefinitionIndexes(from: number, to: number): void {
     const map = (index: number): number => (index === from ? to : index === to ? from : index);
     const editing = this.formEdit();
-    if (editing) this.formEdit.set({ definitionIndex: map(editing.definitionIndex) });
-    const info = this.formInfo();
-    if (info) this.formInfo.set({ ...info, definitionIndex: map(info.definitionIndex) });
+    if (editing) this.formEdit.set({ ...editing, definitionIndex: map(editing.definitionIndex) });
     const editor = this.editor();
     if (editor?.kind === 'definition' && editor.index != null) {
       this.editor.set({ kind: 'definition', index: map(editor.index) });
@@ -4008,9 +3967,7 @@ export class ElementModal {
 
   private shiftDefinitionIndexes(by: number): void {
     const editing = this.formEdit();
-    if (editing) this.formEdit.set({ definitionIndex: editing.definitionIndex + by });
-    const info = this.formInfo();
-    if (info) this.formInfo.set({ ...info, definitionIndex: info.definitionIndex + by });
+    if (editing) this.formEdit.set({ ...editing, definitionIndex: editing.definitionIndex + by });
     const editor = this.editor();
     if (editor?.kind === 'definition' && editor.index != null) {
       this.editor.set({ kind: 'definition', index: editor.index + by });
@@ -4209,7 +4166,6 @@ export class ElementModal {
     this.addFormFor.set(null);
     this.editor.set(null);
     this.formEdit.set(null);
-    this.formInfo.set(null);
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.confirm.set(null);
@@ -4253,7 +4209,6 @@ export class ElementModal {
     const editing = editor?.kind === 'definition' && editor.index === index;
     this.editor.set(null);
     this.formEdit.set(null);
-    this.formInfo.set(null);
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.confirm.set(null);
@@ -4575,20 +4530,13 @@ export class ElementModal {
     }
   }
 
-  openFormInfo(definitionIndex: number, text: string): void {
+  openExistingForm(definitionIndex: number, text: string): void {
     if (this.busy()) return;
     const form = this.element().definitions[definitionIndex]?.forms.find(
       (item) => item.text === text,
     );
     if (!form) return;
-    this.exampleEngineer.set(null);
-    this.definitionEngineer.set(null);
-    this.formInfo.set({ definitionIndex, text });
-    setTimeout(() => this.formInfoClose()?.nativeElement.focus());
-  }
-
-  closeFormInfo(event: MouseEvent): void {
-    if (event.target === event.currentTarget) this.formInfo.set(null);
+    this.openForm(definitionIndex, form);
   }
 
   closeFormSheet(event: MouseEvent): void {
@@ -4596,23 +4544,15 @@ export class ElementModal {
     this.cancelForm();
   }
 
-  formMetadata(info: { definitionIndex: number; text: string }): Array<{
-    key: string;
-    value: string;
-  }> {
-    const form = this.element().definitions[info.definitionIndex]?.forms.find(
-      (item) => item.text === info.text,
-    );
-    return form ? this.entries(form.metadata) : [];
-  }
-
-  openForm(definitionIndex: number): void {
+  openForm(
+    definitionIndex: number,
+    form?: { text: string; metadata: ElementMetadata },
+  ): void {
     if (!this.element().definitions[definitionIndex]) return;
     this.addFormFor.set(null);
     this.addExampleFor.set(null);
     this.addDefinitionOpen.set(false);
     this.editor.set(null);
-    this.formInfo.set(null);
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.confirm.set(null);
@@ -4620,9 +4560,9 @@ export class ElementModal {
     this.dismissTranslations();
     this.formError.set('');
     this.formFeatureEdit.set(null);
-    this.formFeatures.set({});
-    this.formDraft.set('');
-    this.formEdit.set({ definitionIndex });
+    this.formFeatures.set(form ? { ...form.metadata } : {});
+    this.formDraft.set(form?.text ?? '');
+    this.formEdit.set({ definitionIndex, originalText: form?.text ?? null });
     setTimeout(() => this.formField()?.nativeElement.focus());
   }
 
@@ -4940,18 +4880,29 @@ export class ElementModal {
     const definition = definitions[editing.definitionIndex];
     if (!definition) return;
     if (form === this.element().title.trim()) {
-      this.cancelForm();
+      this.formError.set('That form is not valid.');
       return;
     }
     if (!isValidForm(form)) {
       this.formError.set('That form is not valid.');
       return;
     }
-    if (definition.forms.some((item) => item.text.toLowerCase() === form.toLowerCase())) {
-      this.cancelForm();
+    const original = editing.originalText;
+    if (
+      definition.forms.some(
+        (item) => item.text !== original && item.text.toLowerCase() === form.toLowerCase(),
+      )
+    ) {
+      this.formError.set('That form is already there.');
       return;
     }
-    definition.forms.push({ text: form, metadata: this.formFeaturesToStore() });
+    const next = { text: form, metadata: this.formFeaturesToStore() };
+    if (original == null) definition.forms.push(next);
+    else {
+      const index = definition.forms.findIndex((item) => item.text === original);
+      if (index < 0) return;
+      definition.forms[index] = next;
+    }
     if (await this.persist(definitions, this.element().equivalents)) this.cancelForm();
   }
 
@@ -4991,8 +4942,9 @@ export class ElementModal {
     const definition = definitions[definitionIndex];
     if (!definition) return;
     definition.forms = definition.forms.filter((item) => item.text !== form);
-    if (this.formInfo()?.definitionIndex === definitionIndex && this.formInfo()?.text === form) {
-      this.formInfo.set(null);
+    const editing = this.formEdit();
+    if (editing?.definitionIndex === definitionIndex && editing.originalText === form) {
+      this.formEdit.set(null);
     }
     await this.persist(definitions, this.element().equivalents);
   }
@@ -5007,7 +4959,6 @@ export class ElementModal {
     if (this.busy()) return;
     this.editor.set(null);
     this.formEdit.set(null);
-    this.formInfo.set(null);
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.confirm.set({ kind: 'element' });
@@ -5033,11 +4984,7 @@ export class ElementModal {
     const definitions = this.copyDefinitions();
     const removed =
       pending.kind === 'definition' ? senseKey(definitions[pending.index]?.text ?? '') : '';
-    if (pending.kind === 'definition') {
-      definitions.splice(pending.index, 1);
-      const info = this.formInfo();
-      if (info && info.definitionIndex >= pending.index) this.formInfo.set(null);
-    } else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
+    if (pending.kind === 'definition') definitions.splice(pending.index, 1); else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
     if (!(await this.persist(definitions, this.element().equivalents))) return;
     if (pending.kind === 'definition') {
       if (removed && !definitions.some((definition) => senseKey(definition.text) === removed)) {

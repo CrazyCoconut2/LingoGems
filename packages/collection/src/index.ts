@@ -65,13 +65,12 @@ export {
 
 export {
   DEFAULT_ELEMENT_SORT,
-  ELEMENT_FACETS,
   ELEMENT_SORTS,
   compareElements,
-  elementFacetCount,
-  elementMatchesFacets,
-  parseElementFacets,
+  elementDefinitionCount,
+  elementMatchesMinimums,
+  elementTranslationCount,
+  parseElementMinimum,
   parseElementSort,
-  type ElementFacet,
   type ElementSort,
 } from './elements/browse';

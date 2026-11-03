@@ -16,20 +16,18 @@ import {
   addElement,
   compareElements,
   DEFAULT_ELEMENT_SORT,
-  ELEMENT_FACETS,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
-  elementMatchesFacets,
+  elementMatchesMinimums,
   elementMatchesPrefix,
   elementPrefixSearch,
   languageDisplayName,
-  resolveHighlightColor,
-  resolveHighlightStyle,
-  parseElementFacets,
+  parseElementMinimum,
   parseElementSort,
   readElements,
   readLanguages,
-  type ElementFacet,
+  resolveHighlightColor,
+  resolveHighlightStyle,
   type ElementSearch,
   type ElementSearchPart,
   type ElementSort,
@@ -195,16 +193,57 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 [style.--highlight-style]="highlightStyle(element)"
                 (click)="openElement(element.id)"
               >
-                <span class="title">
-                  @for (part of highlight(element.title); track $index) {
-                    @if (part.hit) {
-                      <mark class="hit">{{ part.text }}</mark>
-                    } @else {
-                      <span>{{ part.text }}</span>
+                <span class="element-top">
+                  <span class="title">
+                    @for (part of highlight(element.title); track $index) {
+                      @if (part.hit) {
+                        <mark class="hit">{{ part.text }}</mark>
+                      } @else {
+                        <span>{{ part.text }}</span>
+                      }
                     }
-                  }
+                  </span>
+                  <app-score-gauge [score]="element.score" size="md" />
                 </span>
-                <app-score-gauge [score]="element.score" size="md" />
+                <span class="stats">
+                  <span
+                    class="stat"
+                    [class.empty]="element.equivalents.length === 0"
+                    [attr.aria-label]="
+                      element.equivalents.length === 1
+                        ? '1 translation'
+                        : element.equivalents.length + ' translations'
+                    "
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m5 8 6 6" />
+                      <path d="m4 14 6-6 2-3" />
+                      <path d="M2 5h12" />
+                      <path d="M7 2h1" />
+                      <path d="m22 22-5-10-5 10" />
+                      <path d="M14 18h6" />
+                    </svg>
+                    <span>{{ element.equivalents.length }}</span>
+                  </span>
+                  <span
+                    class="stat"
+                    [class.empty]="element.definitions.length === 0"
+                    [attr.aria-label]="
+                      element.definitions.length === 1
+                        ? '1 definition'
+                        : element.definitions.length + ' definitions'
+                    "
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
+                      />
+                      <path d="m8 13 4-7 4 7" />
+                      <path d="M9.1 11h5.7" />
+                    </svg>
+                    <span>{{ element.definitions.length }}</span>
+                  </span>
+                </span>
               </button>
             </li>
           }
@@ -244,7 +283,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
             <header class="filter-header">
               <div>
                 <h2 class="filter-title">Filters</h2>
-                <p class="filter-subtitle">Refine your collection by what each element has.</p>
+                <p class="filter-subtitle">
+                  Keep elements with at least this many translations and definitions.
+                </p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
                 <svg viewBox="0 0 24 24">
@@ -266,95 +307,107 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 </button>
               </div>
 
-              <section class="filter-section" [class.expanded]="expanded() === 'include'">
+              <section class="filter-section" [class.expanded]="expanded() === 'translations'">
                 <button
                   type="button"
                   class="section-header"
-                  [attr.aria-expanded]="expanded() === 'include'"
-                  (click)="toggleSection('include')"
+                  [attr.aria-expanded]="expanded() === 'translations'"
+                  (click)="toggleSection('translations')"
                 >
                   <span class="section-title">
-                    Include
-                    @if (include().length) {
-                      <span class="section-count">{{ include().length }}</span>
+                    Translations
+                    @if (minTranslations(); as count) {
+                      <span class="section-count">{{ count }}</span>
                     }
                   </span>
                   <svg class="section-chevron" viewBox="0 0 24 24">
                     <path d="m6 9 6 6 6-6" />
                   </svg>
                 </button>
-                @if (expanded() === 'include') {
+                @if (expanded() === 'translations') {
                   <div class="section-body">
                     <div class="section-actions">
                       <button
                         type="button"
                         class="link-btn"
-                        [disabled]="include().length === 0"
-                        (click)="clearFacet('include')"
+                        [disabled]="minTranslations() == null"
+                        (click)="clearMinimum('translations')"
                       >
                         Clear
                       </button>
                     </div>
-                    <p class="section-hint">Show elements that have at least one of these.</p>
-                    <div class="facet-options" role="group" aria-label="Include">
-                      @for (facet of facets; track facet.value) {
-                        <button
-                          type="button"
-                          class="facet-chip"
-                          [class.selected]="hasFacet('include', facet.value)"
-                          [attr.aria-pressed]="hasFacet('include', facet.value)"
-                          (click)="toggleFacet('include', facet.value)"
-                        >
-                          {{ facet.label }}
-                        </button>
-                      }
+                    <p class="section-hint">At least this many translations.</p>
+                    <div class="count-stepper">
+                      <button
+                        type="button"
+                        aria-label="Fewer translations"
+                        [disabled]="minTranslations() == null"
+                        (click)="stepMinimum('translations', -1)"
+                      >
+                        −
+                      </button>
+                      <span>{{ minTranslations() ?? 'Any' }}</span>
+                      <button
+                        type="button"
+                        aria-label="More translations"
+                        [disabled]="minTranslations() === 99"
+                        (click)="stepMinimum('translations', 1)"
+                      >
+                        +
+                      </button>
                     </div>
                   </div>
                 }
               </section>
 
-              <section class="filter-section" [class.expanded]="expanded() === 'exclude'">
+              <section class="filter-section" [class.expanded]="expanded() === 'definitions'">
                 <button
                   type="button"
                   class="section-header"
-                  [attr.aria-expanded]="expanded() === 'exclude'"
-                  (click)="toggleSection('exclude')"
+                  [attr.aria-expanded]="expanded() === 'definitions'"
+                  (click)="toggleSection('definitions')"
                 >
                   <span class="section-title">
-                    Exclude
-                    @if (exclude().length) {
-                      <span class="section-count">{{ exclude().length }}</span>
+                    Definitions
+                    @if (minDefinitions(); as count) {
+                      <span class="section-count">{{ count }}</span>
                     }
                   </span>
                   <svg class="section-chevron" viewBox="0 0 24 24">
                     <path d="m6 9 6 6 6-6" />
                   </svg>
                 </button>
-                @if (expanded() === 'exclude') {
+                @if (expanded() === 'definitions') {
                   <div class="section-body">
                     <div class="section-actions">
                       <button
                         type="button"
                         class="link-btn"
-                        [disabled]="exclude().length === 0"
-                        (click)="clearFacet('exclude')"
+                        [disabled]="minDefinitions() == null"
+                        (click)="clearMinimum('definitions')"
                       >
                         Clear
                       </button>
                     </div>
-                    <p class="section-hint">Hide elements that have any of these.</p>
-                    <div class="facet-options" role="group" aria-label="Exclude">
-                      @for (facet of facets; track facet.value) {
-                        <button
-                          type="button"
-                          class="facet-chip exclude"
-                          [class.selected]="hasFacet('exclude', facet.value)"
-                          [attr.aria-pressed]="hasFacet('exclude', facet.value)"
-                          (click)="toggleFacet('exclude', facet.value)"
-                        >
-                          {{ facet.label }}
-                        </button>
-                      }
+                    <p class="section-hint">At least this many definitions.</p>
+                    <div class="count-stepper">
+                      <button
+                        type="button"
+                        aria-label="Fewer definitions"
+                        [disabled]="minDefinitions() == null"
+                        (click)="stepMinimum('definitions', -1)"
+                      >
+                        −
+                      </button>
+                      <span>{{ minDefinitions() ?? 'Any' }}</span>
+                      <button
+                        type="button"
+                        aria-label="More definitions"
+                        [disabled]="minDefinitions() === 99"
+                        (click)="stepMinimum('definitions', 1)"
+                      >
+                        +
+                      </button>
                     </div>
                   </div>
                 }
@@ -717,10 +770,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       box-sizing: border-box;
       width: 100%;
       display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.65rem;
       padding: 0.85rem 1rem;
       border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 28%, transparent);
       border-left: 3px solid var(--highlight-color, var(--accent));
@@ -736,6 +788,14 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       background: var(--surface);
     }
 
+    .element-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+
     .title {
       flex: 1;
       min-width: 0;
@@ -747,6 +807,39 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       text-decoration-color: var(--highlight-color, #6c63ff);
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
+    }
+
+    .stats {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+    }
+
+    .stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .stat.empty {
+      opacity: 0.4;
+    }
+
+    .stat svg {
+      display: block;
+      width: 0.85rem;
+      height: 0.85rem;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .skeleton {
@@ -993,40 +1086,44 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       line-height: 1.4;
     }
 
-    .facet-options {
+    .count-stepper {
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
+      align-items: center;
+      gap: 0.45rem;
     }
 
-    .facet-chip {
+    .count-stepper button {
+      display: grid;
+      place-items: center;
+      width: 1.8rem;
+      height: 1.8rem;
       border: 0;
-      border-radius: 0.65rem;
+      border-radius: 0.55rem;
       background: color-mix(in srgb, var(--surface) 80%, transparent);
-      color: var(--text-muted);
-      padding: 0.4rem 0.65rem;
+      color: var(--text);
       font: inherit;
-      font-size: 0.78rem;
-      font-weight: 650;
+      font-size: 1rem;
+      line-height: 1;
       cursor: pointer;
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
     }
 
-    .facet-chip:hover {
-      color: var(--text);
+    .count-stepper button:hover:not(:disabled) {
       background: rgba(127, 127, 127, 0.1);
     }
 
-    .facet-chip.selected {
-      background: rgba(var(--accent-rgb), 0.16);
-      color: var(--accent-text);
-      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.35);
+    .count-stepper button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
 
-    .facet-chip.exclude.selected {
-      background: color-mix(in srgb, #c45c5c 18%, transparent);
-      color: color-mix(in srgb, #c45c5c 80%, var(--text));
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, #c45c5c 45%, transparent);
+    .count-stepper span {
+      min-width: 2.4rem;
+      color: var(--text);
+      font-size: 0.84rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
     }
 
     .link-btn {
@@ -1105,11 +1202,6 @@ export class LanguagePage {
     { value: 'definitions-desc', label: 'Most definitions' },
     { value: 'examples-desc', label: 'Most examples' },
   ];
-  readonly facets: { value: ElementFacet; label: string }[] = [
-    { value: 'definitions', label: 'Definitions' },
-    { value: 'forms', label: 'Forms' },
-    { value: 'examples', label: 'Examples' },
-  ];
   readonly code = signal('');
   readonly name = signal('');
   readonly ready = signal(false);
@@ -1117,11 +1209,11 @@ export class LanguagePage {
   readonly query = signal('');
   readonly search = signal<ElementSearch>({ mode: 'browse', value: '' });
   readonly sort = signal<ElementSort>(DEFAULT_ELEMENT_SORT);
-  readonly include = signal<ElementFacet[]>([]);
-  readonly exclude = signal<ElementFacet[]>([]);
+  readonly minTranslations = signal<number | null>(null);
+  readonly minDefinitions = signal<number | null>(null);
   readonly sortOpen = signal(false);
   readonly filtersOpen = signal(false);
-  readonly expanded = signal<'include' | 'exclude' | null>('include');
+  readonly expanded = signal<'translations' | 'definitions' | null>('translations');
   readonly elementId = signal('');
   readonly draft = signal('');
   readonly opened = computed(() => {
@@ -1129,18 +1221,20 @@ export class LanguagePage {
     if (!id) return null;
     return this.elements().find((element) => element.id === id) ?? null;
   });
-  readonly filterCount = computed(() => this.include().length + this.exclude().length);
+  readonly filterCount = computed(
+    () => (this.minTranslations() == null ? 0 : 1) + (this.minDefinitions() == null ? 0 : 1),
+  );
   readonly sortActive = computed(() => {
     const sort = this.sort();
     return sort !== DEFAULT_ELEMENT_SORT && sort !== 'none';
   });
   readonly visible = computed(() => {
     const search = this.search();
-    const include = this.include();
-    const exclude = this.exclude();
+    const translations = this.minTranslations();
+    const definitions = this.minDefinitions();
     const matched = this.elements().filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
-      return elementMatchesFacets(element, include, exclude);
+      return elementMatchesMinimums(element, translations, definitions);
     });
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
   });
@@ -1261,7 +1355,7 @@ export class LanguagePage {
   openFilters(event: Event): void {
     event.stopPropagation();
     this.sortOpen.set(false);
-    this.expanded.set('include');
+    this.expanded.set('translations');
     this.filtersOpen.set(true);
     this.lockScroll();
   }
@@ -1276,38 +1370,28 @@ export class LanguagePage {
     if (event.target === event.currentTarget) this.closeFilters();
   }
 
-  toggleSection(section: 'include' | 'exclude'): void {
+  toggleSection(section: 'translations' | 'definitions'): void {
     this.expanded.update((current) => (current === section ? null : section));
   }
 
-  hasFacet(kind: 'include' | 'exclude', facet: ElementFacet): boolean {
-    return (kind === 'include' ? this.include() : this.exclude()).includes(facet);
-  }
-
-  toggleFacet(kind: 'include' | 'exclude', facet: ElementFacet): void {
-    const include = new Set(this.include());
-    const exclude = new Set(this.exclude());
-    const target = kind === 'include' ? include : exclude;
-    const other = kind === 'include' ? exclude : include;
-    if (target.has(facet)) target.delete(facet);
-    else {
-      target.add(facet);
-      other.delete(facet);
-    }
-    this.include.set(ELEMENT_FACETS.filter((item) => include.has(item)));
-    this.exclude.set(ELEMENT_FACETS.filter((item) => exclude.has(item)));
+  stepMinimum(kind: 'translations' | 'definitions', by: number): void {
+    const current = kind === 'translations' ? this.minTranslations() : this.minDefinitions();
+    const next = (current ?? 0) + by;
+    const value = next < 1 ? null : Math.min(next, 99);
+    if (kind === 'translations') this.minTranslations.set(value);
+    else this.minDefinitions.set(value);
     this.writeBrowse();
   }
 
-  clearFacet(kind: 'include' | 'exclude'): void {
-    if (kind === 'include') this.include.set([]);
-    else this.exclude.set([]);
+  clearMinimum(kind: 'translations' | 'definitions'): void {
+    if (kind === 'translations') this.minTranslations.set(null);
+    else this.minDefinitions.set(null);
     this.writeBrowse();
   }
 
   clearFilters(): void {
-    this.include.set([]);
-    this.exclude.set([]);
+    this.minTranslations.set(null);
+    this.minDefinitions.set(null);
     this.writeBrowse();
   }
 
@@ -1345,8 +1429,8 @@ export class LanguagePage {
     this.query.set(restored);
     this.search.set(elementPrefixSearch(restored));
     this.sort.set(parseElementSort(params.get('sort')));
-    this.include.set(parseElementFacets(params.get('has')));
-    this.exclude.set(parseElementFacets(params.get('hide')));
+    this.minTranslations.set(parseElementMinimum(params.get('translations')));
+    this.minDefinitions.set(parseElementMinimum(params.get('definitions')));
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     this.code.set(code);
@@ -1362,14 +1446,16 @@ export class LanguagePage {
   private writeBrowse(): void {
     if (this.router.url.split('?')[0] !== `/languages/${this.code()}`) return;
     const sort = this.sort();
-    const include = this.include();
-    const exclude = this.exclude();
+    const translations = this.minTranslations();
+    const definitions = this.minDefinitions();
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: {
         sort: sort === DEFAULT_ELEMENT_SORT ? null : sort,
-        has: include.length ? include.join(',') : null,
-        hide: exclude.length ? exclude.join(',') : null,
+        translations: translations == null ? null : String(translations),
+        definitions: definitions == null ? null : String(definitions),
+        has: null,
+        hide: null,
       },
       queryParamsHandling: 'merge',
       replaceUrl: true,
