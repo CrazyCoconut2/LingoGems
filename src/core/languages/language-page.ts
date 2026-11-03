@@ -16,6 +16,7 @@ import {
   addElement,
   compareElements,
   DEFAULT_ELEMENT_SORT,
+  displayTitle,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
   elementMatchesMinimums,
@@ -1374,7 +1375,7 @@ export class LanguagePage {
   }
 
   highlight(text: string): ElementSearchPart[] {
-    return elementHighlightParts(text, this.search());
+    return elementHighlightParts(displayTitle(text, this.code()), this.search());
   }
 
   inputValue(event: Event): string {

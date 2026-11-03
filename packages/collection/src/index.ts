@@ -16,6 +16,7 @@ export {
 export {
   addElement,
   deleteElement,
+  displayTitle,
   readElements,
   assignEquivalent,
   embedTranslation,

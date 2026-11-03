@@ -382,3 +382,15 @@ async function putElement(element: StoredElement): Promise<void> {
     db.transaction(ELEMENTS_STORE, 'readwrite').objectStore(ELEMENTS_STORE).put(element),
   );
 }
+
+/** First letter of a title, for display. The stored title is unchanged. */
+export function displayTitle(value: string, locale = ''): string {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  const match = text.match(/^(\P{L}*)(\p{L})(.*)$/u);
+  if (!match) return text;
+  const letter = match[2] ?? '';
+  const upper = locale ? letter.toLocaleUpperCase(locale) : letter.toLocaleUpperCase();
+  if (upper === letter) return text;
+  return `${match[1] ?? ''}${upper}${match[3] ?? ''}`;
+}

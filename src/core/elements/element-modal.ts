@@ -17,6 +17,7 @@ import {
   scoreChipBg,
   scoreColorHex,
   deleteElement,
+  displayTitle,
   embedTranslation,
   formTexts,
   HIGHLIGHT_STYLES,
@@ -490,7 +491,7 @@ function writeExampleSuggestions(
       class="backdrop"
       role="dialog"
       aria-modal="true"
-      [attr.aria-label]="element().title"
+      [attr.aria-label]="shownTitle()"
       (click)="onBackdrop($event)"
     >
       <div class="panel">
@@ -535,7 +536,7 @@ function writeExampleSuggestions(
               </form>
             } @else {
               <div class="title-main">
-                <h2>{{ element().title }}</h2>
+                <h2>{{ shownTitle() }}</h2>
                 <button
                   type="button"
                   class="icon-btn"
@@ -595,7 +596,7 @@ function writeExampleSuggestions(
             >
               <app-score-gauge [score]="element().score" />
             </button>
-            @if (canHear(element().title)) {
+            @if (canHear(shownTitle())) {
               <button
                 type="button"
                 class="icon-btn"
@@ -603,7 +604,7 @@ function writeExampleSuggestions(
                 [attr.aria-pressed]="speaking() === 'title'"
                 [attr.aria-label]="speaking() === 'title' ? 'Stop speaking' : 'Hear title'"
                 [attr.title]="speaking() === 'title' ? 'Stop speaking' : 'Hear title'"
-                (click)="hear('title', element().title)"
+                (click)="hear('title', shownTitle())"
               >
                 @if (speaking() === 'title') {
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -669,7 +670,7 @@ function writeExampleSuggestions(
             <div class="collision" role="menu" aria-label="Matching elements">
               @for (match of matches; track match.elementId) {
                 <button type="button" (click)="visitHighlight(match.elementId)">
-                  {{ match.title }}
+                  {{ shownTitle(match.title) }}
                 </button>
               }
             </div>
@@ -1763,7 +1764,7 @@ function writeExampleSuggestions(
               <div class="sheet-head">
                 <div class="sheet-title">
                   <h3>Engineer definition</h3>
-                  <p class="hint">{{ element().title }}</p>
+                  <p class="hint">{{ shownTitle() }}</p>
                 </div>
                 <button
                   type="button"
@@ -3831,6 +3832,10 @@ export class ElementModal {
     } finally {
       if (this.element().id === element.id) this.busy.set(false);
     }
+  }
+
+  shownTitle(title = this.element().title): string {
+    return displayTitle(title, this.element().language);
   }
 
   headerEquivalents(): string[] {
