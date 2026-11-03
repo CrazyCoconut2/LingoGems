@@ -11,12 +11,16 @@ import {
   isAiProvider,
   readDefinitionMetadataFields,
   readExampleMetadataFields,
+  readGenerateDefinitionTranslations,
+  readGenerateExampleTranslations,
   readStoredAiCredentials,
   recommendMetadataFields,
   resetDefinitionMetadataFields,
   resetExampleMetadataFields,
   writeDefinitionMetadataFields,
   writeExampleMetadataFields,
+  writeGenerateDefinitionTranslations,
+  writeGenerateExampleTranslations,
   writeStoredAiCredentials,
   type AiMetadataField,
   type AiProviderId,
@@ -111,6 +115,14 @@ const AI_PROVIDERS: ProviderOption[] = [
             Reset
           </button>
         </div>
+        <label class="translation-toggle">
+          <input
+            type="checkbox"
+            [checked]="generateDefinitionTranslations()"
+            (change)="setGenerateDefinitionTranslations($event)"
+          />
+          Generate with an English translation
+        </label>
         @if (definitionFields().length) {
           <ul class="metadata-list">
             @for (field of definitionFields(); track $index) {
@@ -207,6 +219,14 @@ const AI_PROVIDERS: ProviderOption[] = [
             Reset
           </button>
         </div>
+        <label class="translation-toggle">
+          <input
+            type="checkbox"
+            [checked]="generateExampleTranslations()"
+            (change)="setGenerateExampleTranslations($event)"
+          />
+          Generate with an English translation
+        </label>
         @if (exampleFields().length) {
           <ul class="metadata-list">
             @for (field of exampleFields(); track $index) {
@@ -435,6 +455,22 @@ const AI_PROVIDERS: ProviderOption[] = [
       gap: 0.9rem;
     }
 
+    label.translation-toggle {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.55rem;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    label.translation-toggle input {
+      width: 1rem;
+      height: 1rem;
+      margin: 0;
+      padding: 0;
+      accent-color: var(--accent, #6c63ff);
+    }
+
     .metadata-list {
       display: flex;
       flex-direction: column;
@@ -648,6 +684,8 @@ export class Settings {
   readonly metadataFieldMax = MAX_METADATA_FIELDS;
   readonly definitionFields = signal<AiMetadataField[]>(readDefinitionMetadataFields());
   readonly exampleFields = signal<AiMetadataField[]>(readExampleMetadataFields());
+  readonly generateDefinitionTranslations = signal(readGenerateDefinitionTranslations());
+  readonly generateExampleTranslations = signal(readGenerateExampleTranslations());
   readonly recommendingDefinitions = signal(false);
   readonly recommendingExamples = signal(false);
   readonly definitionSuggestions = signal<AiMetadataField[]>([]);
@@ -683,6 +721,18 @@ export class Settings {
     this.rememberedProvider = provider;
     this.rememberedModel = model;
     this.saved.set(true);
+  }
+
+  setGenerateDefinitionTranslations(event: Event): void {
+    const enabled = event.target instanceof HTMLInputElement && event.target.checked;
+    this.generateDefinitionTranslations.set(enabled);
+    writeGenerateDefinitionTranslations(enabled);
+  }
+
+  setGenerateExampleTranslations(event: Event): void {
+    const enabled = event.target instanceof HTMLInputElement && event.target.checked;
+    this.generateExampleTranslations.set(enabled);
+    writeGenerateExampleTranslations(enabled);
   }
 
   definitionFieldsChanged(): boolean {

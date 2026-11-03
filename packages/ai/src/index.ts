@@ -27,6 +27,14 @@ export {
 } from './storage';
 
 export {
+  readGenerateDefinitionTranslations,
+  readGenerateExampleTranslations,
+  translationLanguage,
+  writeGenerateDefinitionTranslations,
+  writeGenerateExampleTranslations,
+} from './translation-settings';
+
+export {
   DEFAULT_DEFINITION_METADATA_FIELDS,
   DEFAULT_EXAMPLE_METADATA_FIELDS,
   MAX_METADATA_FIELD_KEY,

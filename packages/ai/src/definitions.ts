@@ -18,6 +18,10 @@ import {
   type AiMetadataField,
 } from './metadata-fields';
 import { readStoredAiCredentials } from './storage';
+import {
+  readGenerateDefinitionTranslations,
+  translationLanguage,
+} from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
 const MAX_SENSES = 8;
@@ -154,7 +158,7 @@ export type GenerateFormsInput = {
 export function buildDefinitionsUserMessage(input: GenerateDefinitionsInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = language && language !== 'en' ? 'English' : '';
+  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations());
   return JSON.stringify({
     language,
     writeFieldsIn,
@@ -190,7 +194,9 @@ export function parseGeneratedDefinitions(
     if (!gloss || taken.has(gloss.toLowerCase())) continue;
     taken.add(gloss.toLowerCase());
     const english =
-      language === 'en' ? '' : plainText(sense['english']).slice(0, META_VALUE_MAX_LENGTH);
+      language === 'en' || !readGenerateDefinitionTranslations()
+        ? ''
+        : plainText(sense['english']).slice(0, META_VALUE_MAX_LENGTH);
     definitions.push({
       text: english ? embedTranslation(gloss, 'en', english) : gloss,
       metadata: pickMetadata(sense['metadata'], metadataFieldKeys(readDefinitionMetadataFields())),
@@ -204,7 +210,7 @@ export function buildDefinitionFromExampleUserMessage(
 ): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = language && language !== 'en' ? 'English' : '';
+  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations());
   return JSON.stringify({
     language,
     writeFieldsIn,
@@ -259,7 +265,7 @@ export function buildElementFromSelectionUserMessage(
 ): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = language && language !== 'en' ? 'English' : '';
+  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations());
   const context = input.context.trim().slice(0, MAX_EXAMPLE_LENGTH);
   return JSON.stringify({
     language,
