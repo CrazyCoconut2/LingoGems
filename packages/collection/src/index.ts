@@ -29,6 +29,7 @@ export {
   type ElementEquivalent,
   type ElementExample,
   type ElementMetadata,
+  type ElementMode,
   type StoredElement,
 } from './elements/element-store';
 

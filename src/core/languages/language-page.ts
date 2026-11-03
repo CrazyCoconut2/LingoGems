@@ -209,7 +209,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       }
                     }
                   </span>
-                  <app-score-gauge [score]="element.score" size="md" />
+                  <app-score-gauge [score]="element.score" />
                 </span>
                 <span class="stats">
                   <span
@@ -249,6 +249,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     </svg>
                     <span>{{ element.definitions.length }}</span>
                   </span>
+                  <span class="mode" [attr.aria-label]="'Mode ' + element.mode">{{
+                    element.mode
+                  }}</span>
                 </span>
               </button>
             </li>
@@ -840,6 +843,15 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       text-decoration-color: var(--highlight-color, #6c63ff);
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
+    }
+
+    .mode {
+      flex: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
     }
 
     .stats {

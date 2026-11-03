@@ -572,6 +572,16 @@ function writeExampleSuggestions(
           <div class="header-actions">
             <button
               type="button"
+              class="mode"
+              [attr.aria-label]="'Mode ' + element().mode"
+              title="Mode"
+              [disabled]="busy()"
+              (click)="cycleMode()"
+            >
+              {{ element().mode }}
+            </button>
+            <button
+              type="button"
               class="icon-btn highlight-btn"
               aria-label="Highlight color"
               title="Highlight color"
@@ -2602,6 +2612,33 @@ function writeExampleSuggestions(
 
     .title-main h2 {
       flex: 0 1 auto;
+    }
+
+    .mode {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      height: 1.8rem;
+      border: 0;
+      padding: 0 0.4rem;
+      border-radius: 0.4rem;
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+    }
+
+    .mode:hover:not(:disabled) {
+      color: var(--text);
+      background: rgba(139, 144, 165, 0.16);
+    }
+
+    .mode:disabled {
+      cursor: default;
     }
 
     .title-edit {
@@ -5028,6 +5065,12 @@ export class ElementModal {
     this.scoreOpen.set(false);
   }
 
+  async cycleMode(): Promise<void> {
+    if (this.busy()) return;
+    const mode = this.element().mode === 1 ? 2 : this.element().mode === 2 ? 3 : 1;
+    await this.saveAppearance({ mode });
+  }
+
   async selectScore(level: number): Promise<void> {
     if (this.busy()) return;
     if (this.element().score === level) {
@@ -5117,7 +5160,7 @@ export class ElementModal {
   }
 
   private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'score' | 'highlightColor' | 'highlightStyle'>>,
+    patch: Partial<Pick<StoredElement, 'score' | 'highlightColor' | 'highlightStyle' | 'mode'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
     this.busy.set(true);

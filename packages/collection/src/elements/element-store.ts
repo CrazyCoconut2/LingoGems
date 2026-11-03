@@ -37,6 +37,9 @@ export function formTexts(forms: readonly ElementForm[]): string[] {
   return forms.map((form) => form.text);
 }
 
+/** Learning stage shown on the phrase. Always 1, 2, or 3. */
+export type ElementMode = 1 | 2 | 3;
+
 export type StoredElement = {
   id: string;
   language: LearnableLanguage;
@@ -49,6 +52,7 @@ export type StoredElement = {
   highlightColor: string | null;
   /** Custom underline style. Null is solid. */
   highlightStyle: HighlightStyle | null;
+  mode: ElementMode;
   createdAt: number;
 };
 
@@ -103,6 +107,7 @@ export async function addElement(language: string, title: string): Promise<Store
     score: 1,
     highlightColor: null,
     highlightStyle: null,
+    mode: 1,
     createdAt: Date.now(),
   };
   await putElement(created);
@@ -129,6 +134,7 @@ export async function saveElement(element: StoredElement): Promise<StoredElement
     equivalents: content.equivalents,
     definitions: content.definitions,
     ...appearanceOf(element),
+    mode: normalizeElementMode(element?.mode),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
@@ -168,6 +174,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     equivalents: content.equivalents,
     definitions: content.definitions,
     ...appearanceOf(source),
+    mode: normalizeElementMode(source.mode),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
@@ -183,6 +190,12 @@ function appearanceOf(source: Partial<StoredElement> | null | undefined): {
     highlightColor: sanitizeHighlightColor(source?.highlightColor),
     highlightStyle: sanitizeHighlightStyle(source?.highlightStyle),
   };
+}
+
+/** Missing or unknown values are mode 1. */
+export function normalizeElementMode(value: unknown): ElementMode {
+  const mode = Math.round(Number(value));
+  return mode === 2 || mode === 3 ? mode : 1;
 }
 
 function normalizeContent(
