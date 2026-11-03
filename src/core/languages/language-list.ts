@@ -17,7 +17,7 @@ import {
       <header class="brand">
         <span class="gem gem-mark" aria-hidden="true"></span>
         <div class="titles">
-          <h1>LingoGem</h1>
+          <h1>LingoGems</h1>
           @if (ready() && !languages().length) {
             <p>Set your first language.</p>
           }

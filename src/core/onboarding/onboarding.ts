@@ -28,7 +28,7 @@ const AI_PROVIDERS: ProviderOption<AiProviderId>[] = [
         @switch (step()) {
           @case ('welcome') {
             <div class="copy">
-              <h1>LingoGem</h1>
+              <h1>LingoGems</h1>
               <p>You collect meaning instead of grammar.</p>
             </div>
             <div class="actions">

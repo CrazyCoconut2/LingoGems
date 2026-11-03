@@ -15,6 +15,6 @@ import packageJson from '../../package.json';
 })
 export class App implements OnInit {
   ngOnInit(): void {
-    console.log(`LingoGem v${packageJson.version}`);
+    console.log(`LingoGems v${packageJson.version}`);
   }
 }

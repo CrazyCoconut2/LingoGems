@@ -53,6 +53,7 @@ import {
   verbalizeDefinition,
   type RelatedWord,
 } from 'ai';
+import { Reveal } from './reveal';
 import { ScoreGauge } from './score-gauge';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
@@ -485,7 +486,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [ScoreGauge],
+  imports: [Reveal, ScoreGauge],
   template: `
     <div
       class="backdrop"
@@ -566,7 +567,14 @@ function writeExampleSuggestions(
           }
           @if (headerEquivalents(); as equivalents) {
             @if (equivalents.length) {
-              <p class="equivalents">{{ equivalents.join(', ') }}</p>
+              <p class="equivalents">
+                @for (text of equivalents; track $index) {
+                  @if ($index > 0) {
+                    <span class="sep">, </span>
+                  }
+                  <app-reveal [text]="text" />
+                }
+              </p>
             }
           }
           <div class="header-actions">
@@ -701,7 +709,7 @@ function writeExampleSuggestions(
                       @if (passage.translations.length) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
-                            <li>{{ translation.text }}</li>
+                            <li><app-reveal [text]="translation.text" /></li>
                           }
                         </ul>
                       }
@@ -803,7 +811,7 @@ function writeExampleSuggestions(
                       @if (passage.translations.length) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
-                            <li>{{ translation.text }}</li>
+                            <li><app-reveal [text]="translation.text" /></li>
                           }
                         </ul>
                       }
@@ -812,7 +820,7 @@ function writeExampleSuggestions(
                       @if (equivalent || meta.length) {
                         <ul class="sense-meta">
                           @if (equivalent) {
-                            <li class="sense-equivalent">{{ equivalent }}</li>
+                            <li class="sense-equivalent"><app-reveal [text]="equivalent" /></li>
                           }
                           @for (entry of meta; track entry.key) {
                             <li>
@@ -1062,7 +1070,7 @@ function writeExampleSuggestions(
                               @if (passage.translations.length) {
                                 <ul class="equivalents">
                                   @for (translation of passage.translations; track $index) {
-                                    <li>{{ translation.text }}</li>
+                                    <li><app-reveal [text]="translation.text" /></li>
                                   }
                                 </ul>
                               }
@@ -1371,16 +1379,16 @@ function writeExampleSuggestions(
                       <button
                         type="button"
                         [disabled]="busy()"
-                        [attr.aria-label]="'Edit translation ' + item.text"
+                        [attr.aria-label]="'Edit translation ' + ($index + 1)"
                         (click)="editTitleTranslation(item.id)"
                       >
-                        {{ item.text }}
+                        <app-reveal [text]="item.text" />
                       </button>
                       <button
                         type="button"
                         class="tag-remove"
                         [disabled]="busy()"
-                        [attr.aria-label]="'Remove translation ' + item.text"
+                        [attr.aria-label]="'Remove translation ' + ($index + 1)"
                         (click)="removeTitleTranslation(item.id)"
                       >
                         ×
@@ -1526,9 +1534,10 @@ function writeExampleSuggestions(
                             [class.selected]="equivalentSelected(item.id)"
                             [attr.aria-pressed]="equivalentSelected(item.id)"
                             [disabled]="busy()"
+                            aria-label="Show translation"
                             (click)="chooseEquivalent(item.id)"
                           >
-                            {{ item.text }}
+                            <app-reveal [text]="item.text" />
                           </button>
                         </li>
                       }
