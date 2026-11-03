@@ -39,10 +39,16 @@ export {
   comfortColor,
   comfortColorHex,
   normalizeScore,
+  readScoreColorOverrides,
+  resetScoreColors,
   resolveHighlightColor,
   resolveHighlightStyle,
   sanitizeHighlightColor,
   sanitizeHighlightStyle,
+  scoreChipBg,
+  scoreColorHex,
+  scoreColorOverride,
+  writeScoreColor,
   type HighlightStyle,
 } from './elements/appearance';
 

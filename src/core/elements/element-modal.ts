@@ -13,9 +13,9 @@ import {
 } from '@angular/core';
 import {
   assignEquivalent,
-  comfortChipBg,
-  comfortColor,
   comfortColorHex,
+  scoreChipBg,
+  scoreColorHex,
   deleteElement,
   embedTranslation,
   formTexts,
@@ -2213,8 +2213,8 @@ function writeExampleSuggestions(
                     type="button"
                     class="comfort-step"
                     [class.selected]="element().score === level"
-                    [style.--step-color]="comfortColor(level)"
-                    [style.--step-bg]="comfortChipBg(level)"
+                    [style.--step-color]="scoreColorHex(level)"
+                    [style.--step-bg]="scoreChipBg(level)"
                     [disabled]="busy()"
                     [attr.aria-label]="'' + level"
                     [attr.aria-pressed]="element().score === level"
@@ -3475,8 +3475,8 @@ export class ElementModal {
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
   readonly comfortLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   readonly highlightStyles = HIGHLIGHT_STYLES;
-  readonly comfortColor = comfortColor;
-  readonly comfortChipBg = comfortChipBg;
+  readonly scoreColorHex = scoreColorHex;
+  readonly scoreChipBg = scoreChipBg;
   readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
   readonly relatedPickMax = MAX_RELATED_PICKS;
@@ -3531,7 +3531,7 @@ export class ElementModal {
   readonly colorHue = signal(0);
   readonly colorSat = signal(1);
   readonly colorVal = signal(1);
-  readonly colorDraft = signal(comfortColorHex(1));
+  readonly colorDraft = signal(scoreColorHex(1));
   readonly styleDraft = signal<HighlightStyle>('solid');
   readonly engineerGloss = signal('');
   readonly engineerEnglish = signal('');
@@ -4995,14 +4995,14 @@ export class ElementModal {
     return (
       element.highlightColor != null ||
       element.highlightStyle != null ||
-      this.colorDraft() !== comfortColorHex(element.score) ||
+      this.colorDraft() !== scoreColorHex(element.score) ||
       this.styleDraft() !== 'solid'
     );
   }
 
   resetHighlight(): void {
     if (this.busy() || !this.canResetHighlight()) return;
-    this.applyHighlightHex(comfortColorHex(this.element().score));
+    this.applyHighlightHex(scoreColorHex(this.element().score));
     this.styleDraft.set('solid');
   }
 
@@ -5017,7 +5017,7 @@ export class ElementModal {
   async saveHighlight(): Promise<void> {
     if (this.busy() || !this.highlightDirty()) return;
     const element = this.element();
-    const fallback = comfortColorHex(element.score);
+    const fallback = scoreColorHex(element.score);
     const color = this.colorDraft() === fallback ? null : sanitizeHighlightColor(this.colorDraft());
     const style = this.styleDraft() === 'solid' ? null : this.styleDraft();
     if (await this.saveAppearance({ highlightColor: color, highlightStyle: style })) {
@@ -5044,7 +5044,7 @@ export class ElementModal {
   }
 
   private applyHighlightHex(hex: string): void {
-    const color = sanitizeHighlightColor(hex) ?? comfortColorHex(this.element().score);
+    const color = sanitizeHighlightColor(hex) ?? scoreColorHex(this.element().score);
     const hsv = hexToHsv(color);
     this.colorDraft.set(color);
     this.colorHue.set(hsv.h);

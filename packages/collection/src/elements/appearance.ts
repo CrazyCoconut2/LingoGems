@@ -41,14 +41,83 @@ export function comfortColorHex(level: number): string {
   return hslToHex(comfortHue(level), 70, 62);
 }
 
+const SCORE_COLORS_KEY = 'lingogem.score-colors';
+const SCORE_COUNT = 10;
+
+let scoreColorOverrides = readStoredScoreColors();
+
+/** Saved color for one score, or null when it still uses the default. */
+export function scoreColorOverride(level: number): string | null {
+  return scoreColorOverrides[normalizeScore(level) - 1] ?? null;
+}
+
+/** The ten saved colors, with null where a score still uses its default. */
+export function readScoreColorOverrides(): Array<string | null> {
+  return scoreColorOverrides.slice();
+}
+
+/** Saved color, or the default comfort color for that score. */
+export function scoreColorHex(level: number): string {
+  const score = normalizeScore(level);
+  return scoreColorOverrides[score - 1] ?? comfortColorHex(score);
+}
+
+/** Soft tint of the score color, for the score steps. */
+export function scoreChipBg(level: number): string {
+  return `${scoreColorHex(level)}24`;
+}
+
+/** Save one score color. Null restores the default. The default itself is not stored. */
+export function writeScoreColor(level: number, color: string | null): void {
+  const score = normalizeScore(level);
+  const next = scoreColorOverrides.slice();
+  if (color == null) {
+    next[score - 1] = null;
+  } else {
+    const hex = sanitizeHighlightColor(color);
+    if (!hex) return;
+    next[score - 1] = hex === comfortColorHex(score) ? null : hex;
+  }
+  scoreColorOverrides = next;
+  persistScoreColors();
+}
+
+/** Restore every score to its default color. */
+export function resetScoreColors(): void {
+  if (scoreColorOverrides.every((color) => color == null)) return;
+  scoreColorOverrides = Array.from({ length: SCORE_COUNT }, () => null);
+  persistScoreColors();
+}
+
 /** Stored color, or the score color when none was chosen. */
 export function resolveHighlightColor(stored: unknown, score: number): string {
-  return sanitizeHighlightColor(stored) ?? comfortColorHex(normalizeScore(score));
+  return sanitizeHighlightColor(stored) ?? scoreColorHex(score);
 }
 
 /** Stored style, or solid. */
 export function resolveHighlightStyle(stored: unknown): HighlightStyle {
   return sanitizeHighlightStyle(stored) ?? 'solid';
+}
+
+function readStoredScoreColors(): Array<string | null> {
+  const empty = (): Array<string | null> => Array.from({ length: SCORE_COUNT }, () => null);
+  if (typeof localStorage === 'undefined') return empty();
+  try {
+    const raw = JSON.parse(localStorage.getItem(SCORE_COLORS_KEY) ?? 'null') as unknown;
+    if (!Array.isArray(raw)) return empty();
+    return Array.from({ length: SCORE_COUNT }, (_, index) => sanitizeHighlightColor(raw[index]));
+  } catch {
+    return empty();
+  }
+}
+
+function persistScoreColors(): void {
+  if (typeof localStorage === 'undefined') return;
+  if (scoreColorOverrides.every((color) => color == null)) {
+    localStorage.removeItem(SCORE_COLORS_KEY);
+    return;
+  }
+  localStorage.setItem(SCORE_COLORS_KEY, JSON.stringify(scoreColorOverrides));
 }
 
 function comfortHue(level: number): number {
