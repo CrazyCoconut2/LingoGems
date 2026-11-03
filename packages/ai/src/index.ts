@@ -42,6 +42,12 @@ export {
   type AiMetadataField,
 } from './metadata-fields';
 
+export {
+  buildRecommendMetadataUserMessage,
+  parseRecommendedMetadataFields,
+  recommendMetadataFields,
+} from './recommend-metadata';
+
 export { completeChat, completeJson, runWithKeyFallback } from './complete';
 
 export {

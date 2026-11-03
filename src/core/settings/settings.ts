@@ -12,6 +12,7 @@ import {
   readDefinitionMetadataFields,
   readExampleMetadataFields,
   readStoredAiCredentials,
+  recommendMetadataFields,
   resetDefinitionMetadataFields,
   resetExampleMetadataFields,
   writeDefinitionMetadataFields,
@@ -143,14 +144,49 @@ const AI_PROVIDERS: ProviderOption[] = [
             }
           </ul>
         }
-        <button
-          type="button"
-          class="metadata-add"
-          [disabled]="definitionFields().length >= metadataFieldMax"
-          (click)="addDefinitionField()"
-        >
-          Add field
-        </button>
+        <div class="metadata-actions">
+          <button
+            type="button"
+            class="metadata-add"
+            [disabled]="definitionFields().length >= metadataFieldMax"
+            (click)="addDefinitionField()"
+          >
+            Add field
+          </button>
+          <button
+            type="button"
+            class="metadata-add"
+            [disabled]="recommendingDefinitions()"
+            [attr.aria-busy]="recommendingDefinitions() ? true : null"
+            (click)="recommendDefinitions()"
+          >
+            Recommend
+          </button>
+        </div>
+        @if (definitionRecommendError()) {
+          <p class="recommend-error">{{ definitionRecommendError() }}</p>
+        }
+        @let definitionPicks = openSuggestions(definitionSuggestions(), definitionFields());
+        @if (definitionPicks.length) {
+          <ul class="metadata-suggestions">
+            @for (field of definitionPicks; track field.key) {
+              <li class="metadata-suggestion">
+                <div>
+                  <strong>{{ field.key }}</strong>
+                  <p>{{ field.prompt || 'Whatever fits' }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="metadata-add"
+                  [disabled]="!canAccept(definitionFields())"
+                  (click)="acceptDefinitionSuggestion(field)"
+                >
+                  Add
+                </button>
+              </li>
+            }
+          </ul>
+        }
       </section>
 
       <section class="metadata" aria-label="Example metadata">
@@ -204,14 +240,49 @@ const AI_PROVIDERS: ProviderOption[] = [
             }
           </ul>
         }
-        <button
-          type="button"
-          class="metadata-add"
-          [disabled]="exampleFields().length >= metadataFieldMax"
-          (click)="addExampleField()"
-        >
-          Add field
-        </button>
+        <div class="metadata-actions">
+          <button
+            type="button"
+            class="metadata-add"
+            [disabled]="exampleFields().length >= metadataFieldMax"
+            (click)="addExampleField()"
+          >
+            Add field
+          </button>
+          <button
+            type="button"
+            class="metadata-add"
+            [disabled]="recommendingExamples()"
+            [attr.aria-busy]="recommendingExamples() ? true : null"
+            (click)="recommendExamples()"
+          >
+            Recommend
+          </button>
+        </div>
+        @if (exampleRecommendError()) {
+          <p class="recommend-error">{{ exampleRecommendError() }}</p>
+        }
+        @let examplePicks = openSuggestions(exampleSuggestions(), exampleFields());
+        @if (examplePicks.length) {
+          <ul class="metadata-suggestions">
+            @for (field of examplePicks; track field.key) {
+              <li class="metadata-suggestion">
+                <div>
+                  <strong>{{ field.key }}</strong>
+                  <p>{{ field.prompt || 'Whatever fits' }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="metadata-add"
+                  [disabled]="!canAccept(exampleFields())"
+                  (click)="acceptExampleSuggestion(field)"
+                >
+                  Add
+                </button>
+              </li>
+            }
+          </ul>
+        }
       </section>
 
       <section class="score-colors" aria-label="Score colors">
@@ -422,6 +493,57 @@ const AI_PROVIDERS: ProviderOption[] = [
       cursor: not-allowed;
     }
 
+    .metadata-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .metadata-suggestions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .metadata-suggestion {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.7rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+
+    .metadata-suggestion div {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      min-width: 0;
+    }
+
+    .metadata-suggestion strong {
+      font-size: 0.9rem;
+    }
+
+    .metadata-suggestion p {
+      font-size: 0.85rem;
+    }
+
+    .metadata-suggestion .metadata-add {
+      flex: none;
+      margin-top: 0.1rem;
+    }
+
+    .recommend-error {
+      color: var(--text);
+      font-size: 0.875rem;
+    }
+
     .actions {
       display: flex;
       align-items: center;
@@ -526,6 +648,14 @@ export class Settings {
   readonly metadataFieldMax = MAX_METADATA_FIELDS;
   readonly definitionFields = signal<AiMetadataField[]>(readDefinitionMetadataFields());
   readonly exampleFields = signal<AiMetadataField[]>(readExampleMetadataFields());
+  readonly recommendingDefinitions = signal(false);
+  readonly recommendingExamples = signal(false);
+  readonly definitionSuggestions = signal<AiMetadataField[]>([]);
+  readonly exampleSuggestions = signal<AiMetadataField[]>([]);
+  readonly definitionRecommendError = signal('');
+  readonly exampleRecommendError = signal('');
+  private definitionRecommendJob = 0;
+  private exampleRecommendJob = 0;
   private keyId = this.stored?.id ?? '';
   private rememberedProvider = this.stored?.provider;
   private rememberedModel = this.stored?.model ?? '';
@@ -581,6 +711,34 @@ export class Settings {
     this.exampleFields.update((fields) => appendField(fields));
   }
 
+  recommendDefinitions(): void {
+    void this.recommend('definition');
+  }
+
+  recommendExamples(): void {
+    void this.recommend('example');
+  }
+
+  openSuggestions(
+    suggestions: readonly AiMetadataField[],
+    fields: readonly AiMetadataField[],
+  ): AiMetadataField[] {
+    const taken = new Set(fields.map((field) => field.key.trim().toLowerCase()).filter(Boolean));
+    return suggestions.filter((field) => !taken.has(field.key.toLowerCase()));
+  }
+
+  canAccept(fields: readonly AiMetadataField[]): boolean {
+    return fields.length < MAX_METADATA_FIELDS || fields.some((field) => !field.key.trim());
+  }
+
+  acceptDefinitionSuggestion(field: AiMetadataField): void {
+    this.acceptSuggestion('definition', field);
+  }
+
+  acceptExampleSuggestion(field: AiMetadataField): void {
+    this.acceptSuggestion('example', field);
+  }
+
   removeDefinitionField(index: number): void {
     this.definitionFields.update((fields) => fields.filter((_, item) => item !== index));
     writeDefinitionMetadataFields(this.definitionFields());
@@ -599,6 +757,50 @@ export class Settings {
   resetExampleFields(): void {
     resetExampleMetadataFields();
     this.exampleFields.set(readExampleMetadataFields());
+  }
+
+  private async recommend(kind: 'definition' | 'example'): Promise<void> {
+    const definitions = kind === 'definition';
+    const recommending = definitions ? this.recommendingDefinitions : this.recommendingExamples;
+    const error = definitions ? this.definitionRecommendError : this.exampleRecommendError;
+    const suggestions = definitions ? this.definitionSuggestions : this.exampleSuggestions;
+    if (!readStoredAiCredentials().keys.length) {
+      error.set('Save an API key first.');
+      return;
+    }
+    const job = definitions ? ++this.definitionRecommendJob : ++this.exampleRecommendJob;
+    recommending.set(true);
+    error.set('');
+    const existing = definitions ? this.definitionFields() : this.exampleFields();
+    try {
+      const fields = await recommendMetadataFields(kind, existing);
+      if (!this.recommendCurrent(kind, job)) return;
+      suggestions.set(fields);
+      if (!fields.length) error.set('No further fields.');
+    } catch {
+      if (this.recommendCurrent(kind, job)) error.set('Could not recommend fields.');
+    } finally {
+      if (this.recommendCurrent(kind, job)) recommending.set(false);
+    }
+  }
+
+  private acceptSuggestion(kind: 'definition' | 'example', field: AiMetadataField): void {
+    const definitions = kind === 'definition';
+    const source = definitions ? this.definitionFields : this.exampleFields;
+    if (!this.canAccept(source())) return;
+    source.update((fields) => acceptField(fields, field));
+    if (definitions) writeDefinitionMetadataFields(source());
+    else writeExampleMetadataFields(source());
+    const suggestions = definitions ? this.definitionSuggestions : this.exampleSuggestions;
+    suggestions.update((fields) =>
+      fields.filter((item) => item.key.toLowerCase() !== field.key.toLowerCase()),
+    );
+  }
+
+  private recommendCurrent(kind: 'definition' | 'example', job: number): boolean {
+    return kind === 'definition'
+      ? job === this.definitionRecommendJob
+      : job === this.exampleRecommendJob;
   }
 
   colorFor(level: number): string {
@@ -660,6 +862,20 @@ function replaceField(
 function appendField(fields: readonly AiMetadataField[]): AiMetadataField[] {
   if (fields.length >= MAX_METADATA_FIELDS) return [...fields];
   return [...fields, { key: '', prompt: '' }];
+}
+
+function acceptField(
+  fields: readonly AiMetadataField[],
+  field: AiMetadataField,
+): AiMetadataField[] {
+  const blank = fields.findIndex((item) => !item.key.trim());
+  if (blank >= 0) {
+    return fields.map((item, index) =>
+      index === blank ? { key: field.key, prompt: field.prompt } : item,
+    );
+  }
+  if (fields.length >= MAX_METADATA_FIELDS) return [...fields];
+  return [...fields, { key: field.key, prompt: field.prompt }];
 }
 
 function newKeyId(): string {
