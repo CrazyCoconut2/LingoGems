@@ -1,6 +1,19 @@
-import { embedTranslation, languageDisplayName, parsePassage } from 'collection';
+import {
+  embedTranslation,
+  languageDisplayName,
+  parsePassage,
+  type ElementMetadata,
+} from 'collection';
 import { completeJson, runWithKeyFallback } from './complete';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
+import {
+  exampleSentenceShape,
+  metadataFieldKeys,
+  metadataRuleLines,
+  pickMetadata,
+  readExampleMetadataFields,
+  type AiMetadataField,
+} from './metadata-fields';
 import { readStoredAiCredentials } from './storage';
 import type { CompleteJsonInput } from './types';
 
@@ -9,28 +22,39 @@ export const MAX_EXAMPLE_WORDS = 20;
 export const MAX_EXAMPLE_INSTRUCTION = 400;
 const EXAMPLES_MAX_TOKENS = 1024;
 
-const EXAMPLE_SHAPE = '{"text":"<sentence>"}';
-
-export const EXAMPLES_SYSTEM_PROMPT = `You write one dictionary example sentence for one sense.
-JSON keys stay in English.
-The sentence MUST be in the language named by writeFieldsIn.
-Do not use English for the sentence unless writeFieldsIn is English.
-Rules:
-- Return exactly one example
-- When requiredForm is absent, the sentence MUST include the lemma, or an exact form listed in forms, naturally
-- When requiredForm is present, the sentence MUST contain that exact form. Do not use the lemma or a different inflection instead
-- Match the given gloss. Do not invent another sense
-- Write the sentence so the meaning of the lemma is obvious from the rest of the sentence. A learner who knows the other words should be able to tell what the lemma means immediately
-- exampleWords, when present, are words the learner chose to include. Use as many as fit naturally. Do not pull in other collection words. The array order is not an order to use in the sentence
-- exampleInstruction, when present, is the learner's note about the subject or the wording. Follow it. It does not override the other rules
-- Do not add citations or bracket tags such as [en:…]
-- Do not repeat existingExamples
-- Keep the sentence at most ${MAX_EXAMPLE_LENGTH} characters
-- Spelling MUST be correct
-translateFieldsIn, when present, is English. Then the example MUST include "english", a faithful English translation of the sentence, with its first letter capitalized. When translateFieldsIn is absent, omit "english".
-Return JSON only with this shape:
-{"examples":[${EXAMPLE_SHAPE}]}
-When translateFieldsIn is present, add "english":"<sentence in English>" on the example.`;
+export function examplesSystemPrompt(
+  fields: readonly AiMetadataField[] = readExampleMetadataFields(),
+): string {
+  const lines = [
+    'You write one dictionary example sentence for one sense.',
+    'JSON keys stay in English.',
+    'The sentence MUST be in the language named by writeFieldsIn.',
+    'Do not use English for the sentence unless writeFieldsIn is English.',
+  ];
+  if (fields.length) {
+    lines.push('Do not copy English labels into metadata; write those values in writeFieldsIn.');
+  }
+  lines.push(
+    'Rules:',
+    '- Return exactly one example',
+    '- When requiredForm is absent, the sentence MUST include the lemma, or an exact form listed in forms, naturally',
+    '- When requiredForm is present, the sentence MUST contain that exact form. Do not use the lemma or a different inflection instead',
+    '- Match the given gloss. Do not invent another sense',
+    '- Write the sentence so the meaning of the lemma is obvious from the rest of the sentence. A learner who knows the other words should be able to tell what the lemma means immediately',
+    '- exampleWords, when present, are words the learner chose to include. Use as many as fit naturally. Do not pull in other collection words. The array order is not an order to use in the sentence',
+    "- exampleInstruction, when present, is the learner's note about the subject or the wording. Follow it. It does not override the other rules",
+    '- Do not add citations or bracket tags such as [en:…]',
+    '- Do not repeat existingExamples',
+    `- Keep the sentence at most ${MAX_EXAMPLE_LENGTH} characters`,
+    '- Spelling MUST be correct',
+    ...metadataRuleLines('example', fields),
+    'translateFieldsIn, when present, is English. Then the example MUST include "english", a faithful English translation of the sentence, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
+    'Return JSON only with this shape:',
+    `{"examples":[${exampleSentenceShape(fields)}]}`,
+    'When translateFieldsIn is present, add "english":"<sentence in English>" on the example.',
+  );
+  return lines.join('\n');
+}
 
 export type GenerateExamplesInput = {
   language: string;
@@ -44,7 +68,7 @@ export type GenerateExamplesInput = {
   requiredForm?: string;
 };
 
-export type GeneratedExample = { text: string };
+export type GeneratedExample = { text: string; metadata: ElementMetadata };
 
 export function buildExamplesUserMessage(input: GenerateExamplesInput): string {
   const language = input.language.trim().toLowerCase();
@@ -105,7 +129,12 @@ export function parseGeneratedExamples(
       language === 'en'
         ? ''
         : parsePassage(plainText(example['english'])).text.slice(0, MAX_EXAMPLE_LENGTH);
-    return [{ text: english ? embedTranslation(sentence, 'en', english) : sentence }];
+    return [
+      {
+        text: english ? embedTranslation(sentence, 'en', english) : sentence,
+        metadata: pickMetadata(example['metadata'], metadataFieldKeys(readExampleMetadataFields())),
+      },
+    ];
   }
   return [];
 }
@@ -120,7 +149,7 @@ export async function generateExamples(
   if (!title || !language || !gloss) return [];
   const ready = { ...request, title, language, gloss };
   const input: CompleteJsonInput = {
-    system: EXAMPLES_SYSTEM_PROMPT,
+    system: examplesSystemPrompt(),
     user: buildExamplesUserMessage(ready),
     maxTokens: EXAMPLES_MAX_TOKENS,
     temperature: 0.4,

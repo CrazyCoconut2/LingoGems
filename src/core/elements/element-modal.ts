@@ -4883,7 +4883,7 @@ export class ElementModal {
         this.error.set('No further examples.');
         return;
       }
-      target.examples.push({ text: sentence.text, metadata: {} });
+      target.examples.push({ text: sentence.text, metadata: sentence.metadata });
       if (!(await this.persist(definitions, this.element().equivalents))) return;
       if (this.element().id === element.id) this.exampleEngineer.set(null);
     } catch {

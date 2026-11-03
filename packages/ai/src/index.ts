@@ -26,6 +26,22 @@ export {
   writeStoredAiCredentials,
 } from './storage';
 
+export {
+  DEFAULT_DEFINITION_METADATA_FIELDS,
+  DEFAULT_EXAMPLE_METADATA_FIELDS,
+  MAX_METADATA_FIELD_KEY,
+  MAX_METADATA_FIELD_PROMPT,
+  MAX_METADATA_FIELDS,
+  metadataFieldsMatch,
+  readDefinitionMetadataFields,
+  readExampleMetadataFields,
+  resetDefinitionMetadataFields,
+  resetExampleMetadataFields,
+  writeDefinitionMetadataFields,
+  writeExampleMetadataFields,
+  type AiMetadataField,
+} from './metadata-fields';
+
 export { completeChat, completeJson, runWithKeyFallback } from './complete';
 
 export {
@@ -51,9 +67,10 @@ export {
 } from './translate';
 
 export {
-  DEFINITION_FROM_EXAMPLE_SYSTEM_PROMPT,
-  DEFINITIONS_SYSTEM_PROMPT,
   FORMS_SYSTEM_PROMPT,
+  definitionFromExampleSystemPrompt,
+  definitionsSystemPrompt,
+  elementFromSelectionSystemPrompt,
   buildDefinitionFromExampleUserMessage,
   buildDefinitionsUserMessage,
   buildFormsUserMessage,
@@ -72,11 +89,11 @@ export {
 } from './definitions';
 
 export {
-  EXAMPLES_SYSTEM_PROMPT,
   MAX_EXAMPLE_INSTRUCTION,
   MAX_EXAMPLE_LENGTH,
   MAX_EXAMPLE_WORDS,
   buildExamplesUserMessage,
+  examplesSystemPrompt,
   generateExamples,
   parseGeneratedExamples,
   sentenceUsesForm,

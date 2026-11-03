@@ -3,9 +3,21 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
+  DEFAULT_DEFINITION_METADATA_FIELDS,
+  DEFAULT_EXAMPLE_METADATA_FIELDS,
+  MAX_METADATA_FIELD_KEY,
+  MAX_METADATA_FIELD_PROMPT,
+  MAX_METADATA_FIELDS,
   isAiProvider,
+  readDefinitionMetadataFields,
+  readExampleMetadataFields,
   readStoredAiCredentials,
+  resetDefinitionMetadataFields,
+  resetExampleMetadataFields,
+  writeDefinitionMetadataFields,
+  writeExampleMetadataFields,
   writeStoredAiCredentials,
+  type AiMetadataField,
   type AiProviderId,
 } from 'ai';
 import {
@@ -79,6 +91,128 @@ const AI_PROVIDERS: ProviderOption[] = [
           <button type="submit" class="btn btn-primary" [disabled]="!ready()">Save</button>
         </div>
       </form>
+
+      <section class="metadata" aria-label="Definition metadata">
+        <div class="score-head">
+          <div class="copy">
+            <h2>Definition metadata</h2>
+            <p>
+              Asked when fetching definitions. The note is what the AI is told for that field. Leave
+              it empty to accept whatever fits.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="score-reset"
+            [disabled]="!definitionFieldsChanged()"
+            (click)="resetDefinitionFields()"
+          >
+            Reset
+          </button>
+        </div>
+        @if (definitionFields().length) {
+          <ul class="metadata-list">
+            @for (field of definitionFields(); track $index) {
+              <li class="metadata-field">
+                <div class="metadata-key-row">
+                  <input
+                    [attr.aria-label]="'Definition metadata key ' + ($index + 1)"
+                    [attr.maxlength]="metadataKeyMax"
+                    placeholder="Key"
+                    [value]="field.key"
+                    (input)="setDefinitionField($index, 'key', inputValue($event))"
+                  />
+                  <button
+                    type="button"
+                    class="metadata-remove"
+                    [attr.aria-label]="'Remove definition metadata ' + ($index + 1)"
+                    (click)="removeDefinitionField($index)"
+                  >
+                    ×
+                  </button>
+                </div>
+                <textarea
+                  [attr.aria-label]="'Note for definition metadata ' + ($index + 1)"
+                  [attr.maxlength]="metadataPromptMax"
+                  placeholder="Whatever fits"
+                  rows="2"
+                  [value]="field.prompt"
+                  (input)="setDefinitionField($index, 'prompt', inputValue($event))"
+                ></textarea>
+              </li>
+            }
+          </ul>
+        }
+        <button
+          type="button"
+          class="metadata-add"
+          [disabled]="definitionFields().length >= metadataFieldMax"
+          (click)="addDefinitionField()"
+        >
+          Add field
+        </button>
+      </section>
+
+      <section class="metadata" aria-label="Example metadata">
+        <div class="score-head">
+          <div class="copy">
+            <h2>Example metadata</h2>
+            <p>
+              Asked when fetching examples. The note is what the AI is told for that field. Leave it
+              empty to accept whatever fits.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="score-reset"
+            [disabled]="!exampleFieldsChanged()"
+            (click)="resetExampleFields()"
+          >
+            Reset
+          </button>
+        </div>
+        @if (exampleFields().length) {
+          <ul class="metadata-list">
+            @for (field of exampleFields(); track $index) {
+              <li class="metadata-field">
+                <div class="metadata-key-row">
+                  <input
+                    [attr.aria-label]="'Example metadata key ' + ($index + 1)"
+                    [attr.maxlength]="metadataKeyMax"
+                    placeholder="Key"
+                    [value]="field.key"
+                    (input)="setExampleField($index, 'key', inputValue($event))"
+                  />
+                  <button
+                    type="button"
+                    class="metadata-remove"
+                    [attr.aria-label]="'Remove example metadata ' + ($index + 1)"
+                    (click)="removeExampleField($index)"
+                  >
+                    ×
+                  </button>
+                </div>
+                <textarea
+                  [attr.aria-label]="'Note for example metadata ' + ($index + 1)"
+                  [attr.maxlength]="metadataPromptMax"
+                  placeholder="Whatever fits"
+                  rows="2"
+                  [value]="field.prompt"
+                  (input)="setExampleField($index, 'prompt', inputValue($event))"
+                ></textarea>
+              </li>
+            }
+          </ul>
+        }
+        <button
+          type="button"
+          class="metadata-add"
+          [disabled]="exampleFields().length >= metadataFieldMax"
+          (click)="addExampleField()"
+        >
+          Add field
+        </button>
+      </section>
 
       <section class="score-colors" aria-label="Score colors">
         <div class="score-head">
@@ -207,12 +341,85 @@ const AI_PROVIDERS: ProviderOption[] = [
     }
 
     input,
-    select {
+    select,
+    textarea {
       padding: 0.75rem 0.85rem;
       border: 1px solid var(--border);
       border-radius: 12px;
       background: var(--surface);
       color: var(--text);
+      font: inherit;
+    }
+
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 4.5rem;
+      resize: vertical;
+    }
+
+    .metadata {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+
+    .metadata-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .metadata-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .metadata-key-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .metadata-key-row input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .metadata-remove {
+      flex: none;
+      width: 2.25rem;
+      height: 2.25rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 1.15rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .metadata-add {
+      align-self: flex-start;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.8125rem;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .metadata-add:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
 
     .actions {
@@ -314,6 +521,11 @@ export class Settings {
   readonly ready = computed(() => this.apiKey().trim().length > 0);
   readonly scoreLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   readonly scoreColors = signal(readScoreColorOverrides());
+  readonly metadataKeyMax = MAX_METADATA_FIELD_KEY;
+  readonly metadataPromptMax = MAX_METADATA_FIELD_PROMPT;
+  readonly metadataFieldMax = MAX_METADATA_FIELDS;
+  readonly definitionFields = signal<AiMetadataField[]>(readDefinitionMetadataFields());
+  readonly exampleFields = signal<AiMetadataField[]>(readExampleMetadataFields());
   private keyId = this.stored?.id ?? '';
   private rememberedProvider = this.stored?.provider;
   private rememberedModel = this.stored?.model ?? '';
@@ -341,6 +553,52 @@ export class Settings {
     this.rememberedProvider = provider;
     this.rememberedModel = model;
     this.saved.set(true);
+  }
+
+  definitionFieldsChanged(): boolean {
+    return fieldsDiffer(this.definitionFields(), DEFAULT_DEFINITION_METADATA_FIELDS);
+  }
+
+  exampleFieldsChanged(): boolean {
+    return fieldsDiffer(this.exampleFields(), DEFAULT_EXAMPLE_METADATA_FIELDS);
+  }
+
+  setDefinitionField(index: number, part: 'key' | 'prompt', value: string): void {
+    this.definitionFields.update((fields) => replaceField(fields, index, part, value));
+    writeDefinitionMetadataFields(this.definitionFields());
+  }
+
+  setExampleField(index: number, part: 'key' | 'prompt', value: string): void {
+    this.exampleFields.update((fields) => replaceField(fields, index, part, value));
+    writeExampleMetadataFields(this.exampleFields());
+  }
+
+  addDefinitionField(): void {
+    this.definitionFields.update((fields) => appendField(fields));
+  }
+
+  addExampleField(): void {
+    this.exampleFields.update((fields) => appendField(fields));
+  }
+
+  removeDefinitionField(index: number): void {
+    this.definitionFields.update((fields) => fields.filter((_, item) => item !== index));
+    writeDefinitionMetadataFields(this.definitionFields());
+  }
+
+  removeExampleField(index: number): void {
+    this.exampleFields.update((fields) => fields.filter((_, item) => item !== index));
+    writeExampleMetadataFields(this.exampleFields());
+  }
+
+  resetDefinitionFields(): void {
+    resetDefinitionMetadataFields();
+    this.definitionFields.set(readDefinitionMetadataFields());
+  }
+
+  resetExampleFields(): void {
+    resetExampleMetadataFields();
+    this.exampleFields.set(readExampleMetadataFields());
   }
 
   colorFor(level: number): string {
@@ -377,6 +635,31 @@ export class Settings {
     }
     void this.router.navigateByUrl('/');
   }
+}
+
+function fieldsDiffer(
+  fields: readonly AiMetadataField[],
+  defaults: readonly AiMetadataField[],
+): boolean {
+  if (fields.length !== defaults.length) return true;
+  return fields.some(
+    (field, index) =>
+      field.key !== defaults[index]?.key || field.prompt !== defaults[index]?.prompt,
+  );
+}
+
+function replaceField(
+  fields: readonly AiMetadataField[],
+  index: number,
+  part: 'key' | 'prompt',
+  value: string,
+): AiMetadataField[] {
+  return fields.map((field, item) => (item === index ? { ...field, [part]: value } : field));
+}
+
+function appendField(fields: readonly AiMetadataField[]): AiMetadataField[] {
+  if (fields.length >= MAX_METADATA_FIELDS) return [...fields];
+  return [...fields, { key: '', prompt: '' }];
 }
 
 function newKeyId(): string {

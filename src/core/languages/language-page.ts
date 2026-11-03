@@ -77,11 +77,11 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       </header>
 
       <section class="entries-toolbar" aria-label="Search">
-        <form class="search-bar" (submit)="lookup($event)">
+        <form class="search-bar" autocomplete="off" (submit)="lookup($event)">
           <input
             class="entry-input"
             type="search"
-            name="entry"
+            autocomplete="off"
             [value]="query()"
             [attr.maxlength]="maxSearchLength"
             (input)="onSearch(inputValue($event))"

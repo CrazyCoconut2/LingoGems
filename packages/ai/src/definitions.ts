@@ -9,82 +9,112 @@ import {
 import { completeJson, runWithKeyFallback } from './complete';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { MAX_EXAMPLE_LENGTH } from './examples';
+import {
+  definitionSenseShape,
+  metadataFieldKeys,
+  metadataRuleLines,
+  pickMetadata,
+  readDefinitionMetadataFields,
+  type AiMetadataField,
+} from './metadata-fields';
 import { readStoredAiCredentials } from './storage';
 import type { CompleteJsonInput } from './types';
 
 const MAX_SENSES = 8;
-const META_KEY_MAX_LENGTH = 40;
 const META_VALUE_MAX_LENGTH = 100;
 const FORM_MAX_LENGTH = 100;
 const DEFINITIONS_MAX_TOKENS = 4096;
 const FORMS_MAX_TOKENS = 8192;
 const MAX_FORMS = 80;
 
-const DEFINITION_METADATA_KEYS = ['part of speech', 'gender', 'transitivity', 'register'] as const;
 const FORM_METADATA_KEYS = ['tense', 'person', 'number', 'mood'] as const;
 
-const SENSE_SHAPE = `{"gloss":"<definition in writeFieldsIn>","metadata":{"part of speech":"<part of speech>"}}`;
 const FORM_SHAPE = `{"text":"<surface form>","metadata":{"tense":"<tense>","person":"<person>","number":"<number>","mood":"<mood>"}}`;
 
-export const DEFINITIONS_SYSTEM_PROMPT = `You write dictionary senses for one headword.
-JSON keys stay in English.
-Every gloss MUST be in the language named by writeFieldsIn.
-Do not use English for a gloss unless writeFieldsIn is English.
-Do not copy English labels into metadata; write those values in writeFieldsIn.
-Rules:
-- One sense per distinct meaning
-- Do not repeat a meaning or a gloss already listed in existingDefinitions. Those are senses already kept, and they include no forms
-- Return at most ${MAX_SENSES} senses
-- One short dictionary-style gloss per sense
-- Do not include examples, forms, or citations
-- Do not add bracket tags such as [en:…]
-- Spelling MUST be correct in every gloss and English gloss
-- metadata is key-value pairs that apply to that definition. Omit a pair when it does not apply
-- Definition metadata keys are only "part of speech", "gender", "transitivity", and "register"
-translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".
-Return JSON only with this shape:
-{"senses":[${SENSE_SHAPE}]}
-When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.`;
+export function definitionsSystemPrompt(
+  fields: readonly AiMetadataField[] = readDefinitionMetadataFields(),
+): string {
+  return joinPrompt([
+    'You write dictionary senses for one headword.',
+    'JSON keys stay in English.',
+    'Every gloss MUST be in the language named by writeFieldsIn.',
+    'Do not use English for a gloss unless writeFieldsIn is English.',
+    metadataIntro(fields),
+    'Rules:',
+    '- One sense per distinct meaning',
+    '- Do not repeat a meaning or a gloss already listed in existingDefinitions. Those are senses already kept, and they include no forms',
+    `- Return at most ${MAX_SENSES} senses`,
+    '- One short dictionary-style gloss per sense',
+    '- Do not include examples, forms, or citations',
+    '- Do not add bracket tags such as [en:…]',
+    '- Spelling MUST be correct in every gloss and English gloss',
+    ...metadataRuleLines('definition', fields),
+    'translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
+    'Return JSON only with this shape:',
+    `{"senses":[${definitionSenseShape(fields)}]}`,
+    'When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.',
+  ]);
+}
 
-export const ELEMENT_FROM_SELECTION_SYSTEM_PROMPT = `You add one dictionary element from a selected word or phrase.
-JSON keys stay in English.
-Every gloss MUST be in the language named by writeFieldsIn.
-Do not use English for a gloss unless writeFieldsIn is English.
-Do not copy English labels into metadata; write those values in writeFieldsIn.
-Rules:
-- lemma is the citation form of the selection, the root headword, in the selection's language. When the selection is already that form, lemma is the selection. Do not choose a different word
-- One sense per distinct meaning of that lemma
-- Return at most ${MAX_SENSES} senses
-- One short dictionary-style gloss per sense
-- Do not include examples, forms, or citations
-- Do not add bracket tags such as [en:…]
-- Spelling MUST be correct in the lemma, every gloss, and every English gloss
-- metadata is key-value pairs that apply to that definition. Omit a pair when it does not apply
-- Definition metadata keys are only "part of speech", "gender", "transitivity", and "register"
-translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".
-Return JSON only with this shape:
-{"lemma":"<root lemma>","senses":[${SENSE_SHAPE}]}
-When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.`;
+export function elementFromSelectionSystemPrompt(
+  fields: readonly AiMetadataField[] = readDefinitionMetadataFields(),
+): string {
+  return joinPrompt([
+    'You add one dictionary element from a selected word or phrase.',
+    'JSON keys stay in English.',
+    'Every gloss MUST be in the language named by writeFieldsIn.',
+    'Do not use English for a gloss unless writeFieldsIn is English.',
+    metadataIntro(fields),
+    'Rules:',
+    "- lemma is the citation form of the selection, the root headword, in the selection's language. When the selection is already that form, lemma is the selection. Do not choose a different word",
+    '- One sense per distinct meaning of that lemma',
+    `- Return at most ${MAX_SENSES} senses`,
+    '- One short dictionary-style gloss per sense',
+    '- Do not include examples, forms, or citations',
+    '- Do not add bracket tags such as [en:…]',
+    '- Spelling MUST be correct in the lemma, every gloss, and every English gloss',
+    ...metadataRuleLines('definition', fields),
+    'translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
+    'Return JSON only with this shape:',
+    `{"lemma":"<root lemma>","senses":[${definitionSenseShape(fields)}]}`,
+    'When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.',
+  ]);
+}
 
-export const DEFINITION_FROM_EXAMPLE_SYSTEM_PROMPT = `You write one dictionary sense for a headword from one example sentence.
-JSON keys stay in English.
-The gloss MUST be in the language named by writeFieldsIn.
-Do not use English for a gloss unless writeFieldsIn is English.
-Do not copy English labels into metadata; write those values in writeFieldsIn.
-Rules:
-- Return exactly one sense: the meaning of the lemma as it is used in example
-- Do not define a different meaning
-- Do not repeat a meaning or a gloss already listed in existingDefinitions
-- One short dictionary-style gloss
-- Do not include the example, other examples, forms, or citations
-- Do not add bracket tags such as [en:…]
-- Spelling MUST be correct in the gloss and the English gloss
-- metadata is key-value pairs that apply to that definition. Omit a pair when it does not apply
-- Definition metadata keys are only "part of speech", "gender", "transitivity", and "register"
-translateFieldsIn, when present, is English. Then the sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".
-Return JSON only with this shape:
-{"senses":[${SENSE_SHAPE}]}
-When translateFieldsIn is present, add "english":"<gloss in English>" on the sense.`;
+export function definitionFromExampleSystemPrompt(
+  fields: readonly AiMetadataField[] = readDefinitionMetadataFields(),
+): string {
+  return joinPrompt([
+    'You write one dictionary sense for a headword from one example sentence.',
+    'JSON keys stay in English.',
+    'The gloss MUST be in the language named by writeFieldsIn.',
+    'Do not use English for a gloss unless writeFieldsIn is English.',
+    metadataIntro(fields),
+    'Rules:',
+    '- Return exactly one sense: the meaning of the lemma as it is used in example',
+    '- Do not define a different meaning',
+    '- Do not repeat a meaning or a gloss already listed in existingDefinitions',
+    '- One short dictionary-style gloss',
+    '- Do not include the example, other examples, forms, or citations',
+    '- Do not add bracket tags such as [en:…]',
+    '- Spelling MUST be correct in the gloss and the English gloss',
+    ...metadataRuleLines('definition', fields),
+    'translateFieldsIn, when present, is English. Then the sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
+    'Return JSON only with this shape:',
+    `{"senses":[${definitionSenseShape(fields)}]}`,
+    'When translateFieldsIn is present, add "english":"<gloss in English>" on the sense.',
+  ]);
+}
+
+function metadataIntro(fields: readonly AiMetadataField[]): string {
+  return fields.length
+    ? 'Do not copy English labels into metadata; write those values in writeFieldsIn.'
+    : '';
+}
+
+function joinPrompt(lines: readonly string[]): string {
+  return lines.filter((line) => line !== '').join('\n');
+}
 
 export const FORMS_SYSTEM_PROMPT = `You list the surface forms of one dictionary sense.
 JSON keys stay in English.
@@ -163,7 +193,7 @@ export function parseGeneratedDefinitions(
       language === 'en' ? '' : plainText(sense['english']).slice(0, META_VALUE_MAX_LENGTH);
     definitions.push({
       text: english ? embedTranslation(gloss, 'en', english) : gloss,
-      metadata: pickMetadata(sense['metadata'], DEFINITION_METADATA_KEYS),
+      metadata: pickMetadata(sense['metadata'], metadataFieldKeys(readDefinitionMetadataFields())),
     });
   }
   return definitions;
@@ -195,7 +225,7 @@ export async function generateDefinitionFromExample(
   if (!title || !language || !example) return null;
   const prepared = { ...request, title, language, example };
   const input: CompleteJsonInput = {
-    system: DEFINITION_FROM_EXAMPLE_SYSTEM_PROMPT,
+    system: definitionFromExampleSystemPrompt(),
     user: buildDefinitionFromExampleUserMessage(prepared),
     maxTokens: 1024,
     temperature: 0,
@@ -250,7 +280,7 @@ export async function generateElementFromSelection(
   if (!selected || !language) return null;
   const prepared = { ...request, selected, language, context };
   const input: CompleteJsonInput = {
-    system: ELEMENT_FROM_SELECTION_SYSTEM_PROMPT,
+    system: elementFromSelectionSystemPrompt(),
     user: buildElementFromSelectionUserMessage(prepared),
     maxTokens: DEFINITIONS_MAX_TOKENS,
     temperature: 0,
@@ -295,7 +325,7 @@ export async function generateDefinitions(
   const language = request.language.trim().toLowerCase();
   if (!title || !language) return [];
   const input: CompleteJsonInput = {
-    system: DEFINITIONS_SYSTEM_PROMPT,
+    system: definitionsSystemPrompt(),
     user: buildDefinitionsUserMessage({ ...request, title, language }),
     maxTokens: DEFINITIONS_MAX_TOKENS,
     temperature: 0,
@@ -326,7 +356,10 @@ function describedDefinitions(
     if (!gloss || seen.has(key)) continue;
     seen.add(key);
     const english = passage.translations.find((item) => item.language === 'en')?.text.trim();
-    const metadata = pickMetadata(definition.metadata, DEFINITION_METADATA_KEYS);
+    const metadata = pickMetadata(
+      definition.metadata,
+      metadataFieldKeys(readDefinitionMetadataFields()),
+    );
     described.push({
       gloss,
       ...(english ? { english } : {}),
@@ -343,20 +376,6 @@ function glossText(value: unknown): string {
 
 function plainText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
-}
-
-function pickMetadata(value: unknown, keys: readonly string[]): ElementMetadata {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const metadata: ElementMetadata = {};
-  for (const [rawKey, rawValue] of Object.entries(value)) {
-    if (typeof rawValue !== 'string') continue;
-    const canonical = keys.find((key) => key.toLowerCase() === rawKey.trim().toLowerCase());
-    if (!canonical) continue;
-    const text = rawValue.trim().slice(0, META_VALUE_MAX_LENGTH);
-    if (!text) continue;
-    metadata[canonical.slice(0, META_KEY_MAX_LENGTH)] = text;
-  }
-  return metadata;
 }
 
 export function buildFormsUserMessage(input: GenerateFormsInput): string {
