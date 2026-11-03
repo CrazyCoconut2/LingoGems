@@ -55,10 +55,13 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
   template: `
     <main>
       <header>
-        <a class="back" routerLink="/" [attr.aria-label]="'Back to languages'">
-          <span class="gem gem-mark" aria-hidden="true"></span>
-          <span>{{ name() }}</span>
+        <a class="back" routerLink="/" aria-label="Back to languages">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+          <span>Languages</span>
         </a>
+        <h1>{{ name() }}</h1>
         <div class="header-actions">
           <a class="settings" routerLink="/settings" aria-label="Settings" title="Settings">
             <svg viewBox="0 0 24 24">
@@ -458,28 +461,51 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
+      gap: 0.35rem;
     }
 
     .back {
       display: inline-flex;
+      flex: none;
       align-items: center;
-      gap: 0.65rem;
-      min-width: 0;
-      color: var(--text);
-      font-size: 1.15rem;
+      gap: 0.15rem;
+      padding: 0.35rem 0.55rem 0.35rem 0.2rem;
+      border-radius: 999px;
+      color: var(--accent-text);
+      font-size: 1rem;
       font-weight: 650;
-      letter-spacing: -0.03em;
       text-decoration: none;
     }
 
-    .gem-mark {
-      --gem-size: 1.35rem;
+    .back:hover {
+      background: rgba(139, 144, 165, 0.16);
+    }
+
+    .back svg {
+      width: 1.35rem;
+      height: 1.35rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    h1 {
+      flex: 1;
+      margin: 0;
+      min-width: 0;
+      overflow: hidden;
+      font-size: 1.15rem;
+      font-weight: 650;
+      letter-spacing: -0.03em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .header-actions {
       display: flex;
+      flex: none;
       align-items: center;
       gap: 0.2rem;
     }
