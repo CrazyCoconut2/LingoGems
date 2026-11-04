@@ -829,9 +829,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .mode {
       display: block;
       flex: none;
-      width: 1.15rem;
-      height: 1.15rem;
-      color: var(--text-muted);
+      width: 1.45rem;
+      height: 1.45rem;
     }
 
     .mode app-mode-icon {

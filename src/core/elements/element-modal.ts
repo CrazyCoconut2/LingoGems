@@ -593,22 +593,17 @@ function writeExampleSuggestions(
                 <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
               </svg>
             </button>
-            <div class="modes" role="radiogroup" aria-label="Mode">
-              @for (mode of modes; track mode) {
-                <button
-                  type="button"
-                  class="mode"
-                  [class.selected]="element().mode === mode"
-                  [attr.aria-label]="modeLabel(mode)"
-                  [attr.title]="modeLabel(mode)"
-                  [attr.aria-pressed]="element().mode === mode"
-                  [disabled]="busy()"
-                  (click)="chooseMode(mode)"
-                >
-                  <app-mode-icon [mode]="mode" />
-                </button>
-              }
-            </div>
+            <button
+              type="button"
+              class="mode-btn"
+              [attr.aria-label]="modeLabel(element().mode)"
+              [attr.title]="modeLabel(element().mode)"
+              [attr.aria-expanded]="modeOpen()"
+              [disabled]="busy()"
+              (click)="modeOpen.set(true)"
+            >
+              <app-mode-icon [mode]="element().mode" />
+            </button>
             @if (canHear(shownTitle())) {
               <button
                 type="button"
@@ -2218,6 +2213,50 @@ function writeExampleSuggestions(
           </div>
         }
 
+        @if (modeOpen()) {
+          <div class="sheet-backdrop" (click)="closeMode($event)">
+            <section
+              class="sheet mode-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mode"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>Mode</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  [disabled]="busy()"
+                  (click)="modeOpen.set(false)"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div class="mode-choices" role="radiogroup" aria-label="Mode">
+                @for (mode of modes; track mode) {
+                  <button
+                    type="button"
+                    class="mode-choice"
+                    [class.selected]="element().mode === mode"
+                    [attr.aria-label]="modeLabel(mode)"
+                    [disabled]="busy()"
+                    [attr.aria-pressed]="element().mode === mode"
+                    (click)="chooseMode(mode)"
+                  >
+                    <app-mode-icon [mode]="mode" />
+                    <span>{{ modeLabel(mode) }}</span>
+                  </button>
+                }
+              </div>
+            </section>
+          </div>
+        }
+
         @if (colorOpen()) {
           <div class="sheet-backdrop" (click)="closeHighlight($event)">
             <section
@@ -2506,13 +2545,7 @@ function writeExampleSuggestions(
       flex: 0 1 auto;
     }
 
-    .modes {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.05rem;
-    }
-
-    .mode {
+    .mode-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -2523,26 +2556,61 @@ function writeExampleSuggestions(
       padding: 0;
       border-radius: 0.4rem;
       background: transparent;
-      color: var(--text-muted);
       cursor: pointer;
     }
 
-    .mode app-mode-icon {
-      width: 1rem;
-      height: 1rem;
-    }
-
-    .mode:hover:not(:disabled) {
-      color: var(--text);
+    .mode-btn:hover:not(:disabled) {
       background: rgba(139, 144, 165, 0.16);
     }
 
-    .mode.selected {
-      color: var(--accent-text);
-      background: rgba(var(--accent-rgb), 0.16);
+    .mode-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
-    .mode:disabled {
+    .mode-btn app-mode-icon {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+
+    .mode-sheet {
+      width: min(100%, 26rem);
+    }
+
+    .mode-choices {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.55rem;
+    }
+
+    .mode-choice {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.45rem;
+      margin: 0;
+      padding: 0.7rem 0.3rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface-2);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .mode-choice app-mode-icon {
+      width: 4.4rem;
+      height: 4.4rem;
+    }
+
+    .mode-choice.selected {
+      border-color: rgba(var(--accent-rgb), 0.75);
+      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.5);
+    }
+
+    .mode-choice:disabled {
       cursor: default;
     }
 
@@ -3527,6 +3595,7 @@ export class ElementModal {
   readonly wordingSuggestions = signal<Record<string, WordingSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
+  readonly modeOpen = signal(false);
   readonly colorOpen = signal(false);
   readonly colorHue = signal(0);
   readonly colorSat = signal(1);
@@ -3584,6 +3653,7 @@ export class ElementModal {
       this.addDefinitionOpen.set(false);
       this.addExampleFor.set(null);
       this.addFormFor.set(null);
+      this.modeOpen.set(false);
       this.colorOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
@@ -3642,6 +3712,10 @@ export class ElementModal {
   onEscape(): void {
     if (this.titleEdit()) {
       if (!this.busy()) this.cancelTitle();
+      return;
+    }
+    if (this.modeOpen()) {
+      if (!this.busy()) this.modeOpen.set(false);
       return;
     }
     if (this.colorOpen()) {
@@ -4958,9 +5032,15 @@ export class ElementModal {
     return resolveHighlightColor(element.highlightColor);
   }
 
+  closeMode(event: MouseEvent): void {
+    if (event.target !== event.currentTarget || this.busy()) return;
+    this.modeOpen.set(false);
+  }
+
   async chooseMode(mode: ElementMode): Promise<void> {
-    if (this.busy() || this.element().mode === mode) return;
-    await this.saveAppearance({ mode });
+    if (this.busy()) return;
+    if (this.element().mode !== mode && !(await this.saveAppearance({ mode }))) return;
+    this.modeOpen.set(false);
   }
 
   openHighlight(): void {
