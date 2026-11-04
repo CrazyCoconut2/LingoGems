@@ -12,11 +12,6 @@ export function modeColor(mode: ElementMode): { color: string; rgb: string } {
   return MODE_COLORS[mode];
 }
 
-/** How many points in the triple are filled. */
-export function modePointLevel(points: readonly boolean[]): number {
-  return points.reduce((count, filled) => count + (filled ? 1 : 0), 0);
-}
-
 /** The gem at one stage: a rough find, a cut stone, or a finished gem. */
 @Component({
   selector: 'app-mode-icon',

@@ -1,5 +1,6 @@
 import { Component, effect, input, output, signal } from '@angular/core';
 import { readBlurTranslations, writeBlurTranslations } from '../elements/blur-translations';
+import { MAX_STEP_GOAL, MIN_STEP_GOAL, currentStepGoal, writeStepGoal } from '../elements/step-goal';
 import {
   DEFAULT_DEFINITION_METADATA_FIELDS,
   DEFAULT_EXAMPLE_METADATA_FIELDS,
@@ -49,6 +50,20 @@ import {
           </button>
         </header>
         <div class="sheet-body">
+          <section class="metadata" aria-label="Progress">
+            <label class="step-goal">
+              <span>Succeeded exercises needed for each step</span>
+              <input
+                type="number"
+                [attr.min]="stepGoalMin"
+                [attr.max]="stepGoalMax"
+                step="1"
+                [value]="stepGoal()"
+                (input)="setStepGoal($event)"
+              />
+            </label>
+          </section>
+
           <section class="metadata" aria-label="Translations">
             <div class="copy">
               <h3>Translations</h3>
@@ -453,6 +468,21 @@ import {
       accent-color: var(--accent, #6c63ff);
     }
 
+    label.step-goal {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.45rem;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 650;
+    }
+
+    label.step-goal input {
+      width: 5.5rem;
+      font-weight: 650;
+    }
+
     input,
     textarea {
       padding: 0.75rem 0.85rem;
@@ -552,6 +582,9 @@ export class LanguageAiSettings {
   readonly metadataKeyMax = MAX_METADATA_FIELD_KEY;
   readonly metadataPromptMax = MAX_METADATA_FIELD_PROMPT;
   readonly metadataFieldMax = MAX_METADATA_FIELDS;
+  readonly stepGoalMin = MIN_STEP_GOAL;
+  readonly stepGoalMax = MAX_STEP_GOAL;
+  readonly stepGoal = signal(3);
   readonly definitionFields = signal<AiMetadataField[]>([]);
   readonly exampleFields = signal<AiMetadataField[]>([]);
   readonly generateDefinitionTranslations = signal(true);
@@ -578,6 +611,7 @@ export class LanguageAiSettings {
       this.definitionExtraFields.set(readDefinitionExtraFields(language));
       this.exampleExtraFields.set(readExampleExtraFields(language));
       this.blurTranslations.set(readBlurTranslations(language));
+      this.stepGoal.set(currentStepGoal(language));
       this.definitionSuggestions.set([]);
       this.exampleSuggestions.set([]);
       this.definitionRecommendError.set('');
@@ -625,6 +659,17 @@ export class LanguageAiSettings {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
     this.blurTranslations.set(enabled);
     writeBlurTranslations(this.language(), enabled);
+  }
+
+  setStepGoal(event: Event): void {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    const raw = input.value.trim();
+    if (!/^\d+$/.test(raw)) return;
+    const goal = Number(raw);
+    if (goal < MIN_STEP_GOAL || goal > MAX_STEP_GOAL) return;
+    this.stepGoal.set(goal);
+    writeStepGoal(this.language(), goal);
   }
 
   setDefinitionField(index: number, part: 'key' | 'prompt', value: string): void {

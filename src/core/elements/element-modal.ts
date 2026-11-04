@@ -20,7 +20,6 @@ import {
   displayTitle,
   embedTranslation,
   elementModeLabel,
-  modePointsThrough,
   type ElementMode,
   formTexts,
   HIGHLIGHT_STYLES,
@@ -60,7 +59,9 @@ import {
 } from 'ai';
 import { Reveal } from './reveal';
 import { FrequencyGem } from './frequency-gem';
-import { ModeIcon, modeColor, modePointLevel } from './mode-icon';
+import { ModeIcon, modeColor } from './mode-icon';
+import { ModeProgress } from './mode-progress';
+import { readStepGoal } from './step-goal';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
@@ -498,7 +499,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [Reveal, ModeIcon, FrequencyGem],
+  imports: [Reveal, ModeIcon, ModeProgress, FrequencyGem],
   template: `
     <div
       class="backdrop"
@@ -617,23 +618,12 @@ function writeExampleSuggestions(
               >
                 <app-mode-icon [mode]="element().mode" />
               </button>
-              <div
-                class="mode-points compact"
-                role="img"
-                [attr.aria-label]="
-                  modeLabel(element().mode) +
-                  ', ' +
-                  modePointLevel(element().modePoints[element().mode]) +
-                  ' of 3'
-                "
-                [attr.data-level]="modePointLevel(element().modePoints[element().mode])"
-                [style.--mode-color]="modeColor(element().mode).color"
-                [style.--mode-rgb]="modeColor(element().mode).rgb"
-              >
-                @for (filled of element().modePoints[element().mode]; track $index) {
-                  <span class="mode-point" [class.filled]="filled"></span>
-                }
-              </div>
+              <app-mode-progress
+                [mode]="element().mode"
+                [succeeded]="0"
+                [goal]="readStepGoal(element().language)"
+                [compact]="true"
+              />
             </div>
             @if (canHear(shownTitle())) {
               <button
@@ -2316,24 +2306,11 @@ function writeExampleSuggestions(
                       <app-mode-icon [mode]="mode" />
                       <span>{{ modeLabel(mode) }}</span>
                     </button>
-                    <div
-                      class="mode-points"
-                      role="group"
-                      [attr.aria-label]="modeLabel(mode) + ' points'"
-                      [attr.data-level]="modePointLevel(element().modePoints[mode])"
-                    >
-                      @for (filled of element().modePoints[mode]; track $index) {
-                        <button
-                          type="button"
-                          class="mode-point"
-                          [class.filled]="filled"
-                          [attr.aria-pressed]="filled"
-                          [attr.aria-label]="modeLabel(mode) + ' point ' + ($index + 1)"
-                          [disabled]="busy()"
-                          (click)="setModePoint(mode, $index)"
-                        ></button>
-                      }
-                    </div>
+                    <app-mode-progress
+                      [mode]="mode"
+                      [succeeded]="0"
+                      [goal]="readStepGoal(element().language)"
+                    />
                   </div>
                 }
               </div>
@@ -2714,69 +2691,6 @@ function writeExampleSuggestions(
 
     .mode-choice:disabled {
       cursor: default;
-    }
-
-    .mode-points {
-      display: flex;
-      justify-content: center;
-      gap: 0.15rem;
-    }
-
-    .mode-point {
-      display: grid;
-      place-items: center;
-      width: 1.35rem;
-      height: 1.35rem;
-      margin: 0;
-      padding: 0;
-      border: 0;
-      border-radius: 999px;
-      background: transparent;
-    }
-
-    button.mode-point {
-      cursor: pointer;
-    }
-
-    .mode-point::before {
-      content: '';
-      width: 0.55rem;
-      height: 0.55rem;
-      border-radius: 999px;
-      box-shadow: inset 0 0 0 1.5px rgba(var(--mode-rgb, 139, 144, 165), 0.55);
-    }
-
-    .mode-point.filled::before {
-      background: var(--mode-color, var(--accent));
-      box-shadow: none;
-      opacity: 0.38;
-    }
-
-    .mode-points[data-level='2'] .mode-point.filled::before {
-      opacity: 0.7;
-    }
-
-    .mode-points[data-level='3'] .mode-point.filled::before {
-      opacity: 1;
-      box-shadow: 0 0 0.4rem var(--mode-color, var(--accent));
-    }
-
-    .mode-point:disabled {
-      cursor: default;
-    }
-
-    .mode-points.compact {
-      gap: 0;
-    }
-
-    .mode-points.compact .mode-point {
-      width: 0.78rem;
-      height: 0.78rem;
-    }
-
-    .mode-points.compact .mode-point::before {
-      width: 0.4rem;
-      height: 0.4rem;
     }
 
     .title-edit {
@@ -3779,7 +3693,7 @@ export class ElementModal {
   readonly highlightStyles = HIGHLIGHT_STYLES;
   readonly modeLabel = elementModeLabel;
   readonly modeColor = modeColor;
-  readonly modePointLevel = modePointLevel;
+  readonly readStepGoal = readStepGoal;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
   readonly frequencies = DEFINITION_FREQUENCIES;
   readonly frequencyLabel = definitionFrequencyLabel;
@@ -5287,14 +5201,6 @@ export class ElementModal {
     this.modeOpen.set(false);
   }
 
-  async setModePoint(mode: ElementMode, index: number): Promise<void> {
-    if (index < 0 || index > 2) return;
-    const current = this.element().modePoints;
-    await this.saveAppearance({
-      modePoints: { ...current, [mode]: modePointsThrough(index) },
-    });
-  }
-
   openHighlight(): void {
     if (this.aiBusy()) return;
     const element = this.element();
@@ -5374,7 +5280,7 @@ export class ElementModal {
   }
 
   private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'highlightColor' | 'highlightStyle' | 'mode' | 'modePoints'>>,
+    patch: Partial<Pick<StoredElement, 'highlightColor' | 'highlightStyle' | 'mode'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
     this.busy.set(true);

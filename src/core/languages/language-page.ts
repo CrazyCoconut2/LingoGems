@@ -9,7 +9,9 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
-import { ModeIcon, modeColor, modePointLevel } from '../elements/mode-icon';
+import { ModeIcon } from '../elements/mode-icon';
+import { ModeProgress } from '../elements/mode-progress';
+import { readStepGoal } from '../elements/step-goal';
 import { LanguageAiSettings } from './language-ai-settings';
 import { generateElementFromSelection } from 'ai';
 import {
@@ -53,7 +55,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
 @Component({
   selector: 'app-language-page',
-  imports: [RouterLink, ElementModal, ModeIcon, LanguageAiSettings],
+  imports: [RouterLink, ElementModal, ModeIcon, ModeProgress, LanguageAiSettings],
   template: `
     <main>
       <header>
@@ -277,23 +279,12 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 >
                   <app-mode-icon [mode]="element.mode" />
                 </button>
-                <div
-                  class="mode-points"
-                  role="img"
-                  [attr.aria-label]="
-                    modeLabel(element.mode) +
-                    ', ' +
-                    modePointLevel(element.modePoints[element.mode]) +
-                    ' of 3'
-                  "
-                  [attr.data-level]="modePointLevel(element.modePoints[element.mode])"
-                  [style.--mode-color]="modeColor(element.mode).color"
-                  [style.--mode-rgb]="modeColor(element.mode).rgb"
-                >
-                  @for (filled of element.modePoints[element.mode]; track $index) {
-                    <span class="mode-point" [class.filled]="filled"></span>
-                  }
-                </div>
+                <app-mode-progress
+                  [mode]="element.mode"
+                  [succeeded]="0"
+                  [goal]="readStepGoal(code())"
+                  [compact]="true"
+                />
               </div>
             </div>
             </li>
@@ -884,47 +875,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       height: 100%;
     }
 
-    .mode-points {
-      display: flex;
-      justify-content: center;
-      gap: 0.02rem;
-    }
-
-    .mode-point {
-      display: grid;
-      place-items: center;
-      width: 0.85rem;
-      height: 0.85rem;
-      margin: 0;
-      padding: 0;
-      border: 0;
-      border-radius: 999px;
-      background: transparent;
-    }
-
-    .mode-point::before {
-      content: '';
-      width: 0.42rem;
-      height: 0.42rem;
-      border-radius: 999px;
-      box-shadow: inset 0 0 0 1.5px rgba(var(--mode-rgb, 139, 144, 165), 0.55);
-    }
-
-    .mode-point.filled::before {
-      background: var(--mode-color, var(--accent));
-      box-shadow: none;
-      opacity: 0.38;
-    }
-
-    .mode-points[data-level='2'] .mode-point.filled::before {
-      opacity: 0.7;
-    }
-
-    .mode-points[data-level='3'] .mode-point.filled::before {
-      opacity: 1;
-      box-shadow: 0 0 0.35rem var(--mode-color, var(--accent));
-    }
-
     .stats {
       display: flex;
       align-items: center;
@@ -1244,8 +1194,7 @@ export class LanguagePage {
 
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly modeLabel = elementModeLabel;
-  readonly modeColor = modeColor;
-  readonly modePointLevel = modePointLevel;
+  readonly readStepGoal = readStepGoal;
   readonly asking = signal(false);
   readonly lookupError = signal('');
   readonly skeletons = ELEMENT_SKELETONS;

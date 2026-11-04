@@ -24,9 +24,7 @@ export {
   parsePassage,
   formTexts,
   elementModeLabel,
-  modePointsThrough,
   normalizeDefinitionFrequency,
-  normalizeModePoints,
   saveElement,
   type ElementDefinition,
   type ElementForm,
@@ -37,8 +35,6 @@ export {
   type ElementExample,
   type ElementMetadata,
   type ElementMode,
-  type ElementModePoints,
-  type ModePoints,
   type StoredElement,
 } from './elements/element-store';
 
