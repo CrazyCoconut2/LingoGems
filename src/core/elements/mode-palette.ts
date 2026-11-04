@@ -11,9 +11,9 @@ export type ModePalette = {
 
 /** Score 0 uses the start color. A full step goal uses the end color. */
 export const DEFAULT_MODE_PALETTES: Record<ElementMode, ModePalette> = {
-  1: { start: '#8a6a2e', end: '#e3b15a' },
-  2: { start: '#6a3fbf', end: '#b07cff' },
-  3: { start: '#1a7a99', end: '#4fd2ff' },
+  1: { start: '#e23b3b', end: '#f5a142' },
+  2: { start: '#f5a142', end: '#6ec8ff' },
+  3: { start: '#6ec8ff', end: '#3dcc78' },
 };
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
