@@ -223,77 +223,79 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 class="element"
                 [style.--highlight-color]="highlightColor(element)"
               >
-                <div class="element-row">
-                <button type="button" class="element-open" (click)="openElement(element.id)">
-                  <span class="title">
-                    @for (part of highlight(element.title); track $index) {
-                      @if (part.hit) {
-                        <mark class="hit">{{ part.text }}</mark>
-                      } @else {
-                        <span>{{ part.text }}</span>
-                      }
-                    }
-                  </span>
-                  <span class="stats">
-                    <span
-                      class="stat"
-                      [class.empty]="element.equivalents.length === 0"
-                      [attr.aria-label]="
-                        element.equivalents.length === 1
-                          ? '1 translation'
-                          : element.equivalents.length + ' translations'
-                      "
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m5 8 6 6" />
-                        <path d="m4 14 6-6 2-3" />
-                        <path d="M2 5h12" />
-                        <path d="M7 2h1" />
-                        <path d="m22 22-5-10-5 10" />
-                        <path d="M14 18h6" />
-                      </svg>
-                      <span>{{ element.equivalents.length }}</span>
-                    </span>
-                    @let groups = definitionCounts(element.definitions);
-                    <span class="stat stones" [attr.aria-label]="definitionsLabel(groups)">
-                      @for (group of groups; track group.frequency) {
-                        <span class="stone" [attr.title]="frequencyLabel(group.frequency)">
-                          <app-frequency-gem [frequency]="group.frequency" />
-                          @if (group.count > 1) {
-                            <span>x{{ group.count }}</span>
-                          }
-                        </span>
+                <div class="element-body">
+                  <button type="button" class="element-open" (click)="openElement(element.id)">
+                    <span class="title">
+                      @for (part of highlight(element.title); track $index) {
+                        @if (part.hit) {
+                          <mark class="hit">{{ part.text }}</mark>
+                        } @else {
+                          <span>{{ part.text }}</span>
+                        }
                       }
                     </span>
-                  </span>
-                </button>
-                <div class="mode-stack">
-                  <button
-                    type="button"
-                    class="mode-icon"
-                    [attr.aria-label]="modeLabel(element.mode)"
-                    (click)="openElement(element.id)"
-                  >
-                    <app-mode-icon [mode]="element.mode" />
                   </button>
-                  <app-mode-progress
-                    [mode]="element.mode"
-                    [succeeded]="element.modeProgress[element.mode]"
-                    [goal]="readStepGoal(code())"
-                    [compact]="true"
-                  />
-                </div>
-                </div>
-                @if (element.equivalents.length) {
-                  <p class="equivalents">
-                    @for (item of element.equivalents; track item.id) {
-                      @if ($index > 0) {
-                        <span class="sep" aria-hidden="true">·</span>
+                  <div class="mode-stack">
+                    <button
+                      type="button"
+                      class="mode-icon"
+                      [attr.aria-label]="modeLabel(element.mode)"
+                      (click)="openElement(element.id)"
+                    >
+                      <app-mode-icon [mode]="element.mode" />
+                    </button>
+                    <app-mode-progress
+                      [mode]="element.mode"
+                      [succeeded]="element.modeProgress[element.mode]"
+                      [goal]="readStepGoal(code())"
+                      [compact]="true"
+                    />
+                  </div>
+                  @if (element.equivalents.length) {
+                    <p class="equivalents">
+                      @for (item of element.equivalents; track item.id) {
+                        @if ($index > 0) {
+                          <span class="sep" aria-hidden="true">·</span>
+                        }
+                        <app-reveal [text]="item.text" [language]="code()" [revealable]="false" />
                       }
-                      <app-reveal [text]="item.text" [language]="code()" />
-                    }
-                  </p>
-                }
+                    </p>
+                  }
+                  <button type="button" class="element-open" (click)="openElement(element.id)">
+                    <span class="stats">
+                      <span
+                        class="stat"
+                        [class.empty]="element.equivalents.length === 0"
+                        [attr.aria-label]="
+                          element.equivalents.length === 1
+                            ? '1 translation'
+                            : element.equivalents.length + ' translations'
+                        "
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m5 8 6 6" />
+                          <path d="m4 14 6-6 2-3" />
+                          <path d="M2 5h12" />
+                          <path d="M7 2h1" />
+                          <path d="m22 22-5-10-5 10" />
+                          <path d="M14 18h6" />
+                        </svg>
+                        <span>{{ element.equivalents.length }}</span>
+                      </span>
+                      @let groups = definitionCounts(element.definitions);
+                      <span class="stat stones" [attr.aria-label]="definitionsLabel(groups)">
+                        @for (group of groups; track group.frequency) {
+                          <span class="stone" [attr.title]="frequencyLabel(group.frequency)">
+                            <app-frequency-gem [frequency]="group.frequency" />
+                            @if (group.count > 1) {
+                              <span>x{{ group.count }}</span>
+                            }
+                          </span>
+                        }
+                      </span>
+                    </span>
+                  </button>
+                </div>
               </div>
             </li>
           }
@@ -962,11 +964,12 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       text-align: left;
     }
 
-    .element-row {
-      display: flex;
+    .element-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
-      gap: 0.75rem;
-      min-width: 0;
+      column-gap: 0.75rem;
+      row-gap: 0.4rem;
     }
 
     .element:hover {
@@ -974,12 +977,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .element-open {
-      flex: 1;
+      grid-column: 1;
       min-width: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0.55rem;
       margin: 0;
       padding: 0;
       border: 0;
@@ -1003,6 +1002,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .equivalents {
+      grid-column: 1;
       margin: 0;
       min-width: 0;
       color: var(--text-muted);
@@ -1021,10 +1021,12 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .mode-stack {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: center;
       display: flex;
       flex-direction: column;
       align-items: center;
-      flex: none;
       gap: 0.15rem;
     }
 
