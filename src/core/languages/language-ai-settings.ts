@@ -6,7 +6,9 @@ import {
   MAX_METADATA_FIELD_KEY,
   MAX_METADATA_FIELD_PROMPT,
   MAX_METADATA_FIELDS,
+  readDefinitionExtraFields,
   readDefinitionMetadataFields,
+  readExampleExtraFields,
   readExampleMetadataFields,
   readGenerateDefinitionTranslations,
   readGenerateExampleTranslations,
@@ -14,7 +16,9 @@ import {
   recommendMetadataFields,
   resetDefinitionMetadataFields,
   resetExampleMetadataFields,
+  writeDefinitionExtraFields,
   writeDefinitionMetadataFields,
+  writeExampleExtraFields,
   writeExampleMetadataFields,
   writeGenerateDefinitionTranslations,
   writeGenerateExampleTranslations,
@@ -85,6 +89,14 @@ import {
                 (change)="setGenerateDefinitionTranslations($event)"
               />
               Generate with an English translation
+            </label>
+            <label class="translation-toggle">
+              <input
+                type="checkbox"
+                [checked]="definitionExtraFields()"
+                (change)="setDefinitionExtraFields($event)"
+              />
+              Let the AI add other relevant definition fields
             </label>
             @if (definitionFields().length) {
               <ul class="metadata-list">
@@ -189,6 +201,14 @@ import {
                 (change)="setGenerateExampleTranslations($event)"
               />
               Generate with an English translation
+            </label>
+            <label class="translation-toggle">
+              <input
+                type="checkbox"
+                [checked]="exampleExtraFields()"
+                (change)="setExampleExtraFields($event)"
+              />
+              Let the AI add other relevant example fields
             </label>
             @if (exampleFields().length) {
               <ul class="metadata-list">
@@ -536,6 +556,8 @@ export class LanguageAiSettings {
   readonly exampleFields = signal<AiMetadataField[]>([]);
   readonly generateDefinitionTranslations = signal(true);
   readonly generateExampleTranslations = signal(true);
+  readonly definitionExtraFields = signal(false);
+  readonly exampleExtraFields = signal(false);
   readonly blurTranslations = signal(true);
   readonly recommendingDefinitions = signal(false);
   readonly recommendingExamples = signal(false);
@@ -553,6 +575,8 @@ export class LanguageAiSettings {
       this.exampleFields.set(readExampleMetadataFields(language));
       this.generateDefinitionTranslations.set(readGenerateDefinitionTranslations(language));
       this.generateExampleTranslations.set(readGenerateExampleTranslations(language));
+      this.definitionExtraFields.set(readDefinitionExtraFields(language));
+      this.exampleExtraFields.set(readExampleExtraFields(language));
       this.blurTranslations.set(readBlurTranslations(language));
       this.definitionSuggestions.set([]);
       this.exampleSuggestions.set([]);
@@ -583,6 +607,18 @@ export class LanguageAiSettings {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
     this.generateExampleTranslations.set(enabled);
     writeGenerateExampleTranslations(this.language(), enabled);
+  }
+
+  setDefinitionExtraFields(event: Event): void {
+    const enabled = event.target instanceof HTMLInputElement && event.target.checked;
+    this.definitionExtraFields.set(enabled);
+    writeDefinitionExtraFields(this.language(), enabled);
+  }
+
+  setExampleExtraFields(event: Event): void {
+    const enabled = event.target instanceof HTMLInputElement && event.target.checked;
+    this.exampleExtraFields.set(enabled);
+    writeExampleExtraFields(this.language(), enabled);
   }
 
   setBlurTranslations(event: Event): void {

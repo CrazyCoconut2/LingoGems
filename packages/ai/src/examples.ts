@@ -11,6 +11,7 @@ import {
   metadataFieldKeys,
   metadataRuleLines,
   pickMetadata,
+  readExampleExtraFields,
   readExampleMetadataFields,
   type AiMetadataField,
 } from './metadata-fields';
@@ -23,14 +24,14 @@ export const MAX_EXAMPLE_WORDS = 20;
 export const MAX_EXAMPLE_INSTRUCTION = 400;
 const EXAMPLES_MAX_TOKENS = 1024;
 
-export function examplesSystemPrompt(fields: readonly AiMetadataField[]): string {
+export function examplesSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
   const lines = [
     'You write one dictionary example sentence for one sense.',
     'JSON keys stay in English.',
     'The sentence MUST be in the language named by writeFieldsIn.',
     'Do not use English for the sentence unless writeFieldsIn is English.',
   ];
-  if (fields.length) {
+  if (fields.length || extra) {
     lines.push('Do not copy English labels into metadata; write those values in writeFieldsIn.');
   }
   lines.push(
@@ -46,10 +47,10 @@ export function examplesSystemPrompt(fields: readonly AiMetadataField[]): string
     '- Do not repeat existingExamples',
     `- Keep the sentence at most ${MAX_EXAMPLE_LENGTH} characters`,
     '- Spelling MUST be correct',
-    ...metadataRuleLines('example', fields),
+    ...metadataRuleLines('example', fields, extra),
     'translateFieldsIn, when present, is English. Then the example MUST include "english", a faithful English translation of the sentence, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
     'Return JSON only with this shape:',
-    `{"examples":[${exampleSentenceShape(fields)}]}`,
+    `{"examples":[${exampleSentenceShape(fields, extra)}]}`,
     'When translateFieldsIn is present, add "english":"<sentence in English>" on the example.',
   );
   return lines.join('\n');
@@ -131,7 +132,11 @@ export function parseGeneratedExamples(
     return [
       {
         text: english ? embedTranslation(sentence, 'en', english) : sentence,
-        metadata: pickMetadata(example['metadata'], metadataFieldKeys(readExampleMetadataFields(language))),
+        metadata: pickMetadata(
+          example['metadata'],
+          metadataFieldKeys(readExampleMetadataFields(language)),
+          readExampleExtraFields(language),
+        ),
       },
     ];
   }
@@ -148,7 +153,10 @@ export async function generateExamples(
   if (!title || !language || !gloss) return [];
   const ready = { ...request, title, language, gloss };
   const input: CompleteJsonInput = {
-    system: examplesSystemPrompt(readExampleMetadataFields(language)),
+    system: examplesSystemPrompt(
+      readExampleMetadataFields(language),
+      readExampleExtraFields(language),
+    ),
     user: buildExamplesUserMessage(ready),
     maxTokens: EXAMPLES_MAX_TOKENS,
     temperature: 0.4,

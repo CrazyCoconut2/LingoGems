@@ -16,6 +16,7 @@ import {
   metadataFieldKeys,
   metadataRuleLines,
   pickMetadata,
+  readDefinitionExtraFields,
   readDefinitionMetadataFields,
   type AiMetadataField,
 } from './metadata-fields';
@@ -40,13 +41,13 @@ const FREQUENCY_RULE =
 
 const FORM_SHAPE = `{"text":"<surface form>","metadata":{"tense":"<tense>","person":"<person>","number":"<number>","mood":"<mood>"}}`;
 
-export function definitionsSystemPrompt(fields: readonly AiMetadataField[]): string {
+export function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
   return joinPrompt([
     'You write dictionary senses for one headword.',
     'JSON keys stay in English.',
     'Every gloss MUST be in the language named by writeFieldsIn.',
     'Do not use English for a gloss unless writeFieldsIn is English.',
-    metadataIntro(fields),
+    metadataIntro(fields, extra),
     'Rules:',
     '- One sense per distinct meaning',
     '- Do not repeat a meaning or a gloss already listed in existingDefinitions. Those are senses already kept, and they include no forms',
@@ -56,21 +57,24 @@ export function definitionsSystemPrompt(fields: readonly AiMetadataField[]): str
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in every gloss and English gloss',
     FREQUENCY_RULE,
-    ...metadataRuleLines('definition', fields),
+    ...metadataRuleLines('definition', fields, extra),
     'translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
     'Return JSON only with this shape:',
-    `{"senses":[${definitionSenseShape(fields)}]}`,
+    `{"senses":[${definitionSenseShape(fields, extra)}]}`,
     'When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.',
   ]);
 }
 
-export function elementFromSelectionSystemPrompt(fields: readonly AiMetadataField[]): string {
+export function elementFromSelectionSystemPrompt(
+  fields: readonly AiMetadataField[],
+  extra = false,
+): string {
   return joinPrompt([
     'You add one dictionary element from a selected word or phrase.',
     'JSON keys stay in English.',
     'Every gloss MUST be in the language named by writeFieldsIn.',
     'Do not use English for a gloss unless writeFieldsIn is English.',
-    metadataIntro(fields),
+    metadataIntro(fields, extra),
     'Rules:',
     "- lemma is the citation form of the selection, the root headword, in the selection's language. When the selection is already that form, lemma is the selection. Do not choose a different word",
     '- One sense per distinct meaning of that lemma',
@@ -80,21 +84,24 @@ export function elementFromSelectionSystemPrompt(fields: readonly AiMetadataFiel
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in the lemma, every gloss, and every English gloss',
     FREQUENCY_RULE,
-    ...metadataRuleLines('definition', fields),
+    ...metadataRuleLines('definition', fields, extra),
     'translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
     'Return JSON only with this shape:',
-    `{"lemma":"<root lemma>","senses":[${definitionSenseShape(fields)}]}`,
+    `{"lemma":"<root lemma>","senses":[${definitionSenseShape(fields, extra)}]}`,
     'When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.',
   ]);
 }
 
-export function definitionFromExampleSystemPrompt(fields: readonly AiMetadataField[]): string {
+export function definitionFromExampleSystemPrompt(
+  fields: readonly AiMetadataField[],
+  extra = false,
+): string {
   return joinPrompt([
     'You write one dictionary sense for a headword from one example sentence.',
     'JSON keys stay in English.',
     'The gloss MUST be in the language named by writeFieldsIn.',
     'Do not use English for a gloss unless writeFieldsIn is English.',
-    metadataIntro(fields),
+    metadataIntro(fields, extra),
     'Rules:',
     '- Return exactly one sense: the meaning of the lemma as it is used in example',
     '- Do not define a different meaning',
@@ -104,16 +111,16 @@ export function definitionFromExampleSystemPrompt(fields: readonly AiMetadataFie
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in the gloss and the English gloss',
     FREQUENCY_RULE,
-    ...metadataRuleLines('definition', fields),
+    ...metadataRuleLines('definition', fields, extra),
     'translateFieldsIn, when present, is English. Then the sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
     'Return JSON only with this shape:',
-    `{"senses":[${definitionSenseShape(fields)}]}`,
+    `{"senses":[${definitionSenseShape(fields, extra)}]}`,
     'When translateFieldsIn is present, add "english":"<gloss in English>" on the sense.',
   ]);
 }
 
-function metadataIntro(fields: readonly AiMetadataField[]): string {
-  return fields.length
+function metadataIntro(fields: readonly AiMetadataField[], extra = false): string {
+  return fields.length || extra
     ? 'Do not copy English labels into metadata; write those values in writeFieldsIn.'
     : '';
 }
@@ -206,7 +213,11 @@ export function parseGeneratedDefinitions(
         : plainText(sense['english']).slice(0, META_VALUE_MAX_LENGTH);
     definitions.push({
       text: english ? embedTranslation(gloss, 'en', english) : gloss,
-      metadata: pickMetadata(sense['metadata'], metadataFieldKeys(readDefinitionMetadataFields(language))),
+      metadata: pickMetadata(
+        sense['metadata'],
+        metadataFieldKeys(readDefinitionMetadataFields(language)),
+        readDefinitionExtraFields(language),
+      ),
       frequency: normalizeDefinitionFrequency(sense['frequency']),
     });
   }
@@ -239,7 +250,10 @@ export async function generateDefinitionFromExample(
   if (!title || !language || !example) return null;
   const prepared = { ...request, title, language, example };
   const input: CompleteJsonInput = {
-    system: definitionFromExampleSystemPrompt(readDefinitionMetadataFields(language)),
+    system: definitionFromExampleSystemPrompt(
+      readDefinitionMetadataFields(language),
+      readDefinitionExtraFields(language),
+    ),
     user: buildDefinitionFromExampleUserMessage(prepared),
     maxTokens: 1024,
     temperature: 0,
@@ -294,7 +308,10 @@ export async function generateElementFromSelection(
   if (!selected || !language) return null;
   const prepared = { ...request, selected, language, context };
   const input: CompleteJsonInput = {
-    system: elementFromSelectionSystemPrompt(readDefinitionMetadataFields(language)),
+    system: elementFromSelectionSystemPrompt(
+      readDefinitionMetadataFields(language),
+      readDefinitionExtraFields(language),
+    ),
     user: buildElementFromSelectionUserMessage(prepared),
     maxTokens: DEFINITIONS_MAX_TOKENS,
     temperature: 0,
@@ -339,7 +356,10 @@ export async function generateDefinitions(
   const language = request.language.trim().toLowerCase();
   if (!title || !language) return [];
   const input: CompleteJsonInput = {
-    system: definitionsSystemPrompt(readDefinitionMetadataFields(language)),
+    system: definitionsSystemPrompt(
+      readDefinitionMetadataFields(language),
+      readDefinitionExtraFields(language),
+    ),
     user: buildDefinitionsUserMessage({ ...request, title, language }),
     maxTokens: DEFINITIONS_MAX_TOKENS,
     temperature: 0,
@@ -379,6 +399,7 @@ function describedDefinitions(
     const metadata = pickMetadata(
       definition.metadata,
       metadataFieldKeys(readDefinitionMetadataFields(language)),
+      readDefinitionExtraFields(language),
     );
     described.push({
       gloss,

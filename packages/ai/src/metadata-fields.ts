@@ -38,6 +38,8 @@ type StoredLanguageSettings = {
   examples?: AiMetadataField[];
   definitionTranslations?: false;
   exampleTranslations?: false;
+  definitionExtraFields?: true;
+  exampleExtraFields?: true;
 };
 
 type LanguageSettingsMap = Record<string, StoredLanguageSettings>;
@@ -153,17 +155,52 @@ export function writeExampleTranslations(language: string, enabled: boolean): vo
   });
 }
 
-/** Rule lines for a system prompt, or none when no fields are configured. */
+/** Off unless this language has asked for fields beyond the configured list. */
+export function readDefinitionExtraFields(language: string): boolean {
+  return readEntry(language)?.definitionExtraFields === true;
+}
+
+export function readExampleExtraFields(language: string): boolean {
+  return readEntry(language)?.exampleExtraFields === true;
+}
+
+export function writeDefinitionExtraFields(language: string, enabled: boolean): void {
+  updateLanguage(language, (entry) => {
+    if (enabled) entry.definitionExtraFields = true;
+    else delete entry.definitionExtraFields;
+  });
+}
+
+export function writeExampleExtraFields(language: string, enabled: boolean): void {
+  updateLanguage(language, (entry) => {
+    if (enabled) entry.exampleExtraFields = true;
+    else delete entry.exampleExtraFields;
+  });
+}
+
+/** Rule lines for a system prompt, or none when no fields are configured and extras are off. */
 export function metadataRuleLines(
   kind: 'definition' | 'example',
   fields: readonly AiMetadataField[],
+  extra = false,
 ): string[] {
-  if (!fields.length) return [];
+  if (!fields.length && !extra) return [];
   const label = kind === 'definition' ? 'Definition' : 'Example';
   const lines = [
     `- metadata is key-value pairs that apply to that ${kind}. Omit a pair when it does not apply`,
-    `- ${label} metadata keys are only ${quotedKeyList(fields)}`,
   ];
+  if (fields.length && extra) {
+    lines.push(
+      `- Include ${quotedKeyList(fields)} when they apply`,
+      '- You may add other metadata keys when a further field is relevant. Each extra key is a short English name. Do not copy a placeholder key. Omit a field that is not relevant',
+    );
+  } else if (fields.length) {
+    lines.push(`- ${label} metadata keys are only ${quotedKeyList(fields)}`);
+  } else {
+    lines.push(
+      `- Add metadata only when a field is relevant to that ${kind}. Each key is a short English name. Do not copy a placeholder key. Omit metadata when nothing further is relevant`,
+    );
+  }
   for (const field of fields) {
     const quoted = JSON.stringify(field.key);
     lines.push(field.prompt ? `- ${quoted}: ${field.prompt}` : `- ${quoted}`);
@@ -171,37 +208,60 @@ export function metadataRuleLines(
   return lines;
 }
 
-export function definitionSenseShape(fields: readonly AiMetadataField[]): string {
-  const meta = metadataSuffix(fields);
+export function definitionSenseShape(fields: readonly AiMetadataField[], extra = false): string {
+  const meta = metadataSuffix(fields, extra);
   const rest = meta === '}' ? '}' : `${meta.slice(0, -1)}}`;
   return `{"gloss":"<definition in writeFieldsIn>","frequency":"<common|uncommon|rare|archaic|obsolete>"${rest}`;
 }
 
-export function exampleSentenceShape(fields: readonly AiMetadataField[]): string {
-  return `{"text":"<sentence>"${metadataSuffix(fields)}}`;
+export function exampleSentenceShape(fields: readonly AiMetadataField[], extra = false): string {
+  return `{"text":"<sentence>"${metadataSuffix(fields, extra)}`;
 }
 
-/** Keep values for the configured keys. A note does not limit which strings are kept. */
-export function pickMetadata(value: unknown, keys: readonly string[]): ElementMetadata {
+/** Keep values for the configured keys. When extra is set, also keep other relevant keys. */
+export function pickMetadata(
+  value: unknown,
+  keys: readonly string[],
+  extra = false,
+): ElementMetadata {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const metadata: ElementMetadata = {};
-  for (const [rawKey, rawValue] of Object.entries(value)) {
+  const seen = new Set<string>();
+  const entries = Object.entries(value);
+  for (const [rawKey, rawValue] of entries) {
     if (typeof rawValue !== 'string') continue;
     const canonical = keys.find((key) => key.toLowerCase() === rawKey.trim().toLowerCase());
     if (!canonical) continue;
+    seen.add(canonical.toLowerCase());
     const text = rawValue.trim().slice(0, MAX_METADATA_VALUE_LENGTH);
     if (!text) continue;
     metadata[canonical.slice(0, MAX_METADATA_FIELD_KEY)] = text;
   }
+  if (!extra) return metadata;
+  for (const [rawKey, rawValue] of entries) {
+    if (Object.keys(metadata).length >= MAX_METADATA_FIELDS) break;
+    if (typeof rawValue !== 'string') continue;
+    const key = rawKey.replace(/\s+/g, ' ').trim().slice(0, MAX_METADATA_FIELD_KEY);
+    const id = key.toLowerCase();
+    if (!key || key.includes('<') || key.includes('>') || seen.has(id) || id === 'frequency') {
+      continue;
+    }
+    if (keys.some((item) => item.toLowerCase() === id)) continue;
+    seen.add(id);
+    const text = rawValue.trim().slice(0, MAX_METADATA_VALUE_LENGTH);
+    if (!text) continue;
+    metadata[key] = text;
+  }
   return metadata;
 }
 
-function metadataSuffix(fields: readonly AiMetadataField[]): string {
-  if (!fields.length) return '}';
+function metadataSuffix(fields: readonly AiMetadataField[], extra = false): string {
+  if (!fields.length && !extra) return '}';
   const body = fields
     .map((field) => `${JSON.stringify(field.key)}:${JSON.stringify(`<${field.key}>`)}`)
     .join(',');
-  return `,"metadata":{${body}}}`;
+  const pairs = [body, extra ? '"<other relevant key>":"<value>"' : ''].filter(Boolean).join(',');
+  return `,"metadata":{${pairs}}}`;
 }
 
 function quotedKeyList(fields: readonly AiMetadataField[]): string {
@@ -287,12 +347,16 @@ function readMap(): LanguageSettingsMap {
         examples?: unknown;
         definitionTranslations?: unknown;
         exampleTranslations?: unknown;
+        definitionExtraFields?: unknown;
+        exampleExtraFields?: unknown;
       };
       const entry: StoredLanguageSettings = {};
       if (Array.isArray(record.definitions)) entry.definitions = readFieldList(record.definitions);
       if (Array.isArray(record.examples)) entry.examples = readFieldList(record.examples);
       if (record.definitionTranslations === false) entry.definitionTranslations = false;
       if (record.exampleTranslations === false) entry.exampleTranslations = false;
+      if (record.definitionExtraFields === true) entry.definitionExtraFields = true;
+      if (record.exampleExtraFields === true) entry.exampleExtraFields = true;
       map[language] = entry;
     }
     return map;
@@ -310,6 +374,8 @@ function writeMap(map: LanguageSettingsMap): void {
     if (entry.examples !== undefined) next.examples = entry.examples;
     if (entry.definitionTranslations === false) next.definitionTranslations = false;
     if (entry.exampleTranslations === false) next.exampleTranslations = false;
+    if (entry.definitionExtraFields === true) next.definitionExtraFields = true;
+    if (entry.exampleExtraFields === true) next.exampleExtraFields = true;
     stored[code] = next;
   }
   if (!Object.keys(stored).length) localStorage.removeItem(LANGUAGE_SETTINGS_KEY);
