@@ -9,7 +9,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
-import { ModeIcon } from '../elements/mode-icon';
+import { ModeIcon, modeColor, modePointLevel } from '../elements/mode-icon';
 import { LanguageAiSettings } from './language-ai-settings';
 import { generateElementFromSelection } from 'ai';
 import {
@@ -282,6 +282,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                   class="mode-points"
                   role="group"
                   [attr.aria-label]="modeLabel(element.mode) + ' points'"
+                  [attr.data-level]="modePointLevel(element.modePoints[element.mode])"
+                  [style.--mode-color]="modeColor(element.mode).color"
+                  [style.--mode-rgb]="modeColor(element.mode).rgb"
                 >
                 @for (filled of element.modePoints[element.mode]; track $index) {
                   <button
@@ -908,12 +911,22 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       width: 0.42rem;
       height: 0.42rem;
       border-radius: 999px;
-      box-shadow: inset 0 0 0 1.5px rgba(139, 144, 165, 0.75);
+      box-shadow: inset 0 0 0 1.5px rgba(var(--mode-rgb, 139, 144, 165), 0.55);
     }
 
     .mode-point.filled::before {
-      background: var(--accent);
+      background: var(--mode-color, var(--accent));
       box-shadow: none;
+      opacity: 0.38;
+    }
+
+    .mode-points[data-level='2'] .mode-point.filled::before {
+      opacity: 0.7;
+    }
+
+    .mode-points[data-level='3'] .mode-point.filled::before {
+      opacity: 1;
+      box-shadow: 0 0 0.35rem var(--mode-color, var(--accent));
     }
 
     .stats {
@@ -1235,6 +1248,8 @@ export class LanguagePage {
 
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly modeLabel = elementModeLabel;
+  readonly modeColor = modeColor;
+  readonly modePointLevel = modePointLevel;
   readonly asking = signal(false);
   readonly lookupError = signal('');
   readonly skeletons = ELEMENT_SKELETONS;

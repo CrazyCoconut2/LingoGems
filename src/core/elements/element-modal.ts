@@ -60,7 +60,7 @@ import {
 } from 'ai';
 import { Reveal } from './reveal';
 import { FrequencyGem } from './frequency-gem';
-import { ModeIcon } from './mode-icon';
+import { ModeIcon, modeColor, modePointLevel } from './mode-icon';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
@@ -621,6 +621,9 @@ function writeExampleSuggestions(
                 class="mode-points compact"
                 role="group"
                 [attr.aria-label]="modeLabel(element().mode) + ' points'"
+                [attr.data-level]="modePointLevel(element().modePoints[element().mode])"
+                [style.--mode-color]="modeColor(element().mode).color"
+                [style.--mode-rgb]="modeColor(element().mode).rgb"
               >
                 @for (filled of element().modePoints[element().mode]; track $index) {
                   <button
@@ -2299,7 +2302,11 @@ function writeExampleSuggestions(
               </div>
               <div class="mode-choices" role="radiogroup" aria-label="Mode">
                 @for (mode of modes; track mode) {
-                  <div class="mode-column">
+                  <div
+                    class="mode-column"
+                    [style.--mode-color]="modeColor(mode).color"
+                    [style.--mode-rgb]="modeColor(mode).rgb"
+                  >
                     <button
                       type="button"
                       class="mode-choice"
@@ -2316,6 +2323,7 @@ function writeExampleSuggestions(
                       class="mode-points"
                       role="group"
                       [attr.aria-label]="modeLabel(mode) + ' points'"
+                      [attr.data-level]="modePointLevel(element().modePoints[mode])"
                     >
                       @for (filled of element().modePoints[mode]; track $index) {
                         <button
@@ -2686,10 +2694,10 @@ function writeExampleSuggestions(
       width: 100%;
       margin: 0;
       padding: 0.7rem 0.3rem 0.65rem;
-      border: 1px solid var(--border);
+      border: 1px solid rgba(var(--mode-rgb), 0.45);
       border-radius: 14px;
       background: var(--surface-2);
-      color: var(--text);
+      color: var(--mode-color);
       font: inherit;
       font-size: 0.82rem;
       font-weight: 700;
@@ -2702,8 +2710,9 @@ function writeExampleSuggestions(
     }
 
     .mode-choice.selected {
-      border-color: rgba(var(--accent-rgb), 0.75);
-      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.5);
+      border-color: var(--mode-color);
+      background: rgba(var(--mode-rgb), 0.14);
+      box-shadow: inset 0 0 0 1px var(--mode-color);
     }
 
     .mode-choice:disabled {
@@ -2734,12 +2743,22 @@ function writeExampleSuggestions(
       width: 0.55rem;
       height: 0.55rem;
       border-radius: 999px;
-      box-shadow: inset 0 0 0 1.5px rgba(139, 144, 165, 0.75);
+      box-shadow: inset 0 0 0 1.5px rgba(var(--mode-rgb, 139, 144, 165), 0.55);
     }
 
     .mode-point.filled::before {
-      background: var(--accent);
+      background: var(--mode-color, var(--accent));
       box-shadow: none;
+      opacity: 0.38;
+    }
+
+    .mode-points[data-level='2'] .mode-point.filled::before {
+      opacity: 0.7;
+    }
+
+    .mode-points[data-level='3'] .mode-point.filled::before {
+      opacity: 1;
+      box-shadow: 0 0 0.4rem var(--mode-color, var(--accent));
     }
 
     .mode-point:disabled {
@@ -3759,6 +3778,8 @@ export class ElementModal {
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
   readonly highlightStyles = HIGHLIGHT_STYLES;
   readonly modeLabel = elementModeLabel;
+  readonly modeColor = modeColor;
+  readonly modePointLevel = modePointLevel;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
   readonly frequencies = DEFINITION_FREQUENCIES;
   readonly frequencyLabel = definitionFrequencyLabel;

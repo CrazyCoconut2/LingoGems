@@ -1,6 +1,22 @@
 import { Component, input } from '@angular/core';
 import type { ElementMode } from 'collection';
 
+/** Extract, Refine, and Polish each have their own color. */
+export const MODE_COLORS: Record<ElementMode, { color: string; rgb: string }> = {
+  1: { color: '#e3b15a', rgb: '227, 177, 90' },
+  2: { color: '#b07cff', rgb: '176, 124, 255' },
+  3: { color: '#4fd2ff', rgb: '79, 210, 255' },
+};
+
+export function modeColor(mode: ElementMode): { color: string; rgb: string } {
+  return MODE_COLORS[mode];
+}
+
+/** How many points in the triple are filled. */
+export function modePointLevel(points: readonly boolean[]): number {
+  return points.reduce((count, filled) => count + (filled ? 1 : 0), 0);
+}
+
 /** The gem at one stage: a rough find, a cut stone, or a finished gem. */
 @Component({
   selector: 'app-mode-icon',
