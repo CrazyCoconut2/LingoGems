@@ -570,7 +570,7 @@ function writeExampleSuggestions(
               <p class="equivalents">
                 @for (text of equivalents; track $index) {
                   @if ($index > 0) {
-                    <span class="sep">, </span>
+                    <span class="sep" aria-hidden="true">·</span>
                   }
                   <app-reveal [text]="text" [language]="element().language" />
                 }
@@ -2635,6 +2635,11 @@ function writeExampleSuggestions(
       list-style: none;
       color: var(--text-muted);
       font-size: 0.95rem;
+    }
+
+    p.equivalents .sep {
+      margin-inline: 0.45rem;
+      color: var(--text-muted);
     }
 
     .equivalent-choices {
