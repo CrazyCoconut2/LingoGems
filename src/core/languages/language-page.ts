@@ -1171,25 +1171,28 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .mode-choices {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.45rem;
     }
 
     .mode-choice {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 0.55rem;
+      justify-content: center;
+      gap: 0.4rem;
       width: 100%;
+      min-width: 0;
       border: 0;
-      border-radius: 0.7rem;
+      border-radius: 0.75rem;
       background: transparent;
       color: var(--text);
-      padding: 0.45rem 0.55rem;
+      padding: 0.75rem 0.35rem 0.65rem;
       font: inherit;
-      font-size: 0.88rem;
+      font-size: 0.8rem;
       font-weight: 650;
-      text-align: left;
+      text-align: center;
       cursor: pointer;
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
     }
@@ -1205,8 +1208,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .mode-choice app-mode-icon {
-      width: 1.35rem;
-      height: 1.35rem;
+      width: 2.35rem;
+      height: 2.35rem;
       flex: none;
     }
 
