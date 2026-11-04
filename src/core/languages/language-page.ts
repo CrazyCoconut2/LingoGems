@@ -18,20 +18,24 @@ import {
   displayTitle,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
-  elementMatchesMinimums,
+  elementMatchesCountRanges,
   elementMatchesMode,
   elementMatchesPrefix,
   elementModeLabel,
   elementPrefixSearch,
+  formatElementCountRange,
   isValidForm,
   languageDisplayName,
-  parseElementMinimum,
+  parseElementCountRange,
   parseElementMode,
   parseElementSort,
+  setCountRangeBound,
+  stepCountRange,
   readElements,
   readLanguages,
   saveElement,
   type DefinitionFrequency,
+  type ElementCountRange,
   type ElementDefinition,
   type ElementMode,
   type ElementSearch,
@@ -306,7 +310,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
               <div>
                 <h2 class="filter-title">Filters</h2>
                 <p class="filter-subtitle">
-                  Keep elements in one mode, or with at least this many translations and definitions.
+                  Keep elements in one mode, or within a range of translations and definitions.
                 </p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
@@ -386,8 +390,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 >
                   <span class="section-title">
                     Translations
-                    @if (minTranslations(); as count) {
-                      <span class="section-count">{{ count }}</span>
+                    @if (rangeSummary(translationRange()); as summary) {
+                      <span class="section-count">{{ summary }}</span>
                     }
                   </span>
                   <svg class="section-chevron" viewBox="0 0 24 24">
@@ -400,31 +404,72 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       <button
                         type="button"
                         class="link-btn"
-                        [disabled]="minTranslations() == null"
-                        (click)="clearMinimum('translations')"
+                        [disabled]="!rangeActive(translationRange())"
+                        (click)="clearRange('translations')"
                       >
                         Clear
                       </button>
                     </div>
-                    <p class="section-hint">At least this many translations.</p>
-                    <div class="count-stepper">
-                      <button
-                        type="button"
-                        aria-label="Fewer translations"
-                        [disabled]="minTranslations() == null"
-                        (click)="stepMinimum('translations', -1)"
-                      >
-                        −
-                      </button>
-                      <span>{{ minTranslations() ?? 'Any' }}</span>
-                      <button
-                        type="button"
-                        aria-label="More translations"
-                        [disabled]="minTranslations() === 99"
-                        (click)="stepMinimum('translations', 1)"
-                      >
-                        +
-                      </button>
+                    <p class="section-hint">Keep a translation count inside this range.</p>
+                    <div class="count-range">
+                      <div class="bound">
+                        <span class="bound-label">From</span>
+                        <div class="count-stepper">
+                          <button
+                            type="button"
+                            aria-label="Decrease minimum translations"
+                            [disabled]="!canStep('translations', 'min', -1)"
+                            (click)="stepBound('translations', 'min', -1)"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="text"
+                            inputmode="numeric"
+                            aria-label="Minimum translations"
+                            [value]="boundValue(translationRange().min)"
+                            (change)="commitBound('translations', 'min', $event)"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Increase minimum translations"
+                            [disabled]="!canStep('translations', 'min', 1)"
+                            (click)="stepBound('translations', 'min', 1)"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      <span class="range-sep" aria-hidden="true">–</span>
+                      <div class="bound">
+                        <span class="bound-label">To</span>
+                        <div class="count-stepper">
+                          <button
+                            type="button"
+                            aria-label="Decrease maximum translations"
+                            [disabled]="!canStep('translations', 'max', -1)"
+                            (click)="stepBound('translations', 'max', -1)"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="text"
+                            inputmode="numeric"
+                            aria-label="Maximum translations"
+                            placeholder="Any"
+                            [value]="boundValue(translationRange().max)"
+                            (change)="commitBound('translations', 'max', $event)"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Increase maximum translations"
+                            [disabled]="!canStep('translations', 'max', 1)"
+                            (click)="stepBound('translations', 'max', 1)"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 }
@@ -439,8 +484,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 >
                   <span class="section-title">
                     Definitions
-                    @if (minDefinitions(); as count) {
-                      <span class="section-count">{{ count }}</span>
+                    @if (rangeSummary(definitionRange()); as summary) {
+                      <span class="section-count">{{ summary }}</span>
                     }
                   </span>
                   <svg class="section-chevron" viewBox="0 0 24 24">
@@ -453,31 +498,72 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       <button
                         type="button"
                         class="link-btn"
-                        [disabled]="minDefinitions() == null"
-                        (click)="clearMinimum('definitions')"
+                        [disabled]="!rangeActive(definitionRange())"
+                        (click)="clearRange('definitions')"
                       >
                         Clear
                       </button>
                     </div>
-                    <p class="section-hint">At least this many definitions.</p>
-                    <div class="count-stepper">
-                      <button
-                        type="button"
-                        aria-label="Fewer definitions"
-                        [disabled]="minDefinitions() == null"
-                        (click)="stepMinimum('definitions', -1)"
-                      >
-                        −
-                      </button>
-                      <span>{{ minDefinitions() ?? 'Any' }}</span>
-                      <button
-                        type="button"
-                        aria-label="More definitions"
-                        [disabled]="minDefinitions() === 99"
-                        (click)="stepMinimum('definitions', 1)"
-                      >
-                        +
-                      </button>
+                    <p class="section-hint">Keep a definition count inside this range.</p>
+                    <div class="count-range">
+                      <div class="bound">
+                        <span class="bound-label">From</span>
+                        <div class="count-stepper">
+                          <button
+                            type="button"
+                            aria-label="Decrease minimum definitions"
+                            [disabled]="!canStep('definitions', 'min', -1)"
+                            (click)="stepBound('definitions', 'min', -1)"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="text"
+                            inputmode="numeric"
+                            aria-label="Minimum definitions"
+                            [value]="boundValue(definitionRange().min)"
+                            (change)="commitBound('definitions', 'min', $event)"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Increase minimum definitions"
+                            [disabled]="!canStep('definitions', 'min', 1)"
+                            (click)="stepBound('definitions', 'min', 1)"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      <span class="range-sep" aria-hidden="true">–</span>
+                      <div class="bound">
+                        <span class="bound-label">To</span>
+                        <div class="count-stepper">
+                          <button
+                            type="button"
+                            aria-label="Decrease maximum definitions"
+                            [disabled]="!canStep('definitions', 'max', -1)"
+                            (click)="stepBound('definitions', 'max', -1)"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="text"
+                            inputmode="numeric"
+                            aria-label="Maximum definitions"
+                            placeholder="Any"
+                            [value]="boundValue(definitionRange().max)"
+                            (change)="commitBound('definitions', 'max', $event)"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Increase maximum definitions"
+                            [disabled]="!canStep('definitions', 'max', 1)"
+                            (click)="stepBound('definitions', 'max', 1)"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 }
@@ -1145,6 +1231,32 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       line-height: 1.4;
     }
 
+    .count-range {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.75rem;
+      margin-top: 0.15rem;
+    }
+
+    .bound {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+
+    .bound-label {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 650;
+    }
+
+    .range-sep {
+      padding-bottom: 0.4rem;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
     .count-stepper {
       display: flex;
       align-items: center;
@@ -1176,13 +1288,28 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       cursor: not-allowed;
     }
 
-    .count-stepper span {
-      min-width: 2.4rem;
+    .count-stepper input {
+      width: 2.7rem;
+      border: 0;
+      background: transparent;
       color: var(--text);
+      font: inherit;
       font-size: 0.84rem;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
       text-align: center;
+      padding: 0;
+    }
+
+    .count-stepper input::placeholder {
+      color: var(--text-muted);
+      font-weight: 650;
+    }
+
+    .count-stepper input:focus {
+      outline: 2px solid rgba(var(--accent-rgb), 0.55);
+      outline-offset: 2px;
+      border-radius: 0.2rem;
     }
 
     .mode-choices {
@@ -1315,8 +1442,8 @@ export class LanguagePage {
   readonly search = signal<ElementSearch>({ mode: 'browse', value: '' });
   readonly sort = signal<ElementSort>(DEFAULT_ELEMENT_SORT);
   readonly modes: readonly ElementMode[] = [1, 2, 3];
-  readonly minTranslations = signal<number | null>(null);
-  readonly minDefinitions = signal<number | null>(null);
+  readonly translationRange = signal<ElementCountRange>({ min: 0, max: null });
+  readonly definitionRange = signal<ElementCountRange>({ min: 0, max: null });
   readonly modeFilter = signal<ElementMode | null>(null);
   readonly sortOpen = signal(false);
   readonly filtersOpen = signal(false);
@@ -1333,8 +1460,8 @@ export class LanguagePage {
   readonly filterCount = computed(
     () =>
       (this.modeFilter() == null ? 0 : 1) +
-      (this.minTranslations() == null ? 0 : 1) +
-      (this.minDefinitions() == null ? 0 : 1),
+      (this.rangeActive(this.translationRange()) ? 1 : 0) +
+      (this.rangeActive(this.definitionRange()) ? 1 : 0),
   );
   readonly sortActive = computed(() => {
     const sort = this.sort();
@@ -1342,13 +1469,13 @@ export class LanguagePage {
   });
   readonly visible = computed(() => {
     const search = this.search();
-    const translations = this.minTranslations();
-    const definitions = this.minDefinitions();
+    const translations = this.translationRange();
+    const definitions = this.definitionRange();
     const mode = this.modeFilter();
     const matched = this.elements().filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
       if (!elementMatchesMode(element, mode)) return false;
-      return elementMatchesMinimums(element, translations, definitions);
+      return elementMatchesCountRanges(element, translations, definitions);
     });
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
   });
@@ -1646,19 +1773,44 @@ export class LanguagePage {
     this.expanded.update((current) => (current === section ? null : section));
   }
 
-  stepMinimum(kind: 'translations' | 'definitions', by: number): void {
-    const current = kind === 'translations' ? this.minTranslations() : this.minDefinitions();
-    const next = (current ?? 0) + by;
-    const value = next < 1 ? null : Math.min(next, 99);
-    if (kind === 'translations') this.minTranslations.set(value);
-    else this.minDefinitions.set(value);
-    this.writeBrowse();
+  rangeActive(range: ElementCountRange): boolean {
+    return range.min > 0 || range.max != null;
   }
 
-  clearMinimum(kind: 'translations' | 'definitions'): void {
-    if (kind === 'translations') this.minTranslations.set(null);
-    else this.minDefinitions.set(null);
-    this.writeBrowse();
+  rangeSummary(range: ElementCountRange): string {
+    const { min, max } = range;
+    if (max == null) return min > 0 ? `${min}+` : '';
+    return min === max ? `${min}` : `${min}–${max}`;
+  }
+
+  boundValue(value: number | null): string {
+    return value == null ? '' : String(value);
+  }
+
+  canStep(kind: 'translations' | 'definitions', edge: 'min' | 'max', by: number): boolean {
+    const range = this.rangeFor(kind);
+    const next = stepCountRange(range, edge, by);
+    return next.min !== range.min || next.max !== range.max;
+  }
+
+  stepBound(kind: 'translations' | 'definitions', edge: 'min' | 'max', by: number): void {
+    this.setRange(kind, stepCountRange(this.rangeFor(kind), edge, by));
+  }
+
+  commitBound(kind: 'translations' | 'definitions', edge: 'min' | 'max', event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const parsed = readBound(input.value);
+    const range = this.rangeFor(kind);
+    if (!parsed.ok) {
+      input.value = this.boundValue(edge === 'min' ? range.min : range.max);
+      return;
+    }
+    const value = edge === 'min' && parsed.value == null ? 0 : parsed.value;
+    this.setRange(kind, setCountRangeBound(range, edge, value));
+  }
+
+  clearRange(kind: 'translations' | 'definitions'): void {
+    this.setRange(kind, { min: 0, max: null });
   }
 
   chooseMode(mode: ElementMode): void {
@@ -1673,8 +1825,8 @@ export class LanguagePage {
 
   clearFilters(): void {
     this.modeFilter.set(null);
-    this.minTranslations.set(null);
-    this.minDefinitions.set(null);
+    this.translationRange.set({ min: 0, max: null });
+    this.definitionRange.set({ min: 0, max: null });
     this.writeBrowse();
   }
 
@@ -1687,8 +1839,8 @@ export class LanguagePage {
     this.query.set(restored);
     this.search.set(elementPrefixSearch(restored));
     this.sort.set(parseElementSort(params.get('sort')));
-    this.minTranslations.set(parseElementMinimum(params.get('translations')));
-    this.minDefinitions.set(parseElementMinimum(params.get('definitions')));
+    this.translationRange.set(parseElementCountRange(params.get('translations')));
+    this.definitionRange.set(parseElementCountRange(params.get('definitions')));
     this.modeFilter.set(parseElementMode(params.get('mode')));
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
@@ -1706,16 +1858,16 @@ export class LanguagePage {
   private writeBrowse(): void {
     if (this.router.url.split('?')[0] !== `/languages/${this.code()}`) return;
     const sort = this.sort();
-    const translations = this.minTranslations();
-    const definitions = this.minDefinitions();
+    const translations = formatElementCountRange(this.translationRange());
+    const definitions = formatElementCountRange(this.definitionRange());
     const mode = this.modeFilter();
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: {
         sort: sort === DEFAULT_ELEMENT_SORT ? null : sort,
         mode: mode == null ? null : String(mode),
-        translations: translations == null ? null : String(translations),
-        definitions: definitions == null ? null : String(definitions),
+        translations,
+        definitions,
         has: null,
         hide: null,
       },
@@ -1734,12 +1886,31 @@ export class LanguagePage {
     this.scrollLock = '';
   }
 
+  private rangeFor(kind: 'translations' | 'definitions'): ElementCountRange {
+    return kind === 'translations' ? this.translationRange() : this.definitionRange();
+  }
+
+  private setRange(kind: 'translations' | 'definitions', range: ElementCountRange): void {
+    if (kind === 'translations') this.translationRange.set(range);
+    else this.definitionRange.set(range);
+    this.writeBrowse();
+  }
+
   private reconcileOpen(): void {
     const id = this.elementId();
     if (!this.ready() || !id) return;
     if (this.elements().some((element) => element.id === id)) return;
     this.closeElement();
   }
+}
+
+function readBound(raw: string): { ok: true; value: number | null } | { ok: false } {
+  const text = raw.trim();
+  if (!text || text.toLowerCase() === 'any') return { ok: true, value: null };
+  if (!/^\d{1,2}$/.test(text)) return { ok: false };
+  const value = Number(text);
+  if (value > 99) return { ok: false };
+  return { ok: true, value };
 }
 
 function hasExample(element: StoredElement, example: string): boolean {

@@ -21,12 +21,80 @@ export function parseElementSort(raw: string | null): ElementSort {
   return DEFAULT_ELEMENT_SORT;
 }
 
-/** A missing or invalid value means no minimum. */
-export function parseElementMinimum(raw: string | null): number | null {
-  if (!raw) return null;
+const COUNT_LIMIT = 99;
+
+/** Inclusive bounds. The minimum is always set and defaults to 0. The maximum may be open. */
+export type ElementCountRange = {
+  min: number;
+  max: number | null;
+};
+
+/** `2` means at least 2. `2-5` means 2 through 5. `-5` means 0 through 5. */
+export function parseElementCountRange(raw: string | null): ElementCountRange {
+  const open: ElementCountRange = { min: 0, max: null };
+  if (!raw) return open;
+  const text = raw.trim();
+  const ranged = /^(\d{0,2})-(\d{0,2})$/.exec(text);
+  if (ranged) {
+    if (!ranged[1] && !ranged[2]) return open;
+    const min = ranged[1] ? parseCountBound(ranged[1]) : 0;
+    const max = ranged[2] ? parseCountBound(ranged[2]) : null;
+    if (min == null || (ranged[2] && max == null)) return open;
+    if (max != null && min > max) return { min: max, max: min };
+    return { min, max };
+  }
+  const minimum = parseCountBound(text);
+  return minimum == null ? open : { min: minimum, max: null };
+}
+
+/** Serializes a range for the `translations` and `definitions` query params. */
+export function formatElementCountRange(range: ElementCountRange): string | null {
+  if (range.max == null) return range.min > 0 ? String(range.min) : null;
+  return `${range.min}-${range.max}`;
+}
+
+/** Moves one edge by one. The minimum stops at 0. An empty maximum starts at the minimum. */
+export function stepCountRange(
+  range: ElementCountRange,
+  edge: 'min' | 'max',
+  by: number,
+): ElementCountRange {
+  if (by !== 1 && by !== -1) return range;
+  if (edge === 'min') {
+    const next = range.min + by;
+    if (next < 0 || next > COUNT_LIMIT) return range;
+    if (range.max != null && next > range.max) return range;
+    return { min: next, max: range.max };
+  }
+  if (range.max == null) {
+    if (by < 0) return range;
+    return { min: range.min, max: range.min };
+  }
+  const next = range.max + by;
+  if (next > COUNT_LIMIT || next < range.min) return range;
+  return { min: range.min, max: next };
+}
+
+/** Sets one edge. Values outside 0–99 are ignored. A value past the other edge clamps to it. */
+export function setCountRangeBound(
+  range: ElementCountRange,
+  edge: 'min' | 'max',
+  value: number | null,
+): ElementCountRange {
+  if (value != null && (!Number.isInteger(value) || value < 0 || value > COUNT_LIMIT)) return range;
+  if (edge === 'min') {
+    const next = value ?? 0;
+    const min = range.max != null && next > range.max ? range.max : next;
+    return { min, max: range.max };
+  }
+  if (value != null && value < range.min) return { min: range.min, max: range.min };
+  return { min: range.min, max: value };
+}
+
+function parseCountBound(raw: string): number | null {
+  if (!/^\d{1,2}$/.test(raw)) return null;
   const value = Number(raw);
-  if (!Number.isInteger(value) || value < 1) return null;
-  return Math.min(value, 99);
+  return value <= COUNT_LIMIT ? value : null;
 }
 
 export function elementTranslationCount(element: StoredElement): number {
@@ -48,14 +116,21 @@ export function elementMatchesMode(element: StoredElement, mode: ElementMode | n
   return mode == null || element.mode === mode;
 }
 
-/** Keep an element whose translation and definition counts meet each minimum. */
-export function elementMatchesMinimums(
+/** Keep an element whose translation and definition counts fall inside each range. */
+export function elementMatchesCountRanges(
   element: StoredElement,
-  translations: number | null,
-  definitions: number | null,
+  translations: ElementCountRange,
+  definitions: ElementCountRange,
 ): boolean {
-  if (translations != null && elementTranslationCount(element) < translations) return false;
-  if (definitions != null && elementDefinitionCount(element) < definitions) return false;
+  return (
+    countInRange(elementTranslationCount(element), translations) &&
+    countInRange(elementDefinitionCount(element), definitions)
+  );
+}
+
+function countInRange(count: number, range: ElementCountRange): boolean {
+  if (count < range.min) return false;
+  if (range.max != null && count > range.max) return false;
   return true;
 }
 
