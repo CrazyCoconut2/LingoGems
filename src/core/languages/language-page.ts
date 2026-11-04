@@ -22,7 +22,6 @@ import {
   elementMatchesMinimums,
   elementMatchesPrefix,
   elementModeLabel,
-  modePointsThrough,
   elementPrefixSearch,
   isValidForm,
   languageDisplayName,
@@ -280,23 +279,21 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 </button>
                 <div
                   class="mode-points"
-                  role="group"
-                  [attr.aria-label]="modeLabel(element.mode) + ' points'"
+                  role="img"
+                  [attr.aria-label]="
+                    modeLabel(element.mode) +
+                    ', ' +
+                    modePointLevel(element.modePoints[element.mode]) +
+                    ' of 3'
+                  "
                   [attr.data-level]="modePointLevel(element.modePoints[element.mode])"
                   [style.--mode-color]="modeColor(element.mode).color"
                   [style.--mode-rgb]="modeColor(element.mode).rgb"
                 >
-                @for (filled of element.modePoints[element.mode]; track $index) {
-                  <button
-                    type="button"
-                    class="mode-point"
-                    [class.filled]="filled"
-                    [attr.aria-pressed]="filled"
-                    [attr.aria-label]="modeLabel(element.mode) + ' point ' + ($index + 1)"
-                    (click)="setModePoint(element, $index)"
-                  ></button>
-                }
-              </div>
+                  @for (filled of element.modePoints[element.mode]; track $index) {
+                    <span class="mode-point" [class.filled]="filled"></span>
+                  }
+                </div>
               </div>
             </div>
             </li>
@@ -903,7 +900,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       border: 0;
       border-radius: 999px;
       background: transparent;
-      cursor: pointer;
     }
 
     .mode-point::before {
@@ -1408,16 +1404,6 @@ export class LanguagePage {
 
   replaceElement(saved: StoredElement): void {
     this.elements.update((list) => list.map((item) => (item.id === saved.id ? saved : item)));
-  }
-
-  async setModePoint(element: StoredElement, index: number): Promise<void> {
-    if (index < 0 || index > 2) return;
-    const latest = this.elements().find((item) => item.id === element.id) ?? element;
-    const saved = await saveElement({
-      ...latest,
-      modePoints: { ...latest.modePoints, [latest.mode]: modePointsThrough(index) },
-    });
-    this.replaceElement(saved);
   }
 
   onElementDeleted(): void {
