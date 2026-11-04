@@ -13,6 +13,7 @@ import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { MAX_EXAMPLE_LENGTH } from './examples';
 import {
   definitionSenseShape,
+  METADATA_VALUE_LANGUAGE_RULE,
   metadataFieldKeys,
   metadataRuleLines,
   pickMetadata,
@@ -39,7 +40,7 @@ const FORM_METADATA_KEYS = ['tense', 'person', 'number', 'mood'] as const;
 const FREQUENCY_RULE =
   '- frequency is required on every sense and is exactly one of "common", "uncommon", "rare", "archaic", or "obsolete". common is everyday, uncommon is known but not everyday, rare is seldom met, archaic is old and out of normal use, obsolete is gone from living use. Write that word in English';
 
-const FORM_SHAPE = `{"text":"<surface form>","metadata":{"tense":"<tense>","person":"<person>","number":"<number>","mood":"<mood>"}}`;
+const FORM_SHAPE = `{"text":"<surface form>","metadata":{"tense":"<in writeFieldsIn>","person":"<in writeFieldsIn>","number":"<in writeFieldsIn>","mood":"<in writeFieldsIn>"}}`;
 
 export function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
   return joinPrompt([
@@ -121,7 +122,7 @@ export function definitionFromExampleSystemPrompt(
 
 function metadataIntro(fields: readonly AiMetadataField[], extra = false): string {
   return fields.length || extra
-    ? 'Do not copy English labels into metadata; write those values in writeFieldsIn.'
+    ? METADATA_VALUE_LANGUAGE_RULE
     : '';
 }
 
@@ -131,7 +132,7 @@ function joinPrompt(lines: readonly string[]): string {
 
 export const FORMS_SYSTEM_PROMPT = `You list the surface forms of one dictionary sense.
 JSON keys stay in English.
-Do not copy English labels into metadata; write those values in writeFieldsIn.
+${METADATA_VALUE_LANGUAGE_RULE}
 Rules:
 - forms lists every distinct inflected surface form of this sense, not one example. For a verb, cover person, number, tense, and mood, plus the participle and gerund when they exist. For a noun or adjective, cover gender and number. Keep going until that paradigm is covered. Omit a form you cannot spell correctly
 - The forms array in the shape shows the fields. It is not a limit of one form

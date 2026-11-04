@@ -8,6 +8,7 @@ import { completeJson, runWithKeyFallback } from './complete';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import {
   exampleSentenceShape,
+  METADATA_VALUE_LANGUAGE_RULE,
   metadataFieldKeys,
   metadataRuleLines,
   pickMetadata,
@@ -32,7 +33,7 @@ export function examplesSystemPrompt(fields: readonly AiMetadataField[], extra =
     'Do not use English for the sentence unless writeFieldsIn is English.',
   ];
   if (fields.length || extra) {
-    lines.push('Do not copy English labels into metadata; write those values in writeFieldsIn.');
+    lines.push(METADATA_VALUE_LANGUAGE_RULE);
   }
   lines.push(
     'Rules:',

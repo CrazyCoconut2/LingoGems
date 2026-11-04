@@ -22,12 +22,12 @@ export const DEFAULT_DEFINITION_METADATA_FIELDS: readonly AiMetadataField[] = [
   {
     key: 'region',
     prompt:
-      'the country or region this sense belongs to. Omit it when the sense is not specific to a place',
+      'the country or region this sense belongs to, written in writeFieldsIn. Omit it when the sense is not specific to a place',
   },
   {
     key: 'semantic domain',
     prompt:
-      'the subject area of this sense, such as food, law, or kinship. Omit it when the sense is not tied to one area',
+      'the subject area of this sense, written in writeFieldsIn. Omit it when the sense is not tied to one area',
   },
 ];
 
@@ -178,6 +178,10 @@ export function writeExampleExtraFields(language: string, enabled: boolean): voi
   });
 }
 
+/** Metadata values are written in the language being learned. Keys stay the English names. */
+export const METADATA_VALUE_LANGUAGE_RULE =
+  'Every metadata value MUST be in the language named by writeFieldsIn. Do not use English for a metadata value unless writeFieldsIn is English. Metadata keys stay in English. A note that explains a field is not a sample answer to copy.';
+
 /** Rule lines for a system prompt, or none when no fields are configured and extras are off. */
 export function metadataRuleLines(
   kind: 'definition' | 'example',
@@ -188,17 +192,18 @@ export function metadataRuleLines(
   const label = kind === 'definition' ? 'Definition' : 'Example';
   const lines = [
     `- metadata is key-value pairs that apply to that ${kind}. Omit a pair when it does not apply`,
+    `- ${METADATA_VALUE_LANGUAGE_RULE}`,
   ];
   if (fields.length && extra) {
     lines.push(
       `- Include ${quotedKeyList(fields)} when they apply`,
-      '- You may add other metadata keys when a further field is relevant. Each extra key is a short English name. Do not copy a placeholder key. Omit a field that is not relevant',
+      '- You may add other metadata keys when a further field is relevant. Each extra key is a short English name, and its value is in writeFieldsIn. Do not copy a placeholder key. Omit a field that is not relevant',
     );
   } else if (fields.length) {
     lines.push(`- ${label} metadata keys are only ${quotedKeyList(fields)}`);
   } else {
     lines.push(
-      `- Add metadata only when a field is relevant to that ${kind}. Each key is a short English name. Do not copy a placeholder key. Omit metadata when nothing further is relevant`,
+      `- Add metadata only when a field is relevant to that ${kind}. Each key is a short English name, and its value is in writeFieldsIn. Do not copy a placeholder key. Omit metadata when nothing further is relevant`,
     );
   }
   for (const field of fields) {
@@ -258,9 +263,9 @@ export function pickMetadata(
 function metadataSuffix(fields: readonly AiMetadataField[], extra = false): string {
   if (!fields.length && !extra) return '}';
   const body = fields
-    .map((field) => `${JSON.stringify(field.key)}:${JSON.stringify(`<${field.key}>`)}`)
+    .map((field) => `${JSON.stringify(field.key)}:"<in writeFieldsIn>"`)
     .join(',');
-  const pairs = [body, extra ? '"<other relevant key>":"<value>"' : ''].filter(Boolean).join(',');
+  const pairs = [body, extra ? '"<other relevant key>":"<in writeFieldsIn>"' : ''].filter(Boolean).join(',');
   return `,"metadata":{${pairs}}}`;
 }
 
