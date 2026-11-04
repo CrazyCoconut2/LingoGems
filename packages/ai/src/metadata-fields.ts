@@ -172,7 +172,9 @@ export function metadataRuleLines(
 }
 
 export function definitionSenseShape(fields: readonly AiMetadataField[]): string {
-  return `{"gloss":"<definition in writeFieldsIn>"${metadataSuffix(fields)}}`;
+  const meta = metadataSuffix(fields);
+  const rest = meta === '}' ? '}' : `${meta.slice(0, -1)}}`;
+  return `{"gloss":"<definition in writeFieldsIn>","frequency":"<common|uncommon|rare|archaic|obsolete>"${rest}`;
 }
 
 export function exampleSentenceShape(fields: readonly AiMetadataField[]): string {

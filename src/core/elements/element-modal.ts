@@ -14,6 +14,8 @@ import {
 import {
   assignEquivalent,
   DEFAULT_HIGHLIGHT_COLOR,
+  definitionFrequencyLabel,
+  DEFINITION_FREQUENCIES,
   deleteElement,
   displayTitle,
   embedTranslation,
@@ -24,11 +26,13 @@ import {
   HIGHLIGHT_STYLES,
   highlightDefinitionPassage,
   isValidForm,
+  normalizeDefinitionFrequency,
   parsePassage,
   resolveHighlightColor,
   resolveHighlightStyle,
   sanitizeHighlightColor,
   saveElement,
+  type DefinitionFrequency,
   type DefinitionHighlightMatch,
   type DefinitionHighlightPart,
   type ElementDefinition,
@@ -55,6 +59,7 @@ import {
   type RelatedWord,
 } from 'ai';
 import { Reveal } from './reveal';
+import { FrequencyGem } from './frequency-gem';
 import { ModeIcon } from './mode-icon';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
@@ -120,7 +125,12 @@ type ConfirmDelete =
   | { kind: 'definition'; index: number }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number };
 
-type DefinitionSuggestion = { text: string; metadata: ElementMetadata; example?: string };
+type DefinitionSuggestion = {
+  text: string;
+  metadata: ElementMetadata;
+  frequency: DefinitionFrequency;
+  example?: string;
+};
 
 const SUGGESTIONS_KEY = 'lingogem.definition-suggestions.v1';
 
@@ -149,6 +159,7 @@ function suggestionList(raw: unknown): DefinitionSuggestion[] {
     suggestions.push({
       text,
       metadata: suggestionMetadata((item as { metadata?: unknown }).metadata),
+      frequency: normalizeDefinitionFrequency((item as { frequency?: unknown }).frequency),
       ...(example ? { example } : {}),
     });
   }
@@ -487,7 +498,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [Reveal, ModeIcon],
+  imports: [Reveal, ModeIcon, FrequencyGem],
   template: `
     <div
       class="backdrop"
@@ -719,22 +730,24 @@ function writeExampleSuggestions(
                       @if (passage.translations.length) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
-                            <li><app-reveal [text]="translation.text" [language]="element().language" /></li>
+                            <li>
+                              <app-reveal [text]="translation.text" [language]="element().language" />
+                            </li>
                           }
                         </ul>
                       }
-                      @if (entries(suggestion.metadata); as meta) {
-                        @if (meta.length) {
-                          <ul class="sense-meta">
-                            @for (entry of meta; track entry.key) {
-                              <li>
-                                <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                                {{ label(entry.value) }}
-                              </li>
-                            }
-                          </ul>
+                      <ul class="sense-meta">
+                        <li class="sense-frequency">
+                          <app-frequency-gem [frequency]="suggestion.frequency" />
+                          {{ frequencyLabel(suggestion.frequency) }}
+                        </li>
+                        @for (entry of entries(suggestion.metadata); track entry.key) {
+                          <li>
+                            <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                            {{ label(entry.value) }}
+                          </li>
                         }
-                      }
+                      </ul>
                       @if (suggestion.example) {
                         <div class="example-quote">
                           <p class="passage example-line">
@@ -821,25 +834,31 @@ function writeExampleSuggestions(
                       @if (passage.translations.length) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
-                            <li><app-reveal [text]="translation.text" [language]="element().language" /></li>
+                            <li>
+                              <app-reveal [text]="translation.text" [language]="element().language" />
+                            </li>
                           }
                         </ul>
                       }
                       @let equivalent = equivalentText(definition);
                       @let meta = entries(definition.metadata);
-                      @if (equivalent || meta.length) {
-                        <ul class="sense-meta">
-                          @if (equivalent) {
-                            <li class="sense-equivalent"><app-reveal [text]="equivalent" [language]="element().language" /></li>
-                          }
-                          @for (entry of meta; track entry.key) {
-                            <li>
-                              <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                              {{ label(entry.value) }}
-                            </li>
-                          }
-                        </ul>
-                      }
+                      <ul class="sense-meta">
+                        @if (equivalent) {
+                          <li class="sense-equivalent">
+                            <app-reveal [text]="equivalent" [language]="element().language" />
+                          </li>
+                        }
+                        <li class="sense-frequency">
+                          <app-frequency-gem [frequency]="definition.frequency" />
+                          {{ frequencyLabel(definition.frequency) }}
+                        </li>
+                        @for (entry of meta; track entry.key) {
+                          <li>
+                            <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                            {{ label(entry.value) }}
+                          </li>
+                        }
+                      </ul>
                     </div>
                   </div>
                   <div class="item-actions">
@@ -1561,6 +1580,27 @@ function writeExampleSuggestions(
                     autocomplete="off"
                     placeholder="Type a new equivalent"
                   />
+                </div>
+              }
+              @if (current.kind === 'definition') {
+                <div class="frequency-field">
+                  <p class="field-label">Frequency</p>
+                  <div class="frequency-choices" role="radiogroup" aria-label="Frequency">
+                    @for (frequency of frequencies; track frequency) {
+                      <button
+                        type="button"
+                        class="frequency-choice"
+                        [class.selected]="frequencyDraft() === frequency"
+                        [attr.aria-pressed]="frequencyDraft() === frequency"
+                        [attr.aria-label]="frequencyLabel(frequency)"
+                        [disabled]="busy()"
+                        (click)="frequencyDraft.set(frequency)"
+                      >
+                        <app-frequency-gem [frequency]="frequency" />
+                        <span>{{ frequencyLabel(frequency) }}</span>
+                      </button>
+                    }
+                  </div>
                 </div>
               }
               <div class="meta">
@@ -3065,6 +3105,7 @@ function writeExampleSuggestions(
     .sense-meta {
       display: flex;
       flex-wrap: wrap;
+      align-items: center;
       gap: 0.35rem;
       margin: 0;
       padding: 0;
@@ -3072,19 +3113,81 @@ function writeExampleSuggestions(
     }
 
     .sense-meta li {
+      box-sizing: border-box;
       display: inline-flex;
-      align-items: baseline;
-      padding: 0.12rem 0.45rem;
+      align-items: center;
+      height: 1.7rem;
+      padding: 0 0.5rem;
       border: 1px solid rgba(139, 144, 165, 0.4);
       border-radius: 0.35rem;
       background: transparent;
       color: var(--text-muted);
       font-size: 0.72rem;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .sense-meta li app-reveal {
+      line-height: 1;
     }
 
     .sense-meta-key {
       margin-right: 0.35rem;
       font-weight: 600;
+    }
+
+    .sense-frequency {
+      align-items: center;
+      gap: 0.28rem;
+    }
+
+    .sense-frequency app-frequency-gem {
+      width: 1.15rem;
+      height: 1.15rem;
+      flex: none;
+    }
+
+    .frequency-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .frequency-choices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .frequency-choice {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      margin: 0;
+      padding: 0.2rem 0.5rem 0.2rem 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.72rem;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .frequency-choice app-frequency-gem {
+      width: 1.15rem;
+      height: 1.15rem;
+      flex: none;
+    }
+
+    .frequency-choice.selected {
+      border-color: rgba(var(--accent-rgb), 0.75);
+      color: var(--text);
+    }
+
+    .frequency-choice:disabled {
+      cursor: default;
     }
 
     .sense-meta li.sense-equivalent {
@@ -3657,6 +3760,9 @@ export class ElementModal {
   readonly highlightStyles = HIGHLIGHT_STYLES;
   readonly modeLabel = elementModeLabel;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
+  readonly frequencies = DEFINITION_FREQUENCIES;
+  readonly frequencyLabel = definitionFrequencyLabel;
+  readonly frequencyDraft = signal<DefinitionFrequency>('common');
   readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
   readonly relatedPickMax = MAX_RELATED_PICKS;
@@ -4279,10 +4385,12 @@ export class ElementModal {
           ...element.definitions.map((definition) => ({
             text: definition.text,
             metadata: definition.metadata,
+            frequency: definition.frequency,
           })),
           ...this.suggestions().map((suggestion) => ({
             text: suggestion.text,
             metadata: suggestion.metadata,
+            frequency: suggestion.frequency,
           })),
         ],
       });
@@ -4331,10 +4439,12 @@ export class ElementModal {
           ...element.definitions.map((definition) => ({
             text: definition.text,
             metadata: definition.metadata,
+            frequency: definition.frequency,
           })),
           ...this.suggestions().map((suggestion) => ({
             text: suggestion.text,
             metadata: suggestion.metadata,
+            frequency: suggestion.frequency,
           })),
         ],
       });
@@ -4385,6 +4495,7 @@ export class ElementModal {
       forms: [],
       examples: suggestion.example ? [{ text: suggestion.example, metadata: {} }] : [],
       metadata: { ...suggestion.metadata },
+      frequency: suggestion.frequency,
     };
     const definitions = [created, ...this.copyDefinitions()];
     if (!(await this.persist(definitions, element.equivalents))) return;
@@ -4604,6 +4715,7 @@ export class ElementModal {
         : null;
     this.equivalentIdDraft.set(known);
     this.equivalentDraft.set('');
+    this.frequencyDraft.set(normalizeDefinitionFrequency(definition?.frequency));
     this.beginSheet(definition?.text ?? '');
     this.editor.set({ kind: 'definition', index });
     this.focusDraft();
@@ -5329,6 +5441,7 @@ export class ElementModal {
           forms: selectionForms(generated.lemma, title),
           examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
+          frequency: sense.frequency,
         })),
       });
     } catch {
@@ -5434,6 +5547,7 @@ export class ElementModal {
         forms: current?.forms ?? [],
         examples: current?.examples ?? [],
         metadata: this.metadataToStore(),
+        frequency: this.frequencyDraft(),
       };
       if (editor.index == null) definitions.push(next);
       else definitions[editor.index] = next;

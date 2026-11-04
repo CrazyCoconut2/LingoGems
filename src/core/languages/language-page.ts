@@ -1499,6 +1499,7 @@ export class LanguagePage {
             forms: searchForms(generated.lemma, selected),
             examples: [],
             metadata: { ...sense.metadata },
+            frequency: sense.frequency,
           })),
         },
         true,

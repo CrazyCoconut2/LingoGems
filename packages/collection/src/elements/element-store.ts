@@ -8,6 +8,33 @@ import {
 
 export type ElementMetadata = Record<string, string>;
 
+/** Everyday, then less often, then old, then gone from living use. */
+export const DEFINITION_FREQUENCIES = ['common', 'uncommon', 'rare', 'archaic', 'obsolete'] as const;
+
+export type DefinitionFrequency = (typeof DEFINITION_FREQUENCIES)[number];
+
+const DEFINITION_FREQUENCY_LABELS: Record<DefinitionFrequency, string> = {
+  common: 'Common',
+  uncommon: 'Uncommon',
+  rare: 'Rare',
+  archaic: 'Archaic',
+  obsolete: 'Obsolete',
+};
+
+/** Anything other than the five frequency words is common. */
+export function normalizeDefinitionFrequency(value: unknown): DefinitionFrequency {
+  const text = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  return (DEFINITION_FREQUENCIES as readonly string[]).includes(text)
+    ? (text as DefinitionFrequency)
+    : 'common';
+}
+
+export function definitionFrequencyLabel(frequency: DefinitionFrequency): string {
+  return DEFINITION_FREQUENCY_LABELS[normalizeDefinitionFrequency(frequency)];
+}
+
 export type ElementExample = {
   text: string;
   metadata: ElementMetadata;
@@ -29,6 +56,8 @@ export type ElementDefinition = {
   forms: ElementForm[];
   examples: ElementExample[];
   metadata: ElementMetadata;
+  /** How often this sense is met. Missing or unknown values are common. */
+  frequency: DefinitionFrequency;
 };
 
 /** The strings a form list is matched and highlighted with. */
@@ -290,6 +319,7 @@ function normalizeDefinitions(
       forms: normalizeForms(source.forms),
       examples: normalizeExamples(source.examples),
       metadata: normalizeMetadata(source.metadata),
+      frequency: normalizeDefinitionFrequency(source.frequency),
     });
   }
   return definitions;

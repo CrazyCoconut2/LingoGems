@@ -2,7 +2,9 @@ import {
   embedTranslation,
   isValidForm,
   languageDisplayName,
+  normalizeDefinitionFrequency,
   parsePassage,
+  type DefinitionFrequency,
   type ElementForm,
   type ElementMetadata,
 } from 'collection';
@@ -33,6 +35,9 @@ const MAX_FORMS = 80;
 
 const FORM_METADATA_KEYS = ['tense', 'person', 'number', 'mood'] as const;
 
+const FREQUENCY_RULE =
+  '- frequency is required on every sense and is exactly one of "common", "uncommon", "rare", "archaic", or "obsolete". common is everyday, uncommon is known but not everyday, rare is seldom met, archaic is old and out of normal use, obsolete is gone from living use. Write that word in English';
+
 const FORM_SHAPE = `{"text":"<surface form>","metadata":{"tense":"<tense>","person":"<person>","number":"<number>","mood":"<mood>"}}`;
 
 export function definitionsSystemPrompt(fields: readonly AiMetadataField[]): string {
@@ -50,6 +55,7 @@ export function definitionsSystemPrompt(fields: readonly AiMetadataField[]): str
     '- Do not include examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in every gloss and English gloss',
+    FREQUENCY_RULE,
     ...metadataRuleLines('definition', fields),
     'translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
     'Return JSON only with this shape:',
@@ -73,6 +79,7 @@ export function elementFromSelectionSystemPrompt(fields: readonly AiMetadataFiel
     '- Do not include examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in the lemma, every gloss, and every English gloss',
+    FREQUENCY_RULE,
     ...metadataRuleLines('definition', fields),
     'translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
     'Return JSON only with this shape:',
@@ -96,6 +103,7 @@ export function definitionFromExampleSystemPrompt(fields: readonly AiMetadataFie
     '- Do not include the example, other examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in the gloss and the English gloss',
+    FREQUENCY_RULE,
     ...metadataRuleLines('definition', fields),
     'translateFieldsIn, when present, is English. Then the sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
     'Return JSON only with this shape:',
@@ -130,7 +138,11 @@ Return JSON only with this shape:
 export type GenerateDefinitionsInput = {
   language: string;
   title: string;
-  existingDefinitions: ReadonlyArray<{ text: string; metadata: ElementMetadata }>;
+  existingDefinitions: ReadonlyArray<{
+    text: string;
+    metadata: ElementMetadata;
+    frequency?: unknown;
+  }>;
 };
 
 export type GenerateDefinitionFromExampleInput = GenerateDefinitionsInput & {
@@ -140,6 +152,7 @@ export type GenerateDefinitionFromExampleInput = GenerateDefinitionsInput & {
 export type GeneratedDefinition = {
   text: string;
   metadata: ElementMetadata;
+  frequency: DefinitionFrequency;
 };
 
 export type GenerateFormsInput = {
@@ -194,6 +207,7 @@ export function parseGeneratedDefinitions(
     definitions.push({
       text: english ? embedTranslation(gloss, 'en', english) : gloss,
       metadata: pickMetadata(sense['metadata'], metadataFieldKeys(readDefinitionMetadataFields(language))),
+      frequency: normalizeDefinitionFrequency(sense['frequency']),
     });
   }
   return definitions;
@@ -346,9 +360,14 @@ export async function generateDefinitions(
 
 function describedDefinitions(
   language: string,
-  definitions: ReadonlyArray<{ text: string; metadata: ElementMetadata }>,
-): Array<{ gloss: string; english?: string; metadata?: ElementMetadata }> {
-  const described: Array<{ gloss: string; english?: string; metadata?: ElementMetadata }> = [];
+  definitions: ReadonlyArray<{ text: string; metadata: ElementMetadata; frequency?: unknown }>,
+): Array<{ gloss: string; english?: string; frequency: DefinitionFrequency; metadata?: ElementMetadata }> {
+  const described: Array<{
+    gloss: string;
+    english?: string;
+    frequency: DefinitionFrequency;
+    metadata?: ElementMetadata;
+  }> = [];
   const seen = new Set<string>();
   for (const definition of definitions) {
     const passage = parsePassage(definition.text ?? '');
@@ -363,6 +382,7 @@ function describedDefinitions(
     );
     described.push({
       gloss,
+      frequency: normalizeDefinitionFrequency(definition.frequency),
       ...(english ? { english } : {}),
       ...(Object.keys(metadata).length ? { metadata } : {}),
     });
