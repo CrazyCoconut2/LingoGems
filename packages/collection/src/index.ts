@@ -69,8 +69,10 @@ export {
   compareElements,
   elementDefinitionCount,
   elementMatchesMinimums,
+  elementMatchesMode,
   elementTranslationCount,
   parseElementMinimum,
+  parseElementMode,
   parseElementSort,
   type ElementSort,
 } from './elements/browse';

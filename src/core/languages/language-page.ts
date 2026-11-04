@@ -16,18 +16,21 @@ import {
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
   elementMatchesMinimums,
+  elementMatchesMode,
   elementMatchesPrefix,
   elementModeLabel,
   elementPrefixSearch,
   isValidForm,
   languageDisplayName,
   parseElementMinimum,
+  parseElementMode,
   parseElementSort,
   readElements,
   readLanguages,
   saveElement,
   resolveHighlightStyle,
   type ElementDefinition,
+  type ElementMode,
   type ElementSearch,
   type ElementSearchPart,
   type ElementSort,
@@ -308,7 +311,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
               <div>
                 <h2 class="filter-title">Filters</h2>
                 <p class="filter-subtitle">
-                  Keep elements with at least this many translations and definitions.
+                  Keep elements in one mode, or with at least this many translations and definitions.
                 </p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
@@ -330,6 +333,54 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                   Clear filters
                 </button>
               </div>
+
+              <section class="filter-section" [class.expanded]="expanded() === 'mode'">
+                <button
+                  type="button"
+                  class="section-header"
+                  [attr.aria-expanded]="expanded() === 'mode'"
+                  (click)="toggleSection('mode')"
+                >
+                  <span class="section-title">
+                    Mode
+                    @if (modeFilter(); as mode) {
+                      <span class="section-count">{{ modeLabel(mode) }}</span>
+                    }
+                  </span>
+                  <svg class="section-chevron" viewBox="0 0 24 24">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+                @if (expanded() === 'mode') {
+                  <div class="section-body">
+                    <div class="section-actions">
+                      <button
+                        type="button"
+                        class="link-btn"
+                        [disabled]="modeFilter() == null"
+                        (click)="clearMode()"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <p class="section-hint">Show elements in this mode.</p>
+                    <div class="mode-choices" role="group" aria-label="Mode">
+                      @for (mode of modes; track mode) {
+                        <button
+                          type="button"
+                          class="mode-choice"
+                          [class.selected]="modeFilter() === mode"
+                          [attr.aria-pressed]="modeFilter() === mode"
+                          (click)="chooseMode(mode)"
+                        >
+                          <app-mode-icon [mode]="mode" />
+                          <span>{{ modeLabel(mode) }}</span>
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              </section>
 
               <section class="filter-section" [class.expanded]="expanded() === 'translations'">
                 <button
@@ -1121,6 +1172,46 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       text-align: center;
     }
 
+    .mode-choices {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .mode-choice {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      width: 100%;
+      border: 0;
+      border-radius: 0.7rem;
+      background: transparent;
+      color: var(--text);
+      padding: 0.45rem 0.55rem;
+      font: inherit;
+      font-size: 0.88rem;
+      font-weight: 650;
+      text-align: left;
+      cursor: pointer;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+    }
+
+    .mode-choice:hover {
+      background: rgba(127, 127, 127, 0.1);
+    }
+
+    .mode-choice.selected {
+      background: rgba(var(--accent-rgb), 0.16);
+      color: var(--accent-text);
+      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.45);
+    }
+
+    .mode-choice app-mode-icon {
+      width: 1.35rem;
+      height: 1.35rem;
+      flex: none;
+    }
+
     .link-btn {
       border: 0;
       background: transparent;
@@ -1206,12 +1297,14 @@ export class LanguagePage {
   readonly query = signal('');
   readonly search = signal<ElementSearch>({ mode: 'browse', value: '' });
   readonly sort = signal<ElementSort>(DEFAULT_ELEMENT_SORT);
+  readonly modes: readonly ElementMode[] = [1, 2, 3];
   readonly minTranslations = signal<number | null>(null);
   readonly minDefinitions = signal<number | null>(null);
+  readonly modeFilter = signal<ElementMode | null>(null);
   readonly sortOpen = signal(false);
   readonly filtersOpen = signal(false);
   readonly aiSettingsOpen = signal(false);
-  readonly expanded = signal<'translations' | 'definitions' | null>('translations');
+  readonly expanded = signal<'mode' | 'translations' | 'definitions' | null>('translations');
   readonly elementId = signal('');
   readonly trail = signal<string[]>([]);
   readonly canGoBack = computed(() => this.trail().length > 1);
@@ -1221,7 +1314,10 @@ export class LanguagePage {
     return this.elements().find((element) => element.id === id) ?? null;
   });
   readonly filterCount = computed(
-    () => (this.minTranslations() == null ? 0 : 1) + (this.minDefinitions() == null ? 0 : 1),
+    () =>
+      (this.modeFilter() == null ? 0 : 1) +
+      (this.minTranslations() == null ? 0 : 1) +
+      (this.minDefinitions() == null ? 0 : 1),
   );
   readonly sortActive = computed(() => {
     const sort = this.sort();
@@ -1231,8 +1327,10 @@ export class LanguagePage {
     const search = this.search();
     const translations = this.minTranslations();
     const definitions = this.minDefinitions();
+    const mode = this.modeFilter();
     const matched = this.elements().filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
+      if (!elementMatchesMode(element, mode)) return false;
       return elementMatchesMinimums(element, translations, definitions);
     });
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
@@ -1507,7 +1605,7 @@ export class LanguagePage {
     if (event.target === event.currentTarget) this.closeFilters();
   }
 
-  toggleSection(section: 'translations' | 'definitions'): void {
+  toggleSection(section: 'mode' | 'translations' | 'definitions'): void {
     this.expanded.update((current) => (current === section ? null : section));
   }
 
@@ -1526,7 +1624,18 @@ export class LanguagePage {
     this.writeBrowse();
   }
 
+  chooseMode(mode: ElementMode): void {
+    this.modeFilter.set(this.modeFilter() === mode ? null : mode);
+    this.writeBrowse();
+  }
+
+  clearMode(): void {
+    this.modeFilter.set(null);
+    this.writeBrowse();
+  }
+
   clearFilters(): void {
+    this.modeFilter.set(null);
     this.minTranslations.set(null);
     this.minDefinitions.set(null);
     this.writeBrowse();
@@ -1543,6 +1652,7 @@ export class LanguagePage {
     this.sort.set(parseElementSort(params.get('sort')));
     this.minTranslations.set(parseElementMinimum(params.get('translations')));
     this.minDefinitions.set(parseElementMinimum(params.get('definitions')));
+    this.modeFilter.set(parseElementMode(params.get('mode')));
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.aiSettingsOpen()) this.closeAiSettings();
@@ -1561,10 +1671,12 @@ export class LanguagePage {
     const sort = this.sort();
     const translations = this.minTranslations();
     const definitions = this.minDefinitions();
+    const mode = this.modeFilter();
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: {
         sort: sort === DEFAULT_ELEMENT_SORT ? null : sort,
+        mode: mode == null ? null : String(mode),
         translations: translations == null ? null : String(translations),
         definitions: definitions == null ? null : String(definitions),
         has: null,

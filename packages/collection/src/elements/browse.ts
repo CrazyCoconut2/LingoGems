@@ -1,4 +1,4 @@
-import type { StoredElement } from './element-store';
+import { type ElementMode, type StoredElement } from './element-store';
 
 export const ELEMENT_SORTS = [
   'title-asc',
@@ -35,6 +35,17 @@ export function elementTranslationCount(element: StoredElement): number {
 
 export function elementDefinitionCount(element: StoredElement): number {
   return element.definitions.length;
+}
+
+/** `1`, `2`, or `3`. Anything else means every mode. */
+export function parseElementMode(raw: string | null): ElementMode | null {
+  const mode = Number(raw);
+  return mode === 1 || mode === 2 || mode === 3 ? mode : null;
+}
+
+/** Keep an element in the chosen mode. A missing mode keeps every element. */
+export function elementMatchesMode(element: StoredElement, mode: ElementMode | null): boolean {
+  return mode == null || element.mode === mode;
 }
 
 /** Keep an element whose translation and definition counts meet each minimum. */
