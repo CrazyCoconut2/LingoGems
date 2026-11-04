@@ -16,14 +16,12 @@ import { blurTranslationsEnabled } from './blur-translations';
   template: `{{ text() }}`,
   host: {
     '[class.shown]': 'shown() || !blurred()',
-    '[class.fixed]': '!revealable()',
     '(click)': 'reveal($event)',
     '(keydown.enter)': 'reveal($event)',
     '(keydown.space)': 'reveal($event)',
-    '[attr.role]': '!revealable() || shown() || nested() || !blurred() ? null : "button"',
-    '[attr.tabindex]': '!revealable() || shown() || nested() || !blurred() ? null : 0',
-    '[attr.aria-label]': '!revealable() || shown() || nested() || !blurred() ? null : "Show translation"',
-    '[attr.aria-hidden]': '!revealable() && blurred() ? true : null',
+    '[attr.role]': 'shown() || nested() || !blurred() ? null : "button"',
+    '[attr.tabindex]': 'shown() || nested() || !blurred() ? null : 0',
+    '[attr.aria-label]': 'shown() || nested() || !blurred() ? null : "Show translation"',
   },
   styles: `
     :host {
@@ -40,21 +38,11 @@ import { blurTranslationsEnabled } from './blur-translations';
       cursor: inherit;
       user-select: text;
     }
-
-    :host(.fixed) {
-      cursor: inherit;
-    }
-
-    :host(.fixed:not(.shown)) {
-      pointer-events: none;
-    }
   `,
 })
 export class Reveal {
   readonly text = input.required<string>();
   readonly language = input.required<string>();
-  /** Cards show the blurred text and never turn it into a control. */
-  readonly revealable = input(true);
   readonly shown = signal(false);
   /** Inside a button or link, so this stays a plain label instead of a second control. */
   readonly nested = signal(false);
@@ -72,7 +60,7 @@ export class Reveal {
   }
 
   reveal(event: Event): void {
-    if (!this.revealable() || this.shown() || !this.blurred()) return;
+    if (this.shown() || !this.blurred()) return;
     event.preventDefault();
     event.stopPropagation();
     this.shown.set(true);

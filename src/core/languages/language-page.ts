@@ -6,7 +6,6 @@ import { FrequencyGem } from '../elements/frequency-gem';
 import { ModeIcon } from '../elements/mode-icon';
 import { ModeProgress } from '../elements/mode-progress';
 import { scoreColor } from '../elements/mode-palette';
-import { Reveal } from '../elements/reveal';
 import { readStepGoal } from '../elements/step-goal';
 import { LanguageAiSettings } from './language-ai-settings';
 import { generateElementFromSelection } from 'ai';
@@ -59,7 +58,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
 @Component({
   selector: 'app-language-page',
-  imports: [RouterLink, ElementModal, FrequencyGem, ModeIcon, ModeProgress, Reveal, LanguageAiSettings],
+  imports: [RouterLink, ElementModal, FrequencyGem, ModeIcon, ModeProgress, LanguageAiSettings],
   template: `
     <main>
       <header>
@@ -251,16 +250,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       [compact]="true"
                     />
                   </div>
-                  @if (element.equivalents.length) {
-                    <p class="equivalents">
-                      @for (item of element.equivalents; track item.id) {
-                        @if ($index > 0) {
-                          <span class="sep" aria-hidden="true">·</span>
-                        }
-                        <app-reveal [text]="item.text" [language]="code()" [revealable]="false" />
-                      }
-                    </p>
-                  }
                   <button type="button" class="element-open" (click)="openElement(element.id)">
                     <span class="stats">
                       <span
@@ -999,25 +988,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       text-decoration-color: var(--highlight-color, #6c63ff);
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
-    }
-
-    .equivalents {
-      grid-column: 1;
-      margin: 0;
-      min-width: 0;
-      color: var(--text-muted);
-      font-size: 0.84rem;
-      line-height: 1.35;
-      overflow-wrap: anywhere;
-    }
-
-    .equivalents .sep {
-      margin-inline: 0.4rem;
-    }
-
-    .equivalents app-reveal {
-      max-width: 100%;
-      overflow-wrap: anywhere;
     }
 
     .mode-stack {
