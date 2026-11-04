@@ -11,6 +11,7 @@ import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/rout
 import { ElementModal } from '../elements/element-modal';
 import { ModeIcon } from '../elements/mode-icon';
 import { LanguageAiSettings } from './language-ai-settings';
+import { generateElementFromSelection } from 'ai';
 import {
   addElement,
   compareElements,
@@ -22,6 +23,7 @@ import {
   elementMatchesPrefix,
   elementModeLabel,
   elementPrefixSearch,
+  isValidForm,
   languageDisplayName,
   parseElementMinimum,
   parseElementSort,
@@ -59,7 +61,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m15 18-6-6 6-6" />
           </svg>
-          <span>Languages</span>
         </a>
         <h1>{{ name() }}</h1>
         <div class="header-actions">
@@ -105,27 +106,29 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
             placeholder="Search lemmas or forms…"
             aria-label="Search lemmas or forms"
           />
-          @if (query()) {
+          @if (query().trim()) {
             <div class="search-actions">
               <button
                 type="button"
-                class="search-clear"
-                aria-label="Clear search"
-                (click)="onSearch('')"
+                class="search-add"
+                aria-label="Ask AI"
+                title="Ask AI"
+                [disabled]="asking()"
+                [attr.aria-busy]="asking() ? true : null"
+                (click)="askFromSearch()"
               >
-                <svg viewBox="0 0 24 24">
-                  <path d="M18 6 6 18" />
-                  <path d="m6 6 12 12" />
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                  />
                 </svg>
               </button>
-              @if (query().trim()) {
-                <button type="submit" class="search-add" aria-label="Add entry">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M5 12h14" />
-                    <path d="M12 5v14" />
-                  </svg>
-                </button>
-              }
+              <button type="submit" class="search-add" aria-label="Add entry" [disabled]="asking()">
+                <svg viewBox="0 0 24 24">
+                  <path d="M5 12h14" />
+                  <path d="M12 5v14" />
+                </svg>
+              </button>
             </div>
           }
         </form>
@@ -189,6 +192,10 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           </div>
         </div>
       </section>
+
+      @if (lookupError()) {
+        <p class="lookup-error">{{ lookupError() }}</p>
+      }
 
       @if (ready()) {
         <p class="list-count">{{ countLabel() }}</p>
@@ -473,8 +480,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       display: inline-flex;
       flex: none;
       align-items: center;
-      gap: 0.15rem;
-      padding: 0.35rem 0.55rem 0.35rem 0.2rem;
+      padding: 0.3rem;
       border-radius: 999px;
       color: var(--accent-text);
       font-size: 1rem;
@@ -717,7 +723,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
     .entry-input::-webkit-search-cancel-button,
     .entry-input::-webkit-search-decoration {
+      -webkit-appearance: none;
       appearance: none;
+      display: none;
     }
 
     .entry-input::placeholder {
@@ -731,8 +739,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       flex-shrink: 0;
     }
 
-    .search-add,
-    .search-clear {
+    .search-add {
       display: grid;
       place-items: center;
       flex-shrink: 0;
@@ -742,26 +749,24 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       border-radius: 999px;
       padding: 0;
       line-height: 0;
+      background: rgba(var(--accent-rgb), 0.16);
+      color: var(--accent-text);
       cursor: pointer;
     }
 
-    .search-add {
-      background: rgba(var(--accent-rgb), 0.16);
-      color: var(--accent-text);
-    }
-
-    .search-add:hover {
+    .search-add:hover:not(:disabled) {
       background: rgba(var(--accent-rgb), 0.28);
     }
 
-    .search-clear {
-      background: transparent;
-      color: var(--text-muted);
+    .search-add:disabled {
+      opacity: 0.45;
+      cursor: default;
     }
 
-    .search-clear:hover {
-      color: var(--text);
-      background: rgba(139, 144, 165, 0.16);
+    .lookup-error {
+      margin: -0.35rem 0 0;
+      color: var(--danger);
+      font-size: 0.84rem;
     }
 
     .hit {
@@ -1157,6 +1162,8 @@ export class LanguagePage {
 
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly modeLabel = elementModeLabel;
+  readonly asking = signal(false);
+  readonly lookupError = signal('');
   readonly skeletons = ELEMENT_SKELETONS;
   readonly sortOptions: { value: ElementSort; label: string }[] = [
     { value: 'title-asc', label: 'Title A–Z' },
@@ -1274,11 +1281,14 @@ export class LanguagePage {
     this.visitElement(created.id);
   }
 
-  async addPrepared(prepared: {
-    title: string;
-    definitions: ElementDefinition[];
-    example?: string;
-  }): Promise<void> {
+  async addPrepared(
+    prepared: {
+      title: string;
+      definitions: ElementDefinition[];
+      example?: string;
+    },
+    fromSearch = false,
+  ): Promise<void> {
     const name = prepared.title.replace(/\s+/g, ' ').trim();
     const code = this.code();
     if (!name || !code) return;
@@ -1298,6 +1308,12 @@ export class LanguagePage {
       created = await saveElement({ ...created, definitions });
     }
     this.elements.set(await readElements(code));
+    if (fromSearch) {
+      this.clearSearch();
+      this.trail.set([created.id]);
+      this.writeElement(created.id, false, true);
+      return;
+    }
     if (created.id === this.elementId()) return;
     this.visitElement(created.id);
   }
@@ -1346,6 +1362,7 @@ export class LanguagePage {
   onSearch(value: string): void {
     const query = value.slice(0, ELEMENT_SEARCH_MAX_LENGTH);
     this.query.set(query);
+    this.lookupError.set('');
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => {
       const search = elementPrefixSearch(query);
@@ -1364,13 +1381,50 @@ export class LanguagePage {
     event.preventDefault();
     const title = this.query().trim();
     const code = this.code();
-    if (!title || !code) return;
+    if (!title || !code || this.asking()) return;
     if (this.searchTimer) clearTimeout(this.searchTimer);
     const created = await addElement(code, title);
     this.elements.set(await readElements(code));
     this.clearSearch();
     this.trail.set([created.id]);
     this.writeElement(created.id, false, true);
+  }
+
+  async askFromSearch(): Promise<void> {
+    const selected = this.query().trim();
+    const code = this.code();
+    if (!selected || !code || this.asking()) return;
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.asking.set(true);
+    this.lookupError.set('');
+    try {
+      const generated = await generateElementFromSelection({
+        language: code,
+        selected,
+        context: '',
+      });
+      if (!generated) {
+        this.lookupError.set('Could not add that element.');
+        return;
+      }
+      await this.addPrepared(
+        {
+          title: generated.lemma,
+          definitions: generated.definitions.map((sense) => ({
+            text: sense.text,
+            equivalentId: null,
+            forms: searchForms(generated.lemma, selected),
+            examples: [],
+            metadata: { ...sense.metadata },
+          })),
+        },
+        true,
+      );
+    } catch {
+      this.lookupError.set('Could not add that element.');
+    } finally {
+      this.asking.set(false);
+    }
   }
 
   private clearSearch(): void {
@@ -1513,4 +1567,17 @@ function hasExample(element: StoredElement, example: string): boolean {
   return element.definitions.some((definition) =>
     definition.examples.some((item) => item.text.trim().toLowerCase() === key),
   );
+}
+
+function searchForms(lemma: string, selected: string): ElementDefinition['forms'] {
+  const forms: ElementDefinition['forms'] = [];
+  const add = (value: string) => {
+    const text = value.trim();
+    if (!text || /[*()|]/.test(text) || !isValidForm(text)) return;
+    if (forms.some((form) => form.text.toLowerCase() === text.toLowerCase())) return;
+    forms.push({ text, metadata: {} });
+  };
+  add(lemma);
+  add(selected);
+  return forms;
 }
