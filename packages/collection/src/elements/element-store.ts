@@ -36,8 +36,18 @@ export function formTexts(forms: readonly ElementForm[]): string[] {
   return forms.map((form) => form.text);
 }
 
-/** Learning stage shown on the phrase. Always 1, 2, or 3. */
+/** 1 is Extract, 2 is Refine, and 3 is Polish. */
 export type ElementMode = 1 | 2 | 3;
+
+const ELEMENT_MODE_LABELS: Record<ElementMode, string> = {
+  1: 'Extract',
+  2: 'Refine',
+  3: 'Polish',
+};
+
+export function elementModeLabel(mode: ElementMode): string {
+  return ELEMENT_MODE_LABELS[normalizeElementMode(mode)];
+}
 
 export type StoredElement = {
   id: string;
@@ -186,7 +196,7 @@ function appearanceOf(source: Partial<StoredElement> | null | undefined): {
   };
 }
 
-/** Missing or unknown values are mode 1. */
+/** Missing or unknown values are Extract. */
 export function normalizeElementMode(value: unknown): ElementMode {
   const mode = Math.round(Number(value));
   return mode === 2 || mode === 3 ? mode : 1;

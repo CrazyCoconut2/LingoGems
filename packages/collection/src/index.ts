@@ -21,6 +21,7 @@ export {
   embedTranslation,
   parsePassage,
   formTexts,
+  elementModeLabel,
   saveElement,
   type ElementDefinition,
   type ElementForm,

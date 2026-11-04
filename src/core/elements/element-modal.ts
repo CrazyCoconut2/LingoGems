@@ -17,6 +17,8 @@ import {
   deleteElement,
   displayTitle,
   embedTranslation,
+  elementModeLabel,
+  type ElementMode,
   formTexts,
   HIGHLIGHT_STYLES,
   highlightDefinitionPassage,
@@ -52,6 +54,7 @@ import {
   type RelatedWord,
 } from 'ai';
 import { Reveal } from './reveal';
+import { ModeIcon } from './mode-icon';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
@@ -483,7 +486,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [Reveal],
+  imports: [Reveal, ModeIcon],
   template: `
     <div
       class="backdrop"
@@ -590,16 +593,22 @@ function writeExampleSuggestions(
                 <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
               </svg>
             </button>
-            <button
-              type="button"
-              class="mode"
-              [attr.aria-label]="'Mode ' + element().mode"
-              title="Mode"
-              [disabled]="busy()"
-              (click)="cycleMode()"
-            >
-              {{ element().mode }}
-            </button>
+            <div class="modes" role="radiogroup" aria-label="Mode">
+              @for (mode of modes; track mode) {
+                <button
+                  type="button"
+                  class="mode"
+                  [class.selected]="element().mode === mode"
+                  [attr.aria-label]="modeLabel(mode)"
+                  [attr.title]="modeLabel(mode)"
+                  [attr.aria-pressed]="element().mode === mode"
+                  [disabled]="busy()"
+                  (click)="chooseMode(mode)"
+                >
+                  <app-mode-icon [mode]="mode" />
+                </button>
+              }
+            </div>
             @if (canHear(shownTitle())) {
               <button
                 type="button"
@@ -2497,27 +2506,40 @@ function writeExampleSuggestions(
       flex: 0 1 auto;
     }
 
+    .modes {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.05rem;
+    }
+
     .mode {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       flex: none;
+      width: 1.8rem;
       height: 1.8rem;
       border: 0;
-      padding: 0 0.4rem;
+      padding: 0;
       border-radius: 0.4rem;
       background: transparent;
       color: var(--text-muted);
-      font: inherit;
-      font-size: 0.8rem;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
       cursor: pointer;
+    }
+
+    .mode app-mode-icon {
+      width: 1rem;
+      height: 1rem;
     }
 
     .mode:hover:not(:disabled) {
       color: var(--text);
       background: rgba(139, 144, 165, 0.16);
+    }
+
+    .mode.selected {
+      color: var(--accent-text);
+      background: rgba(var(--accent-rgb), 0.16);
     }
 
     .mode:disabled {
@@ -3454,6 +3476,8 @@ export class ElementModal {
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
   readonly highlightStyles = HIGHLIGHT_STYLES;
+  readonly modeLabel = elementModeLabel;
+  readonly modes: readonly ElementMode[] = [1, 2, 3];
   readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
   readonly relatedPickMax = MAX_RELATED_PICKS;
@@ -4934,9 +4958,8 @@ export class ElementModal {
     return resolveHighlightColor(element.highlightColor);
   }
 
-  async cycleMode(): Promise<void> {
-    if (this.busy()) return;
-    const mode = this.element().mode === 1 ? 2 : this.element().mode === 2 ? 3 : 1;
+  async chooseMode(mode: ElementMode): Promise<void> {
+    if (this.busy() || this.element().mode === mode) return;
     await this.saveAppearance({ mode });
   }
 

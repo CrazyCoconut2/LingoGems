@@ -9,6 +9,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
+import { ModeIcon } from '../elements/mode-icon';
 import { LanguageAiSettings } from './language-ai-settings';
 import {
   addElement,
@@ -19,6 +20,7 @@ import {
   elementHighlightParts,
   elementMatchesMinimums,
   elementMatchesPrefix,
+  elementModeLabel,
   elementPrefixSearch,
   languageDisplayName,
   parseElementMinimum,
@@ -49,7 +51,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
 @Component({
   selector: 'app-language-page',
-  imports: [RouterLink, ElementModal, LanguageAiSettings],
+  imports: [RouterLink, ElementModal, ModeIcon, LanguageAiSettings],
   template: `
     <main>
       <header>
@@ -221,9 +223,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       }
                     }
                   </span>
-                  <span class="mode" [attr.aria-label]="'Mode ' + element.mode">{{
-                    element.mode
-                  }}</span>
+                  <span class="mode" [attr.aria-label]="modeLabel(element.mode)">
+                    <app-mode-icon [mode]="element.mode" />
+                  </span>
                 </span>
                 <span class="stats">
                   <span
@@ -825,12 +827,16 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .mode {
+      display: block;
       flex: none;
+      width: 1.15rem;
+      height: 1.15rem;
       color: var(--text-muted);
-      font-size: 0.95rem;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
+    }
+
+    .mode app-mode-icon {
+      width: 100%;
+      height: 100%;
     }
 
     .stats {
@@ -1151,6 +1157,7 @@ export class LanguagePage {
   private scrollLock = '';
 
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
+  readonly modeLabel = elementModeLabel;
   readonly skeletons = ELEMENT_SKELETONS;
   readonly sortOptions: { value: ElementSort; label: string }[] = [
     { value: 'title-asc', label: 'Title A–Z' },
