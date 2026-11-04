@@ -52,7 +52,7 @@ import { DEFAULT_STEP_GOAL, MAX_STEP_GOAL, MIN_STEP_GOAL } from './step-goal';
     }
 
     .ratio {
-      color: var(--mode-color, var(--text-muted));
+      color: var(--text-muted);
       font-size: 0.72rem;
       font-weight: 700;
       font-variant-numeric: tabular-nums;

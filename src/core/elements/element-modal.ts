@@ -2291,11 +2291,7 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <div
-                class="mode-editor"
-                [style.--mode-color]="modeScoreColor(element().mode).color"
-                [style.--mode-rgb]="modeScoreColor(element().mode).rgb"
-              >
+              <div class="mode-editor">
                 @let mode = element().mode;
                 @let goal = readStepGoal(element().language);
                 @let succeeded = element().modeProgress[mode];
@@ -2337,12 +2333,7 @@ function writeExampleSuggestions(
                       </span>
                     }
                     @if (step === mode) {
-                      <div
-                        class="mode-step current"
-                        aria-current="step"
-                        [style.--mode-color]="modeScoreColor(step).color"
-                        [style.--mode-rgb]="modeScoreColor(step).rgb"
-                      >
+                      <div class="mode-step current" aria-current="step">
                         <app-mode-icon [mode]="step" />
                         <span>{{ modeLabel(step) }}</span>
                       </div>
@@ -2350,8 +2341,6 @@ function writeExampleSuggestions(
                       <button
                         type="button"
                         class="mode-step"
-                        [style.--mode-color]="modeScoreColor(step).color"
-                        [style.--mode-rgb]="modeScoreColor(step).rgb"
                         [disabled]="busy()"
                         (click)="showMode(step)"
                       >
@@ -2619,7 +2608,7 @@ function writeExampleSuggestions(
       flex-direction: column;
       align-items: center;
       gap: 0.35rem;
-      color: var(--mode-color);
+      color: var(--text);
       font-size: 1.05rem;
       font-weight: 750;
     }
@@ -2642,10 +2631,10 @@ function writeExampleSuggestions(
       height: 2.15rem;
       margin: 0;
       padding: 0;
-      border: 1px solid rgba(var(--mode-rgb), 0.55);
+      border: 1px solid var(--border);
       border-radius: 999px;
       background: transparent;
-      color: var(--mode-color);
+      color: var(--text);
       font: inherit;
       font-size: 1.25rem;
       font-weight: 700;
@@ -2674,10 +2663,10 @@ function writeExampleSuggestions(
       min-width: 0;
       margin: 0;
       padding: 0.45rem 0.2rem 0.4rem;
-      border: 1px solid rgba(var(--mode-rgb), 0.4);
+      border: 1px solid var(--border);
       border-radius: 12px;
       background: transparent;
-      color: var(--mode-color);
+      color: var(--text);
       font: inherit;
       font-size: 0.72rem;
       font-weight: 700;
@@ -2685,9 +2674,8 @@ function writeExampleSuggestions(
     }
 
     .mode-step.current {
-      border-color: var(--mode-color);
-      background: rgba(var(--mode-rgb), 0.16);
-      box-shadow: inset 0 0 0 1px var(--mode-color);
+      border-color: color-mix(in srgb, var(--text) 45%, transparent);
+      background: color-mix(in srgb, var(--text) 8%, transparent);
       cursor: default;
     }
 
@@ -5221,11 +5209,6 @@ export class ElementModal {
 
   highlightStyle(element: StoredElement): HighlightStyle {
     return resolveHighlightStyle(element.highlightStyle);
-  }
-
-  modeScoreColor(mode: ElementMode): { color: string; rgb: string } {
-    const element = this.element();
-    return scoreColor(mode, element.modeProgress[mode], readStepGoal(element.language));
   }
 
   closeMode(event: MouseEvent): void {
