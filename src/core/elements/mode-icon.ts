@@ -1,17 +1,6 @@
 import { Component, input } from '@angular/core';
 import type { ElementMode } from 'collection';
 
-/** Extract, Refine, and Polish each have their own color. */
-export const MODE_COLORS: Record<ElementMode, { color: string; rgb: string }> = {
-  1: { color: '#e3b15a', rgb: '227, 177, 90' },
-  2: { color: '#b07cff', rgb: '176, 124, 255' },
-  3: { color: '#4fd2ff', rgb: '79, 210, 255' },
-};
-
-export function modeColor(mode: ElementMode): { color: string; rgb: string } {
-  return MODE_COLORS[mode];
-}
-
 /** The gem at one stage: a rough find, a cut stone, or a finished gem. */
 @Component({
   selector: 'app-mode-icon',
@@ -41,7 +30,10 @@ export function modeColor(mode: ElementMode): { color: string; rgb: string } {
           <path fill="#6c63ff" d="M45 17 52 28 32 54V22Z" />
           <path fill="#f7f6ff" d="M32 9 45 17 32 22 19 17Z" />
           <path fill="#fff" d="m27.5 13 4.5-1.6 1.2 5.2h-6.4z" />
-          <path fill="#fff" d="m51 8 1.15 2.8 2.8 1.15-2.8 1.15L51 16l-1.15-2.9-2.8-1.15 2.8-1.15z" />
+          <path
+            fill="#fff"
+            d="m51 8 1.15 2.8 2.8 1.15-2.8 1.15L51 16l-1.15-2.9-2.8-1.15 2.8-1.15z"
+          />
         }
       }
     </svg>

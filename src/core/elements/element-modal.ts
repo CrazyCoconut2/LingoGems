@@ -13,7 +13,6 @@ import {
 } from '@angular/core';
 import {
   assignEquivalent,
-  DEFAULT_HIGHLIGHT_COLOR,
   definitionFrequencyLabel,
   DEFINITION_FREQUENCIES,
   deleteElement,
@@ -27,9 +26,7 @@ import {
   isValidForm,
   normalizeDefinitionFrequency,
   parsePassage,
-  resolveHighlightColor,
   resolveHighlightStyle,
-  sanitizeHighlightColor,
   saveElement,
   type DefinitionFrequency,
   type DefinitionHighlightMatch,
@@ -59,7 +56,8 @@ import {
 } from 'ai';
 import { Reveal } from './reveal';
 import { FrequencyGem } from './frequency-gem';
-import { ModeIcon, modeColor } from './mode-icon';
+import { ModeIcon } from './mode-icon';
+import { scoreColor } from './mode-palette';
 import { ModeProgress } from './mode-progress';
 import { readStepGoal } from './step-goal';
 import { translatePhrase } from '../translate/translate';
@@ -593,18 +591,16 @@ function writeExampleSuggestions(
           <div class="header-actions">
             <button
               type="button"
-              class="icon-btn highlight-btn"
-              aria-label="Highlight color"
-              title="Highlight color"
-              [attr.aria-expanded]="colorOpen()"
+              class="icon-btn style-btn"
+              aria-label="Underline style"
+              title="Underline style"
+              [attr.aria-expanded]="styleOpen()"
               [disabled]="aiBusy()"
-              [style.--swatch]="highlightColor(element())"
-              (click)="openHighlight()"
+              [style.--highlight-color]="highlightColor(element())"
+              [style.--highlight-style]="highlightStyle(element())"
+              (click)="styleOpen.set(true)"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m9 11-6 6v3h9l3-3" />
-                <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
-              </svg>
+              Aa
             </button>
             <div class="mode-control">
               <button
@@ -721,7 +717,10 @@ function writeExampleSuggestions(
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
                             <li>
-                              <app-reveal [text]="translation.text" [language]="element().language" />
+                              <app-reveal
+                                [text]="translation.text"
+                                [language]="element().language"
+                              />
                             </li>
                           }
                         </ul>
@@ -785,10 +784,7 @@ function writeExampleSuggestions(
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
                       @if (passage.text) {
-                        <p
-                          class="passage sense-selectable"
-                          [attr.data-definition-index]="index"
-                        >
+                        <p class="passage sense-selectable" [attr.data-definition-index]="index">
                           @for (part of highlightPassage(passage.text); track $index) {
                             @if (part.matches.length > 1) {
                               <button
@@ -825,7 +821,10 @@ function writeExampleSuggestions(
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
                             <li>
-                              <app-reveal [text]="translation.text" [language]="element().language" />
+                              <app-reveal
+                                [text]="translation.text"
+                                [language]="element().language"
+                              />
                             </li>
                           }
                         </ul>
@@ -884,125 +883,125 @@ function writeExampleSuggestions(
                         </button>
                       </span>
                     } @else {
-                    @if (element().definitions.length > 1) {
-                      <span class="item-actions-move">
+                      @if (element().definitions.length > 1) {
+                        <span class="item-actions-move">
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Move definition up"
+                            title="Move definition up"
+                            [disabled]="aiBusy() || index === 0"
+                            (click)="moveDefinition(index, -1)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m18 15-6-6-6 6" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Move definition down"
+                            title="Move definition down"
+                            [disabled]="aiBusy() || index === element().definitions.length - 1"
+                            (click)="moveDefinition(index, 1)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
+                          </button>
+                        </span>
+                      }
+                      <span class="item-actions-main">
+                        @if (canHear(definition.text)) {
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            [class.active]="speaking() === 'definition:' + index"
+                            [attr.aria-pressed]="speaking() === 'definition:' + index"
+                            [attr.aria-label]="
+                              speaking() === 'definition:' + index
+                                ? 'Stop speaking'
+                                : 'Hear definition'
+                            "
+                            [attr.title]="
+                              speaking() === 'definition:' + index
+                                ? 'Stop speaking'
+                                : 'Hear definition'
+                            "
+                            (click)="hear('definition:' + index, definition.text)"
+                          >
+                            @if (speaking() === 'definition:' + index) {
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <rect class="solid" width="10" height="10" x="7" y="7" rx="1" />
+                              </svg>
+                            } @else {
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                              </svg>
+                            }
+                          </button>
+                        }
                         <button
                           type="button"
                           class="icon-btn"
-                          aria-label="Move definition up"
-                          title="Move definition up"
-                          [disabled]="aiBusy() || index === 0"
-                          (click)="moveDefinition(index, -1)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m18 15-6-6-6 6" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Move definition down"
-                          title="Move definition down"
-                          [disabled]="aiBusy() || index === element().definitions.length - 1"
-                          (click)="moveDefinition(index, 1)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m6 9 6 6 6-6" />
-                          </svg>
-                        </button>
-                      </span>
-                    }
-                    <span class="item-actions-main">
-                      @if (canHear(definition.text)) {
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          [class.active]="speaking() === 'definition:' + index"
-                          [attr.aria-pressed]="speaking() === 'definition:' + index"
+                          [class.copied]="copied() === 'definition:' + index"
                           [attr.aria-label]="
-                            speaking() === 'definition:' + index
-                              ? 'Stop speaking'
-                              : 'Hear definition'
+                            copied() === 'definition:' + index ? 'Copied' : 'Copy definition'
                           "
                           [attr.title]="
-                            speaking() === 'definition:' + index
-                              ? 'Stop speaking'
-                              : 'Hear definition'
+                            copied() === 'definition:' + index ? 'Copied' : 'Copy definition'
                           "
-                          (click)="hear('definition:' + index, definition.text)"
+                          (click)="copyText('definition:' + index, definition.text)"
                         >
-                          @if (speaking() === 'definition:' + index) {
+                          @if (copied() === 'definition:' + index) {
                             <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <rect class="solid" width="10" height="10" x="7" y="7" rx="1" />
+                              <path d="M20 6 9 17l-5-5" />
                             </svg>
                           } @else {
                             <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                              <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                              <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
                             </svg>
                           }
                         </button>
-                      }
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        [class.copied]="copied() === 'definition:' + index"
-                        [attr.aria-label]="
-                          copied() === 'definition:' + index ? 'Copied' : 'Copy definition'
-                        "
-                        [attr.title]="
-                          copied() === 'definition:' + index ? 'Copied' : 'Copy definition'
-                        "
-                        (click)="copyText('definition:' + index, definition.text)"
-                      >
-                        @if (copied() === 'definition:' + index) {
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          [attr.aria-label]="
+                            definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                          "
+                          [attr.title]="
+                            definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                          "
+                          [disabled]="aiBusy()"
+                          (click)="openDefinition(index)"
+                        >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M20 6 9 17l-5-5" />
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                           </svg>
-                        } @else {
+                          @if (!definition.equivalentId) {
+                            <span class="notify" aria-hidden="true"></span>
+                          }
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn danger"
+                          aria-label="Delete definition"
+                          title="Delete definition"
+                          [disabled]="aiBusy()"
+                          (click)="askDeleteDefinition(index)"
+                        >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                            <path d="M10 11v6" />
+                            <path d="M14 11v6" />
                           </svg>
-                        }
-                      </button>
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        [attr.aria-label]="
-                          definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                        "
-                        [attr.title]="
-                          definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                        "
-                        [disabled]="aiBusy()"
-                        (click)="openDefinition(index)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                        </svg>
-                        @if (!definition.equivalentId) {
-                          <span class="notify" aria-hidden="true"></span>
-                        }
-                      </button>
-                      <button
-                        type="button"
-                        class="icon-btn danger"
-                        aria-label="Delete definition"
-                        title="Delete definition"
-                        [disabled]="aiBusy()"
-                        (click)="askDeleteDefinition(index)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M3 6h18" />
-                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                          <path d="M10 11v6" />
-                          <path d="M14 11v6" />
-                        </svg>
-                      </button>
-                    </span>
+                        </button>
+                      </span>
                     }
                   </div>
 
@@ -1051,10 +1050,7 @@ function writeExampleSuggestions(
                                   [attr.data-definition-index]="index"
                                   [attr.data-example-index]="exampleIndex"
                                 >
-                                  @for (
-                                    part of highlightPassage(passage.text);
-                                    track $index
-                                  ) {
+                                  @for (part of highlightPassage(passage.text); track $index) {
                                     @if (part.matches.length > 1) {
                                       <button
                                         type="button"
@@ -1089,7 +1085,12 @@ function writeExampleSuggestions(
                               @if (passage.translations.length) {
                                 <ul class="equivalents">
                                   @for (translation of passage.translations; track $index) {
-                                    <li><app-reveal [text]="translation.text" [language]="element().language" /></li>
+                                    <li>
+                                      <app-reveal
+                                        [text]="translation.text"
+                                        [language]="element().language"
+                                      />
+                                    </li>
                                   }
                                 </ul>
                               }
@@ -1138,113 +1139,116 @@ function writeExampleSuggestions(
                                   </button>
                                 </span>
                               } @else {
-                              <span class="item-actions-main">
-                                @if (canHear(example.text)) {
+                                <span class="item-actions-main">
+                                  @if (canHear(example.text)) {
+                                    <button
+                                      type="button"
+                                      class="icon-btn"
+                                      [class.active]="
+                                        speaking() === 'example:' + index + ':' + exampleIndex
+                                      "
+                                      [attr.aria-pressed]="
+                                        speaking() === 'example:' + index + ':' + exampleIndex
+                                      "
+                                      [attr.aria-label]="
+                                        speaking() === 'example:' + index + ':' + exampleIndex
+                                          ? 'Stop speaking'
+                                          : 'Hear example'
+                                      "
+                                      [attr.title]="
+                                        speaking() === 'example:' + index + ':' + exampleIndex
+                                          ? 'Stop speaking'
+                                          : 'Hear example'
+                                      "
+                                      (click)="
+                                        hear('example:' + index + ':' + exampleIndex, example.text)
+                                      "
+                                    >
+                                      @if (speaking() === 'example:' + index + ':' + exampleIndex) {
+                                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                                          <rect
+                                            class="solid"
+                                            width="10"
+                                            height="10"
+                                            x="7"
+                                            y="7"
+                                            rx="1"
+                                          />
+                                        </svg>
+                                      } @else {
+                                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                                          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                                        </svg>
+                                      }
+                                    </button>
+                                  }
                                   <button
                                     type="button"
                                     class="icon-btn"
-                                    [class.active]="
-                                      speaking() === 'example:' + index + ':' + exampleIndex
-                                    "
-                                    [attr.aria-pressed]="
-                                      speaking() === 'example:' + index + ':' + exampleIndex
+                                    [class.copied]="
+                                      copied() === 'example:' + index + ':' + exampleIndex
                                     "
                                     [attr.aria-label]="
-                                      speaking() === 'example:' + index + ':' + exampleIndex
-                                        ? 'Stop speaking'
-                                        : 'Hear example'
+                                      copied() === 'example:' + index + ':' + exampleIndex
+                                        ? 'Copied'
+                                        : 'Copy example'
                                     "
                                     [attr.title]="
-                                      speaking() === 'example:' + index + ':' + exampleIndex
-                                        ? 'Stop speaking'
-                                        : 'Hear example'
+                                      copied() === 'example:' + index + ':' + exampleIndex
+                                        ? 'Copied'
+                                        : 'Copy example'
                                     "
                                     (click)="
-                                      hear('example:' + index + ':' + exampleIndex, example.text)
+                                      copyText(
+                                        'example:' + index + ':' + exampleIndex,
+                                        example.text
+                                      )
                                     "
                                   >
-                                    @if (speaking() === 'example:' + index + ':' + exampleIndex) {
+                                    @if (copied() === 'example:' + index + ':' + exampleIndex) {
                                       <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <rect
-                                          class="solid"
-                                          width="10"
-                                          height="10"
-                                          x="7"
-                                          y="7"
-                                          rx="1"
-                                        />
+                                        <path d="M20 6 9 17l-5-5" />
                                       </svg>
                                     } @else {
                                       <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                                        <path
+                                          d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
+                                        />
                                       </svg>
                                     }
                                   </button>
-                                }
-                                <button
-                                  type="button"
-                                  class="icon-btn"
-                                  [class.copied]="
-                                    copied() === 'example:' + index + ':' + exampleIndex
-                                  "
-                                  [attr.aria-label]="
-                                    copied() === 'example:' + index + ':' + exampleIndex
-                                      ? 'Copied'
-                                      : 'Copy example'
-                                  "
-                                  [attr.title]="
-                                    copied() === 'example:' + index + ':' + exampleIndex
-                                      ? 'Copied'
-                                      : 'Copy example'
-                                  "
-                                  (click)="
-                                    copyText('example:' + index + ':' + exampleIndex, example.text)
-                                  "
-                                >
-                                  @if (copied() === 'example:' + index + ':' + exampleIndex) {
+                                  <button
+                                    type="button"
+                                    class="icon-btn"
+                                    aria-label="Edit example"
+                                    title="Edit example"
+                                    [disabled]="aiBusy()"
+                                    (click)="openExample(index, exampleIndex)"
+                                  >
                                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                                      <path d="M20 6 9 17l-5-5" />
+                                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                                     </svg>
-                                  } @else {
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="icon-btn danger"
+                                    aria-label="Delete example"
+                                    title="Delete example"
+                                    [disabled]="aiBusy()"
+                                    (click)="askDeleteExample(index, exampleIndex)"
+                                  >
                                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                                      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                                      <path
-                                        d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
-                                      />
+                                      <path d="M3 6h18" />
+                                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                      <path d="M10 11v6" />
+                                      <path d="M14 11v6" />
                                     </svg>
-                                  }
-                                </button>
-                                <button
-                                  type="button"
-                                  class="icon-btn"
-                                  aria-label="Edit example"
-                                  title="Edit example"
-                                  [disabled]="aiBusy()"
-                                  (click)="openExample(index, exampleIndex)"
-                                >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                                  </svg>
-                                </button>
-                                <button
-                                  type="button"
-                                  class="icon-btn danger"
-                                  aria-label="Delete example"
-                                  title="Delete example"
-                                  [disabled]="aiBusy()"
-                                  (click)="askDeleteExample(index, exampleIndex)"
-                                >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M3 6h18" />
-                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                    <path d="M10 11v6" />
-                                    <path d="M14 11v6" />
-                                  </svg>
-                                </button>
-                              </span>
+                                  </button>
+                                </span>
                               }
                             </div>
                           </li>
@@ -2287,7 +2291,11 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <div class="mode-editor" [style.--mode-color]="modeColor(element().mode).color" [style.--mode-rgb]="modeColor(element().mode).rgb">
+              <div
+                class="mode-editor"
+                [style.--mode-color]="modeScoreColor(element().mode).color"
+                [style.--mode-rgb]="modeScoreColor(element().mode).rgb"
+              >
                 @let mode = element().mode;
                 @let goal = readStepGoal(element().language);
                 @let succeeded = element().modeProgress[mode];
@@ -2332,8 +2340,8 @@ function writeExampleSuggestions(
                       <div
                         class="mode-step current"
                         aria-current="step"
-                        [style.--mode-color]="modeColor(step).color"
-                        [style.--mode-rgb]="modeColor(step).rgb"
+                        [style.--mode-color]="modeScoreColor(step).color"
+                        [style.--mode-rgb]="modeScoreColor(step).rgb"
                       >
                         <app-mode-icon [mode]="step" />
                         <span>{{ modeLabel(step) }}</span>
@@ -2342,8 +2350,8 @@ function writeExampleSuggestions(
                       <button
                         type="button"
                         class="mode-step"
-                        [style.--mode-color]="modeColor(step).color"
-                        [style.--mode-rgb]="modeColor(step).rgb"
+                        [style.--mode-color]="modeScoreColor(step).color"
+                        [style.--mode-rgb]="modeScoreColor(step).rgb"
                         [disabled]="busy()"
                         (click)="showMode(step)"
                       >
@@ -2358,23 +2366,23 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (colorOpen()) {
-          <div class="sheet-backdrop" (click)="closeHighlight($event)">
+        @if (styleOpen()) {
+          <div class="sheet-backdrop" (click)="closeStyle($event)">
             <section
-              class="sheet highlight-sheet"
+              class="sheet style-sheet"
               role="dialog"
               aria-modal="true"
-              aria-label="Highlight color"
+              aria-label="Underline style"
               (click)="$event.stopPropagation()"
             >
               <div class="sheet-head">
-                <h3>Highlight</h3>
+                <h3>Underline</h3>
                 <button
                   type="button"
                   class="icon-btn"
                   aria-label="Close"
                   [disabled]="busy()"
-                  (click)="colorOpen.set(false)"
+                  (click)="styleOpen.set(false)"
                 >
                   <svg viewBox="0 0 24 24">
                     <path d="M18 6 6 18" />
@@ -2382,72 +2390,22 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <div
-                class="color-sv"
-                [style.background]="colorSvBackground()"
-                (pointerdown)="onColorPointer($event)"
-                (pointermove)="onColorPointer($event)"
-              >
-                <span
-                  class="color-sv-thumb"
-                  [style.left.%]="colorSat() * 100"
-                  [style.top.%]="(1 - colorVal()) * 100"
-                  [style.background]="colorDraft()"
-                ></span>
-              </div>
-              <input
-                class="color-hue"
-                type="range"
-                min="0"
-                max="360"
-                step="1"
-                aria-label="Hue"
-                [value]="colorHue()"
-                [disabled]="busy()"
-                (input)="onHueInput($event)"
-              />
               <div class="underline-styles">
                 @for (style of highlightStyles; track style) {
                   <button
                     type="button"
                     class="underline-style"
-                    [class.selected]="styleDraft() === style"
-                    [style.--highlight-color]="colorDraft()"
+                    [class.selected]="highlightStyle(element()) === style"
+                    [style.--highlight-color]="highlightColor(element())"
                     [style.--highlight-style]="style"
                     [disabled]="busy()"
                     [attr.aria-label]="style + ' underline'"
-                    [attr.aria-pressed]="styleDraft() === style"
-                    (click)="styleDraft.set(style)"
+                    [attr.aria-pressed]="highlightStyle(element()) === style"
+                    (click)="chooseHighlightStyle(style)"
                   >
                     Aa
                   </button>
                 }
-              </div>
-              <div class="sheet-actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  [disabled]="busy() || !canResetHighlight()"
-                  (click)="resetHighlight()"
-                >
-                  Reset
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  [disabled]="busy()"
-                  (click)="colorOpen.set(false)"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  [disabled]="busy() || !highlightDirty()"
-                  (click)="saveHighlight()"
-                >
-                  Save
-                </button>
               </div>
             </section>
           </div>
@@ -2554,45 +2512,8 @@ function writeExampleSuggestions(
       justify-content: flex-end;
     }
 
-    .color-sv {
-      position: relative;
-      height: 8rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      touch-action: none;
-      cursor: crosshair;
-    }
-
-    .color-sv-thumb {
-      position: absolute;
-      width: 0.9rem;
-      height: 0.9rem;
-      border: 2px solid #fff;
-      border-radius: 50%;
-      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-    }
-
-    .color-hue {
-      width: 100%;
-      height: 0.85rem;
-      margin: 0;
-      appearance: none;
-      border-radius: 999px;
-      background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
-      cursor: pointer;
-    }
-
-    .color-hue::-webkit-slider-thumb {
-      appearance: none;
-      width: 1rem;
-      height: 1rem;
-      border: 2px solid #fff;
-      border-radius: 50%;
-      background: transparent;
-      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+    .style-sheet {
+      width: min(100%, 22rem);
     }
 
     .underline-styles {
@@ -2916,11 +2837,6 @@ function writeExampleSuggestions(
       background: rgba(139, 144, 165, 0.16);
     }
 
-    .icon-btn.highlight-btn,
-    .icon-btn.highlight-btn:hover:not(:disabled) {
-      color: var(--swatch, var(--accent));
-    }
-
     .icon-btn {
       position: relative;
       width: 1.8rem;
@@ -2962,6 +2878,20 @@ function writeExampleSuggestions(
     .icon-btn.danger:hover:not(:disabled) {
       color: var(--danger);
       background: color-mix(in srgb, var(--danger) 12%, transparent);
+    }
+
+    .style-btn {
+      width: auto;
+      min-width: 1.8rem;
+      padding: 0 0.28rem;
+      color: var(--text);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      text-decoration-line: underline;
+      text-decoration-style: var(--highlight-style, solid);
+      text-decoration-color: var(--highlight-color, currentColor);
+      text-underline-offset: 0.14em;
     }
 
     .icon-btn svg {
@@ -3796,7 +3726,6 @@ export class ElementModal {
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
   readonly highlightStyles = HIGHLIGHT_STYLES;
   readonly modeLabel = elementModeLabel;
-  readonly modeColor = modeColor;
   readonly readStepGoal = readStepGoal;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
   readonly frequencies = DEFINITION_FREQUENCIES;
@@ -3852,12 +3781,7 @@ export class ElementModal {
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
   readonly modeOpen = signal(false);
-  readonly colorOpen = signal(false);
-  readonly colorHue = signal(0);
-  readonly colorSat = signal(1);
-  readonly colorVal = signal(1);
-  readonly colorDraft = signal(DEFAULT_HIGHLIGHT_COLOR);
-  readonly styleDraft = signal<HighlightStyle>('solid');
+  readonly styleOpen = signal(false);
   readonly engineerGloss = signal('');
   readonly engineerEnglish = signal('');
   readonly error = signal('');
@@ -3910,7 +3834,7 @@ export class ElementModal {
       this.addExampleFor.set(null);
       this.addFormFor.set(null);
       this.modeOpen.set(false);
-      this.colorOpen.set(false);
+      this.styleOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
       this.equivalentTicket += 1;
@@ -3974,8 +3898,8 @@ export class ElementModal {
       if (!this.busy()) this.modeOpen.set(false);
       return;
     }
-    if (this.colorOpen()) {
-      if (!this.busy()) this.colorOpen.set(false);
+    if (this.styleOpen()) {
+      if (!this.busy()) this.styleOpen.set(false);
       return;
     }
     if (this.addFormFor() != null) {
@@ -5179,10 +5103,7 @@ export class ElementModal {
     this.cancelForm();
   }
 
-  openForm(
-    definitionIndex: number,
-    form?: { text: string; metadata: ElementMetadata },
-  ): void {
+  openForm(definitionIndex: number, form?: { text: string; metadata: ElementMetadata }): void {
     if (!this.element().definitions[definitionIndex]) return;
     this.addFormFor.set(null);
     this.addExampleFor.set(null);
@@ -5291,7 +5212,20 @@ export class ElementModal {
   }
 
   highlightColor(element: StoredElement): string {
-    return resolveHighlightColor(element.highlightColor);
+    return scoreColor(
+      element.mode,
+      element.modeProgress[element.mode],
+      readStepGoal(element.language),
+    ).color;
+  }
+
+  highlightStyle(element: StoredElement): HighlightStyle {
+    return resolveHighlightStyle(element.highlightStyle);
+  }
+
+  modeScoreColor(mode: ElementMode): { color: string; rgb: string } {
+    const element = this.element();
+    return scoreColor(mode, element.modeProgress[mode], readStepGoal(element.language));
   }
 
   closeMode(event: MouseEvent): void {
@@ -5314,86 +5248,24 @@ export class ElementModal {
     await this.saveAppearance({ modeProgress: { ...element.modeProgress, [mode]: next } });
   }
 
-  openHighlight(): void {
-    if (this.aiBusy()) return;
-    const element = this.element();
-    this.applyHighlightHex(resolveHighlightColor(element.highlightColor));
-    this.styleDraft.set(resolveHighlightStyle(element.highlightStyle));
-    this.colorOpen.set(true);
-  }
-
-  closeHighlight(event: MouseEvent): void {
+  closeStyle(event: MouseEvent): void {
     if (event.target !== event.currentTarget || this.busy()) return;
-    this.colorOpen.set(false);
+    this.styleOpen.set(false);
   }
 
-  colorSvBackground(): string {
-    return `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hsvToHex(this.colorHue(), 1, 1)})`;
-  }
-
-  canResetHighlight(): boolean {
+  async chooseHighlightStyle(style: HighlightStyle): Promise<void> {
+    if (this.busy()) return;
     const element = this.element();
-    return (
-      element.highlightColor != null ||
-      element.highlightStyle != null ||
-      this.colorDraft() !== DEFAULT_HIGHLIGHT_COLOR ||
-      this.styleDraft() !== 'solid'
-    );
-  }
-
-  resetHighlight(): void {
-    if (this.busy() || !this.canResetHighlight()) return;
-    this.applyHighlightHex(DEFAULT_HIGHLIGHT_COLOR);
-    this.styleDraft.set('solid');
-  }
-
-  highlightDirty(): boolean {
-    const element = this.element();
-    return (
-      this.colorDraft() !== resolveHighlightColor(element.highlightColor) ||
-      this.styleDraft() !== resolveHighlightStyle(element.highlightStyle)
-    );
-  }
-
-  async saveHighlight(): Promise<void> {
-    if (this.busy() || !this.highlightDirty()) return;
-    const fallback = DEFAULT_HIGHLIGHT_COLOR;
-    const color = this.colorDraft() === fallback ? null : sanitizeHighlightColor(this.colorDraft());
-    const style = this.styleDraft() === 'solid' ? null : this.styleDraft();
-    if (await this.saveAppearance({ highlightColor: color, highlightStyle: style })) {
-      this.colorOpen.set(false);
+    if (resolveHighlightStyle(element.highlightStyle) === style) {
+      this.styleOpen.set(false);
+      return;
     }
-  }
-
-  onHueInput(event: Event): void {
-    if (this.busy()) return;
-    this.colorHue.set(Number((event.target as HTMLInputElement).value));
-    this.colorDraft.set(hsvToHex(this.colorHue(), this.colorSat(), this.colorVal()));
-  }
-
-  onColorPointer(event: PointerEvent): void {
-    if (this.busy()) return;
-    const map = event.currentTarget as HTMLElement;
-    if (event.type === 'pointerdown') map.setPointerCapture(event.pointerId);
-    if (!map.hasPointerCapture(event.pointerId) && event.type !== 'pointerdown') return;
-    event.preventDefault();
-    const rect = map.getBoundingClientRect();
-    this.colorSat.set(clamp01((event.clientX - rect.left) / (rect.width || 1)));
-    this.colorVal.set(clamp01(1 - (event.clientY - rect.top) / (rect.height || 1)));
-    this.colorDraft.set(hsvToHex(this.colorHue(), this.colorSat(), this.colorVal()));
-  }
-
-  private applyHighlightHex(hex: string): void {
-    const color = sanitizeHighlightColor(hex) ?? DEFAULT_HIGHLIGHT_COLOR;
-    const hsv = hexToHsv(color);
-    this.colorDraft.set(color);
-    this.colorHue.set(hsv.h);
-    this.colorSat.set(hsv.s);
-    this.colorVal.set(hsv.v);
+    const highlightStyle = style === 'solid' ? null : style;
+    if (await this.saveAppearance({ highlightStyle })) this.styleOpen.set(false);
   }
 
   private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'highlightColor' | 'highlightStyle' | 'mode' | 'modeProgress'>>,
+    patch: Partial<Pick<StoredElement, 'highlightStyle' | 'mode' | 'modeProgress'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
     this.busy.set(true);
@@ -5446,16 +5318,11 @@ export class ElementModal {
     void this.askSelectionElement(title, this.passageSelection());
   }
 
-  private async askSelectionElement(
-    title: string,
-    pick: PassageSelection | null,
-  ): Promise<void> {
+  private async askSelectionElement(title: string, pick: PassageSelection | null): Promise<void> {
     const element = this.element();
     const definition = pick ? element.definitions[pick.definitionIndex] : undefined;
     const source =
-      pick?.exampleIndex == null
-        ? definition?.text
-        : definition?.examples[pick.exampleIndex]?.text;
+      pick?.exampleIndex == null ? definition?.text : definition?.examples[pick.exampleIndex]?.text;
     const context = parsePassage(source ?? '').text;
     const example = pick?.exampleIndex == null ? '' : context;
     this.addingSelection.set(true);
@@ -5716,7 +5583,8 @@ export class ElementModal {
     const definitions = this.copyDefinitions();
     const removed =
       pending.kind === 'definition' ? senseKey(definitions[pending.index]?.text ?? '') : '';
-    if (pending.kind === 'definition') definitions.splice(pending.index, 1); else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
+    if (pending.kind === 'definition') definitions.splice(pending.index, 1);
+    else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
     if (!(await this.persist(definitions, this.element().equivalents))) return;
     if (pending.kind === 'definition') {
       if (removed && !definitions.some((definition) => senseKey(definition.text) === removed)) {
@@ -6043,7 +5911,11 @@ function selectionCoversPassage(passage: Element, range: Range): boolean {
 
 function appearanceOf(element: StoredElement): { color: string; style: HighlightStyle } {
   return {
-    color: resolveHighlightColor(element.highlightColor),
+    color: scoreColor(
+      element.mode,
+      element.modeProgress[element.mode],
+      readStepGoal(element.language),
+    ).color,
     style: resolveHighlightStyle(element.highlightStyle),
   };
 }
@@ -6089,67 +5961,13 @@ function retitleForms(
   return updated;
 }
 
-function ensureRootLemma(forms: { text: string; metadata: ElementMetadata }[], title: string): void {
+function ensureRootLemma(
+  forms: { text: string; metadata: ElementMetadata }[],
+  title: string,
+): void {
   const lemma = title.trim();
   if (!lemma || /[*()|]/.test(lemma) || !isValidForm(lemma)) return;
   const key = lemma.toLowerCase();
   if (forms.some((form) => form.text.toLowerCase() === key)) return;
   forms.unshift({ text: lemma, metadata: {} });
-}
-
-function clamp01(value: number): number {
-  if (Number.isNaN(value)) return 0;
-  return Math.min(1, Math.max(0, value));
-}
-
-function hexToHsv(hex: string): { h: number; s: number; v: number } {
-  const color = sanitizeHighlightColor(hex) ?? DEFAULT_HIGHLIGHT_COLOR;
-  const r = Number.parseInt(color.slice(1, 3), 16) / 255;
-  const g = Number.parseInt(color.slice(3, 5), 16) / 255;
-  const b = Number.parseInt(color.slice(5, 7), 16) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const delta = max - min;
-  let h = 0;
-  if (delta > 0) {
-    if (max === r) h = ((g - b) / delta + 6) % 6;
-    else if (max === g) h = (b - r) / delta + 2;
-    else h = (r - g) / delta + 4;
-    h *= 60;
-  }
-  return { h, s: max === 0 ? 0 : delta / max, v: max };
-}
-
-function hsvToHex(h: number, s: number, v: number): string {
-  const hue = ((h % 360) + 360) % 360;
-  const chroma = v * s;
-  const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
-  const m = v - chroma;
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  if (hue < 60) {
-    r = chroma;
-    g = x;
-  } else if (hue < 120) {
-    r = x;
-    g = chroma;
-  } else if (hue < 180) {
-    g = chroma;
-    b = x;
-  } else if (hue < 240) {
-    g = x;
-    b = chroma;
-  } else if (hue < 300) {
-    r = x;
-    b = chroma;
-  } else {
-    r = chroma;
-    b = x;
-  }
-  const toHex = (channel: number) =>
-    Math.round((channel + m) * 255)
-      .toString(16)
-      .padStart(2, '0');
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }

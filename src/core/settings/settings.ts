@@ -8,6 +8,13 @@ import {
   writeStoredAiCredentials,
   type AiProviderId,
 } from 'ai';
+import { elementModeLabel, type ElementMode } from 'collection';
+import {
+  DEFAULT_MODE_PALETTES,
+  readModePalettes,
+  resetModePalettes,
+  writeModePalette,
+} from '../elements/mode-palette';
 
 type ProviderOption = {
   id: AiProviderId;
@@ -72,6 +79,47 @@ const AI_PROVIDERS: ProviderOption[] = [
           <button type="submit" class="btn btn-primary" [disabled]="!ready()">Save</button>
         </div>
       </form>
+
+      <section class="palettes" aria-label="Mode colors">
+        <div class="copy">
+          <h2>Mode colors</h2>
+          <p>Each mode fades from the start color at zero to the end color at the step goal.</p>
+        </div>
+        @for (mode of modes; track mode) {
+          <div class="palette">
+            <span class="palette-name">{{ modeLabel(mode) }}</span>
+            <label>
+              Start
+              <input
+                type="color"
+                [attr.aria-label]="modeLabel(mode) + ' start color'"
+                [value]="palette(mode).start"
+                (input)="setPalette(mode, 'start', $event)"
+              />
+            </label>
+            <span class="palette-range" [style.background]="paletteGradient(mode)"></span>
+            <label>
+              End
+              <input
+                type="color"
+                [attr.aria-label]="modeLabel(mode) + ' end color'"
+                [value]="palette(mode).end"
+                (input)="setPalette(mode, 'end', $event)"
+              />
+            </label>
+          </div>
+        }
+        <div class="actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            [disabled]="!palettesChanged()"
+            (click)="resetPalettes()"
+          >
+            Reset colors
+          </button>
+        </div>
+      </section>
     </main>
   `,
   styles: `
@@ -187,6 +235,44 @@ const AI_PROVIDERS: ProviderOption[] = [
       color: var(--text-muted);
       font-size: 0.875rem;
     }
+
+    .palettes {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+
+    .palette {
+      display: grid;
+      grid-template-columns: 5.5rem auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .palette-name {
+      font-size: 0.95rem;
+      font-weight: 650;
+    }
+
+    .palette label {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .palette input[type='color'] {
+      width: 2.4rem;
+      height: 2rem;
+      padding: 0.15rem;
+      cursor: pointer;
+    }
+
+    .palette-range {
+      display: block;
+      height: 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
   `,
 })
 export class Settings {
@@ -195,6 +281,8 @@ export class Settings {
   private readonly stored = readStoredAiCredentials().keys[0];
 
   readonly providers = AI_PROVIDERS;
+  readonly modes: readonly ElementMode[] = [1, 2, 3];
+  readonly modeLabel = elementModeLabel;
   readonly provider = signal<AiProviderId>(this.stored?.provider ?? 'openai');
   readonly apiKey = signal(this.stored?.apiKey ?? '');
   readonly saved = signal(false);
@@ -212,6 +300,32 @@ export class Settings {
   setApiKey(value: string): void {
     this.apiKey.set(value);
     this.saved.set(false);
+  }
+
+  palette(mode: ElementMode) {
+    return readModePalettes()[mode];
+  }
+
+  paletteGradient(mode: ElementMode): string {
+    const palette = this.palette(mode);
+    return `linear-gradient(to right, ${palette.start}, ${palette.end})`;
+  }
+
+  setPalette(mode: ElementMode, edge: 'start' | 'end', event: Event): void {
+    writeModePalette(mode, edge, (event.target as HTMLInputElement).value);
+  }
+
+  palettesChanged(): boolean {
+    const palettes = readModePalettes();
+    return this.modes.some(
+      (mode) =>
+        palettes[mode].start !== DEFAULT_MODE_PALETTES[mode].start ||
+        palettes[mode].end !== DEFAULT_MODE_PALETTES[mode].end,
+    );
+  }
+
+  resetPalettes(): void {
+    resetModePalettes();
   }
 
   save(event?: Event): void {

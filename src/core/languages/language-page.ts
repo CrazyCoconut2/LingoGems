@@ -1,16 +1,10 @@
-import {
-  Component,
-  computed,
-  DestroyRef,
-  HostListener,
-  inject,
-  signal,
-} from '@angular/core';
+import { Component, computed, DestroyRef, HostListener, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
 import { ModeIcon } from '../elements/mode-icon';
 import { ModeProgress } from '../elements/mode-progress';
+import { scoreColor } from '../elements/mode-palette';
 import { readStepGoal } from '../elements/step-goal';
 import { LanguageAiSettings } from './language-ai-settings';
 import { generateElementFromSelection } from 'ai';
@@ -32,7 +26,6 @@ import {
   readElements,
   readLanguages,
   saveElement,
-  resolveHighlightColor,
   resolveHighlightStyle,
   type ElementDefinition,
   type ElementSearch,
@@ -231,62 +224,62 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     }
                   </span>
                   <span class="stats">
-                  <span
-                    class="stat"
-                    [class.empty]="element.equivalents.length === 0"
-                    [attr.aria-label]="
-                      element.equivalents.length === 1
-                        ? '1 translation'
-                        : element.equivalents.length + ' translations'
-                    "
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m5 8 6 6" />
-                      <path d="m4 14 6-6 2-3" />
-                      <path d="M2 5h12" />
-                      <path d="M7 2h1" />
-                      <path d="m22 22-5-10-5 10" />
-                      <path d="M14 18h6" />
-                    </svg>
-                    <span>{{ element.equivalents.length }}</span>
+                    <span
+                      class="stat"
+                      [class.empty]="element.equivalents.length === 0"
+                      [attr.aria-label]="
+                        element.equivalents.length === 1
+                          ? '1 translation'
+                          : element.equivalents.length + ' translations'
+                      "
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m5 8 6 6" />
+                        <path d="m4 14 6-6 2-3" />
+                        <path d="M2 5h12" />
+                        <path d="M7 2h1" />
+                        <path d="m22 22-5-10-5 10" />
+                        <path d="M14 18h6" />
+                      </svg>
+                      <span>{{ element.equivalents.length }}</span>
+                    </span>
+                    <span
+                      class="stat"
+                      [class.empty]="element.definitions.length === 0"
+                      [attr.aria-label]="
+                        element.definitions.length === 1
+                          ? '1 definition'
+                          : element.definitions.length + ' definitions'
+                      "
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
+                        />
+                        <path d="m8 13 4-7 4 7" />
+                        <path d="M9.1 11h5.7" />
+                      </svg>
+                      <span>{{ element.definitions.length }}</span>
+                    </span>
                   </span>
-                  <span
-                    class="stat"
-                    [class.empty]="element.definitions.length === 0"
-                    [attr.aria-label]="
-                      element.definitions.length === 1
-                        ? '1 definition'
-                        : element.definitions.length + ' definitions'
-                    "
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
-                      />
-                      <path d="m8 13 4-7 4 7" />
-                      <path d="M9.1 11h5.7" />
-                    </svg>
-                    <span>{{ element.definitions.length }}</span>
-                  </span>
-                </span>
-              </button>
-              <div class="mode-stack">
-                <button
-                  type="button"
-                  class="mode-icon"
-                  [attr.aria-label]="modeLabel(element.mode)"
-                  (click)="openElement(element.id)"
-                >
-                  <app-mode-icon [mode]="element.mode" />
                 </button>
-                <app-mode-progress
-                  [mode]="element.mode"
-                  [succeeded]="element.modeProgress[element.mode]"
-                  [goal]="readStepGoal(code())"
-                  [compact]="true"
-                />
+                <div class="mode-stack">
+                  <button
+                    type="button"
+                    class="mode-icon"
+                    [attr.aria-label]="modeLabel(element.mode)"
+                    (click)="openElement(element.id)"
+                  >
+                    <app-mode-icon [mode]="element.mode" />
+                  </button>
+                  <app-mode-progress
+                    [mode]="element.mode"
+                    [succeeded]="element.modeProgress[element.mode]"
+                    [goal]="readStepGoal(code())"
+                    [compact]="true"
+                  />
+                </div>
               </div>
-            </div>
             </li>
           }
         </ul>
@@ -1377,7 +1370,11 @@ export class LanguagePage {
   }
 
   highlightColor(element: StoredElement): string {
-    return resolveHighlightColor(element.highlightColor);
+    return scoreColor(
+      element.mode,
+      element.modeProgress[element.mode],
+      readStepGoal(element.language),
+    ).color;
   }
 
   highlightStyle(element: StoredElement): string {

@@ -1,15 +1,17 @@
 import { ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
 import { isLearnableLanguage, type LearnableLanguage } from '../languages/catalog';
-import {
-  sanitizeHighlightColor,
-  sanitizeHighlightStyle,
-  type HighlightStyle,
-} from './appearance';
+import { sanitizeHighlightStyle, type HighlightStyle } from './appearance';
 
 export type ElementMetadata = Record<string, string>;
 
 /** Everyday, then less often, then old, then gone from living use. */
-export const DEFINITION_FREQUENCIES = ['common', 'uncommon', 'rare', 'archaic', 'obsolete'] as const;
+export const DEFINITION_FREQUENCIES = [
+  'common',
+  'uncommon',
+  'rare',
+  'archaic',
+  'obsolete',
+] as const;
 
 export type DefinitionFrequency = (typeof DEFINITION_FREQUENCIES)[number];
 
@@ -89,8 +91,6 @@ export type StoredElement = {
   title: string;
   equivalents: ElementEquivalent[];
   definitions: ElementDefinition[];
-  /** Custom underline color. Null uses the default color. */
-  highlightColor: string | null;
   /** Custom underline style. Null is solid. */
   highlightStyle: HighlightStyle | null;
   mode: ElementMode;
@@ -147,7 +147,6 @@ export async function addElement(language: string, title: string): Promise<Store
     title: name,
     equivalents: [],
     definitions: [],
-    highlightColor: null,
     highlightStyle: null,
     mode: 1,
     modeProgress: emptyModeProgress(),
@@ -226,11 +225,9 @@ function normalizeElement(raw: unknown): StoredElement | null {
 }
 
 function appearanceOf(source: Partial<StoredElement> | null | undefined): {
-  highlightColor: string | null;
   highlightStyle: HighlightStyle | null;
 } {
   return {
-    highlightColor: sanitizeHighlightColor(source?.highlightColor),
     highlightStyle: sanitizeHighlightStyle(source?.highlightStyle),
   };
 }
