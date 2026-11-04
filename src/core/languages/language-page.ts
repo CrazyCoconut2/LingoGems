@@ -22,6 +22,7 @@ import {
   elementMatchesMinimums,
   elementMatchesPrefix,
   elementModeLabel,
+  modePointsThrough,
   elementPrefixSearch,
   isValidForm,
   languageDisplayName,
@@ -213,14 +214,12 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
         <ul class="elements">
           @for (element of visible(); track element.id) {
             <li>
-              <button
-                type="button"
+              <div
                 class="element"
                 [style.--highlight-color]="highlightColor(element)"
                 [style.--highlight-style]="highlightStyle(element)"
-                (click)="openElement(element.id)"
               >
-                <span class="element-top">
+                <button type="button" class="element-open" (click)="openElement(element.id)">
                   <span class="title">
                     @for (part of highlight(element.title); track $index) {
                       @if (part.hit) {
@@ -230,11 +229,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       }
                     }
                   </span>
-                  <span class="mode" [attr.aria-label]="modeLabel(element.mode)">
-                    <app-mode-icon [mode]="element.mode" />
-                  </span>
-                </span>
-                <span class="stats">
+                  <span class="stats">
                   <span
                     class="stat"
                     [class.empty]="element.equivalents.length === 0"
@@ -274,6 +269,33 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                   </span>
                 </span>
               </button>
+              <div class="mode-stack">
+                <button
+                  type="button"
+                  class="mode-icon"
+                  [attr.aria-label]="modeLabel(element.mode)"
+                  (click)="openElement(element.id)"
+                >
+                  <app-mode-icon [mode]="element.mode" />
+                </button>
+                <div
+                  class="mode-points"
+                  role="group"
+                  [attr.aria-label]="modeLabel(element.mode) + ' points'"
+                >
+                @for (filled of element.modePoints[element.mode]; track $index) {
+                  <button
+                    type="button"
+                    class="mode-point"
+                    [class.filled]="filled"
+                    [attr.aria-pressed]="filled"
+                    [attr.aria-label]="modeLabel(element.mode) + ' point ' + ($index + 1)"
+                    (click)="setModePoint(element, $index)"
+                  ></button>
+                }
+              </div>
+              </div>
+            </div>
             </li>
           }
         </ul>
@@ -792,9 +814,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       box-sizing: border-box;
       width: 100%;
       display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0.65rem;
+      align-items: center;
+      gap: 0.75rem;
       padding: 0.85rem 1rem;
       border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 28%, transparent);
       border-left: 3px solid var(--highlight-color, var(--accent));
@@ -803,23 +824,30 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       color: inherit;
       font: inherit;
       text-align: left;
-      cursor: pointer;
     }
 
-    button.element:hover {
+    .element:hover {
       background: var(--surface);
     }
 
-    .element-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
+    .element-open {
+      flex: 1;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.55rem;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
     }
 
     .title {
-      flex: 1;
       min-width: 0;
       font-size: 1.05rem;
       font-weight: 650;
@@ -831,16 +859,61 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       text-underline-offset: 0.18em;
     }
 
-    .mode {
-      display: block;
+    .mode-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       flex: none;
-      width: 1.45rem;
-      height: 1.45rem;
+      gap: 0.15rem;
     }
 
-    .mode app-mode-icon {
+    .mode-icon {
+      display: grid;
+      place-items: center;
+      width: 1.45rem;
+      height: 1.45rem;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .mode-icon app-mode-icon {
       width: 100%;
       height: 100%;
+    }
+
+    .mode-points {
+      display: flex;
+      justify-content: center;
+      gap: 0.02rem;
+    }
+
+    .mode-point {
+      display: grid;
+      place-items: center;
+      width: 0.85rem;
+      height: 0.85rem;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .mode-point::before {
+      content: '';
+      width: 0.42rem;
+      height: 0.42rem;
+      border-radius: 999px;
+      box-shadow: inset 0 0 0 1.5px rgba(139, 144, 165, 0.75);
+    }
+
+    .mode-point.filled::before {
+      background: var(--accent);
+      box-shadow: none;
     }
 
     .stats {
@@ -1320,6 +1393,16 @@ export class LanguagePage {
 
   replaceElement(saved: StoredElement): void {
     this.elements.update((list) => list.map((item) => (item.id === saved.id ? saved : item)));
+  }
+
+  async setModePoint(element: StoredElement, index: number): Promise<void> {
+    if (index < 0 || index > 2) return;
+    const latest = this.elements().find((item) => item.id === element.id) ?? element;
+    const saved = await saveElement({
+      ...latest,
+      modePoints: { ...latest.modePoints, [latest.mode]: modePointsThrough(index) },
+    });
+    this.replaceElement(saved);
   }
 
   onElementDeleted(): void {

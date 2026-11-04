@@ -18,6 +18,7 @@ import {
   displayTitle,
   embedTranslation,
   elementModeLabel,
+  modePointsThrough,
   type ElementMode,
   formTexts,
   HIGHLIGHT_STYLES,
@@ -593,17 +594,36 @@ function writeExampleSuggestions(
                 <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
               </svg>
             </button>
-            <button
-              type="button"
-              class="mode-btn"
-              [attr.aria-label]="modeLabel(element().mode)"
-              [attr.title]="modeLabel(element().mode)"
-              [attr.aria-expanded]="modeOpen()"
-              [disabled]="busy()"
-              (click)="modeOpen.set(true)"
-            >
-              <app-mode-icon [mode]="element().mode" />
-            </button>
+            <div class="mode-control">
+              <button
+                type="button"
+                class="mode-btn"
+                [attr.aria-label]="modeLabel(element().mode)"
+                [attr.title]="modeLabel(element().mode)"
+                [attr.aria-expanded]="modeOpen()"
+                [disabled]="busy()"
+                (click)="modeOpen.set(true)"
+              >
+                <app-mode-icon [mode]="element().mode" />
+              </button>
+              <div
+                class="mode-points compact"
+                role="group"
+                [attr.aria-label]="modeLabel(element().mode) + ' points'"
+              >
+                @for (filled of element().modePoints[element().mode]; track $index) {
+                  <button
+                    type="button"
+                    class="mode-point"
+                    [class.filled]="filled"
+                    [attr.aria-pressed]="filled"
+                    [attr.aria-label]="modeLabel(element().mode) + ' point ' + ($index + 1)"
+                    [disabled]="busy()"
+                    (click)="setModePoint(element().mode, $index)"
+                  ></button>
+                }
+              </div>
+            </div>
             @if (canHear(shownTitle())) {
               <button
                 type="button"
@@ -2239,18 +2259,37 @@ function writeExampleSuggestions(
               </div>
               <div class="mode-choices" role="radiogroup" aria-label="Mode">
                 @for (mode of modes; track mode) {
-                  <button
-                    type="button"
-                    class="mode-choice"
-                    [class.selected]="element().mode === mode"
-                    [attr.aria-label]="modeLabel(mode)"
-                    [disabled]="busy()"
-                    [attr.aria-pressed]="element().mode === mode"
-                    (click)="chooseMode(mode)"
-                  >
-                    <app-mode-icon [mode]="mode" />
-                    <span>{{ modeLabel(mode) }}</span>
-                  </button>
+                  <div class="mode-column">
+                    <button
+                      type="button"
+                      class="mode-choice"
+                      [class.selected]="element().mode === mode"
+                      [attr.aria-label]="modeLabel(mode)"
+                      [disabled]="busy()"
+                      [attr.aria-pressed]="element().mode === mode"
+                      (click)="chooseMode(mode)"
+                    >
+                      <app-mode-icon [mode]="mode" />
+                      <span>{{ modeLabel(mode) }}</span>
+                    </button>
+                    <div
+                      class="mode-points"
+                      role="group"
+                      [attr.aria-label]="modeLabel(mode) + ' points'"
+                    >
+                      @for (filled of element().modePoints[mode]; track $index) {
+                        <button
+                          type="button"
+                          class="mode-point"
+                          [class.filled]="filled"
+                          [attr.aria-pressed]="filled"
+                          [attr.aria-label]="modeLabel(mode) + ' point ' + ($index + 1)"
+                          [disabled]="busy()"
+                          (click)="setModePoint(mode, $index)"
+                        ></button>
+                      }
+                    </div>
+                  </div>
                 }
               </div>
             </section>
@@ -2573,6 +2612,14 @@ function writeExampleSuggestions(
       height: 1.25rem;
     }
 
+    .mode-control {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: none;
+      gap: 0.02rem;
+    }
+
     .mode-sheet {
       width: min(100%, 26rem);
     }
@@ -2583,11 +2630,20 @@ function writeExampleSuggestions(
       gap: 0.55rem;
     }
 
+    .mode-column {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.45rem;
+      min-width: 0;
+    }
+
     .mode-choice {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 0.45rem;
+      width: 100%;
       margin: 0;
       padding: 0.7rem 0.3rem 0.65rem;
       border: 1px solid var(--border);
@@ -2612,6 +2668,56 @@ function writeExampleSuggestions(
 
     .mode-choice:disabled {
       cursor: default;
+    }
+
+    .mode-points {
+      display: flex;
+      justify-content: center;
+      gap: 0.15rem;
+    }
+
+    .mode-point {
+      display: grid;
+      place-items: center;
+      width: 1.35rem;
+      height: 1.35rem;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .mode-point::before {
+      content: '';
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 999px;
+      box-shadow: inset 0 0 0 1.5px rgba(139, 144, 165, 0.75);
+    }
+
+    .mode-point.filled::before {
+      background: var(--accent);
+      box-shadow: none;
+    }
+
+    .mode-point:disabled {
+      cursor: default;
+    }
+
+    .mode-points.compact {
+      gap: 0;
+    }
+
+    .mode-points.compact .mode-point {
+      width: 0.78rem;
+      height: 0.78rem;
+    }
+
+    .mode-points.compact .mode-point::before {
+      width: 0.4rem;
+      height: 0.4rem;
     }
 
     .title-edit {
@@ -5048,6 +5154,14 @@ export class ElementModal {
     this.modeOpen.set(false);
   }
 
+  async setModePoint(mode: ElementMode, index: number): Promise<void> {
+    if (index < 0 || index > 2) return;
+    const current = this.element().modePoints;
+    await this.saveAppearance({
+      modePoints: { ...current, [mode]: modePointsThrough(index) },
+    });
+  }
+
   openHighlight(): void {
     if (this.aiBusy()) return;
     const element = this.element();
@@ -5127,7 +5241,7 @@ export class ElementModal {
   }
 
   private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'highlightColor' | 'highlightStyle' | 'mode'>>,
+    patch: Partial<Pick<StoredElement, 'highlightColor' | 'highlightStyle' | 'mode' | 'modePoints'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
     this.busy.set(true);

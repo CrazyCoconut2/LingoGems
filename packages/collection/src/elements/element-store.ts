@@ -49,6 +49,14 @@ export function elementModeLabel(mode: ElementMode): string {
   return ELEMENT_MODE_LABELS[normalizeElementMode(mode)];
 }
 
+/** Three checks, in order. True means that point is filled. */
+export type ModePoints = [boolean, boolean, boolean];
+
+/** The same three checks, tracked separately for Extract, Refine, and Polish. */
+export type ElementModePoints = Record<ElementMode, ModePoints>;
+
+const EMPTY_MODE_POINTS: ModePoints = [false, false, false];
+
 export type StoredElement = {
   id: string;
   language: LearnableLanguage;
@@ -60,6 +68,8 @@ export type StoredElement = {
   /** Custom underline style. Null is solid. */
   highlightStyle: HighlightStyle | null;
   mode: ElementMode;
+  /** Filled or empty points for each mode. Missing records are all empty. */
+  modePoints: ElementModePoints;
   createdAt: number;
 };
 
@@ -114,6 +124,7 @@ export async function addElement(language: string, title: string): Promise<Store
     highlightColor: null,
     highlightStyle: null,
     mode: 1,
+    modePoints: emptyModePoints(),
     createdAt: Date.now(),
   };
   await putElement(created);
@@ -141,6 +152,7 @@ export async function saveElement(element: StoredElement): Promise<StoredElement
     definitions: content.definitions,
     ...appearanceOf(element),
     mode: normalizeElementMode(element?.mode),
+    modePoints: normalizeModePoints(element?.modePoints),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
@@ -181,6 +193,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     definitions: content.definitions,
     ...appearanceOf(source),
     mode: normalizeElementMode(source.mode),
+    modePoints: normalizeModePoints(source.modePoints),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
@@ -200,6 +213,34 @@ function appearanceOf(source: Partial<StoredElement> | null | undefined): {
 export function normalizeElementMode(value: unknown): ElementMode {
   const mode = Math.round(Number(value));
   return mode === 2 || mode === 3 ? mode : 1;
+}
+
+/** Fills every point up through index and clears the points after it. */
+export function modePointsThrough(index: number): ModePoints {
+  const at = Math.min(2, Math.max(0, Math.floor(index)));
+  return [at >= 0, at >= 1, at >= 2];
+}
+
+function emptyModePoints(): ElementModePoints {
+  return { 1: [...EMPTY_MODE_POINTS], 2: [...EMPTY_MODE_POINTS], 3: [...EMPTY_MODE_POINTS] };
+}
+
+/** A missing or malformed triple is three empty points. */
+export function normalizeModePoints(value: unknown): ElementModePoints {
+  const source =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  return {
+    1: normalizeModePointTriple(source['1']),
+    2: normalizeModePointTriple(source['2']),
+    3: normalizeModePointTriple(source['3']),
+  };
+}
+
+function normalizeModePointTriple(value: unknown): ModePoints {
+  const list = Array.isArray(value) ? value : [];
+  return [list[0] === true, list[1] === true, list[2] === true];
 }
 
 function normalizeContent(
