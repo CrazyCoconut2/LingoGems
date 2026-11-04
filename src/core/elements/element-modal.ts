@@ -2310,6 +2310,7 @@ function writeExampleSuggestions(
                       [mode]="mode"
                       [succeeded]="0"
                       [goal]="readStepGoal(element().language)"
+                      [labeled]="true"
                     />
                   </div>
                 }
