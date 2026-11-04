@@ -13,9 +13,7 @@ import {
 } from '@angular/core';
 import {
   assignEquivalent,
-  comfortColorHex,
-  scoreChipBg,
-  scoreColorHex,
+  DEFAULT_HIGHLIGHT_COLOR,
   deleteElement,
   displayTitle,
   embedTranslation,
@@ -54,7 +52,6 @@ import {
   type RelatedWord,
 } from 'ai';
 import { Reveal } from './reveal';
-import { ScoreGauge } from './score-gauge';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
@@ -486,7 +483,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [Reveal, ScoreGauge],
+  imports: [Reveal],
   template: `
     <div
       class="backdrop"
@@ -580,16 +577,6 @@ function writeExampleSuggestions(
           <div class="header-actions">
             <button
               type="button"
-              class="mode"
-              [attr.aria-label]="'Mode ' + element().mode"
-              title="Mode"
-              [disabled]="busy()"
-              (click)="cycleMode()"
-            >
-              {{ element().mode }}
-            </button>
-            <button
-              type="button"
               class="icon-btn highlight-btn"
               aria-label="Highlight color"
               title="Highlight color"
@@ -605,14 +592,13 @@ function writeExampleSuggestions(
             </button>
             <button
               type="button"
-              class="score-pill"
-              [attr.aria-label]="'Learning score ' + element().score + ' out of 10'"
-              title="Learning score"
-              [attr.aria-expanded]="scoreOpen()"
-              [disabled]="aiBusy()"
-              (click)="scoreOpen.set(true)"
+              class="mode"
+              [attr.aria-label]="'Mode ' + element().mode"
+              title="Mode"
+              [disabled]="busy()"
+              (click)="cycleMode()"
             >
-              <app-score-gauge [score]="element().score" />
+              {{ element().mode }}
             </button>
             @if (canHear(shownTitle())) {
               <button
@@ -2223,56 +2209,6 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (scoreOpen()) {
-          <div class="sheet-backdrop" (click)="closeScore($event)">
-            <section
-              class="sheet score-sheet"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Learning score"
-              (click)="$event.stopPropagation()"
-            >
-              <div class="sheet-head">
-                <h3>Learning score</h3>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  [disabled]="busy()"
-                  (click)="scoreOpen.set(false)"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
-              </div>
-              <app-score-gauge [score]="element().score" size="lg" />
-              <div class="comfort-strip" role="radiogroup" aria-label="Learning score">
-                @for (level of comfortLevels; track level) {
-                  <button
-                    type="button"
-                    class="comfort-step"
-                    [class.selected]="element().score === level"
-                    [style.--step-color]="scoreColorHex(level)"
-                    [style.--step-bg]="scoreChipBg(level)"
-                    [disabled]="busy()"
-                    [attr.aria-label]="'' + level"
-                    [attr.aria-pressed]="element().score === level"
-                    (click)="selectScore(level)"
-                  >
-                    {{ level }}
-                  </button>
-                }
-              </div>
-              <div class="comfort-labels" aria-hidden="true">
-                <span>Not comfortable</span>
-                <span>Very comfortable</span>
-              </div>
-            </section>
-          </div>
-        }
-
         @if (colorOpen()) {
           <div class="sheet-backdrop" (click)="closeHighlight($event)">
             <section
@@ -2467,68 +2403,6 @@ function writeExampleSuggestions(
 
     header > .header-actions {
       justify-content: flex-end;
-    }
-
-    .score-pill {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 1.8rem;
-      height: 1.8rem;
-      border: 0;
-      border-radius: 0.4rem;
-      padding: 0;
-      background: transparent;
-      cursor: pointer;
-    }
-
-    .score-sheet app-score-gauge {
-      align-self: center;
-      margin-bottom: 0.15rem;
-    }
-
-    .score-pill:hover:not(:disabled) {
-      background: rgba(139, 144, 165, 0.16);
-    }
-
-    .score-pill:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-
-    .comfort-strip {
-      display: grid;
-      grid-template-columns: repeat(10, minmax(0, 1fr));
-      gap: 0.3rem;
-    }
-
-    .comfort-step {
-      border: 0;
-      border-radius: 8px;
-      padding: 0.45rem 0;
-      background: var(--step-bg);
-      color: var(--step-color);
-      font: inherit;
-      font-size: 0.82rem;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .comfort-step.selected {
-      box-shadow: inset 0 0 0 2px var(--step-color);
-    }
-
-    .comfort-step:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-
-    .comfort-labels {
-      display: flex;
-      justify-content: space-between;
-      gap: 0.75rem;
-      color: var(--text-muted);
-      font-size: 0.75rem;
     }
 
     .color-sv {
@@ -3579,10 +3453,7 @@ export class ElementModal {
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
-  readonly comfortLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   readonly highlightStyles = HIGHLIGHT_STYLES;
-  readonly scoreColorHex = scoreColorHex;
-  readonly scoreChipBg = scoreChipBg;
   readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
   readonly relatedPickMax = MAX_RELATED_PICKS;
@@ -3632,12 +3503,11 @@ export class ElementModal {
   readonly wordingSuggestions = signal<Record<string, WordingSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
-  readonly scoreOpen = signal(false);
   readonly colorOpen = signal(false);
   readonly colorHue = signal(0);
   readonly colorSat = signal(1);
   readonly colorVal = signal(1);
-  readonly colorDraft = signal(scoreColorHex(1));
+  readonly colorDraft = signal(DEFAULT_HIGHLIGHT_COLOR);
   readonly styleDraft = signal<HighlightStyle>('solid');
   readonly engineerGloss = signal('');
   readonly engineerEnglish = signal('');
@@ -3690,7 +3560,6 @@ export class ElementModal {
       this.addDefinitionOpen.set(false);
       this.addExampleFor.set(null);
       this.addFormFor.set(null);
-      this.scoreOpen.set(false);
       this.colorOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
@@ -3753,10 +3622,6 @@ export class ElementModal {
     }
     if (this.colorOpen()) {
       if (!this.busy()) this.colorOpen.set(false);
-      return;
-    }
-    if (this.scoreOpen()) {
-      if (!this.busy()) this.scoreOpen.set(false);
       return;
     }
     if (this.addFormFor() != null) {
@@ -5066,12 +4931,7 @@ export class ElementModal {
   }
 
   highlightColor(element: StoredElement): string {
-    return resolveHighlightColor(element.highlightColor, element.score);
-  }
-
-  closeScore(event: MouseEvent): void {
-    if (event.target !== event.currentTarget || this.busy()) return;
-    this.scoreOpen.set(false);
+    return resolveHighlightColor(element.highlightColor);
   }
 
   async cycleMode(): Promise<void> {
@@ -5080,19 +4940,10 @@ export class ElementModal {
     await this.saveAppearance({ mode });
   }
 
-  async selectScore(level: number): Promise<void> {
-    if (this.busy()) return;
-    if (this.element().score === level) {
-      this.scoreOpen.set(false);
-      return;
-    }
-    if (await this.saveAppearance({ score: level })) this.scoreOpen.set(false);
-  }
-
   openHighlight(): void {
     if (this.aiBusy()) return;
     const element = this.element();
-    this.applyHighlightHex(resolveHighlightColor(element.highlightColor, element.score));
+    this.applyHighlightHex(resolveHighlightColor(element.highlightColor));
     this.styleDraft.set(resolveHighlightStyle(element.highlightStyle));
     this.colorOpen.set(true);
   }
@@ -5111,29 +4962,28 @@ export class ElementModal {
     return (
       element.highlightColor != null ||
       element.highlightStyle != null ||
-      this.colorDraft() !== scoreColorHex(element.score) ||
+      this.colorDraft() !== DEFAULT_HIGHLIGHT_COLOR ||
       this.styleDraft() !== 'solid'
     );
   }
 
   resetHighlight(): void {
     if (this.busy() || !this.canResetHighlight()) return;
-    this.applyHighlightHex(scoreColorHex(this.element().score));
+    this.applyHighlightHex(DEFAULT_HIGHLIGHT_COLOR);
     this.styleDraft.set('solid');
   }
 
   highlightDirty(): boolean {
     const element = this.element();
     return (
-      this.colorDraft() !== resolveHighlightColor(element.highlightColor, element.score) ||
+      this.colorDraft() !== resolveHighlightColor(element.highlightColor) ||
       this.styleDraft() !== resolveHighlightStyle(element.highlightStyle)
     );
   }
 
   async saveHighlight(): Promise<void> {
     if (this.busy() || !this.highlightDirty()) return;
-    const element = this.element();
-    const fallback = scoreColorHex(element.score);
+    const fallback = DEFAULT_HIGHLIGHT_COLOR;
     const color = this.colorDraft() === fallback ? null : sanitizeHighlightColor(this.colorDraft());
     const style = this.styleDraft() === 'solid' ? null : this.styleDraft();
     if (await this.saveAppearance({ highlightColor: color, highlightStyle: style })) {
@@ -5160,7 +5010,7 @@ export class ElementModal {
   }
 
   private applyHighlightHex(hex: string): void {
-    const color = sanitizeHighlightColor(hex) ?? scoreColorHex(this.element().score);
+    const color = sanitizeHighlightColor(hex) ?? DEFAULT_HIGHLIGHT_COLOR;
     const hsv = hexToHsv(color);
     this.colorDraft.set(color);
     this.colorHue.set(hsv.h);
@@ -5169,7 +5019,7 @@ export class ElementModal {
   }
 
   private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'score' | 'highlightColor' | 'highlightStyle' | 'mode'>>,
+    patch: Partial<Pick<StoredElement, 'highlightColor' | 'highlightStyle' | 'mode'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
     this.busy.set(true);
@@ -5817,7 +5667,7 @@ function selectionCoversPassage(passage: Element, range: Range): boolean {
 
 function appearanceOf(element: StoredElement): { color: string; style: HighlightStyle } {
   return {
-    color: resolveHighlightColor(element.highlightColor, element.score),
+    color: resolveHighlightColor(element.highlightColor),
     style: resolveHighlightStyle(element.highlightStyle),
   };
 }
@@ -5877,7 +5727,7 @@ function clamp01(value: number): number {
 }
 
 function hexToHsv(hex: string): { h: number; s: number; v: number } {
-  const color = sanitizeHighlightColor(hex) ?? comfortColorHex(1);
+  const color = sanitizeHighlightColor(hex) ?? DEFAULT_HIGHLIGHT_COLOR;
   const r = Number.parseInt(color.slice(1, 3), 16) / 255;
   const g = Number.parseInt(color.slice(3, 5), 16) / 255;
   const b = Number.parseInt(color.slice(5, 7), 16) / 255;

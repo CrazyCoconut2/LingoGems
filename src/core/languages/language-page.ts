@@ -11,7 +11,6 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
-import { ScoreGauge } from '../elements/score-gauge';
 import { LanguageAiSettings } from './language-ai-settings';
 import {
   addElement,
@@ -52,7 +51,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
 @Component({
   selector: 'app-language-page',
-  imports: [RouterLink, ElementModal, ScoreGauge, LanguageAiSettings],
+  imports: [RouterLink, ElementModal, LanguageAiSettings],
   template: `
     <main>
       <header>
@@ -229,7 +228,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       }
                     }
                   </span>
-                  <app-score-gauge [score]="element.score" />
+                  <span class="mode" [attr.aria-label]="'Mode ' + element.mode">{{
+                    element.mode
+                  }}</span>
                 </span>
                 <span class="stats">
                   <span
@@ -269,9 +270,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     </svg>
                     <span>{{ element.definitions.length }}</span>
                   </span>
-                  <span class="mode" [attr.aria-label]="'Mode ' + element.mode">{{
-                    element.mode
-                  }}</span>
                 </span>
               </button>
             </li>
@@ -879,8 +877,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .mode {
       flex: none;
       color: var(--text-muted);
-      font-size: 0.75rem;
-      font-weight: 650;
+      font-size: 0.95rem;
+      font-weight: 700;
       font-variant-numeric: tabular-nums;
       line-height: 1;
     }
@@ -1441,7 +1439,7 @@ export class LanguagePage {
   }
 
   highlightColor(element: StoredElement): string {
-    return resolveHighlightColor(element.highlightColor, element.score);
+    return resolveHighlightColor(element.highlightColor);
   }
 
   highlightStyle(element: StoredElement): string {

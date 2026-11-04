@@ -8,13 +8,6 @@ import {
   writeStoredAiCredentials,
   type AiProviderId,
 } from 'ai';
-import {
-  comfortColorHex,
-  readScoreColorOverrides,
-  resetScoreColors,
-  writeScoreColor,
-} from 'collection';
-import { ScoreGauge } from '../elements/score-gauge';
 
 type ProviderOption = {
   id: AiProviderId;
@@ -30,7 +23,7 @@ const AI_PROVIDERS: ProviderOption[] = [
 
 @Component({
   selector: 'app-settings',
-  imports: [FormsModule, ScoreGauge],
+  imports: [FormsModule],
   template: `
     <main>
       <header>
@@ -79,39 +72,6 @@ const AI_PROVIDERS: ProviderOption[] = [
           <button type="submit" class="btn btn-primary" [disabled]="!ready()">Save</button>
         </div>
       </form>
-
-      <section class="score-colors" aria-label="Score colors">
-        <div class="score-head">
-          <div class="copy">
-            <h2>Score colors</h2>
-            <p>Each score uses this color on its gauge.</p>
-          </div>
-          <button
-            type="button"
-            class="score-reset"
-            [disabled]="!colorsChanged()"
-            (click)="resetAllScoreColors()"
-          >
-            Reset
-          </button>
-        </div>
-        <ul class="score-grid">
-          @for (level of scoreLevels; track level) {
-            <li>
-              <label class="score-tile" [class.changed]="overridden(level)">
-                <app-score-gauge [score]="level" [color]="colorFor(level)" />
-                <span class="score-label">{{ level }}</span>
-                <input
-                  type="color"
-                  [attr.aria-label]="'Color for score ' + level"
-                  [value]="colorFor(level)"
-                  (input)="setScoreColor(level, inputValue($event))"
-                />
-              </label>
-            </li>
-          }
-        </ul>
-      </section>
     </main>
   `,
   styles: `
@@ -227,80 +187,6 @@ const AI_PROVIDERS: ProviderOption[] = [
       color: var(--text-muted);
       font-size: 0.875rem;
     }
-
-    .score-colors {
-      display: flex;
-      flex-direction: column;
-      gap: 0.9rem;
-    }
-
-    .score-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 1rem;
-    }
-
-    .score-reset {
-      flex: none;
-      margin-top: 0.2rem;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 0.35rem 0.75rem;
-      background: var(--surface);
-      color: var(--text);
-      font: inherit;
-      font-size: 0.8125rem;
-      font-weight: 650;
-      cursor: pointer;
-    }
-
-    .score-reset:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .score-grid {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 0.5rem;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .score-tile {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.35rem;
-      padding: 0.55rem 0.25rem 0.45rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface);
-      color: var(--text);
-      font-size: 0.82rem;
-      font-weight: 650;
-      cursor: pointer;
-    }
-
-    .score-tile.changed {
-      border-color: rgba(var(--accent-rgb), 0.55);
-    }
-
-    .score-label {
-      line-height: 1;
-    }
-
-    .score-tile input[type='color'] {
-      width: 1.35rem;
-      height: 1.35rem;
-      padding: 0;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: transparent;
-      cursor: pointer;
-    }
   `,
 })
 export class Settings {
@@ -313,8 +199,6 @@ export class Settings {
   readonly apiKey = signal(this.stored?.apiKey ?? '');
   readonly saved = signal(false);
   readonly ready = computed(() => this.apiKey().trim().length > 0);
-  readonly scoreLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-  readonly scoreColors = signal(readScoreColorOverrides());
   private keyId = this.stored?.id ?? '';
   private rememberedProvider = this.stored?.provider;
   private rememberedModel = this.stored?.model ?? '';
@@ -342,32 +226,6 @@ export class Settings {
     this.rememberedProvider = provider;
     this.rememberedModel = model;
     this.saved.set(true);
-  }
-
-  colorFor(level: number): string {
-    return this.scoreColors()[level - 1] ?? comfortColorHex(level);
-  }
-
-  overridden(level: number): boolean {
-    return this.scoreColors()[level - 1] != null;
-  }
-
-  colorsChanged(): boolean {
-    return this.scoreColors().some((color) => color != null);
-  }
-
-  setScoreColor(level: number, value: string): void {
-    writeScoreColor(level, value);
-    this.scoreColors.set(readScoreColorOverrides());
-  }
-
-  resetAllScoreColors(): void {
-    resetScoreColors();
-    this.scoreColors.set(readScoreColorOverrides());
-  }
-
-  inputValue(event: Event): string {
-    return (event.target as HTMLInputElement).value;
   }
 
   back(): void {

@@ -1,7 +1,6 @@
 import { ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
 import { isLearnableLanguage, type LearnableLanguage } from '../languages/catalog';
 import {
-  normalizeScore,
   sanitizeHighlightColor,
   sanitizeHighlightStyle,
   type HighlightStyle,
@@ -46,9 +45,7 @@ export type StoredElement = {
   title: string;
   equivalents: ElementEquivalent[];
   definitions: ElementDefinition[];
-  /** Learning note, always 1–10. */
-  score: number;
-  /** Custom underline color. Null uses the score color. */
+  /** Custom underline color. Null uses the default color. */
   highlightColor: string | null;
   /** Custom underline style. Null is solid. */
   highlightStyle: HighlightStyle | null;
@@ -104,7 +101,6 @@ export async function addElement(language: string, title: string): Promise<Store
     title: name,
     equivalents: [],
     definitions: [],
-    score: 1,
     highlightColor: null,
     highlightStyle: null,
     mode: 1,
@@ -181,12 +177,10 @@ function normalizeElement(raw: unknown): StoredElement | null {
 }
 
 function appearanceOf(source: Partial<StoredElement> | null | undefined): {
-  score: number;
   highlightColor: string | null;
   highlightStyle: HighlightStyle | null;
 } {
   return {
-    score: normalizeScore(source?.score),
     highlightColor: sanitizeHighlightColor(source?.highlightColor),
     highlightStyle: sanitizeHighlightStyle(source?.highlightStyle),
   };

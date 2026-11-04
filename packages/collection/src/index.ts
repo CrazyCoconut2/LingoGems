@@ -36,20 +36,10 @@ export {
 export {
   DEFAULT_HIGHLIGHT_COLOR,
   HIGHLIGHT_STYLES,
-  comfortChipBg,
-  comfortColor,
-  comfortColorHex,
-  normalizeScore,
-  readScoreColorOverrides,
-  resetScoreColors,
   resolveHighlightColor,
   resolveHighlightStyle,
   sanitizeHighlightColor,
   sanitizeHighlightStyle,
-  scoreChipBg,
-  scoreColorHex,
-  scoreColorOverride,
-  writeScoreColor,
   type HighlightStyle,
 } from './elements/appearance';
 
