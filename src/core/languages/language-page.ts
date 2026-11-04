@@ -2,6 +2,7 @@ import { Component, computed, DestroyRef, HostListener, inject, signal } from '@
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
+import { FrequencyGem } from '../elements/frequency-gem';
 import { ModeIcon } from '../elements/mode-icon';
 import { ModeProgress } from '../elements/mode-progress';
 import { scoreColor } from '../elements/mode-palette';
@@ -12,6 +13,8 @@ import {
   addElement,
   compareElements,
   DEFAULT_ELEMENT_SORT,
+  DEFINITION_FREQUENCIES,
+  definitionFrequencyLabel,
   displayTitle,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
@@ -28,6 +31,7 @@ import {
   readElements,
   readLanguages,
   saveElement,
+  type DefinitionFrequency,
   type ElementDefinition,
   type ElementMode,
   type ElementSearch,
@@ -50,7 +54,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
 @Component({
   selector: 'app-language-page',
-  imports: [RouterLink, ElementModal, ModeIcon, ModeProgress, LanguageAiSettings],
+  imports: [RouterLink, ElementModal, FrequencyGem, ModeIcon, ModeProgress, LanguageAiSettings],
   template: `
     <main>
       <header>
@@ -244,23 +248,16 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       </svg>
                       <span>{{ element.equivalents.length }}</span>
                     </span>
-                    <span
-                      class="stat"
-                      [class.empty]="element.definitions.length === 0"
-                      [attr.aria-label]="
-                        element.definitions.length === 1
-                          ? '1 definition'
-                          : element.definitions.length + ' definitions'
-                      "
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                          d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
-                        />
-                        <path d="m8 13 4-7 4 7" />
-                        <path d="M9.1 11h5.7" />
-                      </svg>
-                      <span>{{ element.definitions.length }}</span>
+                    @let groups = definitionCounts(element.definitions);
+                    <span class="stat stones" [attr.aria-label]="definitionsLabel(groups)">
+                      @for (group of groups; track group.frequency) {
+                        <span class="stone" [attr.title]="frequencyLabel(group.frequency)">
+                          <app-frequency-gem [frequency]="group.frequency" />
+                          @if (group.count > 1) {
+                            <span>x{{ group.count }}</span>
+                          }
+                        </span>
+                      }
                     </span>
                   </span>
                 </button>
@@ -950,6 +947,24 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       stroke-linejoin: round;
     }
 
+    .stones {
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      max-width: 100%;
+    }
+
+    .stone {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.08rem;
+    }
+
+    .stones app-frequency-gem {
+      width: 1rem;
+      height: 1rem;
+      flex: none;
+    }
+
     .skeleton {
       gap: 0.55rem;
       border-left-color: color-mix(in srgb, var(--text) 7%, transparent);
@@ -1279,6 +1294,7 @@ export class LanguagePage {
 
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly modeLabel = elementModeLabel;
+  readonly frequencyLabel = definitionFrequencyLabel;
   readonly readStepGoal = readStepGoal;
   readonly asking = signal(false);
   readonly lookupError = signal('');
@@ -1478,6 +1494,30 @@ export class LanguagePage {
 
   highlight(text: string): ElementSearchPart[] {
     return elementHighlightParts(displayTitle(text, this.code()), this.search());
+  }
+
+  definitionCounts(
+    definitions: readonly ElementDefinition[],
+  ): { frequency: DefinitionFrequency; count: number }[] {
+    const counts = new Map<DefinitionFrequency, number>();
+    for (const definition of definitions) {
+      const frequency = definition.frequency;
+      counts.set(frequency, (counts.get(frequency) ?? 0) + 1);
+    }
+    return DEFINITION_FREQUENCIES.flatMap((frequency) => {
+      const count = counts.get(frequency) ?? 0;
+      return count > 0 ? [{ frequency, count }] : [];
+    });
+  }
+
+  definitionsLabel(groups: readonly { frequency: DefinitionFrequency; count: number }[]): string {
+    if (groups.length === 0) return 'No definitions';
+    return groups
+      .map((group) => {
+        const name = definitionFrequencyLabel(group.frequency).toLowerCase();
+        return group.count === 1 ? `1 ${name}` : `${group.count} ${name}`;
+      })
+      .join(', ');
   }
 
   inputValue(event: Event): string {
