@@ -15,7 +15,6 @@ import {
   writeScoreColor,
 } from 'collection';
 import { ScoreGauge } from '../elements/score-gauge';
-import { blurTranslations, writeBlurTranslations } from '../elements/blur-translations';
 
 type ProviderOption = {
   id: AiProviderId;
@@ -80,21 +79,6 @@ const AI_PROVIDERS: ProviderOption[] = [
           <button type="submit" class="btn btn-primary" [disabled]="!ready()">Save</button>
         </div>
       </form>
-
-      <section class="translations" aria-label="Translations">
-        <div class="copy">
-          <h2>Translations</h2>
-          <p>Hide a translation until you click it.</p>
-        </div>
-        <label class="translation-toggle">
-          <input
-            type="checkbox"
-            [checked]="blurTranslations()"
-            (change)="setBlurTranslations($event)"
-          />
-          Blur translations
-        </label>
-      </section>
 
       <section class="score-colors" aria-label="Score colors">
         <div class="score-head">
@@ -250,28 +234,6 @@ const AI_PROVIDERS: ProviderOption[] = [
       gap: 0.9rem;
     }
 
-    .translations {
-      display: flex;
-      flex-direction: column;
-      gap: 0.9rem;
-    }
-
-    label.translation-toggle {
-      flex-direction: row;
-      align-items: center;
-      gap: 0.55rem;
-      color: var(--text);
-      font-size: 0.9rem;
-    }
-
-    label.translation-toggle input {
-      width: 1rem;
-      height: 1rem;
-      margin: 0;
-      padding: 0;
-      accent-color: var(--accent, #6c63ff);
-    }
-
     .score-head {
       display: flex;
       align-items: flex-start;
@@ -353,7 +315,6 @@ export class Settings {
   readonly ready = computed(() => this.apiKey().trim().length > 0);
   readonly scoreLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   readonly scoreColors = signal(readScoreColorOverrides());
-  readonly blurTranslations = blurTranslations;
   private keyId = this.stored?.id ?? '';
   private rememberedProvider = this.stored?.provider;
   private rememberedModel = this.stored?.model ?? '';
@@ -381,11 +342,6 @@ export class Settings {
     this.rememberedProvider = provider;
     this.rememberedModel = model;
     this.saved.set(true);
-  }
-
-  setBlurTranslations(event: Event): void {
-    const enabled = event.target instanceof HTMLInputElement && event.target.checked;
-    writeBlurTranslations(enabled);
   }
 
   colorFor(level: number): string {

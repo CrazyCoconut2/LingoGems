@@ -572,7 +572,7 @@ function writeExampleSuggestions(
                   @if ($index > 0) {
                     <span class="sep">, </span>
                   }
-                  <app-reveal [text]="text" />
+                  <app-reveal [text]="text" [language]="element().language" />
                 }
               </p>
             }
@@ -709,7 +709,7 @@ function writeExampleSuggestions(
                       @if (passage.translations.length) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
-                            <li><app-reveal [text]="translation.text" /></li>
+                            <li><app-reveal [text]="translation.text" [language]="element().language" /></li>
                           }
                         </ul>
                       }
@@ -811,7 +811,7 @@ function writeExampleSuggestions(
                       @if (passage.translations.length) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
-                            <li><app-reveal [text]="translation.text" /></li>
+                            <li><app-reveal [text]="translation.text" [language]="element().language" /></li>
                           }
                         </ul>
                       }
@@ -820,7 +820,7 @@ function writeExampleSuggestions(
                       @if (equivalent || meta.length) {
                         <ul class="sense-meta">
                           @if (equivalent) {
-                            <li class="sense-equivalent"><app-reveal [text]="equivalent" /></li>
+                            <li class="sense-equivalent"><app-reveal [text]="equivalent" [language]="element().language" /></li>
                           }
                           @for (entry of meta; track entry.key) {
                             <li>
@@ -1070,7 +1070,7 @@ function writeExampleSuggestions(
                               @if (passage.translations.length) {
                                 <ul class="equivalents">
                                   @for (translation of passage.translations; track $index) {
-                                    <li><app-reveal [text]="translation.text" /></li>
+                                    <li><app-reveal [text]="translation.text" [language]="element().language" /></li>
                                   }
                                 </ul>
                               }
@@ -1382,7 +1382,7 @@ function writeExampleSuggestions(
                         [attr.aria-label]="'Edit translation ' + ($index + 1)"
                         (click)="editTitleTranslation(item.id)"
                       >
-                        <app-reveal [text]="item.text" />
+                        <app-reveal [text]="item.text" [language]="element().language" />
                       </button>
                       <button
                         type="button"
@@ -1537,7 +1537,7 @@ function writeExampleSuggestions(
                             aria-label="Show translation"
                             (click)="chooseEquivalent(item.id)"
                           >
-                            <app-reveal [text]="item.text" />
+                            <app-reveal [text]="item.text" [language]="element().language" />
                           </button>
                         </li>
                       }

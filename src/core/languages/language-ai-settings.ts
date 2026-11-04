@@ -1,4 +1,5 @@
 import { Component, effect, input, output, signal } from '@angular/core';
+import { readBlurTranslations, writeBlurTranslations } from '../elements/blur-translations';
 import {
   DEFAULT_DEFINITION_METADATA_FIELDS,
   DEFAULT_EXAMPLE_METADATA_FIELDS,
@@ -44,6 +45,21 @@ import {
           </button>
         </header>
         <div class="sheet-body">
+          <section class="metadata" aria-label="Translations">
+            <div class="copy">
+              <h3>Translations</h3>
+              <p>Hide a translation until you click it.</p>
+            </div>
+            <label class="translation-toggle">
+              <input
+                type="checkbox"
+                [checked]="blurTranslations()"
+                (change)="setBlurTranslations($event)"
+              />
+              Blur translations
+            </label>
+          </section>
+
           <section class="metadata" aria-label="Definition metadata">
             <div class="section-head">
               <div class="copy">
@@ -520,6 +536,7 @@ export class LanguageAiSettings {
   readonly exampleFields = signal<AiMetadataField[]>([]);
   readonly generateDefinitionTranslations = signal(true);
   readonly generateExampleTranslations = signal(true);
+  readonly blurTranslations = signal(true);
   readonly recommendingDefinitions = signal(false);
   readonly recommendingExamples = signal(false);
   readonly definitionSuggestions = signal<AiMetadataField[]>([]);
@@ -536,6 +553,7 @@ export class LanguageAiSettings {
       this.exampleFields.set(readExampleMetadataFields(language));
       this.generateDefinitionTranslations.set(readGenerateDefinitionTranslations(language));
       this.generateExampleTranslations.set(readGenerateExampleTranslations(language));
+      this.blurTranslations.set(readBlurTranslations(language));
       this.definitionSuggestions.set([]);
       this.exampleSuggestions.set([]);
       this.definitionRecommendError.set('');
@@ -565,6 +583,12 @@ export class LanguageAiSettings {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
     this.generateExampleTranslations.set(enabled);
     writeGenerateExampleTranslations(this.language(), enabled);
+  }
+
+  setBlurTranslations(event: Event): void {
+    const enabled = event.target instanceof HTMLInputElement && event.target.checked;
+    this.blurTranslations.set(enabled);
+    writeBlurTranslations(this.language(), enabled);
   }
 
   setDefinitionField(index: number, part: 'key' | 'prompt', value: string): void {

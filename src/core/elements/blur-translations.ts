@@ -1,18 +1,57 @@
 import { signal } from '@angular/core';
 
-const BLUR_TRANSLATIONS_KEY = 'lingogem.blur-translations';
+const BLUR_TRANSLATIONS_KEY = 'lingogem.blur-translations.v1';
+const LEGACY_BLUR_TRANSLATIONS_KEY = 'lingogem.blur-translations';
 
-function readStored(): boolean {
-  if (typeof localStorage === 'undefined') return true;
-  return localStorage.getItem(BLUR_TRANSLATIONS_KEY) !== 'false';
+if (typeof localStorage !== 'undefined') localStorage.removeItem(LEGACY_BLUR_TRANSLATIONS_KEY);
+
+const revision = signal(0);
+
+function languageCode(language: string): string {
+  return language.trim().toLowerCase();
 }
 
-/** Translations stay blurred until clicked, unless this is turned off. */
-export const blurTranslations = signal(readStored());
+function readMap(): Record<string, false> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BLUR_TRANSLATIONS_KEY) ?? '');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const map: Record<string, false> = {};
+    for (const [code, value] of Object.entries(parsed)) {
+      const key = languageCode(code);
+      if (key && value === false) map[key] = false;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
 
-export function writeBlurTranslations(enabled: boolean): void {
-  blurTranslations.set(enabled);
+function writeMap(map: Record<string, false>): void {
   if (typeof localStorage === 'undefined') return;
-  if (enabled) localStorage.removeItem(BLUR_TRANSLATIONS_KEY);
-  else localStorage.setItem(BLUR_TRANSLATIONS_KEY, 'false');
+  if (Object.keys(map).length) localStorage.setItem(BLUR_TRANSLATIONS_KEY, JSON.stringify(map));
+  else localStorage.removeItem(BLUR_TRANSLATIONS_KEY);
+  revision.update((value) => value + 1);
+}
+
+/** Missing means the translations for this language stay blurred. */
+export function readBlurTranslations(language: string): boolean {
+  const code = languageCode(language);
+  if (!code) return true;
+  return readMap()[code] !== false;
+}
+
+/** Same value, and it updates open translations when the language setting changes. */
+export function blurTranslationsEnabled(language: string): boolean {
+  revision();
+  return readBlurTranslations(language);
+}
+
+export function writeBlurTranslations(language: string, enabled: boolean): void {
+  const code = languageCode(language);
+  if (!code) return;
+  const map = readMap();
+  if (enabled) delete map[code];
+  else map[code] = false;
+  writeMap(map);
 }
