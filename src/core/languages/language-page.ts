@@ -1312,10 +1312,10 @@ export class LanguagePage {
     this.writeElement(null, false);
   }
 
-  private writeElement(id: string | null, replace: boolean): void {
+  private writeElement(id: string | null, replace: boolean, dropSearch = false): void {
     void this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { element: id || null },
+      queryParams: dropSearch ? { element: id || null, q: null } : { element: id || null },
       queryParamsHandling: 'merge',
       replaceUrl: replace,
     });
@@ -1359,9 +1359,18 @@ export class LanguagePage {
     const title = this.query().trim();
     const code = this.code();
     if (!title || !code) return;
+    if (this.searchTimer) clearTimeout(this.searchTimer);
     const created = await addElement(code, title);
     this.elements.set(await readElements(code));
-    this.openElement(created.id);
+    this.clearSearch();
+    this.trail.set([created.id]);
+    this.writeElement(created.id, false, true);
+  }
+
+  private clearSearch(): void {
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.query.set('');
+    this.search.set(elementPrefixSearch(''));
   }
 
   toggleSort(event: Event): void {
