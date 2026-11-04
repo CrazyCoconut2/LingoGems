@@ -6,6 +6,7 @@ import { FrequencyGem } from '../elements/frequency-gem';
 import { ModeIcon } from '../elements/mode-icon';
 import { ModeProgress } from '../elements/mode-progress';
 import { scoreColor } from '../elements/mode-palette';
+import { Reveal } from '../elements/reveal';
 import { readStepGoal } from '../elements/step-goal';
 import { LanguageAiSettings } from './language-ai-settings';
 import { generateElementFromSelection } from 'ai';
@@ -58,7 +59,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
 @Component({
   selector: 'app-language-page',
-  imports: [RouterLink, ElementModal, FrequencyGem, ModeIcon, ModeProgress, LanguageAiSettings],
+  imports: [RouterLink, ElementModal, FrequencyGem, ModeIcon, ModeProgress, Reveal, LanguageAiSettings],
   template: `
     <main>
       <header>
@@ -222,6 +223,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 class="element"
                 [style.--highlight-color]="highlightColor(element)"
               >
+                <div class="element-row">
                 <button type="button" class="element-open" (click)="openElement(element.id)">
                   <span class="title">
                     @for (part of highlight(element.title); track $index) {
@@ -281,6 +283,17 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     [compact]="true"
                   />
                 </div>
+                </div>
+                @if (element.equivalents.length) {
+                  <p class="equivalents">
+                    @for (item of element.equivalents; track item.id) {
+                      @if ($index > 0) {
+                        <span class="sep" aria-hidden="true">·</span>
+                      }
+                      <app-reveal [text]="item.text" [language]="code()" />
+                    }
+                  </p>
+                }
               </div>
             </li>
           }
@@ -926,12 +939,19 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       list-style: none;
     }
 
+    .elements > li {
+      display: flex;
+      min-width: 0;
+    }
+
     .element {
       box-sizing: border-box;
       width: 100%;
+      flex: 1;
       display: flex;
-      align-items: center;
-      gap: 0.75rem;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.45rem;
       padding: 0.85rem 1rem;
       border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 28%, transparent);
       border-left: 3px solid var(--highlight-color, var(--accent));
@@ -940,6 +960,13 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       color: inherit;
       font: inherit;
       text-align: left;
+    }
+
+    .element-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 0;
     }
 
     .element:hover {
@@ -973,6 +1000,24 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       text-decoration-color: var(--highlight-color, #6c63ff);
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
+    }
+
+    .equivalents {
+      margin: 0;
+      min-width: 0;
+      color: var(--text-muted);
+      font-size: 0.84rem;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .equivalents .sep {
+      margin-inline: 0.4rem;
+    }
+
+    .equivalents app-reveal {
+      max-width: 100%;
+      overflow-wrap: anywhere;
     }
 
     .mode-stack {
@@ -1052,6 +1097,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .skeleton {
+      flex-direction: row;
+      align-items: center;
       gap: 0.55rem;
       border-left-color: color-mix(in srgb, var(--text) 7%, transparent);
     }
