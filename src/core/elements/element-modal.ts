@@ -619,22 +619,19 @@ function writeExampleSuggestions(
               </button>
               <div
                 class="mode-points compact"
-                role="group"
-                [attr.aria-label]="modeLabel(element().mode) + ' points'"
+                role="img"
+                [attr.aria-label]="
+                  modeLabel(element().mode) +
+                  ', ' +
+                  modePointLevel(element().modePoints[element().mode]) +
+                  ' of 3'
+                "
                 [attr.data-level]="modePointLevel(element().modePoints[element().mode])"
                 [style.--mode-color]="modeColor(element().mode).color"
                 [style.--mode-rgb]="modeColor(element().mode).rgb"
               >
                 @for (filled of element().modePoints[element().mode]; track $index) {
-                  <button
-                    type="button"
-                    class="mode-point"
-                    [class.filled]="filled"
-                    [attr.aria-pressed]="filled"
-                    [attr.aria-label]="modeLabel(element().mode) + ' point ' + ($index + 1)"
-                    [disabled]="busy()"
-                    (click)="setModePoint(element().mode, $index)"
-                  ></button>
+                  <span class="mode-point" [class.filled]="filled"></span>
                 }
               </div>
             </div>
@@ -2735,6 +2732,9 @@ function writeExampleSuggestions(
       border: 0;
       border-radius: 999px;
       background: transparent;
+    }
+
+    button.mode-point {
       cursor: pointer;
     }
 
