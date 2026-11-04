@@ -620,7 +620,7 @@ function writeExampleSuggestions(
               </button>
               <app-mode-progress
                 [mode]="element().mode"
-                [succeeded]="0"
+                [succeeded]="element().modeProgress[element().mode]"
                 [goal]="readStepGoal(element().language)"
                 [compact]="true"
               />
@@ -2287,33 +2287,72 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <div class="mode-choices" role="radiogroup" aria-label="Mode">
-                @for (mode of modes; track mode) {
-                  <div
-                    class="mode-column"
-                    [style.--mode-color]="modeColor(mode).color"
-                    [style.--mode-rgb]="modeColor(mode).rgb"
+              <div class="mode-editor" [style.--mode-color]="modeColor(element().mode).color" [style.--mode-rgb]="modeColor(element().mode).rgb">
+                @let mode = element().mode;
+                @let goal = readStepGoal(element().language);
+                @let succeeded = element().modeProgress[mode];
+                <div class="mode-current">
+                  <app-mode-icon [mode]="mode" />
+                  <span>{{ modeLabel(mode) }}</span>
+                </div>
+                <div class="mode-adjust">
+                  <button
+                    type="button"
+                    aria-label="Remove a point"
+                    [disabled]="busy() || succeeded <= 0"
+                    (click)="adjustModeProgress(-1)"
                   >
-                    <button
-                      type="button"
-                      class="mode-choice"
-                      [class.selected]="element().mode === mode"
-                      [attr.aria-label]="modeLabel(mode)"
-                      [disabled]="busy()"
-                      [attr.aria-pressed]="element().mode === mode"
-                      (click)="chooseMode(mode)"
-                    >
-                      <app-mode-icon [mode]="mode" />
-                      <span>{{ modeLabel(mode) }}</span>
-                    </button>
-                    <app-mode-progress
-                      [mode]="mode"
-                      [succeeded]="0"
-                      [goal]="readStepGoal(element().language)"
-                      [labeled]="true"
-                    />
-                  </div>
-                }
+                    −
+                  </button>
+                  <app-mode-progress
+                    [mode]="mode"
+                    [succeeded]="succeeded"
+                    [goal]="goal"
+                    [labeled]="true"
+                  />
+                  <button
+                    type="button"
+                    aria-label="Add a point"
+                    [disabled]="busy() || succeeded >= goal"
+                    (click)="adjustModeProgress(1)"
+                  >
+                    +
+                  </button>
+                </div>
+                <div class="mode-sequence" role="group" aria-label="Modes, from Extract to Polish">
+                  @for (step of modes; track step) {
+                    @if (!$first) {
+                      <span class="mode-next" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                          <path d="m9 6 6 6-6 6" />
+                        </svg>
+                      </span>
+                    }
+                    @if (step === mode) {
+                      <div
+                        class="mode-step current"
+                        aria-current="step"
+                        [style.--mode-color]="modeColor(step).color"
+                        [style.--mode-rgb]="modeColor(step).rgb"
+                      >
+                        <app-mode-icon [mode]="step" />
+                        <span>{{ modeLabel(step) }}</span>
+                      </div>
+                    } @else {
+                      <button
+                        type="button"
+                        class="mode-step"
+                        [style.--mode-color]="modeColor(step).color"
+                        [style.--mode-rgb]="modeColor(step).rgb"
+                        [disabled]="busy()"
+                        (click)="showMode(step)"
+                      >
+                        <app-mode-icon [mode]="step" />
+                        <span>{{ modeLabel(step) }}</span>
+                      </button>
+                    }
+                  }
+                </div>
               </div>
             </section>
           </div>
@@ -2644,54 +2683,118 @@ function writeExampleSuggestions(
     }
 
     .mode-sheet {
-      width: min(100%, 26rem);
+      width: min(100%, 24rem);
     }
 
-    .mode-choices {
+    .mode-editor {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.95rem;
+    }
+
+    .mode-current {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      color: var(--mode-color);
+      font-size: 1.05rem;
+      font-weight: 750;
+    }
+
+    .mode-current app-mode-icon {
+      width: 5.5rem;
+      height: 5.5rem;
+    }
+
+    .mode-adjust {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .mode-adjust button {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.55rem;
-    }
-
-    .mode-column {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.45rem;
-      min-width: 0;
-    }
-
-    .mode-choice {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.45rem;
-      width: 100%;
+      place-items: center;
+      width: 2.15rem;
+      height: 2.15rem;
       margin: 0;
-      padding: 0.7rem 0.3rem 0.65rem;
-      border: 1px solid rgba(var(--mode-rgb), 0.45);
-      border-radius: 14px;
-      background: var(--surface-2);
+      padding: 0;
+      border: 1px solid rgba(var(--mode-rgb), 0.55);
+      border-radius: 999px;
+      background: transparent;
       color: var(--mode-color);
       font: inherit;
-      font-size: 0.82rem;
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .mode-adjust button:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+
+    .mode-sequence {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      width: 100%;
+    }
+
+    .mode-step {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.22rem;
+      min-width: 0;
+      margin: 0;
+      padding: 0.45rem 0.2rem 0.4rem;
+      border: 1px solid rgba(var(--mode-rgb), 0.4);
+      border-radius: 12px;
+      background: transparent;
+      color: var(--mode-color);
+      font: inherit;
+      font-size: 0.72rem;
       font-weight: 700;
       cursor: pointer;
     }
 
-    .mode-choice app-mode-icon {
-      width: 4.4rem;
-      height: 4.4rem;
-    }
-
-    .mode-choice.selected {
+    .mode-step.current {
       border-color: var(--mode-color);
-      background: rgba(var(--mode-rgb), 0.14);
+      background: rgba(var(--mode-rgb), 0.16);
       box-shadow: inset 0 0 0 1px var(--mode-color);
+      cursor: default;
     }
 
-    .mode-choice:disabled {
+    .mode-step app-mode-icon {
+      width: 1.35rem;
+      height: 1.35rem;
+    }
+
+    .mode-step:disabled {
+      opacity: 0.45;
       cursor: default;
+    }
+
+    .mode-next {
+      display: grid;
+      flex: none;
+      place-items: center;
+      color: var(--text-muted);
+    }
+
+    .mode-next svg {
+      width: 0.9rem;
+      height: 0.9rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .title-edit {
@@ -5196,10 +5299,19 @@ export class ElementModal {
     this.modeOpen.set(false);
   }
 
-  async chooseMode(mode: ElementMode): Promise<void> {
-    if (this.busy()) return;
-    if (this.element().mode !== mode && !(await this.saveAppearance({ mode }))) return;
-    this.modeOpen.set(false);
+  async showMode(mode: ElementMode): Promise<void> {
+    if (this.busy() || this.element().mode === mode) return;
+    await this.saveAppearance({ mode });
+  }
+
+  async adjustModeProgress(delta: 1 | -1): Promise<void> {
+    const element = this.element();
+    const mode = element.mode;
+    const goal = readStepGoal(element.language);
+    const current = Math.min(goal, element.modeProgress[mode] ?? 0);
+    const next = Math.min(goal, Math.max(0, current + delta));
+    if (next === element.modeProgress[mode]) return;
+    await this.saveAppearance({ modeProgress: { ...element.modeProgress, [mode]: next } });
   }
 
   openHighlight(): void {
@@ -5281,7 +5393,7 @@ export class ElementModal {
   }
 
   private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'highlightColor' | 'highlightStyle' | 'mode'>>,
+    patch: Partial<Pick<StoredElement, 'highlightColor' | 'highlightStyle' | 'mode' | 'modeProgress'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
     this.busy.set(true);

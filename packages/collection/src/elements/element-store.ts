@@ -78,6 +78,11 @@ export function elementModeLabel(mode: ElementMode): string {
   return ELEMENT_MODE_LABELS[normalizeElementMode(mode)];
 }
 
+/** Succeeded exercises for each mode. */
+export type ElementModeProgress = Record<ElementMode, number>;
+
+const MAX_MODE_PROGRESS = 99;
+
 export type StoredElement = {
   id: string;
   language: LearnableLanguage;
@@ -89,6 +94,8 @@ export type StoredElement = {
   /** Custom underline style. Null is solid. */
   highlightStyle: HighlightStyle | null;
   mode: ElementMode;
+  /** Succeeded exercises for Extract, Refine, and Polish. Missing counts are 0. */
+  modeProgress: ElementModeProgress;
   createdAt: number;
 };
 
@@ -143,6 +150,7 @@ export async function addElement(language: string, title: string): Promise<Store
     highlightColor: null,
     highlightStyle: null,
     mode: 1,
+    modeProgress: emptyModeProgress(),
     createdAt: Date.now(),
   };
   await putElement(created);
@@ -170,6 +178,7 @@ export async function saveElement(element: StoredElement): Promise<StoredElement
     definitions: content.definitions,
     ...appearanceOf(element),
     mode: normalizeElementMode(element?.mode),
+    modeProgress: normalizeModeProgress(element?.modeProgress),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
@@ -210,6 +219,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     definitions: content.definitions,
     ...appearanceOf(source),
     mode: normalizeElementMode(source.mode),
+    modeProgress: normalizeModeProgress(source.modeProgress),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
@@ -229,6 +239,28 @@ function appearanceOf(source: Partial<StoredElement> | null | undefined): {
 export function normalizeElementMode(value: unknown): ElementMode {
   const mode = Math.round(Number(value));
   return mode === 2 || mode === 3 ? mode : 1;
+}
+
+function emptyModeProgress(): ElementModeProgress {
+  return { 1: 0, 2: 0, 3: 0 };
+}
+
+function normalizeModeProgress(value: unknown): ElementModeProgress {
+  const source =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  return {
+    1: normalizeProgressCount(source['1']),
+    2: normalizeProgressCount(source['2']),
+    3: normalizeProgressCount(source['3']),
+  };
+}
+
+function normalizeProgressCount(value: unknown): number {
+  const count = Math.round(Number(value));
+  if (!Number.isInteger(count) || count < 0) return 0;
+  return Math.min(MAX_MODE_PROGRESS, count);
 }
 
 function normalizeContent(

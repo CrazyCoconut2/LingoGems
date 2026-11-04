@@ -281,7 +281,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 </button>
                 <app-mode-progress
                   [mode]="element.mode"
-                  [succeeded]="0"
+                  [succeeded]="element.modeProgress[element.mode]"
                   [goal]="readStepGoal(code())"
                   [compact]="true"
                 />
