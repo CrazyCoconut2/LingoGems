@@ -2,11 +2,9 @@ import {
   Component,
   computed,
   DestroyRef,
-  ElementRef,
   HostListener,
   inject,
   signal,
-  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
@@ -90,11 +88,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
               <circle cx="12" cy="12" r="3" />
             </svg>
           </a>
-          @if (ready()) {
-            <button type="button" class="plus" aria-label="Add an element" (click)="openAdd()">
-              +
-            </button>
-          }
         </div>
       </header>
 
@@ -278,25 +271,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       } @else {
         <p class="empty">{{ elements().length ? 'No matching elements.' : 'No elements yet.' }}</p>
       }
-
-      <dialog #adder (click)="closeOnBackdrop($event)" (close)="draft.set('')">
-        <form (submit)="add($event)">
-          <div class="modal-head">
-            <h2>Add an element</h2>
-            <button type="button" class="close" aria-label="Close" (click)="closeAdd()">×</button>
-          </div>
-          <label for="element-title">Title</label>
-          <input
-            #title
-            id="element-title"
-            [value]="draft()"
-            (input)="draft.set(inputValue($event))"
-            autocomplete="off"
-            required
-          />
-          <button type="submit" class="btn btn-primary">Add</button>
-        </form>
-      </dialog>
 
       @if (aiSettingsOpen()) {
         <app-language-ai-settings
@@ -566,30 +540,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
-    }
-
-    .plus,
-    .close {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border: 0;
-      cursor: pointer;
-    }
-
-    .plus {
-      width: 2.25rem;
-      height: 2.25rem;
-      flex: none;
-      border-radius: 999px;
-      background: var(--accent);
-      color: white;
-      font-size: 1.45rem;
-      line-height: 1;
-    }
-
-    .plus:hover {
-      background: var(--accent-hover);
     }
 
     .entries-toolbar {
@@ -938,70 +888,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       color: var(--muted);
     }
 
-    dialog {
-      width: min(100% - 2rem, 24rem);
-      margin: auto;
-      padding: 1.15rem 1.15rem 1.25rem;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--surface);
-      color: var(--text);
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
-    }
-
-    dialog::backdrop {
-      background: rgba(8, 10, 16, 0.72);
-    }
-
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: 0.7rem;
-    }
-
-    .modal-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-    }
-
-    h2 {
-      margin: 0;
-      font-size: 1.15rem;
-      font-weight: 650;
-    }
-
-    .close {
-      width: 2rem;
-      height: 2rem;
-      border-radius: 999px;
-      background: transparent;
-      color: var(--muted);
-      font-size: 1.4rem;
-      line-height: 1;
-    }
-
-    label {
-      font-size: 0.8125rem;
-      font-weight: 650;
-      color: var(--muted);
-    }
-
-    dialog input {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 0.7rem 0.85rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface-2);
-      color: var(--text);
-    }
-
-    form .btn {
-      align-self: flex-end;
-    }
-
     .filter-backdrop {
       position: fixed;
       inset: 0;
@@ -1260,8 +1146,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 export class LanguagePage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly adder = viewChild<ElementRef<HTMLDialogElement>>('adder');
-  private readonly titleInput = viewChild<ElementRef<HTMLInputElement>>('title');
   private loadId = 0;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   private scrollLock = '';
@@ -1292,7 +1176,6 @@ export class LanguagePage {
   readonly elementId = signal('');
   readonly trail = signal<string[]>([]);
   readonly canGoBack = computed(() => this.trail().length > 1);
-  readonly draft = signal('');
   readonly opened = computed(() => {
     const id = this.elementId();
     if (!id) return null;
@@ -1547,31 +1430,6 @@ export class LanguagePage {
     this.minTranslations.set(null);
     this.minDefinitions.set(null);
     this.writeBrowse();
-  }
-
-  openAdd(): void {
-    this.draft.set('');
-    this.adder()?.nativeElement.showModal();
-    queueMicrotask(() => this.titleInput()?.nativeElement.focus());
-  }
-
-  closeAdd(): void {
-    this.adder()?.nativeElement.close();
-  }
-
-  closeOnBackdrop(event: MouseEvent): void {
-    if (event.target === event.currentTarget) this.closeAdd();
-  }
-
-  async add(event: Event): Promise<void> {
-    event.preventDefault();
-    const title = this.draft().trim();
-    const code = this.code();
-    if (!title || !code) return;
-    const created = await addElement(code, title);
-    this.closeAdd();
-    this.elements.set(await readElements(code));
-    this.openElement(created.id);
   }
 
   private async load(language: string): Promise<void> {
