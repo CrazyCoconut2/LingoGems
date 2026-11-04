@@ -6,48 +6,31 @@ import type { ElementMode } from 'collection';
   selector: 'app-mode-icon',
   template: `
     <svg viewBox="0 0 64 64" aria-hidden="true">
+      <ellipse cx="32" cy="57" rx="14" ry="2.6" fill="#090b16" opacity="0.4" />
       @switch (mode()) {
         @case (1) {
-          <ellipse cx="34" cy="54" rx="18" ry="4.2" fill="#2a2640" />
-          <path
-            fill="#8d879c"
-            d="M18 46c-1-10 6-18 13-20 1-6 8-9 14-7 8 2 14 9 13 18 2 7-3 13-9 15-4 3-9 4-14 3-9-1-17-3-17-9z"
-          />
-          <path
-            fill="#6e687e"
-            d="M24 34c2-4 8-6 12-4 2 6 1 12-3 15-5 1-10-2-9-11z"
-          />
-          <path fill="#6c63ff" d="M33 36l7 1.5-1.5 7.5-6.5-.5z" />
-          <path
-            d="M14 16 34 34"
-            fill="none"
-            stroke="#e2c48a"
-            stroke-width="4.2"
-            stroke-linecap="round"
-          />
-          <path fill="#e7ebf6" d="m9 14 11 1 1 8-9-2z" />
-          <path fill="#c5cad8" d="m9 14 6-7 6 4-4 6z" />
+          <path fill="#c4c0d2" d="M17 44 24 33h16l8 7-3 11H22z" />
+          <path fill="#726d82" d="M40 33h8l8 7-3 11-8-8-5-10z" />
+          <path fill="#3c3684" d="M27 35 32 16l5 19-5 4z" />
+          <path fill="#9d98ff" d="m32 16 5 19-5 4V16z" />
+          <path fill="#fff" d="m32 18.5 3.2 12.2L32 33z" />
+          <path fill="#e7cb90" d="m11 24 3.2-2.6 12.4 15.2-3.2 2.6z" />
+          <path fill="#f4f6fb" d="m7.5 18 8.5-1.5 3.2 6.2-8.2 2.4z" />
+          <path fill="#c9ceda" d="m16 16.5 5.2.6-1.6 5.2-4.6-1.6z" />
         }
         @case (2) {
-          <path fill="#5c568c" d="M16 16 10 30 32 56 32 30Z" />
-          <path fill="#7a74b0" d="M48 16 54 30 32 56 32 30Z" />
-          <path fill="#a39ed4" d="M32 8 48 16 32 30 16 16Z" />
-          <path
-            d="M32 8v48M16 16h32M10 30h44M16 16 32 56 48 16"
-            fill="none"
-            stroke="#2e2a52"
-            stroke-width="1.7"
-            stroke-linejoin="round"
-          />
-          <path fill="#e7ebf6" d="M50 20h9v4.5h-9z" />
-          <path fill="#e2c48a" d="m46 21 6 .6-.6 3.6-6-.6z" />
+          <path fill="#8d889e" d="M19 17 12 28 22 38 32 22Z" />
+          <path fill="#6a657a" d="M12 28 32 54V22L22 38Z" />
+          <path fill="#6a6494" d="M45 17 52 28 32 54V22Z" />
+          <path fill="#ddd8f2" d="M32 9 45 17 32 22 19 17Z" />
+          <path fill="#f7f5ff" d="m32 12 3.2 4h-6.4z" />
         }
         @default {
-          <path fill="#322c74" d="M16 16 10 30 32 56 32 30Z" />
-          <path fill="#7d77ef" d="M48 16 54 30 32 56 32 30Z" />
-          <path fill="#f4f2ff" d="M32 8 48 16 32 30 16 16Z" />
-          <path fill="#fff" opacity="0.9" d="m24 14 6-3 1 7-5 1z" />
-          <path fill="#fff" d="m50 6 1.3 3.2 3.2 1.3-3.2 1.3L50 15l-1.3-3.2-3.2-1.3 3.2-1.3z" />
+          <path fill="#2b2670" d="M19 17 12 28 32 54V22Z" />
+          <path fill="#6c63ff" d="M45 17 52 28 32 54V22Z" />
+          <path fill="#f7f6ff" d="M32 9 45 17 32 22 19 17Z" />
+          <path fill="#fff" d="m27.5 13 4.5-1.6 1.2 5.2h-6.4z" />
+          <path fill="#fff" d="m51 8 1.15 2.8 2.8 1.15-2.8 1.15L51 16l-1.15-2.9-2.8-1.15 2.8-1.15z" />
         }
       }
     </svg>
