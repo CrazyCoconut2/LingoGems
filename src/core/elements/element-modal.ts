@@ -21,12 +21,10 @@ import {
   elementModeLabel,
   type ElementMode,
   formTexts,
-  HIGHLIGHT_STYLES,
   highlightDefinitionPassage,
   isValidForm,
   normalizeDefinitionFrequency,
   parsePassage,
-  resolveHighlightStyle,
   saveElement,
   type DefinitionFrequency,
   type DefinitionHighlightMatch,
@@ -589,19 +587,6 @@ function writeExampleSuggestions(
             }
           }
           <div class="header-actions">
-            <button
-              type="button"
-              class="icon-btn style-btn"
-              aria-label="Underline style"
-              title="Underline style"
-              [attr.aria-expanded]="styleOpen()"
-              [disabled]="aiBusy()"
-              [style.--highlight-color]="highlightColor(element())"
-              [style.--highlight-style]="highlightStyle(element())"
-              (click)="styleOpen.set(true)"
-            >
-              Aa
-            </button>
             <div class="mode-control">
               <button
                 type="button"
@@ -659,6 +644,22 @@ function writeExampleSuggestions(
                 <path d="M7 2h1" />
                 <path d="m22 22-5-10-5 10" />
                 <path d="M14 18h6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="icon-btn danger"
+              aria-label="Delete element"
+              title="Delete"
+              [disabled]="busy()"
+              (click)="askDeleteElement()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 6h18" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
               </svg>
             </button>
           </div>
@@ -791,7 +792,6 @@ function writeExampleSuggestions(
                                 type="button"
                                 class="linguagem-highlighted"
                                 [style.--highlight-color]="part.color"
-                                [style.--highlight-style]="part.style"
                                 [textContent]="part.text"
                                 (click)="showCollision($event, part.matches)"
                               ></button>
@@ -800,7 +800,6 @@ function writeExampleSuggestions(
                                 type="button"
                                 class="linguagem-highlighted"
                                 [style.--highlight-color]="part.color"
-                                [style.--highlight-style]="part.style"
                                 [textContent]="part.text"
                                 (click)="visitHighlight(part.matches[0].elementId)"
                               ></button>
@@ -808,7 +807,6 @@ function writeExampleSuggestions(
                               <span
                                 class="linguagem-highlighted linguagem-highlighted--current"
                                 [style.--highlight-color]="part.color"
-                                [style.--highlight-style]="part.style"
                                 [textContent]="part.text"
                               ></span>
                             } @else {
@@ -1056,7 +1054,6 @@ function writeExampleSuggestions(
                                         type="button"
                                         class="linguagem-highlighted"
                                         [style.--highlight-color]="part.color"
-                                        [style.--highlight-style]="part.style"
                                         [textContent]="part.text"
                                         (click)="showCollision($event, part.matches)"
                                       ></button>
@@ -1065,7 +1062,6 @@ function writeExampleSuggestions(
                                         type="button"
                                         class="linguagem-highlighted"
                                         [style.--highlight-color]="part.color"
-                                        [style.--highlight-style]="part.style"
                                         [textContent]="part.text"
                                         (click)="visitHighlight(part.matches[0].elementId)"
                                       ></button>
@@ -1073,7 +1069,6 @@ function writeExampleSuggestions(
                                       <span
                                         class="linguagem-highlighted linguagem-highlighted--current"
                                         [style.--highlight-color]="part.color"
-                                        [style.--highlight-style]="part.style"
                                         [textContent]="part.text"
                                       ></span>
                                     } @else {
@@ -1323,21 +1318,6 @@ function writeExampleSuggestions(
           } @else if (!suggestions().length) {
             <p class="empty">No definitions yet.</p>
           }
-          <button
-            type="button"
-            class="btn btn-danger delete-element"
-            [disabled]="busy()"
-            (click)="askDeleteElement()"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M3 6h18" />
-              <path d="M8 6V4h8v2" />
-              <path d="M19 6l-1 14H6L5 6" />
-              <path d="M10 11v6" />
-              <path d="M14 11v6" />
-            </svg>
-            Delete
-          </button>
         </div>
 
         @if (translationsOpen()) {
@@ -2355,51 +2335,6 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (styleOpen()) {
-          <div class="sheet-backdrop" (click)="closeStyle($event)">
-            <section
-              class="sheet style-sheet"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Underline style"
-              (click)="$event.stopPropagation()"
-            >
-              <div class="sheet-head">
-                <h3>Underline</h3>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  [disabled]="busy()"
-                  (click)="styleOpen.set(false)"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div class="underline-styles">
-                @for (style of highlightStyles; track style) {
-                  <button
-                    type="button"
-                    class="underline-style"
-                    [class.selected]="highlightStyle(element()) === style"
-                    [style.--highlight-color]="highlightColor(element())"
-                    [style.--highlight-style]="style"
-                    [disabled]="busy()"
-                    [attr.aria-label]="style + ' underline'"
-                    [attr.aria-pressed]="highlightStyle(element()) === style"
-                    (click)="chooseHighlightStyle(style)"
-                  >
-                    Aa
-                  </button>
-                }
-              </div>
-            </section>
-          </div>
-        }
-
         @if (confirm(); as pending) {
           <div class="sheet-backdrop" (click)="closeSheet($event)">
             <section
@@ -2499,36 +2434,6 @@ function writeExampleSuggestions(
 
     header > .header-actions {
       justify-content: flex-end;
-    }
-
-    .style-sheet {
-      width: min(100%, 22rem);
-    }
-
-    .underline-styles {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 0.35rem;
-    }
-
-    .underline-style {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--surface-2);
-      color: var(--text);
-      font: inherit;
-      cursor: pointer;
-      padding: 0.45rem 0;
-      text-decoration-line: underline;
-      text-decoration-style: var(--highlight-style, solid);
-      text-decoration-color: var(--highlight-color, currentColor);
-      text-underline-offset: 0.18em;
-    }
-
-    .underline-style.selected {
-      box-shadow:
-        0 0 0 2px var(--surface),
-        0 0 0 4px var(--accent);
     }
 
     .title-row {
@@ -2868,20 +2773,6 @@ function writeExampleSuggestions(
       background: color-mix(in srgb, var(--danger) 12%, transparent);
     }
 
-    .style-btn {
-      width: auto;
-      min-width: 1.8rem;
-      padding: 0 0.28rem;
-      color: var(--text);
-      font-size: 0.82rem;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      text-decoration-line: underline;
-      text-decoration-style: var(--highlight-style, solid);
-      text-decoration-color: var(--highlight-color, currentColor);
-      text-underline-offset: 0.14em;
-    }
-
     .icon-btn svg {
       display: block;
       width: 1rem;
@@ -2964,24 +2855,6 @@ function writeExampleSuggestions(
       flex-direction: column;
       gap: 0.85rem;
       padding: 1rem 1.15rem 1.25rem;
-    }
-
-    .delete-element {
-      align-self: stretch;
-      gap: 0.45rem;
-      width: 100%;
-      margin-top: auto;
-    }
-
-    .delete-element svg {
-      display: block;
-      width: 1rem;
-      height: 1rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     h3 {
@@ -3184,7 +3057,7 @@ function writeExampleSuggestions(
       color: inherit;
       border-bottom: none;
       text-decoration-line: underline;
-      text-decoration-style: var(--highlight-style, solid);
+      text-decoration-style: solid;
       text-decoration-color: var(--highlight-color, #6c63ff);
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
@@ -3712,7 +3585,6 @@ export class ElementModal {
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
-  readonly highlightStyles = HIGHLIGHT_STYLES;
   readonly modeLabel = elementModeLabel;
   readonly readStepGoal = readStepGoal;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
@@ -3769,7 +3641,6 @@ export class ElementModal {
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
   readonly modeOpen = signal(false);
-  readonly styleOpen = signal(false);
   readonly engineerGloss = signal('');
   readonly engineerEnglish = signal('');
   readonly error = signal('');
@@ -3822,7 +3693,6 @@ export class ElementModal {
       this.addExampleFor.set(null);
       this.addFormFor.set(null);
       this.modeOpen.set(false);
-      this.styleOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
       this.equivalentTicket += 1;
@@ -3884,10 +3754,6 @@ export class ElementModal {
     }
     if (this.modeOpen()) {
       if (!this.busy()) this.modeOpen.set(false);
-      return;
-    }
-    if (this.styleOpen()) {
-      if (!this.busy()) this.styleOpen.set(false);
       return;
     }
     if (this.addFormFor() != null) {
@@ -5207,10 +5073,6 @@ export class ElementModal {
     ).color;
   }
 
-  highlightStyle(element: StoredElement): HighlightStyle {
-    return resolveHighlightStyle(element.highlightStyle);
-  }
-
   closeMode(event: MouseEvent): void {
     if (event.target !== event.currentTarget || this.busy()) return;
     this.modeOpen.set(false);
@@ -5231,24 +5093,8 @@ export class ElementModal {
     await this.saveAppearance({ modeProgress: { ...element.modeProgress, [mode]: next } });
   }
 
-  closeStyle(event: MouseEvent): void {
-    if (event.target !== event.currentTarget || this.busy()) return;
-    this.styleOpen.set(false);
-  }
-
-  async chooseHighlightStyle(style: HighlightStyle): Promise<void> {
-    if (this.busy()) return;
-    const element = this.element();
-    if (resolveHighlightStyle(element.highlightStyle) === style) {
-      this.styleOpen.set(false);
-      return;
-    }
-    const highlightStyle = style === 'solid' ? null : style;
-    if (await this.saveAppearance({ highlightStyle })) this.styleOpen.set(false);
-  }
-
   private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'highlightStyle' | 'mode' | 'modeProgress'>>,
+    patch: Partial<Pick<StoredElement, 'mode' | 'modeProgress'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
     this.busy.set(true);
@@ -5899,7 +5745,7 @@ function appearanceOf(element: StoredElement): { color: string; style: Highlight
       element.modeProgress[element.mode],
       readStepGoal(element.language),
     ).color,
-    style: resolveHighlightStyle(element.highlightStyle),
+    style: 'solid',
   };
 }
 

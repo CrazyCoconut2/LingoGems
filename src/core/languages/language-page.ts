@@ -28,7 +28,6 @@ import {
   readElements,
   readLanguages,
   saveElement,
-  resolveHighlightStyle,
   type ElementDefinition,
   type ElementMode,
   type ElementSearch,
@@ -214,7 +213,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
               <div
                 class="element"
                 [style.--highlight-color]="highlightColor(element)"
-                [style.--highlight-style]="highlightStyle(element)"
               >
                 <button type="button" class="element-open" (click)="openElement(element.id)">
                   <span class="title">
@@ -888,7 +886,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       font-weight: 650;
       letter-spacing: -0.02em;
       text-decoration-line: underline;
-      text-decoration-style: var(--highlight-style, solid);
+      text-decoration-style: solid;
       text-decoration-color: var(--highlight-color, #6c63ff);
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
@@ -1473,10 +1471,6 @@ export class LanguagePage {
       element.modeProgress[element.mode],
       readStepGoal(element.language),
     ).color;
-  }
-
-  highlightStyle(element: StoredElement): string {
-    return resolveHighlightStyle(element.highlightStyle);
   }
 
   highlight(text: string): ElementSearchPart[] {
