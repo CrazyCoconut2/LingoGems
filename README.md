@@ -60,4 +60,5 @@ For more information on using the Angular CLI, including detailed command refere
 
 
 TODO:
-- Allow users to choose colors for a metadata or it's values.
+- RECOMMENDATIONS : Will be rebaptize to DISCOVER now. We'll transform the recommendation tool into a discover tool where we can specific metadata for elements or ask plain text to give us elements
+related to shit (like argentinian expressions).
