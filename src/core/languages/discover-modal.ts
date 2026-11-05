@@ -67,94 +67,115 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
         </header>
 
         <div class="body">
-          <label class="note">
-            <span>Instruction</span>
-            <textarea
-              rows="3"
-              [attr.maxlength]="instructionMax"
-              placeholder="Argentine expressions"
-              aria-label="Instruction"
-              [value]="instruction()"
-              (input)="instruction.set(fieldValue($event))"
-            ></textarea>
-          </label>
-
-          @for (section of sections; track section.id) {
-            <section class="meta-section" [class.expanded]="expanded() === section.id">
-              <button
-                type="button"
-                class="section-header"
-                [attr.aria-expanded]="expanded() === section.id"
-                (click)="toggleSection(section.id)"
-              >
-                <span class="section-title">
-                  {{ section.title }}
-                  @if (valueCount(section.id); as selected) {
-                    <span class="section-count">{{ selected }}</span>
-                  }
-                </span>
-                <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-              @if (expanded() === section.id) {
-                <div class="section-body">
-                  <div class="section-actions">
-                    <button
-                      type="button"
-                      class="link-btn"
-                      [disabled]="valueCount(section.id) === 0"
-                      (click)="clearMeta(section.id)"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  @if (entries(section.id); as rows) {
-                    @if (rows.length) {
-                      @for (entry of rows; track entry.key) {
-                        <div class="meta-key">
-                          <span class="key-label">{{ entry.key }}</span>
-                          <div class="meta-values" role="group" [attr.aria-label]="entry.key">
-                            @for (value of entry.values; track value) {
-                              <button
-                                type="button"
-                                class="meta-value"
-                                [class.selected]="selected(section.id, entry.key, value)"
-                                [attr.aria-pressed]="selected(section.id, entry.key, value)"
-                                (click)="toggleValue(section.id, entry.key, value)"
-                              >
-                                {{ value }}
-                              </button>
-                            }
-                          </div>
-                        </div>
-                      }
-                    } @else {
-                      <p class="hint">No saved values yet. Type a key and a value.</p>
-                    }
-                  }
-                  <form class="constraint" (submit)="addConstraint(section.id, $event)">
-                    <input
-                      type="text"
-                      placeholder="Key"
-                      aria-label="Metadata key"
-                      [attr.maxlength]="keyMax"
-                      [value]="draft(section.id).key"
-                      (input)="setDraft(section.id, 'key', $event)"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Value"
-                      aria-label="Metadata value"
-                      [attr.maxlength]="valueMax"
-                      [value]="draft(section.id).value"
-                      (input)="setDraft(section.id, 'value', $event)"
-                    />
-                    <button type="submit" [disabled]="!canAdd(section.id)">Add</button>
-                  </form>
-                </div>
+          <div class="query">
+            <label class="note">
+              <span>Instruction</span>
+              <input
+                class="instruction"
+                type="text"
+                [attr.maxlength]="instructionMax"
+                placeholder="Argentine expressions"
+                aria-label="Instruction"
+                [value]="instruction()"
+                (input)="instruction.set(fieldValue($event))"
+              />
+            </label>
+            <button
+              type="button"
+              class="filter-btn"
+              [class.active]="filtersOpen() || metaCount() > 0"
+              [attr.aria-expanded]="filtersOpen()"
+              aria-label="Filter by metadata"
+              title="Metadata"
+              (click)="toggleFilters()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
+              @if (metaCount() > 0) {
+                <span class="filter-count">{{ metaCount() }}</span>
               }
-            </section>
+            </button>
+          </div>
+
+          @if (filtersOpen()) {
+            @for (section of sections; track section.id) {
+              <section class="meta-section" [class.expanded]="expanded() === section.id">
+                <button
+                  type="button"
+                  class="section-header"
+                  [attr.aria-expanded]="expanded() === section.id"
+                  (click)="toggleSection(section.id)"
+                >
+                  <span class="section-title">
+                    {{ section.title }}
+                    @if (valueCount(section.id); as selected) {
+                      <span class="section-count">{{ selected }}</span>
+                    }
+                  </span>
+                  <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+                @if (expanded() === section.id) {
+                  <div class="section-body">
+                    <div class="section-actions">
+                      <button
+                        type="button"
+                        class="link-btn"
+                        [disabled]="valueCount(section.id) === 0"
+                        (click)="clearMeta(section.id)"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    @if (entries(section.id); as rows) {
+                      @if (rows.length) {
+                        @for (entry of rows; track entry.key) {
+                          <div class="meta-key">
+                            <span class="key-label">{{ entry.key }}</span>
+                            <div class="meta-values" role="group" [attr.aria-label]="entry.key">
+                              @for (value of entry.values; track value) {
+                                <button
+                                  type="button"
+                                  class="meta-value"
+                                  [class.selected]="selected(section.id, entry.key, value)"
+                                  [attr.aria-pressed]="selected(section.id, entry.key, value)"
+                                  (click)="toggleValue(section.id, entry.key, value)"
+                                >
+                                  {{ value }}
+                                </button>
+                              }
+                            </div>
+                          </div>
+                        }
+                      } @else {
+                        <p class="hint">No saved values yet. Type a key and a value.</p>
+                      }
+                    }
+                    <form class="constraint" (submit)="addConstraint(section.id, $event)">
+                      <input
+                        type="text"
+                        placeholder="Key"
+                        aria-label="Metadata key"
+                        [attr.maxlength]="keyMax"
+                        [value]="draft(section.id).key"
+                        (input)="setDraft(section.id, 'key', $event)"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Value"
+                        aria-label="Metadata value"
+                        [attr.maxlength]="valueMax"
+                        [value]="draft(section.id).value"
+                        (input)="setDraft(section.id, 'value', $event)"
+                      />
+                      <button type="submit" [disabled]="!canAdd(section.id)">Add</button>
+                    </form>
+                  </div>
+                }
+              </section>
+            }
           }
 
           @if (error()) {
@@ -222,6 +243,14 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
 
         <footer class="foot">
           @if (results().length) {
+            <button
+              type="button"
+              class="link-btn"
+              [disabled]="busy() || adding()"
+              (click)="clearResults()"
+            >
+              Clear
+            </button>
             <button
               type="button"
               class="link-btn"
@@ -350,10 +379,18 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       padding: 0 1.15rem 1.15rem;
     }
 
+    .query {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.45rem;
+    }
+
     .note {
       display: flex;
+      flex: 1;
       flex-direction: column;
       gap: 0.35rem;
+      min-width: 0;
     }
 
     .note span,
@@ -365,7 +402,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       text-transform: uppercase;
     }
 
-    textarea,
+    .instruction,
     .constraint input {
       box-sizing: border-box;
       width: 100%;
@@ -378,15 +415,69 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       padding: 0.65rem 0.75rem;
     }
 
-    textarea {
-      min-height: 4.5rem;
-      resize: vertical;
+    .instruction {
+      height: 2.4rem;
     }
 
-    textarea:focus,
+    .instruction:focus,
     .constraint input:focus {
       outline: none;
       border-color: rgba(var(--accent-rgb), 0.55);
+    }
+
+    .filter-btn {
+      position: relative;
+      display: grid;
+      flex: none;
+      place-items: center;
+      width: 2.4rem;
+      height: 2.4rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .filter-btn svg {
+      display: block;
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .filter-btn:hover {
+      color: var(--text);
+      border-color: rgba(var(--accent-rgb), 0.4);
+    }
+
+    .filter-btn.active {
+      color: var(--accent-text);
+      border-color: rgba(var(--accent-rgb), 0.45);
+      background: rgba(var(--accent-rgb), 0.12);
+    }
+
+    .filter-count {
+      position: absolute;
+      top: -0.35rem;
+      right: -0.35rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.05rem;
+      height: 1.05rem;
+      padding: 0 0.28rem;
+      border-radius: 999px;
+      background: var(--accent);
+      color: white;
+      font-size: 0.62rem;
+      font-weight: 750;
+      line-height: 1;
+      pointer-events: none;
     }
 
     .meta-section {
@@ -703,6 +794,7 @@ export class DiscoverModal {
   readonly valueMax = VALUE_MAX;
 
   readonly instruction = signal('');
+  readonly filtersOpen = signal(false);
   readonly expanded = signal<DiscoverKind | null>(null);
   readonly definitionMeta = signal<ElementMetadataVariability>({});
   readonly exampleMeta = signal<ElementMetadataVariability>({});
@@ -729,6 +821,9 @@ export class DiscoverModal {
     }
     return ids;
   });
+  readonly metaCount = computed(
+    () => this.valueCount('definition') + this.valueCount('example') + this.valueCount('form'),
+  );
   readonly newCount = computed(
     () => this.results().filter((row) => !this.matchIds().has(row.title)).length,
   );
@@ -749,7 +844,11 @@ export class DiscoverModal {
   }
 
   fieldValue(event: Event): string {
-    return (event.target as HTMLTextAreaElement).value;
+    return (event.target as HTMLInputElement).value;
+  }
+
+  toggleFilters(): void {
+    this.filtersOpen.update((open) => !open);
   }
 
   toggleSection(kind: DiscoverKind): void {
@@ -829,6 +928,15 @@ export class DiscoverModal {
     return this.resultFilter() === 'collected'
       ? 'None of these are in the collection yet.'
       : 'All of these are already in the collection.';
+  }
+
+  clearResults(): void {
+    if (this.busy() || this.adding()) return;
+    this.job += 1;
+    this.results.set([]);
+    this.notice.set('');
+    this.error.set('');
+    this.resultFilter.set('all');
   }
 
   async discover(): Promise<void> {
