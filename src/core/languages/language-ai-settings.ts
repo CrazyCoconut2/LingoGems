@@ -1,7 +1,7 @@
 import { Component, effect, input, output, signal } from '@angular/core';
 import {
+  defaultGemName,
   DEFINITION_GEMS,
-  definitionGemFallbackName,
   emptyGemMeanings,
   GEM_MEANING_MAX_LENGTH,
   readLanguage,
@@ -96,8 +96,7 @@ import {
             <div class="copy">
               <h3>Runes of gems</h3>
               <p>
-                Name the gem for each rune. A definition carries that rune, as in Rune of diamond.
-                Leave a gem blank and the rune stays numbered.
+                Each rune starts from its gem, as in Rune of sapphire. Change a name to override it.
               </p>
             </div>
             @for (gem of gems; track gem) {
@@ -105,9 +104,9 @@ import {
                 <app-definition-gem [gem]="gem" />
                 <input
                   type="text"
-                  [attr.aria-label]="gemFallbackName(gem) + ' gem'"
+                  [attr.aria-label]="'Rune of ' + gemFieldValue(gem)"
                   [attr.maxlength]="gemMeaningMax"
-                  [attr.value]="gemMeanings()[gem]"
+                  [attr.value]="gemFieldValue(gem)"
                   (input)="setGemMeaning(gem, $event)"
                 />
               </label>
@@ -644,7 +643,6 @@ export class LanguageAiSettings {
   readonly exampleExtraFields = signal(false);
   readonly blurTranslations = signal(true);
   readonly gems = DEFINITION_GEMS;
-  readonly gemFallbackName = definitionGemFallbackName;
   readonly gemMeaningMax = GEM_MEANING_MAX_LENGTH;
   readonly gemMeanings = signal<GemMeanings>(emptyGemMeanings());
   readonly recommendingDefinitions = signal(false);
@@ -678,10 +676,20 @@ export class LanguageAiSettings {
     });
   }
 
+  /** The saved gem, or this rune's default when the field has not been overridden. */
+  gemFieldValue(gem: DefinitionGem): string {
+    const stored = this.gemMeanings()[gem];
+    return stored.trim() ? stored : defaultGemName(gem);
+  }
+
   setGemMeaning(gem: DefinitionGem, event: Event): void {
     const raw = event.target instanceof HTMLInputElement ? event.target.value : '';
     const text = raw.replace(/\r?\n/g, ' ').slice(0, GEM_MEANING_MAX_LENGTH);
-    const next = { ...this.gemMeanings(), [gem]: text };
+    const stored = text.trim() ? text : '';
+    if (event.target instanceof HTMLInputElement && !stored) {
+      event.target.value = defaultGemName(gem);
+    }
+    const next = { ...this.gemMeanings(), [gem]: stored };
     this.gemEdited = true;
     this.gemMeanings.set(next);
     const code = this.language();

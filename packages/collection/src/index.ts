@@ -21,6 +21,7 @@ export {
   deleteElement,
   DEFAULT_DEFINITION_GEM,
   DEFINITION_GEMS,
+  defaultGemName,
   definitionGemFallbackName,
   emptyGemMeanings,
   GEM_MEANING_MAX_LENGTH,

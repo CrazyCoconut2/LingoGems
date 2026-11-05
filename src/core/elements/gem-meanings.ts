@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import {
-  definitionGemFallbackName,
+  defaultGemName,
   emptyGemMeanings,
   normalizeDefinitionGem,
   normalizeGemMeanings,
@@ -32,14 +32,14 @@ export function gemMeaningDraft(code: string, gem: DefinitionGem): string {
   return meaningsFor(code)[normalizeDefinitionGem(gem)];
 }
 
+/** The saved gem, or the rune's default gem when the field is blank. */
 export function gemMeaning(code: string, gem: DefinitionGem): string {
-  return gemMeaningDraft(code, gem).replace(/\s+/g, ' ').trim();
+  return gemMeaningDraft(code, gem).replace(/\s+/g, ' ').trim() || defaultGemName(gem);
 }
 
-/** "Rune of diamond" when the gem is named, otherwise "Rune 1" and so on. */
+/** "Rune of sapphire", using a saved name when the gem has been overridden. */
 export function gemAccessibleName(code: string, gem: DefinitionGem): string {
-  const meaning = gemMeaning(code, gem);
-  return meaning ? `Rune of ${meaning}` : definitionGemFallbackName(gem);
+  return `Rune of ${gemMeaning(code, gem)}`;
 }
 
 /**

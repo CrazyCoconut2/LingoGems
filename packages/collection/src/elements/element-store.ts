@@ -45,9 +45,22 @@ export function definitionGemFallbackName(gem: DefinitionGem): string {
   return `Rune ${index}`;
 }
 
+/** The gem a rune starts from. The color of the engraving is this gem. */
+const DEFAULT_GEM_NAMES: Record<DefinitionGem, string> = {
+  'gem-1': 'quartz',
+  'gem-2': 'amethyst',
+  'gem-3': 'sapphire',
+  'gem-4': 'ruby',
+  'gem-5': 'diamond',
+};
+
+export function defaultGemName(gem: DefinitionGem): string {
+  return DEFAULT_GEM_NAMES[normalizeDefinitionGem(gem)];
+}
+
 export const GEM_MEANING_MAX_LENGTH = 40;
 
-/** The gem named for each rune. An empty string leaves that rune numbered. */
+/** The gem named for each rune. An empty string uses that rune's default gem. */
 export type GemMeanings = Record<DefinitionGem, string>;
 
 export function emptyGemMeanings(): GemMeanings {

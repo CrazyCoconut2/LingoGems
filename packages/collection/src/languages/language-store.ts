@@ -24,7 +24,7 @@ export type StoredLanguage = {
   exampleMetadata: ElementMetadataVariability;
   /** Every form metadata value seen in this language. */
   formMetadata: ElementMetadataVariability;
-  /** The gem named for each rune in this language. A blank gem leaves that rune numbered. */
+  /** The gem named for each rune in this language. A blank gem uses that rune's default. */
   gemMeanings: GemMeanings;
 };
 
