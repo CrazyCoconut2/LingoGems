@@ -377,20 +377,21 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     (click)="playing() ? playCard(element.id, $event) : openElement(element.id)"
                   >
                     <span class="stats">
-                      <span
-                        class="stat"
-                        [class.empty]="element.equivalents.length === 0"
-                        [attr.aria-label]="
-                          element.equivalents.length === 1
-                            ? '1 translation'
-                            : element.equivalents.length + ' translations'
-                        "
-                      >
-                        <app-translation-rune />
-                        @if (element.equivalents.length > 1) {
-                          <span>x{{ element.equivalents.length }}</span>
-                        }
-                      </span>
+                      @if (element.equivalents.length) {
+                        <span
+                          class="stat"
+                          [attr.aria-label]="
+                            element.equivalents.length === 1
+                              ? '1 translation'
+                              : element.equivalents.length + ' translations'
+                          "
+                        >
+                          <app-translation-rune />
+                          @if (element.equivalents.length > 1) {
+                            <span>x{{ element.equivalents.length }}</span>
+                          }
+                        </span>
+                      }
                       @let groups = definitionCounts(element.definitions);
                       <span class="stat stones" [attr.aria-label]="definitionsLabel(groups)">
                         @for (group of groups; track group.gem) {
@@ -1384,10 +1385,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       font-weight: 650;
       font-variant-numeric: tabular-nums;
       line-height: 1;
-    }
-
-    .stat.empty {
-      opacity: 0.4;
     }
 
     .stat app-translation-rune {
