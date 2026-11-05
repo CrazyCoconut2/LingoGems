@@ -1218,10 +1218,10 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      justify-content: center;
+      justify-content: flex-start;
       gap: 0.45rem;
-      min-height: calc(6.67rem + 2px);
-      padding: 0.85rem 1rem;
+      min-height: 0;
+      padding: 0.6rem 1rem 0.55rem;
       border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 28%, transparent);
       border-left: 3px solid var(--highlight-color, var(--accent));
       border-radius: var(--radius);
@@ -1235,8 +1235,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
+      align-content: start;
       column-gap: 0.75rem;
-      row-gap: 0.4rem;
+      row-gap: 0.2rem;
     }
 
     .element:hover {
@@ -1328,6 +1329,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .element.playing {
+      justify-content: center;
+      min-height: calc(6.67rem + 2px);
+      padding: 0.85rem 1rem;
       cursor: pointer;
     }
 

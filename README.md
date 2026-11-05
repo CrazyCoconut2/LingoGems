@@ -60,4 +60,4 @@ For more information on using the Angular CLI, including detailed command refere
 
 
 TODO:
-- Allow users to choose colors for a part of speech or it's values.
+- Allow users to choose colors for a metadata or it's values.
