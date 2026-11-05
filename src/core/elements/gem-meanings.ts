@@ -16,7 +16,7 @@ function languageKey(code: string): string {
   return code.trim().toLowerCase();
 }
 
-/** Keeps this language's stone meanings available to the open pages. */
+/** Keeps this language's gem names available to the open pages. */
 export function rememberGemMeanings(code: string, meanings: GemMeanings): void {
   const key = languageKey(code);
   if (!key) return;
@@ -36,9 +36,10 @@ export function gemMeaning(code: string, gem: DefinitionGem): string {
   return gemMeaningDraft(code, gem).replace(/\s+/g, ' ').trim();
 }
 
-/** The meaning when one is set, otherwise "Gem 1" and so on. */
+/** "Rune of diamond" when the gem is named, otherwise "Rune 1" and so on. */
 export function gemAccessibleName(code: string, gem: DefinitionGem): string {
-  return gemMeaning(code, gem) || definitionGemFallbackName(gem);
+  const meaning = gemMeaning(code, gem);
+  return meaning ? `Rune of ${meaning}` : definitionGemFallbackName(gem);
 }
 
 /**

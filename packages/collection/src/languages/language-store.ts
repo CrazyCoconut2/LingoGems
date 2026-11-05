@@ -24,7 +24,7 @@ export type StoredLanguage = {
   exampleMetadata: ElementMetadataVariability;
   /** Every form metadata value seen in this language. */
   formMetadata: ElementMetadataVariability;
-  /** What each stone means in this language. Blank stones stay unlabeled. */
+  /** The gem named for each rune in this language. A blank gem leaves that rune numbered. */
   gemMeanings: GemMeanings;
 };
 
@@ -112,7 +112,7 @@ export async function saveLanguage(language: StoredLanguage): Promise<void> {
   await putLanguage(normalized);
 }
 
-/** Writes this language's stone meanings without touching its other fields. */
+/** Writes this language's gem names without touching its other fields. */
 export async function saveLanguageGemMeanings(code: string, meanings: GemMeanings): Promise<void> {
   const language = await getLanguage(code.trim().toLowerCase());
   if (!language) return;

@@ -92,17 +92,20 @@ import {
             </label>
           </section>
 
-          <section class="metadata" aria-label="Gems">
+          <section class="metadata" aria-label="Runes of gems">
             <div class="copy">
-              <h3>Gems</h3>
-              <p>Each stone can carry a meaning in this language. Leave one blank and it stays unlabeled.</p>
+              <h3>Runes of gems</h3>
+              <p>
+                Name the gem for each rune. A definition carries that rune, as in Rune of diamond.
+                Leave a gem blank and the rune stays numbered.
+              </p>
             </div>
             @for (gem of gems; track gem) {
               <label class="gem-row">
                 <app-definition-gem [gem]="gem" />
                 <input
                   type="text"
-                  [attr.aria-label]="gemFallbackName(gem) + ' meaning'"
+                  [attr.aria-label]="gemFallbackName(gem) + ' gem'"
                   [attr.maxlength]="gemMeaningMax"
                   [attr.value]="gemMeanings()[gem]"
                   (input)="setGemMeaning(gem, $event)"

@@ -11,14 +11,14 @@ import {
 
 export type ElementMetadata = Record<string, string>;
 
-/** The five stones a definition can carry. Nothing is built into a stone. */
+/** The five gems a definition's rune can be cut from. Nothing is built into a gem. */
 export const DEFINITION_GEMS = ['gem-1', 'gem-2', 'gem-3', 'gem-4', 'gem-5'] as const;
 
 export type DefinitionGem = (typeof DEFINITION_GEMS)[number];
 
 export const DEFAULT_DEFINITION_GEM: DefinitionGem = 'gem-1';
 
-/** Older records stored a frequency word. Those map onto the same stones, in the same order. */
+/** Older records stored a frequency word. Those map onto the same gems, in the same order. */
 const LEGACY_FREQUENCY_GEMS: Record<string, DefinitionGem> = {
   common: 'gem-1',
   uncommon: 'gem-2',
@@ -27,7 +27,7 @@ const LEGACY_FREQUENCY_GEMS: Record<string, DefinitionGem> = {
   obsolete: 'gem-5',
 };
 
-/** A known gem id, else the stone that used to match a frequency, else the first stone. */
+/** A known gem id, else the gem that used to match a frequency, else the first gem. */
 export function normalizeDefinitionGem(value: unknown, legacyFrequency?: unknown): DefinitionGem {
   const id = String(value ?? '')
     .trim()
@@ -39,15 +39,15 @@ export function normalizeDefinitionGem(value: unknown, legacyFrequency?: unknown
   return LEGACY_FREQUENCY_GEMS[frequency] ?? DEFAULT_DEFINITION_GEM;
 }
 
-/** Spoken name when a stone has no meaning of its own. */
+/** Spoken name when a gem has no name of its own. The definition still carries this rune. */
 export function definitionGemFallbackName(gem: DefinitionGem): string {
   const index = DEFINITION_GEMS.indexOf(normalizeDefinitionGem(gem)) + 1;
-  return `Gem ${index}`;
+  return `Rune ${index}`;
 }
 
 export const GEM_MEANING_MAX_LENGTH = 40;
 
-/** A meaning for each stone. An empty string means that stone is unlabeled. */
+/** The gem named for each rune. An empty string leaves that rune numbered. */
 export type GemMeanings = Record<DefinitionGem, string>;
 
 export function emptyGemMeanings(): GemMeanings {
@@ -60,7 +60,7 @@ export function emptyGemMeanings(): GemMeanings {
   };
 }
 
-/** Keeps the five stones. Missing or non-text values are blank. */
+/** Keeps the five gems. Missing or non-text values are blank. */
 export function normalizeGemMeanings(value: unknown): GemMeanings {
   const meanings = emptyGemMeanings();
   if (!value || typeof value !== 'object' || Array.isArray(value)) return meanings;
@@ -94,7 +94,7 @@ export type ElementDefinition = {
   forms: ElementForm[];
   examples: ElementExample[];
   metadata: ElementMetadata;
-  /** The stone chosen for this sense. Missing or unknown values are the first stone. */
+  /** The gem whose rune this sense carries. Missing or unknown values are the first gem. */
   gem: DefinitionGem;
 };
 

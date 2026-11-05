@@ -253,7 +253,8 @@ export function pickMetadata(
       key.includes('>') ||
       seen.has(id) ||
       id === 'frequency' ||
-      id === 'gem'
+      id === 'gem' ||
+      id === 'rune'
     ) {
       continue;
     }

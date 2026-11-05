@@ -57,7 +57,7 @@ import { Reveal } from './reveal';
 import { DefinitionGemIcon } from './definition-gem';
 import { TranslationLantern } from './translation-lantern';
 import { metadataChipColor, type MetadataColorPlace } from './metadata-colors';
-import { gemAccessibleName, gemMeaning } from './gem-meanings';
+import { gemAccessibleName } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
 import { scoreColor } from './mode-palette';
 import { ModeProgress } from './mode-progress';
@@ -724,7 +724,7 @@ function writeExampleSuggestions(
                           }
                         </ul>
                       }
-                      <div class="gem-choices" role="radiogroup" aria-label="Gem">
+                      <div class="gem-choices" role="radiogroup" aria-label="Rune">
                         @for (gem of gems; track gem) {
                           <button
                             type="button"
@@ -736,9 +736,7 @@ function writeExampleSuggestions(
                             (click)="chooseSuggestionGem(suggestion.text, gem)"
                           >
                             <app-definition-gem [gem]="gem" />
-                            @if (gemMeaning(element().language, gem)) {
-                              <span>{{ gemMeaning(element().language, gem) }}</span>
-                            }
+                            <span>{{ gemAccessibleName(element().language, gem) }}</span>
                           </button>
                         }
                       </div>
@@ -1595,8 +1593,8 @@ function writeExampleSuggestions(
               }
               @if (current.kind === 'definition') {
                 <div class="gem-field">
-                  <p class="field-label">Gem</p>
-                  <div class="gem-choices" role="radiogroup" aria-label="Gem">
+                  <p class="field-label">Rune</p>
+                  <div class="gem-choices" role="radiogroup" aria-label="Rune">
                     @for (gem of gems; track gem) {
                       <button
                         type="button"
@@ -1608,9 +1606,7 @@ function writeExampleSuggestions(
                         (click)="gemDraft.set(gem)"
                       >
                         <app-definition-gem [gem]="gem" />
-                        @if (gemMeaning(element().language, gem)) {
-                          <span>{{ gemMeaning(element().language, gem) }}</span>
-                        }
+                        <span>{{ gemAccessibleName(element().language, gem) }}</span>
                       </button>
                     }
                   </div>
@@ -3693,7 +3689,6 @@ export class ElementModal {
   readonly readStepGoal = readStepGoal;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
   readonly gems = DEFINITION_GEMS;
-  readonly gemMeaning = gemMeaning;
   readonly gemAccessibleName = gemAccessibleName;
   readonly gemDraft = signal<DefinitionGem>(DEFAULT_DEFINITION_GEM);
   readonly suggestionGems = signal<Record<string, DefinitionGem>>({});
