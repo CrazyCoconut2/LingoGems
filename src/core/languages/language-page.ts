@@ -11,6 +11,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
 import { ExtractGame } from '../elements/extract-game';
+import { PolishGame } from '../elements/polish-game';
 import { RefineGame } from '../elements/refine-game';
 import { FrequencyGem } from '../elements/frequency-gem';
 import { ModeIcon } from '../elements/mode-icon';
@@ -75,6 +76,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     RouterLink,
     ElementModal,
     ExtractGame,
+    PolishGame,
     RefineGame,
     FrequencyGem,
     ModeIcon,
@@ -683,6 +685,19 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           [collection]="elements()"
           [covered]="opened() !== null"
           (closed)="refineId.set('')"
+          (changed)="replaceElement($event)"
+          (visit)="visitElement($event)"
+          (addSelection)="addFromSelection($event)"
+          (addPrepared)="addPrepared($event)"
+        />
+      }
+
+      @if (polishElement(); as element) {
+        <app-polish-game
+          [element]="element"
+          [collection]="elements()"
+          [covered]="opened() !== null"
+          (closed)="polishId.set('')"
           (changed)="replaceElement($event)"
           (visit)="visitElement($event)"
           (addSelection)="addFromSelection($event)"
@@ -1694,6 +1709,14 @@ export class LanguagePage {
     if (!element || element.mode !== 2 || element.definitions.length === 0) return null;
     return element;
   });
+  readonly polishId = signal('');
+  readonly polishElement = computed(() => {
+    const id = this.polishId();
+    if (!this.playing() || !id) return null;
+    const element = this.elements().find((item) => item.id === id);
+    if (!element || element.mode !== 3 || element.definitions.length === 0) return null;
+    return element;
+  });
   readonly playOrder = signal<readonly string[]>([]);
   readonly dismissed = signal<ReadonlySet<string>>(new Set());
   readonly expanded = signal<'mode' | 'translations' | 'definitions' | null>('translations');
@@ -2021,6 +2044,10 @@ export class LanguagePage {
       this.refineId.set(id);
       return;
     }
+    if (element?.mode === 3 && eligible) {
+      this.polishId.set(id);
+      return;
+    }
     this.openElement(id);
   }
 
@@ -2039,6 +2066,7 @@ export class LanguagePage {
       this.dismissed.set(new Set());
       this.extractId.set('');
       this.refineId.set('');
+      this.polishId.set('');
       return;
     }
     this.commitSearch();
@@ -2163,6 +2191,7 @@ export class LanguagePage {
     this.dismissed.set(new Set());
     this.extractId.set('');
     this.refineId.set('');
+    this.polishId.set('');
     const params = this.route.snapshot.queryParamMap;
     const restored = (params.get('q') ?? '').slice(0, ELEMENT_SEARCH_MAX_LENGTH);
     this.query.set(restored);

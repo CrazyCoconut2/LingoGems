@@ -120,6 +120,15 @@ export {
 } from './examples';
 
 export {
+  GRADE_DEFINITION_SYSTEM_PROMPT,
+  buildGradeDefinitionUserMessage,
+  gradeDefinition,
+  parseGradedDefinition,
+  type GradeDefinitionInput,
+  type GradedDefinition,
+} from './grade-definition';
+
+export {
   DEFINITION_PHRASE_SYSTEM_PROMPT,
   DEFINITION_RELATIONS,
   MAX_DEFINITION_INSTRUCTION,
