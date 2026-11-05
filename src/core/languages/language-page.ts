@@ -1329,23 +1329,19 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .element.playing {
-      justify-content: center;
-      min-height: calc(6.67rem + 2px);
-      padding: 0.85rem 1rem;
       cursor: pointer;
     }
 
     .element.playing .element-body {
       grid-template-columns: minmax(0, 1fr);
       justify-items: center;
-      row-gap: 0.65rem;
     }
 
     .play-mark {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.35rem;
+      gap: 0.15rem;
       margin: 0;
       padding: 0;
       border: 0;
@@ -1358,8 +1354,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .play-icon {
       display: grid;
       place-items: center;
-      width: 2.75rem;
-      height: 2.75rem;
+      width: 1.45rem;
+      height: 1.45rem;
     }
 
     .play-icon app-mode-icon {
