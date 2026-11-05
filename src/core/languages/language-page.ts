@@ -1,4 +1,12 @@
-import { Component, computed, DestroyRef, HostListener, inject, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  HostListener,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
@@ -72,6 +80,19 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           <button
             type="button"
             class="settings"
+            [class.active]="playing()"
+            [attr.aria-pressed]="playing()"
+            [attr.aria-label]="playing() ? 'Edition' : 'Play'"
+            [attr.title]="playing() ? 'Edition' : 'Play'"
+            (click)="togglePlay()"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <polygon points="8 5 19 12 8 19 8 5" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="settings"
             aria-label="Definition and example settings"
             title="Definition and example settings"
             (click)="openAiSettings()"
@@ -107,6 +128,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
             autocomplete="off"
             [value]="query()"
             [attr.maxlength]="maxSearchLength"
+            [disabled]="playing()"
             (input)="onSearch(inputValue($event))"
             placeholder="Search lemmas or forms…"
             aria-label="Search lemmas or forms"
@@ -118,7 +140,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 class="search-add"
                 aria-label="Ask AI"
                 title="Ask AI"
-                [disabled]="asking()"
+                [disabled]="asking() || playing()"
                 [attr.aria-busy]="asking() ? true : null"
                 (click)="askFromSearch()"
               >
@@ -128,7 +150,12 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                   />
                 </svg>
               </button>
-              <button type="submit" class="search-add" aria-label="Add entry" [disabled]="asking()">
+              <button
+                type="submit"
+                class="search-add"
+                aria-label="Add entry"
+                [disabled]="asking() || playing()"
+              >
                 <svg viewBox="0 0 24 24">
                   <path d="M5 12h14" />
                   <path d="M12 5v14" />
@@ -162,6 +189,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
               class="toolbar-icon-btn"
               [class.active]="sortOpen() || sortActive()"
               [attr.aria-expanded]="sortOpen()"
+              [disabled]="playing()"
               aria-label="Sort collection"
               title="Sort"
               (click)="toggleSort($event)"
@@ -173,7 +201,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 <path d="M17 20V4" />
               </svg>
             </button>
-            @if (sortOpen()) {
+            @if (sortOpen() && !playing()) {
               <div
                 class="toolbar-popover"
                 role="listbox"
@@ -214,43 +242,69 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
             </li>
           }
         </ul>
-      } @else if (visible().length) {
+      } @else if (shown().length) {
         <ul class="elements">
-          @for (element of visible(); track element.id) {
+          @for (element of shown(); track element.id) {
             <li>
               <div
                 class="element"
+                [class.playing]="playing()"
                 [style.--highlight-color]="highlightColor(element)"
+                (click)="playCard(element.id)"
               >
                 <div class="element-body">
-                  <button type="button" class="element-open" (click)="openElement(element.id)">
-                    <span class="title">
-                      @for (part of highlight(element.title); track $index) {
-                        @if (part.hit) {
-                          <mark class="hit">{{ part.text }}</mark>
-                        } @else {
-                          <span>{{ part.text }}</span>
-                        }
-                      }
-                    </span>
-                  </button>
-                  <div class="mode-stack">
+                  @if (playing()) {
                     <button
                       type="button"
-                      class="mode-icon"
-                      [attr.aria-label]="modeLabel(element.mode)"
-                      (click)="openElement(element.id)"
+                      class="play-mark"
+                      aria-label="Open card"
+                      (click)="playCard(element.id, $event)"
                     >
-                      <app-mode-icon [mode]="element.mode" />
+                      <span class="play-icon" [attr.aria-label]="modeLabel(element.mode)">
+                        <app-mode-icon [mode]="element.mode" />
+                      </span>
+                      <app-mode-progress
+                        [mode]="element.mode"
+                        [succeeded]="element.modeProgress[element.mode]"
+                        [goal]="readStepGoal(code())"
+                        [compact]="true"
+                      />
                     </button>
-                    <app-mode-progress
-                      [mode]="element.mode"
-                      [succeeded]="element.modeProgress[element.mode]"
-                      [goal]="readStepGoal(code())"
-                      [compact]="true"
-                    />
-                  </div>
-                  <button type="button" class="element-open" (click)="openElement(element.id)">
+                  } @else {
+                    <button type="button" class="element-open" (click)="openElement(element.id)">
+                      <span class="title">
+                        @for (part of highlight(element.title); track $index) {
+                          @if (part.hit) {
+                            <mark class="hit">{{ part.text }}</mark>
+                          } @else {
+                            <span>{{ part.text }}</span>
+                          }
+                        }
+                      </span>
+                    </button>
+                    <div class="mode-stack">
+                      <button
+                        type="button"
+                        class="mode-icon"
+                        [attr.aria-label]="modeLabel(element.mode)"
+                        (click)="openElement(element.id)"
+                      >
+                        <app-mode-icon [mode]="element.mode" />
+                      </button>
+                      <app-mode-progress
+                        [mode]="element.mode"
+                        [succeeded]="element.modeProgress[element.mode]"
+                        [goal]="readStepGoal(code())"
+                        [compact]="true"
+                      />
+                    </div>
+                  }
+                  <button
+                    type="button"
+                    class="element-open"
+                    [attr.aria-label]="playing() ? 'Open card' : null"
+                    (click)="playing() ? playCard(element.id, $event) : openElement(element.id)"
+                  >
                     <span class="stats">
                       <span
                         class="stat"
@@ -290,7 +344,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           }
         </ul>
       } @else {
-        <p class="empty">{{ elements().length ? 'No matching elements.' : 'No elements yet.' }}</p>
+        <p class="empty">{{ emptyMessage() }}</p>
       }
 
       @if (aiSettingsOpen()) {
@@ -682,6 +736,11 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       background: rgba(139, 144, 165, 0.16);
     }
 
+    .settings.active {
+      color: var(--accent-text);
+      background: rgba(var(--accent-rgb), 0.16);
+    }
+
     .settings svg {
       width: 1.15rem;
       height: 1.15rem;
@@ -745,6 +804,14 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       color: var(--accent-text);
       border-color: rgba(var(--accent-rgb), 0.45);
       background: rgba(var(--accent-rgb), 0.12);
+    }
+
+    .toolbar-icon-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+      color: var(--text-muted);
+      border-color: var(--border);
+      background: var(--surface);
     }
 
     .toolbar-filter-count {
@@ -835,6 +902,10 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       border-color: rgba(var(--accent-rgb), 0.55);
     }
 
+    .search-bar:has(input:disabled) {
+      opacity: 0.55;
+    }
+
     .search-actions svg {
       display: block;
       width: 0.9rem;
@@ -872,6 +943,10 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
     .entry-input::placeholder {
       color: var(--text-muted);
+    }
+
+    .entry-input:disabled {
+      cursor: default;
     }
 
     .search-actions {
@@ -1015,6 +1090,50 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .mode-icon app-mode-icon {
       width: 100%;
       height: 100%;
+    }
+
+    .element.playing {
+      cursor: pointer;
+    }
+
+    .element.playing .element-body {
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
+      row-gap: 0.65rem;
+    }
+
+    .play-mark {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .play-icon {
+      display: grid;
+      place-items: center;
+      width: 2.75rem;
+      height: 2.75rem;
+    }
+
+    .play-icon app-mode-icon {
+      width: 100%;
+      height: 100%;
+    }
+
+    .element.playing .element-open {
+      justify-self: center;
+      text-align: center;
+    }
+
+    .element.playing .stats {
+      justify-content: center;
     }
 
     .stats {
@@ -1467,6 +1586,9 @@ export class LanguagePage {
   readonly sortOpen = signal(false);
   readonly filtersOpen = signal(false);
   readonly aiSettingsOpen = signal(false);
+  readonly playing = signal(false);
+  readonly playOrder = signal<readonly string[]>([]);
+  readonly dismissed = signal<ReadonlySet<string>>(new Set());
   readonly expanded = signal<'mode' | 'translations' | 'definitions' | null>('translations');
   readonly elementId = signal('');
   readonly trail = signal<string[]>([]);
@@ -1498,9 +1620,28 @@ export class LanguagePage {
     });
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
   });
+  readonly shown = computed(() => {
+    const visible = this.visible();
+    if (!this.playing()) return visible;
+    const dismissed = this.dismissed();
+    const rank = new Map(this.playOrder().map((id, index) => [id, index]));
+    return visible
+      .filter((element) => !dismissed.has(element.id))
+      .slice()
+      .sort((left, right) => {
+        const leftRank = rank.get(left.id) ?? Number.MAX_SAFE_INTEGER;
+        const rightRank = rank.get(right.id) ?? Number.MAX_SAFE_INTEGER;
+        return leftRank - rightRank;
+      });
+  });
   readonly countLabel = computed(() => {
-    const count = this.visible().length;
+    const count = this.shown().length;
     return count === 1 ? '1 element' : `${count} elements`;
+  });
+  readonly emptyMessage = computed(() => {
+    if (!this.elements().length) return 'No elements yet.';
+    if (this.playing() && this.visible().length > 0) return 'Nothing left this round.';
+    return 'No matching elements.';
   });
 
   constructor() {
@@ -1517,6 +1658,17 @@ export class LanguagePage {
       if (!id) this.trail.set([]);
       else if (this.trail().at(-1) !== id) this.trail.set([id]);
       this.reconcileOpen();
+    });
+    effect(() => {
+      if (!this.playing()) return;
+      const dismissed = this.dismissed();
+      const order = this.playOrder();
+      const known = new Set([...order, ...dismissed]);
+      const newcomers = this.visible()
+        .map((element) => element.id)
+        .filter((id) => !known.has(id));
+      if (newcomers.length === 0) return;
+      this.playOrder.set([...order, ...shuffleIds(newcomers)]);
     });
   }
 
@@ -1671,28 +1823,19 @@ export class LanguagePage {
   }
 
   onSearch(value: string): void {
+    if (this.playing()) return;
     const query = value.slice(0, ELEMENT_SEARCH_MAX_LENGTH);
     this.query.set(query);
     this.lookupError.set('');
     if (this.searchTimer) clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => {
-      const search = elementPrefixSearch(query);
-      this.search.set(search);
-      if (this.router.url.split('?')[0] !== `/languages/${this.code()}`) return;
-      void this.router.navigate([], {
-        relativeTo: this.route,
-        queryParams: { q: search.mode === 'prefix' ? search.value : null },
-        queryParamsHandling: 'merge',
-        replaceUrl: true,
-      });
-    }, 250);
+    this.searchTimer = setTimeout(() => this.commitSearch(), 250);
   }
 
   async lookup(event: Event): Promise<void> {
     event.preventDefault();
     const title = this.query().trim();
     const code = this.code();
-    if (!title || !code || this.asking()) return;
+    if (!title || !code || this.asking() || this.playing()) return;
     if (this.searchTimer) clearTimeout(this.searchTimer);
     const created = await addElement(code, title);
     this.elements.set(await readElements(code));
@@ -1704,7 +1847,7 @@ export class LanguagePage {
   async askFromSearch(): Promise<void> {
     const selected = this.query().trim();
     const code = this.code();
-    if (!selected || !code || this.asking()) return;
+    if (!selected || !code || this.asking() || this.playing()) return;
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.asking.set(true);
     this.lookupError.set('');
@@ -1745,12 +1888,43 @@ export class LanguagePage {
     this.search.set(elementPrefixSearch(''));
   }
 
+  playCard(id: string, event?: Event): void {
+    event?.stopPropagation();
+    if (!this.playing() || !id) return;
+    this.dismissCard(id);
+    this.openElement(id);
+  }
+
+  dismissCard(id: string): void {
+    if (!this.playing() || !id || this.dismissed().has(id)) return;
+    const dismissed = new Set(this.dismissed());
+    dismissed.add(id);
+    this.dismissed.set(dismissed);
+    this.playOrder.set(shuffleIds(this.playOrder().filter((item) => item !== id)));
+  }
+
+  togglePlay(): void {
+    if (this.playing()) {
+      this.playing.set(false);
+      this.playOrder.set([]);
+      this.dismissed.set(new Set());
+      return;
+    }
+    this.commitSearch();
+    this.sortOpen.set(false);
+    this.dismissed.set(new Set());
+    this.playOrder.set(shuffleIds(this.visible().map((element) => element.id)));
+    this.playing.set(true);
+  }
+
   toggleSort(event: Event): void {
     event.stopPropagation();
+    if (this.playing()) return;
     this.sortOpen.update((open) => !open);
   }
 
   chooseSort(sort: ElementSort): void {
+    if (this.playing()) return;
     this.sortOpen.set(false);
     this.sort.set(this.sort() === sort ? 'none' : sort);
     this.writeBrowse();
@@ -1853,6 +2027,9 @@ export class LanguagePage {
     const seq = ++this.loadId;
     const code = language.trim().toLowerCase();
     if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.playing.set(false);
+    this.playOrder.set([]);
+    this.dismissed.set(new Set());
     const params = this.route.snapshot.queryParamMap;
     const restored = (params.get('q') ?? '').slice(0, ELEMENT_SEARCH_MAX_LENGTH);
     this.query.set(restored);
@@ -1921,6 +2098,33 @@ export class LanguagePage {
     if (this.elements().some((element) => element.id === id)) return;
     this.closeElement();
   }
+
+  private commitSearch(): void {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = null;
+    }
+    const search = elementPrefixSearch(this.query());
+    this.search.set(search);
+    if (this.router.url.split('?')[0] !== `/languages/${this.code()}`) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { q: search.mode === 'prefix' ? search.value : null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+}
+
+function shuffleIds(ids: readonly string[]): string[] {
+  const next = ids.slice();
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    const current = next[index] ?? '';
+    next[index] = next[swap] ?? '';
+    next[swap] = current;
+  }
+  return next;
 }
 
 function readBound(raw: string): { ok: true; value: number | null } | { ok: false } {
