@@ -16,7 +16,6 @@ export type AiMetadataField = {
 
 export const DEFAULT_DEFINITION_METADATA_FIELDS: readonly AiMetadataField[] = [
   { key: 'part of speech', prompt: '' },
-  { key: 'gender', prompt: '' },
   { key: 'transitivity', prompt: '' },
   { key: 'register', prompt: '' },
   {
