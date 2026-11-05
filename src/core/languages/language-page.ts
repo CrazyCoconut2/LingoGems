@@ -33,30 +33,54 @@ import {
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
   elementMatchesCountRanges,
+  elementMatchesMetadata,
   elementMatchesMode,
   elementMatchesPrefix,
   elementModeLabel,
   elementPrefixSearch,
+  emptyMetadataIndexes,
   formatElementCountRange,
+  formatMetadataFilter,
   isValidForm,
   languageDisplayName,
+  mergeMetadataIndexes,
+  mergeMetadataVariability,
+  metadataFilterSize,
   parseElementCountRange,
   parseElementMode,
   parseElementSort,
+  parseMetadataFilter,
+  readElements,
+  readLanguage,
+  readLanguages,
+  replaceLanguageMetadata,
+  saveElement,
   setCountRangeBound,
   stepCountRange,
-  readElements,
-  readLanguages,
-  saveElement,
   type DefinitionFrequency,
   type ElementCountRange,
   type ElementDefinition,
+  type ElementMetadataIndexes,
+  type ElementMetadataVariability,
   type ElementMode,
   type ElementSearch,
   type ElementSearchPart,
   type ElementSort,
   type StoredElement,
+  type StoredLanguage,
 } from 'collection';
+
+type FilterSection = 'mode' | 'translations' | 'definitions' | 'examples' | 'forms';
+
+type MetadataKind = 'definitions' | 'examples' | 'forms';
+
+type ContentSection = {
+  id: 'definitions' | 'examples' | 'forms';
+  kind: MetadataKind;
+  title: string;
+  count: 'definitions' | null;
+  empty: string;
+};
 
 const ELEMENT_SKELETONS = [0, 1, 2, 3, 4, 5, 6, 7];
 
@@ -398,9 +422,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
             <header class="filter-header">
               <div>
                 <h2 class="filter-title">Filters</h2>
-                <p class="filter-subtitle">
-                  Keep elements in one mode, or within a range of translations and definitions.
-                </p>
+                <p class="filter-subtitle">Keep elements by mode, counts, or metadata.</p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
                 <svg viewBox="0 0 24 24">
@@ -415,12 +437,23 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 <button
                   type="button"
                   class="link-btn"
+                  [disabled]="recomputing()"
+                  (click)="recomputeMetadata()"
+                >
+                  {{ recomputing() ? 'Recomputing…' : 'Recompute metadata' }}
+                </button>
+                <button
+                  type="button"
+                  class="link-btn"
                   [disabled]="filterCount() === 0"
                   (click)="clearFilters()"
                 >
                   Clear filters
                 </button>
               </div>
+              @if (recomputeError()) {
+                <p class="recompute-error">{{ recomputeError() }}</p>
+              }
 
               <section class="filter-section" [class.expanded]="expanded() === 'mode'">
                 <button
@@ -564,99 +597,134 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 }
               </section>
 
-              <section class="filter-section" [class.expanded]="expanded() === 'definitions'">
-                <button
-                  type="button"
-                  class="section-header"
-                  [attr.aria-expanded]="expanded() === 'definitions'"
-                  (click)="toggleSection('definitions')"
-                >
-                  <span class="section-title">
-                    Definitions
-                    @if (rangeSummary(definitionRange()); as summary) {
-                      <span class="section-count">{{ summary }}</span>
-                    }
-                  </span>
-                  <svg class="section-chevron" viewBox="0 0 24 24">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
-                @if (expanded() === 'definitions') {
-                  <div class="section-body">
-                    <div class="section-actions">
-                      <button
-                        type="button"
-                        class="link-btn"
-                        [disabled]="!rangeActive(definitionRange())"
-                        (click)="clearRange('definitions')"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    <p class="section-hint">Keep a definition count inside this range.</p>
-                    <div class="count-range">
-                      <div class="bound">
-                        <span class="bound-label">From</span>
-                        <div class="count-stepper">
-                          <button
-                            type="button"
-                            aria-label="Decrease minimum definitions"
-                            [disabled]="!canStep('definitions', 'min', -1)"
-                            (click)="stepBound('definitions', 'min', -1)"
-                          >
-                            −
-                          </button>
-                          <input
-                            type="text"
-                            inputmode="numeric"
-                            aria-label="Minimum definitions"
-                            [value]="boundValue(definitionRange().min)"
-                            (change)="commitBound('definitions', 'min', $event)"
-                          />
-                          <button
-                            type="button"
-                            aria-label="Increase minimum definitions"
-                            [disabled]="!canStep('definitions', 'min', 1)"
-                            (click)="stepBound('definitions', 'min', 1)"
-                          >
-                            +
-                          </button>
-                        </div>
+              @for (section of contentSections; track section.id) {
+                <section class="filter-section" [class.expanded]="expanded() === section.id">
+                  <button
+                    type="button"
+                    class="section-header"
+                    [attr.aria-expanded]="expanded() === section.id"
+                    (click)="toggleSection(section.id)"
+                  >
+                    <span class="section-title">
+                      {{ section.title }}
+                      @if (section.count && rangeSummary(definitionRange()); as summary) {
+                        <span class="section-count">{{ summary }}</span>
+                      }
+                      @if (metadataValueCount(section.kind); as selected) {
+                        <span class="section-count">{{ selected }}</span>
+                      }
+                    </span>
+                    <svg class="section-chevron" viewBox="0 0 24 24">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                  @if (expanded() === section.id) {
+                    <div class="section-body">
+                      <div class="section-actions">
+                        <button
+                          type="button"
+                          class="link-btn"
+                          [disabled]="!sectionActive(section)"
+                          (click)="clearSection(section)"
+                        >
+                          Clear
+                        </button>
                       </div>
-                      <span class="range-sep" aria-hidden="true">–</span>
-                      <div class="bound">
-                        <span class="bound-label">To</span>
-                        <div class="count-stepper">
-                          <button
-                            type="button"
-                            aria-label="Decrease maximum definitions"
-                            [disabled]="!canStep('definitions', 'max', -1)"
-                            (click)="stepBound('definitions', 'max', -1)"
-                          >
-                            −
-                          </button>
-                          <input
-                            type="text"
-                            inputmode="numeric"
-                            aria-label="Maximum definitions"
-                            placeholder="Any"
-                            [value]="boundValue(definitionRange().max)"
-                            (change)="commitBound('definitions', 'max', $event)"
-                          />
-                          <button
-                            type="button"
-                            aria-label="Increase maximum definitions"
-                            [disabled]="!canStep('definitions', 'max', 1)"
-                            (click)="stepBound('definitions', 'max', 1)"
-                          >
-                            +
-                          </button>
+                      @if (section.count) {
+                        <p class="section-hint">Keep a definition count inside this range.</p>
+                        <div class="count-range">
+                          <div class="bound">
+                            <span class="bound-label">From</span>
+                            <div class="count-stepper">
+                              <button
+                                type="button"
+                                aria-label="Decrease minimum definitions"
+                                [disabled]="!canStep('definitions', 'min', -1)"
+                                (click)="stepBound('definitions', 'min', -1)"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="text"
+                                inputmode="numeric"
+                                aria-label="Minimum definitions"
+                                [value]="boundValue(definitionRange().min)"
+                                (change)="commitBound('definitions', 'min', $event)"
+                              />
+                              <button
+                                type="button"
+                                aria-label="Increase minimum definitions"
+                                [disabled]="!canStep('definitions', 'min', 1)"
+                                (click)="stepBound('definitions', 'min', 1)"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                          <span class="range-sep" aria-hidden="true">–</span>
+                          <div class="bound">
+                            <span class="bound-label">To</span>
+                            <div class="count-stepper">
+                              <button
+                                type="button"
+                                aria-label="Decrease maximum definitions"
+                                [disabled]="!canStep('definitions', 'max', -1)"
+                                (click)="stepBound('definitions', 'max', -1)"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="text"
+                                inputmode="numeric"
+                                aria-label="Maximum definitions"
+                                placeholder="Any"
+                                [value]="boundValue(definitionRange().max)"
+                                (change)="commitBound('definitions', 'max', $event)"
+                              />
+                              <button
+                                type="button"
+                                aria-label="Increase maximum definitions"
+                                [disabled]="!canStep('definitions', 'max', 1)"
+                                (click)="stepBound('definitions', 'max', 1)"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      }
+                      @if (metadataEntries(section.kind); as entries) {
+                        @if (entries.length) {
+                          @for (entry of entries; track entry.key) {
+                            <div class="meta-key">
+                              <span class="bound-label">{{ entry.key }}</span>
+                              <div class="meta-values" role="group" [attr.aria-label]="entry.key">
+                                @for (value of entry.values; track value) {
+                                  <button
+                                    type="button"
+                                    class="meta-value"
+                                    [class.selected]="
+                                      metadataSelected(section.kind, entry.key, value)
+                                    "
+                                    [attr.aria-pressed]="
+                                      metadataSelected(section.kind, entry.key, value)
+                                    "
+                                    (click)="toggleMetadata(section.kind, entry.key, value)"
+                                  >
+                                    {{ value }}
+                                  </button>
+                                }
+                              </div>
+                            </div>
+                          }
+                        } @else {
+                          <p class="section-hint">{{ section.empty }}</p>
+                        }
+                      }
                     </div>
-                  </div>
-                }
-              </section>
+                  }
+                </section>
+              }
             </div>
 
             <footer class="filter-footer">
@@ -1321,16 +1389,21 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       inset: 0;
       z-index: 35;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
+      overflow: auto;
       padding: 1.25rem;
       background: rgba(8, 10, 16, 0.78);
       backdrop-filter: blur(6px);
     }
 
     .filter-panel {
+      box-sizing: border-box;
       width: min(520px, 100%);
       max-height: calc(100dvh - 2.5rem);
+      margin-top: auto;
+      margin-bottom: auto;
+      min-height: 0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -1390,6 +1463,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
     .filter-body {
       display: flex;
+      flex: 1 1 auto;
       flex-direction: column;
       gap: 0.55rem;
       min-height: 0;
@@ -1399,7 +1473,15 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
     .panel-toolbar {
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
+      gap: 0.5rem 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .recompute-error {
+      margin: 0;
+      color: var(--danger);
+      font-size: 0.78rem;
     }
 
     .filter-section {
@@ -1427,7 +1509,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .section-title {
       display: inline-flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 0.45rem;
+      min-width: 0;
       font-size: 0.92rem;
       font-weight: 700;
     }
@@ -1447,6 +1531,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .section-chevron {
+      flex-shrink: 0;
       color: var(--text-muted);
       transition: transform 0.18s ease;
     }
@@ -1477,6 +1562,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .count-range {
       display: flex;
       align-items: flex-end;
+      flex-wrap: wrap;
       gap: 0.75rem;
       margin-top: 0.15rem;
     }
@@ -1598,6 +1684,42 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       flex: none;
     }
 
+    .meta-key {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-top: 0.2rem;
+    }
+
+    .meta-values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .meta-value {
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text);
+      padding: 0.35rem 0.7rem;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 650;
+      cursor: pointer;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+    }
+
+    .meta-value:hover {
+      background: rgba(127, 127, 127, 0.1);
+    }
+
+    .meta-value.selected {
+      background: rgba(var(--accent-rgb), 0.16);
+      color: var(--accent-text);
+      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.45);
+    }
+
     .link-btn {
       border: 0;
       background: transparent;
@@ -1650,6 +1772,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       .filter-panel {
         width: 100%;
         max-height: calc(100dvh - 1.3rem);
+        margin-top: auto;
+        margin-bottom: 0;
         border-radius: 14px 14px 0 0;
       }
     }
@@ -1686,9 +1810,38 @@ export class LanguagePage {
   readonly search = signal<ElementSearch>({ mode: 'browse', value: '' });
   readonly sort = signal<ElementSort>(DEFAULT_ELEMENT_SORT);
   readonly modes: readonly ElementMode[] = [1, 2, 3];
+  readonly contentSections: readonly ContentSection[] = [
+    {
+      id: 'definitions',
+      kind: 'definitions',
+      title: 'Definitions',
+      count: 'definitions',
+      empty: 'No definition metadata yet. Recompute to collect it.',
+    },
+    {
+      id: 'examples',
+      kind: 'examples',
+      title: 'Examples',
+      count: null,
+      empty: 'No example metadata yet. Recompute to collect it.',
+    },
+    {
+      id: 'forms',
+      kind: 'forms',
+      title: 'Forms',
+      count: null,
+      empty: 'No form metadata yet. Recompute to collect it.',
+    },
+  ];
   readonly translationRange = signal<ElementCountRange>({ min: 0, max: null });
   readonly definitionRange = signal<ElementCountRange>({ min: 0, max: null });
   readonly modeFilter = signal<ElementMode | null>(null);
+  readonly definitionMetaFilter = signal<ElementMetadataVariability>({});
+  readonly exampleMetaFilter = signal<ElementMetadataVariability>({});
+  readonly formMetaFilter = signal<ElementMetadataVariability>({});
+  readonly languageMetadata = signal<ElementMetadataIndexes>(emptyMetadataIndexes());
+  readonly recomputing = signal(false);
+  readonly recomputeError = signal('');
   readonly sortOpen = signal(false);
   readonly filtersOpen = signal(false);
   readonly aiSettingsOpen = signal(false);
@@ -1719,7 +1872,7 @@ export class LanguagePage {
   });
   readonly playOrder = signal<readonly string[]>([]);
   readonly dismissed = signal<ReadonlySet<string>>(new Set());
-  readonly expanded = signal<'mode' | 'translations' | 'definitions' | null>('translations');
+  readonly expanded = signal<FilterSection | null>('translations');
   readonly elementId = signal('');
   readonly trail = signal<string[]>([]);
   readonly canGoBack = computed(() => this.trail().length > 1);
@@ -1732,7 +1885,10 @@ export class LanguagePage {
     () =>
       (this.modeFilter() == null ? 0 : 1) +
       (this.rangeActive(this.translationRange()) ? 1 : 0) +
-      (this.rangeActive(this.definitionRange()) ? 1 : 0),
+      (this.rangeActive(this.definitionRange()) ? 1 : 0) +
+      metadataFilterSize(this.definitionMetaFilter()) +
+      metadataFilterSize(this.exampleMetaFilter()) +
+      metadataFilterSize(this.formMetaFilter()),
   );
   readonly sortActive = computed(() => {
     const sort = this.sort();
@@ -1743,10 +1899,14 @@ export class LanguagePage {
     const translations = this.translationRange();
     const definitions = this.definitionRange();
     const mode = this.modeFilter();
+    const definitionMeta = this.definitionMetaFilter();
+    const exampleMeta = this.exampleMetaFilter();
+    const formMeta = this.formMetaFilter();
     const matched = this.elements().filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
       if (!elementMatchesMode(element, mode)) return false;
-      return elementMatchesCountRanges(element, translations, definitions);
+      if (!elementMatchesCountRanges(element, translations, definitions)) return false;
+      return elementMatchesMetadata(element, definitionMeta, exampleMeta, formMeta);
     });
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
   });
@@ -1885,6 +2045,7 @@ export class LanguagePage {
       created = await saveElement({ ...created, definitions });
     }
     this.elements.set(await readElements(code));
+    if (this.code() === code) await this.loadLanguageMetadata(code);
     if (fromSearch) {
       this.clearSearch();
       this.trail.set([created.id]);
@@ -1897,6 +2058,7 @@ export class LanguagePage {
 
   replaceElement(saved: StoredElement): void {
     this.elements.update((list) => list.map((item) => (item.id === saved.id ? saved : item)));
+    this.languageMetadata.update((current) => mergeMetadataIndexes(current, saved));
   }
 
   onElementDeleted(): void {
@@ -2121,7 +2283,7 @@ export class LanguagePage {
     if (event.target === event.currentTarget) this.closeFilters();
   }
 
-  toggleSection(section: 'mode' | 'translations' | 'definitions'): void {
+  toggleSection(section: FilterSection): void {
     this.expanded.update((current) => (current === section ? null : section));
   }
 
@@ -2179,7 +2341,74 @@ export class LanguagePage {
     this.modeFilter.set(null);
     this.translationRange.set({ min: 0, max: null });
     this.definitionRange.set({ min: 0, max: null });
+    this.definitionMetaFilter.set({});
+    this.exampleMetaFilter.set({});
+    this.formMetaFilter.set({});
     this.writeBrowse();
+  }
+
+  metadataEntries(kind: MetadataKind): { key: string; values: string[] }[] {
+    const shown = mergeMetadataVariability(this.metadataCatalog(kind), this.metadataFilter(kind));
+    return Object.entries(shown).map(([key, values]) => ({ key, values }));
+  }
+
+  metadataValueCount(kind: MetadataKind): number {
+    return Object.values(this.metadataFilter(kind)).reduce((sum, values) => sum + values.length, 0);
+  }
+
+  metadataSelected(kind: MetadataKind, key: string, value: string): boolean {
+    return (this.metadataFilter(kind)[key] ?? []).includes(value);
+  }
+
+  toggleMetadata(kind: MetadataKind, key: string, value: string): void {
+    const current = this.metadataFilter(kind);
+    const values = current[key] ?? [];
+    const nextValues = values.includes(value)
+      ? values.filter((item) => item !== value)
+      : [...values, value];
+    const next = { ...current };
+    if (nextValues.length) next[key] = nextValues;
+    else delete next[key];
+    this.setMetadataFilter(kind, next);
+  }
+
+  sectionActive(section: ContentSection): boolean {
+    return (
+      this.metadataValueCount(section.kind) > 0 ||
+      (section.count === 'definitions' && this.rangeActive(this.definitionRange()))
+    );
+  }
+
+  clearSection(section: ContentSection): void {
+    if (section.count === 'definitions') this.definitionRange.set({ min: 0, max: null });
+    this.setMetadataFilter(section.kind, {});
+  }
+
+  async recomputeMetadata(): Promise<void> {
+    if (this.recomputing()) return;
+    const code = this.code();
+    if (!code) return;
+    this.recomputing.set(true);
+    this.recomputeError.set('');
+    try {
+      const next: StoredElement[] = [];
+      for (const element of this.elements()) {
+        next.push(await saveElement(element, { syncLanguage: false }));
+      }
+      const union = next.reduce(
+        (indexes, element) => mergeMetadataIndexes(indexes, element),
+        emptyMetadataIndexes(),
+      );
+      const language = await replaceLanguageMetadata(code, union);
+      if (this.code() !== code) return;
+      this.elements.set(next);
+      if (language) this.applyLanguageMetadata(language);
+      else this.languageMetadata.set(union);
+    } catch {
+      if (this.code() === code) this.recomputeError.set('Could not recompute metadata.');
+    } finally {
+      this.recomputing.set(false);
+    }
   }
 
   private async load(language: string): Promise<void> {
@@ -2200,6 +2429,9 @@ export class LanguagePage {
     this.translationRange.set(parseElementCountRange(params.get('translations')));
     this.definitionRange.set(parseElementCountRange(params.get('definitions')));
     this.modeFilter.set(parseElementMode(params.get('mode')));
+    this.definitionMetaFilter.set(parseMetadataFilter(params.get('definitionMeta')));
+    this.exampleMetaFilter.set(parseMetadataFilter(params.get('exampleMeta')));
+    this.formMetaFilter.set(parseMetadataFilter(params.get('formMeta')));
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.aiSettingsOpen()) this.closeAiSettings();
@@ -2207,8 +2439,10 @@ export class LanguagePage {
     this.name.set(languageDisplayName(code));
     this.ready.set(false);
     const elements = await readElements(code);
+    const stored = await readLanguage(code);
     if (seq !== this.loadId) return;
     this.elements.set(elements);
+    this.applyLanguageMetadata(stored);
     this.ready.set(true);
     this.reconcileOpen();
   }
@@ -2226,6 +2460,9 @@ export class LanguagePage {
         mode: mode == null ? null : String(mode),
         translations,
         definitions,
+        definitionMeta: formatMetadataFilter(this.definitionMetaFilter()),
+        exampleMeta: formatMetadataFilter(this.exampleMetaFilter()),
+        formMeta: formatMetadataFilter(this.formMetaFilter()),
         has: null,
         hide: null,
       },
@@ -2252,6 +2489,45 @@ export class LanguagePage {
     if (kind === 'translations') this.translationRange.set(range);
     else this.definitionRange.set(range);
     this.writeBrowse();
+  }
+
+  private metadataFilter(kind: MetadataKind): ElementMetadataVariability {
+    if (kind === 'definitions') return this.definitionMetaFilter();
+    if (kind === 'examples') return this.exampleMetaFilter();
+    return this.formMetaFilter();
+  }
+
+  private metadataCatalog(kind: MetadataKind): ElementMetadataVariability {
+    const metadata = this.languageMetadata();
+    if (kind === 'definitions') return metadata.definitionMetadata;
+    if (kind === 'examples') return metadata.exampleMetadata;
+    return metadata.formMetadata;
+  }
+
+  private setMetadataFilter(kind: MetadataKind, filter: ElementMetadataVariability): void {
+    const next = parseMetadataFilter(formatMetadataFilter(filter));
+    if (kind === 'definitions') this.definitionMetaFilter.set(next);
+    else if (kind === 'examples') this.exampleMetaFilter.set(next);
+    else this.formMetaFilter.set(next);
+    this.writeBrowse();
+  }
+
+  private async loadLanguageMetadata(code: string): Promise<void> {
+    const language = await readLanguage(code);
+    if (this.code() !== code) return;
+    this.applyLanguageMetadata(language);
+  }
+
+  private applyLanguageMetadata(language: StoredLanguage | null): void {
+    this.languageMetadata.set(
+      language
+        ? {
+            definitionMetadata: language.definitionMetadata,
+            exampleMetadata: language.exampleMetadata,
+            formMetadata: language.formMetadata,
+          }
+        : emptyMetadataIndexes(),
+    );
   }
 
   private reconcileOpen(): void {

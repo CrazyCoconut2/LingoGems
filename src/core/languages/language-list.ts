@@ -1,6 +1,7 @@
 import { Component, computed, ElementRef, OnInit, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
+  emptyMetadataIndexes,
   isLearnableLanguage,
   LEARNABLE_LANGUAGES,
   languageDisplayName,
@@ -319,7 +320,7 @@ export class LanguageList implements OnInit {
     if (!isLearnableLanguage(code) || this.languages().some((language) => language.code === code)) {
       return;
     }
-    const created: StoredLanguage = { code, createdAt: Date.now() };
+    const created: StoredLanguage = { code, createdAt: Date.now(), ...emptyMetadataIndexes() };
     this.languages.update((list) => [...list, created]);
     this.selected.set(this.available()[0] ?? '');
     this.closeAdd();

@@ -1,6 +1,13 @@
 import { ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
 import { isLearnableLanguage, type LearnableLanguage } from '../languages/catalog';
+import { mergeLanguageMetadata } from '../languages/language-store';
 import { sanitizeHighlightStyle, type HighlightStyle } from './appearance';
+import {
+  collectMetadataIndexes,
+  emptyMetadataIndexes,
+  metadataIndexesEmpty,
+  type ElementMetadataVariability,
+} from './metadata-variability';
 
 export type ElementMetadata = Record<string, string>;
 
@@ -96,6 +103,12 @@ export type StoredElement = {
   mode: ElementMode;
   /** Succeeded exercises for Extract, Refine, and Polish. Missing counts are 0. */
   modeProgress: ElementModeProgress;
+  /** Distinct metadata values across this element's definitions. */
+  definitionMetadata: ElementMetadataVariability;
+  /** Distinct metadata values across this element's examples. */
+  exampleMetadata: ElementMetadataVariability;
+  /** Distinct metadata values across this element's forms. */
+  formMetadata: ElementMetadataVariability;
   createdAt: number;
 };
 
@@ -150,13 +163,17 @@ export async function addElement(language: string, title: string): Promise<Store
     highlightStyle: null,
     mode: 1,
     modeProgress: emptyModeProgress(),
+    ...emptyMetadataIndexes(),
     createdAt: Date.now(),
   };
   await putElement(created);
   return created;
 }
 
-export async function saveElement(element: StoredElement): Promise<StoredElement> {
+export async function saveElement(
+  element: StoredElement,
+  options?: { syncLanguage?: boolean },
+): Promise<StoredElement> {
   const language = String(element?.language ?? '')
     .trim()
     .toLowerCase();
@@ -169,6 +186,7 @@ export async function saveElement(element: StoredElement): Promise<StoredElement
   if (!id) throw new Error('Id is required');
   const createdAtValue = element?.createdAt;
   const content = normalizeContent(element?.equivalents, element?.definitions);
+  const indexes = collectMetadataIndexes(content.definitions);
   const saved: StoredElement = {
     id,
     language,
@@ -178,10 +196,14 @@ export async function saveElement(element: StoredElement): Promise<StoredElement
     ...appearanceOf(element),
     mode: normalizeElementMode(element?.mode),
     modeProgress: normalizeModeProgress(element?.modeProgress),
+    ...indexes,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
   await putElement(saved);
+  if (options?.syncLanguage !== false && !metadataIndexesEmpty(indexes)) {
+    await mergeLanguageMetadata(language, indexes);
+  }
   return saved;
 }
 
@@ -219,6 +241,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     ...appearanceOf(source),
     mode: normalizeElementMode(source.mode),
     modeProgress: normalizeModeProgress(source.modeProgress),
+    ...collectMetadataIndexes(content.definitions),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };

@@ -1,9 +1,24 @@
 import { idbRequest, LANGUAGES_STORE, openDatabase } from '../database';
+import {
+  emptyMetadataIndexes,
+  mergeMetadataVariability,
+  metadataIndexesEmpty,
+  normalizeMetadataVariability,
+  sameMetadataIndexes,
+  type ElementMetadataIndexes,
+  type ElementMetadataVariability,
+} from '../elements/metadata-variability';
 import { isLearnableLanguage, type LearnableLanguage } from './catalog';
 
 export type StoredLanguage = {
   code: LearnableLanguage;
   createdAt: number;
+  /** Every definition metadata value seen in this language. */
+  definitionMetadata: ElementMetadataVariability;
+  /** Every example metadata value seen in this language. */
+  exampleMetadata: ElementMetadataVariability;
+  /** Every form metadata value seen in this language. */
+  formMetadata: ElementMetadataVariability;
 };
 
 export async function readLanguages(): Promise<StoredLanguage[]> {
@@ -37,17 +52,56 @@ export async function addLanguage(code: string): Promise<StoredLanguage> {
   const created: StoredLanguage = {
     code: normalized,
     createdAt: Date.now(),
+    ...emptyMetadataIndexes(),
   };
   await putLanguage(created);
   return created;
 }
 
-export async function saveLanguage(language: StoredLanguage): Promise<void> {
-  if (!isLearnableLanguage(language.code)) return;
-  await putLanguage({
-    code: language.code,
-    createdAt: language.createdAt,
+export async function readLanguage(code: string): Promise<StoredLanguage | null> {
+  return getLanguage(code.trim().toLowerCase());
+}
+
+/** Adds this element's keys and values to the language. Existing values stay. */
+export async function mergeLanguageMetadata(
+  code: string,
+  indexes: ElementMetadataIndexes,
+): Promise<void> {
+  if (!isLearnableLanguage(code) || metadataIndexesEmpty(indexes)) return;
+  const language = await getLanguage(code);
+  if (!language) return;
+  const next = withMetadata(language, {
+    definitionMetadata: mergeMetadataVariability(
+      language.definitionMetadata,
+      indexes.definitionMetadata,
+    ),
+    exampleMetadata: mergeMetadataVariability(language.exampleMetadata, indexes.exampleMetadata),
+    formMetadata: mergeMetadataVariability(language.formMetadata, indexes.formMetadata),
   });
+  if (sameMetadataIndexes(language, next)) return;
+  await putLanguage(next);
+}
+
+/** Replaces the language choice lists with the union of every element. */
+export async function replaceLanguageMetadata(
+  code: string,
+  indexes: ElementMetadataIndexes,
+): Promise<StoredLanguage | null> {
+  const language = await getLanguage(code.trim().toLowerCase());
+  if (!language) return null;
+  const next = withMetadata(language, {
+    definitionMetadata: normalizeMetadataVariability(indexes.definitionMetadata),
+    exampleMetadata: normalizeMetadataVariability(indexes.exampleMetadata),
+    formMetadata: normalizeMetadataVariability(indexes.formMetadata),
+  });
+  await putLanguage(next);
+  return next;
+}
+
+export async function saveLanguage(language: StoredLanguage): Promise<void> {
+  const normalized = normalizeLanguage(language);
+  if (!normalized) return;
+  await putLanguage(normalized);
 }
 
 async function getLanguage(code: string): Promise<StoredLanguage | null> {
@@ -67,10 +121,24 @@ function normalizeLanguage(raw: unknown): StoredLanguage | null {
     .toLowerCase();
   if (!isLearnableLanguage(code)) return null;
   const createdAtValue = (raw as { createdAt?: unknown }).createdAt;
+  const source = raw as Partial<StoredLanguage>;
   return {
     code,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
+    definitionMetadata: normalizeMetadataVariability(source.definitionMetadata),
+    exampleMetadata: normalizeMetadataVariability(source.exampleMetadata),
+    formMetadata: normalizeMetadataVariability(source.formMetadata),
+  };
+}
+
+function withMetadata(language: StoredLanguage, indexes: ElementMetadataIndexes): StoredLanguage {
+  return {
+    code: language.code,
+    createdAt: language.createdAt,
+    definitionMetadata: indexes.definitionMetadata,
+    exampleMetadata: indexes.exampleMetadata,
+    formMetadata: indexes.formMetadata,
   };
 }
 

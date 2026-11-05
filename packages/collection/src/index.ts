@@ -7,7 +7,10 @@ export {
 
 export {
   addLanguage,
+  mergeLanguageMetadata,
+  readLanguage,
   readLanguages,
+  replaceLanguageMetadata,
   saveLanguage,
   type StoredLanguage,
 } from './languages/language-store';
@@ -78,14 +81,27 @@ export {
   compareElements,
   elementDefinitionCount,
   elementMatchesCountRanges,
+  elementMatchesMetadata,
   elementMatchesMode,
   elementTranslationCount,
   formatElementCountRange,
+  formatMetadataFilter,
+  metadataFilterSize,
   parseElementCountRange,
   parseElementMode,
   parseElementSort,
+  parseMetadataFilter,
   setCountRangeBound,
   stepCountRange,
   type ElementCountRange,
   type ElementSort,
 } from './elements/browse';
+
+export {
+  collectMetadataIndexes,
+  emptyMetadataIndexes,
+  mergeMetadataIndexes,
+  mergeMetadataVariability,
+  type ElementMetadataIndexes,
+  type ElementMetadataVariability,
+} from './elements/metadata-variability';

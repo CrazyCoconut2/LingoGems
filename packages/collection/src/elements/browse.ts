@@ -1,4 +1,8 @@
 import { type ElementMode, type StoredElement } from './element-store';
+import {
+  normalizeMetadataVariability,
+  type ElementMetadataVariability,
+} from './metadata-variability';
 
 export const ELEMENT_SORTS = [
   'title-asc',
@@ -114,6 +118,56 @@ export function parseElementMode(raw: string | null): ElementMode | null {
 /** Keep an element in the chosen mode. A missing mode keeps every element. */
 export function elementMatchesMode(element: StoredElement, mode: ElementMode | null): boolean {
   return mode == null || element.mode === mode;
+}
+
+/** `definitionMeta`, `exampleMeta`, and `formMeta` query values. Empty means no constraint. */
+export function parseMetadataFilter(raw: string | null): ElementMetadataVariability {
+  if (!raw) return {};
+  try {
+    return normalizeMetadataVariability(JSON.parse(raw));
+  } catch {
+    return {};
+  }
+}
+
+/** Serializes a metadata selection. Empty selections are omitted from the query. */
+export function formatMetadataFilter(filter: ElementMetadataVariability): string | null {
+  const normalized = normalizeMetadataVariability(filter);
+  return Object.keys(normalized).length ? JSON.stringify(normalized) : null;
+}
+
+/**
+ * Keep an element that has one of the selected values for every selected key.
+ * Keys in different places all have to match. An empty selection keeps every element.
+ */
+export function elementMatchesMetadata(
+  element: StoredElement,
+  definitions: ElementMetadataVariability,
+  examples: ElementMetadataVariability,
+  forms: ElementMetadataVariability,
+): boolean {
+  return (
+    variabilityMatches(element.definitionMetadata, definitions) &&
+    variabilityMatches(element.exampleMetadata, examples) &&
+    variabilityMatches(element.formMetadata, forms)
+  );
+}
+
+/** Selected keys, across one metadata place. */
+export function metadataFilterSize(filter: ElementMetadataVariability): number {
+  return Object.values(filter).filter((values) => values.length > 0).length;
+}
+
+function variabilityMatches(
+  index: ElementMetadataVariability | undefined,
+  selected: ElementMetadataVariability,
+): boolean {
+  for (const [key, values] of Object.entries(selected)) {
+    if (!values.length) continue;
+    const have = index?.[key];
+    if (!have || !values.some((value) => have.includes(value))) return false;
+  }
+  return true;
 }
 
 /** Keep an element whose translation and definition counts fall inside each range. */
