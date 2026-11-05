@@ -1805,20 +1805,16 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.45);
     }
 
-    .meta-value.colored {
-      color: var(--meta-color);
-      background: color-mix(in srgb, var(--meta-color) 16%, transparent);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--meta-color) 55%, transparent);
-    }
-
-    .meta-value.colored:hover {
-      background: color-mix(in srgb, var(--meta-color) 24%, transparent);
+    .meta-value.colored,
+    .meta-value.colored:hover,
+    .meta-value.colored.selected {
+      color: var(--text);
+      background: transparent;
+      box-shadow: inset 0 0 0 1px var(--meta-color);
     }
 
     .meta-value.colored.selected {
-      color: var(--meta-color);
-      background: color-mix(in srgb, var(--meta-color) 32%, transparent);
-      box-shadow: inset 0 0 0 1px var(--meta-color);
+      box-shadow: inset 0 0 0 2px var(--meta-color);
     }
 
     .link-btn {

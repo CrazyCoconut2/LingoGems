@@ -588,9 +588,7 @@ type HighlightSource = {
     }
 
     .sense-meta li.colored {
-      color: var(--meta-color);
-      border-color: color-mix(in srgb, var(--meta-color) 55%, transparent);
-      background: color-mix(in srgb, var(--meta-color) 14%, transparent);
+      border-color: var(--meta-color);
     }
 
     .sense-meta-key {

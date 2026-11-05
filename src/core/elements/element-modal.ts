@@ -3126,9 +3126,7 @@ function writeExampleSuggestions(
 
     .sense-meta li.colored,
     .suggestion .sense-meta li.colored {
-      color: var(--meta-color);
-      border-color: color-mix(in srgb, var(--meta-color) 55%, transparent);
-      background: color-mix(in srgb, var(--meta-color) 14%, transparent);
+      border-color: var(--meta-color);
     }
 
     .add-suggestion {
@@ -3240,9 +3238,7 @@ function writeExampleSuggestions(
     }
 
     .pills li.colored {
-      color: var(--meta-color);
-      background: color-mix(in srgb, var(--meta-color) 16%, var(--surface-2));
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--meta-color) 55%, transparent);
+      box-shadow: inset 0 0 0 1px var(--meta-color);
     }
 
     .form-chip button,
