@@ -36,6 +36,7 @@ import { FrequencyGem } from './frequency-gem';
 import { ModeIcon } from './mode-icon';
 import { scoreColor } from './mode-palette';
 import { ModeProgress } from './mode-progress';
+import { Reveal } from './reveal';
 import { readStepGoal } from './step-goal';
 
 const EQUIVALENT_MAX = 200;
@@ -162,10 +163,10 @@ class ExtractPassage {
   }
 }
 
-/** Extract: write one equivalent per definition. Nothing here reveals a translation. */
+/** Extract: write one equivalent per definition. Definition translations can be revealed. */
 @Component({
   selector: 'app-extract-game',
-  imports: [ExtractPassage, FrequencyGem, ModeIcon, ModeProgress, NgTemplateOutlet],
+  imports: [ExtractPassage, FrequencyGem, ModeIcon, ModeProgress, NgTemplateOutlet, Reveal],
   template: `
     <div
       class="backdrop"
@@ -215,15 +216,27 @@ class ExtractPassage {
           }
           <ol class="definitions">
             @for (definition of element().definitions; track $index; let index = $index) {
-              @let gloss = plain(definition.text);
+              @let passage = parsePassage(definition.text);
               <li class="sense">
-                @if (gloss) {
+                @if (passage.text) {
                   <app-extract-passage
                     [definitionIndex]="index"
-                    [parts]="highlightPassage(gloss)"
+                    [parts]="highlightPassage(passage.text)"
                     (visit)="visitHighlight($event)"
                     (collide)="collision.set($event)"
                   />
+                }
+                @if (passage.translations.length) {
+                  <ul class="equivalents">
+                    @for (translation of passage.translations; track $index) {
+                      <li>
+                        <app-reveal
+                          [text]="translation.text"
+                          [language]="element().language"
+                        />
+                      </li>
+                    }
+                  </ul>
                 }
                 @if (passagePick(index, null); as pick) {
                   <ng-container *ngTemplateOutlet="lookup; context: { pick: pick }" />
@@ -256,7 +269,7 @@ class ExtractPassage {
                 <button
                   type="button"
                   class="btn btn-secondary example-btn"
-                  [disabled]="aiBusy() || !gloss"
+                  [disabled]="aiBusy() || !passage.text"
                   [attr.aria-busy]="askingExample() === index ? true : null"
                   (click)="generateExample(index)"
                 >
@@ -284,29 +297,40 @@ class ExtractPassage {
                 }
                 @if (formTexts(definition.forms); as forms) {
                   @if (forms.length) {
-                    <button
-                      type="button"
-                      class="forms-toggle"
-                      [attr.aria-expanded]="formsOpen(index)"
-                      (click)="toggleForms(index)"
-                    >
-                      <span>Forms</span>
-                      <span class="forms-toggle-side">
-                        @if (!formsOpen(index)) {
-                          <span>{{ forms.join(', ') }}</span>
-                        }
-                        <svg viewBox="0 0 24 24" aria-hidden="true" [class.open]="formsOpen(index)">
+                    <section class="group">
+                      <button
+                        type="button"
+                        class="section-title forms-fold"
+                        [attr.aria-expanded]="formsOpen(index)"
+                        (click)="toggleForms(index)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
+                          />
+                          <path d="m22 12.5-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5" />
+                          <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
+                        </svg>
+                        Forms
+                        <svg
+                          class="fold-chevron"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                          [class.open]="formsOpen(index)"
+                        >
                           <path d="m6 9 6 6 6-6" />
                         </svg>
-                      </span>
-                    </button>
-                    @if (formsOpen(index)) {
-                      <ul class="forms">
-                        @for (form of forms; track form) {
-                          <li>{{ form }}</li>
-                        }
-                      </ul>
-                    }
+                      </button>
+                      @if (formsOpen(index)) {
+                        <ul class="forms">
+                          @for (form of forms; track form) {
+                            <li>
+                              <span class="form-chip">{{ form }}</span>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </section>
                   }
                 }
               </li>
@@ -517,6 +541,14 @@ class ExtractPassage {
       background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
     }
 
+    .equivalents {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
     .sense-meta {
       display: flex;
       flex-wrap: wrap;
@@ -574,72 +606,77 @@ class ExtractPassage {
       opacity: 0.45;
     }
 
-    .forms-toggle {
+    .group {
       display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin-top: 0.2rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid rgba(139, 144, 165, 0.28);
+    }
+
+    button.section-title {
+      display: inline-flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-      width: 100%;
+      gap: 0.35rem;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
       border: 0;
       background: transparent;
       color: var(--text-muted);
       font: inherit;
       font-size: 0.78rem;
-      font-weight: 650;
-      padding: 0;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      line-height: 1;
+      text-transform: uppercase;
       cursor: pointer;
     }
 
-    .forms-toggle-side {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      min-width: 0;
-      font-weight: 500;
+    button.forms-fold {
+      justify-content: flex-start;
     }
 
-    .forms-toggle-side span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .forms-toggle svg {
-      width: 1rem;
-      height: 1rem;
+    button.section-title svg {
+      display: block;
+      width: 1.15rem;
+      height: 1.15rem;
       flex: none;
       fill: none;
-      stroke: currentColor;
+      stroke: var(--accent-text);
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
     }
 
-    .forms-toggle svg.open {
+    button.section-title .fold-chevron {
+      width: 1rem;
+      height: 1rem;
+      stroke: currentColor;
+    }
+
+    button.section-title .fold-chevron.open {
       transform: rotate(180deg);
     }
 
     .forms {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.35rem;
+      gap: 0.4rem;
       margin: 0;
       padding: 0;
       list-style: none;
     }
 
-    .forms li {
-      box-sizing: border-box;
+    .form-chip {
       display: inline-flex;
       align-items: center;
-      height: 1.7rem;
-      padding: 0 0.5rem;
-      border: 1px solid rgba(139, 144, 165, 0.4);
-      border-radius: 0.35rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      background: var(--surface-2);
       color: var(--text-muted);
-      font-size: 0.72rem;
-      line-height: 1;
-      white-space: nowrap;
+      font-size: 0.8125rem;
     }
 
     .example-btn {
@@ -796,12 +833,10 @@ export class ExtractGame {
     this.closed.emit();
   }
 
+  readonly parsePassage = parsePassage;
+
   shownTitle(title = this.element().title): string {
     return displayTitle(title, this.element().language);
-  }
-
-  plain(value: string): string {
-    return parsePassage(value).text;
   }
 
   draftAt(index: number): string {
