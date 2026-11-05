@@ -6,6 +6,12 @@ const LEGACY_BLUR_TRANSLATIONS_KEY = 'lingogem.blur-translations';
 if (typeof localStorage !== 'undefined') localStorage.removeItem(LEGACY_BLUR_TRANSLATIONS_KEY);
 
 const revision = signal(0);
+const playBlur = signal(false);
+
+/** Play mode hides translations even when this language leaves them visible. */
+export function setPlayBlur(enabled: boolean): void {
+  playBlur.set(enabled);
+}
 
 function languageCode(language: string): string {
   return language.trim().toLowerCase();
@@ -44,6 +50,7 @@ export function readBlurTranslations(language: string): boolean {
 /** Same value, and it updates open translations when the language setting changes. */
 export function blurTranslationsEnabled(language: string): boolean {
   revision();
+  if (playBlur()) return true;
   return readBlurTranslations(language);
 }
 
