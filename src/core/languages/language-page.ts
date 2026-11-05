@@ -1473,18 +1473,21 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
     .panel-toolbar {
       display: flex;
+      flex-shrink: 0;
       justify-content: space-between;
       gap: 0.5rem 0.75rem;
       flex-wrap: wrap;
     }
 
     .recompute-error {
+      flex-shrink: 0;
       margin: 0;
       color: var(--danger);
       font-size: 0.78rem;
     }
 
     .filter-section {
+      flex-shrink: 0;
       overflow: hidden;
       border-radius: 0.9rem;
       background: color-mix(in srgb, var(--surface) 70%, transparent);
