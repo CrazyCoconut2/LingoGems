@@ -1256,7 +1256,12 @@ function writeExampleSuggestions(
 
                   <section class="group">
                     <div class="section-heading">
-                      <h3 class="section-title">
+                      <button
+                        type="button"
+                        class="section-title forms-fold"
+                        [attr.aria-expanded]="formsOpen(index)"
+                        (click)="toggleForms(index)"
+                      >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                           <path
                             d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
@@ -1265,7 +1270,15 @@ function writeExampleSuggestions(
                           <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
                         </svg>
                         Forms
-                      </h3>
+                        <svg
+                          class="fold-chevron"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                          [class.open]="formsOpen(index)"
+                        >
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </button>
                       <div class="header-actions">
                         <button
                           type="button"
@@ -1282,34 +1295,36 @@ function writeExampleSuggestions(
                         </button>
                       </div>
                     </div>
-                    @if (definition.forms.length) {
-                      <ul class="forms">
-                        @for (form of definition.forms; track form.text) {
-                          <li>
-                            <div class="form-chip">
-                              <button
-                                type="button"
-                                [disabled]="busy()"
-                                [attr.aria-label]="'Edit form ' + form.text"
-                                (click)="openExistingForm(index, form.text)"
-                              >
-                                {{ form.text }}
-                              </button>
-                              <button
-                                type="button"
-                                class="tag-remove"
-                                [disabled]="busy()"
-                                [attr.aria-label]="'Remove form ' + form.text"
-                                (click)="removeForm(index, form.text)"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          </li>
-                        }
-                      </ul>
-                    } @else {
-                      <p class="hint">No forms yet.</p>
+                    @if (formsOpen(index)) {
+                      @if (definition.forms.length) {
+                        <ul class="forms">
+                          @for (form of definition.forms; track form.text) {
+                            <li>
+                              <div class="form-chip">
+                                <button
+                                  type="button"
+                                  [disabled]="busy()"
+                                  [attr.aria-label]="'Edit form ' + form.text"
+                                  (click)="openExistingForm(index, form.text)"
+                                >
+                                  {{ form.text }}
+                                </button>
+                                <button
+                                  type="button"
+                                  class="tag-remove"
+                                  [disabled]="busy()"
+                                  [attr.aria-label]="'Remove form ' + form.text"
+                                  (click)="removeForm(index, form.text)"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            </li>
+                          }
+                        </ul>
+                      } @else {
+                        <p class="hint">No forms yet.</p>
+                      }
                     }
                   </section>
                 </li>
@@ -2872,7 +2887,8 @@ function writeExampleSuggestions(
       gap: 0.35rem;
     }
 
-    h3.section-title svg {
+    h3.section-title svg,
+    button.section-title svg {
       display: block;
       width: 1.15rem;
       height: 1.15rem;
@@ -2882,6 +2898,40 @@ function writeExampleSuggestions(
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    button.section-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      line-height: 1;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    button.forms-fold {
+      flex: 1;
+      justify-content: flex-start;
+    }
+
+    button.section-title .fold-chevron {
+      width: 1rem;
+      height: 1rem;
+      stroke: currentColor;
+    }
+
+    button.section-title .fold-chevron.open {
+      transform: rotate(180deg);
     }
 
     .empty,
@@ -3629,6 +3679,7 @@ export class ElementModal {
   readonly addDefinitionOpen = signal(false);
   readonly addExampleFor = signal<number | null>(null);
   readonly addFormFor = signal<number | null>(null);
+  readonly expandedForms = signal<ReadonlySet<number>>(new Set());
   readonly addingDefinitions = signal<'missing' | 'example' | null>(null);
   readonly definitionExample = signal('');
   readonly askingForms = signal<number | null>(null);
@@ -3692,6 +3743,7 @@ export class ElementModal {
       this.addDefinitionOpen.set(false);
       this.addExampleFor.set(null);
       this.addFormFor.set(null);
+      this.expandedForms.set(new Set());
       this.modeOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
@@ -4119,7 +4171,37 @@ export class ElementModal {
     this.addDefinitionOpen.set(false);
     this.addExampleFor.set(null);
     this.dismissTranslations();
+    this.showForms(index);
     this.addFormFor.set(index);
+  }
+
+  formsOpen(index: number): boolean {
+    return this.expandedForms().has(index);
+  }
+
+  toggleForms(index: number): void {
+    const next = new Set(this.expandedForms());
+    if (next.has(index)) next.delete(index);
+    else next.add(index);
+    this.expandedForms.set(next);
+  }
+
+  private showForms(index: number): void {
+    if (this.expandedForms().has(index)) return;
+    const next = new Set(this.expandedForms());
+    next.add(index);
+    this.expandedForms.set(next);
+  }
+
+  private moveExpandedForms(map: (index: number) => number | null): void {
+    const current = this.expandedForms();
+    if (!current.size) return;
+    const next = new Set<number>();
+    for (const index of current) {
+      const mapped = map(index);
+      if (mapped != null && mapped >= 0) next.add(mapped);
+    }
+    this.expandedForms.set(next);
   }
 
   closeAddForm(event?: MouseEvent): void {
@@ -4363,6 +4445,7 @@ export class ElementModal {
     if (wording != null) this.askingWording.set(map(wording));
     const forms = this.askingForms();
     if (forms != null) this.askingForms.set(map(forms));
+    this.moveExpandedForms((index) => (index === from ? to : index === to ? from : index));
     const engineer = this.exampleEngineer();
     if (engineer) {
       this.exampleEngineer.set({ ...engineer, definitionIndex: map(engineer.definitionIndex) });
@@ -4401,6 +4484,7 @@ export class ElementModal {
     if (addingForm != null) this.addFormFor.set(addingForm + by);
     const forms = this.askingForms();
     if (forms != null) this.askingForms.set(forms + by);
+    this.moveExpandedForms((index) => index + by);
     const related = this.askingRelated();
     if (related != null) this.askingRelated.set(related + by);
     const wording = this.askingWording();
@@ -5455,6 +5539,9 @@ export class ElementModal {
       const forms = this.askingForms();
       if (forms === pending.index) this.askingForms.set(null);
       else if (forms != null && forms > pending.index) this.askingForms.set(forms - 1);
+      this.moveExpandedForms((index) =>
+        index === pending.index ? null : index > pending.index ? index - 1 : index,
+      );
       const related = this.askingRelated();
       if (related === pending.index) this.askingRelated.set(null);
       else if (related != null && related > pending.index) this.askingRelated.set(related - 1);

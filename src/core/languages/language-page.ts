@@ -10,6 +10,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
+import { ExtractGame } from '../elements/extract-game';
 import { FrequencyGem } from '../elements/frequency-gem';
 import { ModeIcon } from '../elements/mode-icon';
 import { ModeProgress } from '../elements/mode-progress';
@@ -67,7 +68,15 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
 @Component({
   selector: 'app-language-page',
-  imports: [RouterLink, ElementModal, FrequencyGem, ModeIcon, ModeProgress, LanguageAiSettings],
+  imports: [
+    RouterLink,
+    ElementModal,
+    ExtractGame,
+    FrequencyGem,
+    ModeIcon,
+    ModeProgress,
+    LanguageAiSettings,
+  ],
   template: `
     <main>
       <header>
@@ -636,6 +645,19 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
         </div>
       }
 
+      @if (extractElement(); as element) {
+        <app-extract-game
+          [element]="element"
+          [collection]="elements()"
+          [covered]="opened() !== null"
+          (closed)="extractId.set('')"
+          (changed)="replaceElement($event)"
+          (visit)="visitElement($event)"
+          (addSelection)="addFromSelection($event)"
+          (addPrepared)="addPrepared($event)"
+        />
+      }
+
       @if (opened(); as element) {
         <app-element-modal
           [element]="element"
@@ -1018,7 +1040,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       display: flex;
       flex-direction: column;
       align-items: stretch;
+      justify-content: center;
       gap: 0.45rem;
+      min-height: calc(6.67rem + 2px);
       padding: 0.85rem 1rem;
       border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 28%, transparent);
       border-left: 3px solid var(--highlight-color, var(--accent));
@@ -1113,6 +1137,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       border: 0;
       background: transparent;
       color: inherit;
+      line-height: 1;
       cursor: pointer;
     }
 
@@ -1588,6 +1613,14 @@ export class LanguagePage {
   readonly filtersOpen = signal(false);
   readonly aiSettingsOpen = signal(false);
   readonly playing = signal(false);
+  readonly extractId = signal('');
+  readonly extractElement = computed(() => {
+    const id = this.extractId();
+    if (!this.playing() || !id) return null;
+    const element = this.elements().find((item) => item.id === id);
+    if (!element || element.mode !== 1 || element.definitions.length === 0) return null;
+    return element;
+  });
   readonly playOrder = signal<readonly string[]>([]);
   readonly dismissed = signal<ReadonlySet<string>>(new Set());
   readonly expanded = signal<'mode' | 'translations' | 'definitions' | null>('translations');
@@ -1897,6 +1930,11 @@ export class LanguagePage {
     event?.stopPropagation();
     if (!this.playing() || !id) return;
     this.dismissCard(id);
+    const element = this.elements().find((item) => item.id === id);
+    if (element?.mode === 1 && element.definitions.length > 0) {
+      this.extractId.set(id);
+      return;
+    }
     this.openElement(id);
   }
 
@@ -1913,6 +1951,7 @@ export class LanguagePage {
       this.playing.set(false);
       this.playOrder.set([]);
       this.dismissed.set(new Set());
+      this.extractId.set('');
       return;
     }
     this.commitSearch();
@@ -2035,6 +2074,7 @@ export class LanguagePage {
     this.playing.set(false);
     this.playOrder.set([]);
     this.dismissed.set(new Set());
+    this.extractId.set('');
     const params = this.route.snapshot.queryParamMap;
     const restored = (params.get('q') ?? '').slice(0, ELEMENT_SEARCH_MAX_LENGTH);
     this.query.set(restored);
