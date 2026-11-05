@@ -109,6 +109,7 @@ export {
   emptyMetadataIndexes,
   mergeMetadataIndexes,
   mergeMetadataVariability,
+  normalizeMetadataVariability,
   type ElementMetadataIndexes,
   type ElementMetadataVariability,
 } from './elements/metadata-variability';

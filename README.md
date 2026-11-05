@@ -57,8 +57,3 @@ Angular CLI does not come with an end-to-end testing framework by default. You c
 ## Additional Resources
 
 For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
-
-
-TODO:
-- RECOMMENDATIONS : Will be rebaptize to DISCOVER now. We'll transform the recommendation tool into a discover tool where we can specific metadata for elements or ask plain text to give us elements
-related to shit (like argentinian expressions).

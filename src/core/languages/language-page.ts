@@ -32,6 +32,7 @@ import {
 import { scoreColor } from '../elements/mode-palette';
 import { setPlayBlur } from '../elements/blur-translations';
 import { readStepGoal } from '../elements/step-goal';
+import { DiscoverModal } from './discover-modal';
 import { LanguageAiSettings } from './language-ai-settings';
 import { generateElementFromSelection } from 'ai';
 import {
@@ -122,6 +123,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     ModeIcon,
     ModeProgress,
     LanguageAiSettings,
+    DiscoverModal,
   ],
   template: `
     <main>
@@ -222,6 +224,20 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
         </form>
 
         <div class="toolbar-actions">
+          <button
+            type="button"
+            class="toolbar-icon-btn"
+            [class.active]="discoverOpen()"
+            [disabled]="playing()"
+            aria-label="Discover"
+            title="Discover"
+            (click)="openDiscover($event)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+            </svg>
+          </button>
           <button
             type="button"
             class="toolbar-icon-btn"
@@ -419,6 +435,17 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           [language]="code()"
           [languageName]="name()"
           (closed)="closeAiSettings()"
+        />
+      }
+
+      @if (discoverOpen()) {
+        <app-discover-modal
+          [language]="code()"
+          [catalog]="languageMetadata()"
+          [elements]="elements()"
+          (closed)="closeDiscover()"
+          (added)="reloadElements()"
+          (open)="openElement($event)"
         />
       }
 
@@ -1886,6 +1913,7 @@ export class LanguagePage {
   readonly gemAccessibleName = gemAccessibleName;
   readonly readStepGoal = readStepGoal;
   readonly asking = signal(false);
+  readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
   readonly skeletons = ELEMENT_SKELETONS;
   readonly sortOptions: { value: ElementSort; label: string }[] = [
@@ -2035,7 +2063,7 @@ export class LanguagePage {
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       if (this.searchTimer) clearTimeout(this.searchTimer);
-      if (this.filtersOpen() || this.aiSettingsOpen()) this.unlockScroll();
+      if (this.filtersOpen() || this.aiSettingsOpen() || this.discoverOpen()) this.unlockScroll();
       setPlayBlur(false);
     });
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
@@ -2073,6 +2101,10 @@ export class LanguagePage {
   closeMenusOnEscape(): void {
     if (this.aiSettingsOpen()) {
       this.closeAiSettings();
+      return;
+    }
+    if (this.discoverOpen()) {
+      if (!this.elementId()) this.closeDiscover();
       return;
     }
     if (this.filtersOpen()) {
@@ -2327,6 +2359,7 @@ export class LanguagePage {
     }
     this.commitSearch();
     this.sortOpen.set(false);
+    if (this.discoverOpen()) this.closeDiscover();
     this.dismissed.set(new Set());
     this.playOrder.set(shuffleIds(this.playable().map((element) => element.id)));
     this.playing.set(true);
@@ -2348,6 +2381,7 @@ export class LanguagePage {
   openAiSettings(): void {
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
+    if (this.discoverOpen()) this.closeDiscover();
     if (this.aiSettingsOpen()) return;
     this.aiSettingsOpen.set(true);
     this.lockScroll();
@@ -2359,9 +2393,35 @@ export class LanguagePage {
     this.unlockScroll();
   }
 
+  openDiscover(event: Event): void {
+    event.stopPropagation();
+    if (this.playing()) return;
+    this.sortOpen.set(false);
+    if (this.filtersOpen()) this.closeFilters();
+    if (this.aiSettingsOpen()) this.closeAiSettings();
+    if (this.discoverOpen()) return;
+    this.discoverOpen.set(true);
+    this.lockScroll();
+  }
+
+  closeDiscover(): void {
+    if (!this.discoverOpen()) return;
+    this.discoverOpen.set(false);
+    this.unlockScroll();
+  }
+
+  async reloadElements(): Promise<void> {
+    const code = this.code();
+    if (!code) return;
+    const elements = await readElements(code);
+    if (this.code() !== code) return;
+    this.elements.set(elements);
+  }
+
   openFilters(event: Event): void {
     event.stopPropagation();
     this.sortOpen.set(false);
+    if (this.discoverOpen()) this.closeDiscover();
     this.expanded.set('translations');
     this.filtersOpen.set(true);
     this.lockScroll();
@@ -2557,6 +2617,7 @@ export class LanguagePage {
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.aiSettingsOpen()) this.closeAiSettings();
+    if (this.discoverOpen()) this.closeDiscover();
     this.code.set(code);
     this.name.set(languageDisplayName(code));
     this.ready.set(false);

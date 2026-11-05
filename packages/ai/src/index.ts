@@ -60,6 +60,17 @@ export {
   recommendMetadataFields,
 } from './recommend-metadata';
 
+export {
+  DISCOVER_COUNT,
+  MAX_DISCOVER_EXCLUDE,
+  MAX_DISCOVER_INSTRUCTION,
+  buildDiscoverElementsUserMessage,
+  discoverElements,
+  parseDiscoveredElements,
+  type DiscoverElementsInput,
+  type DiscoverMetadata,
+} from './discover-elements';
+
 export { completeChat, completeJson, runWithKeyFallback } from './complete';
 
 export {
