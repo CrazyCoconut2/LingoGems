@@ -55,7 +55,7 @@ import {
 } from 'ai';
 import { Reveal } from './reveal';
 import { DefinitionGemIcon } from './definition-gem';
-import { TranslationRune } from './translation-rune';
+import { TranslationLantern } from './translation-lantern';
 import { metadataChipColor, type MetadataColorPlace } from './metadata-colors';
 import { gemAccessibleName, gemMeaning } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
@@ -497,7 +497,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [Reveal, ModeIcon, ModeProgress, DefinitionGemIcon, TranslationRune],
+  imports: [Reveal, ModeIcon, ModeProgress, DefinitionGemIcon, TranslationLantern],
   template: `
     <div
       class="backdrop"
@@ -639,7 +639,7 @@ function writeExampleSuggestions(
               [disabled]="busy()"
               (click)="openTranslations()"
             >
-              <app-translation-rune />
+              <app-translation-lantern />
             </button>
             <button
               type="button"
@@ -858,7 +858,7 @@ function writeExampleSuggestions(
                         <ul class="sense-meta">
                           @if (equivalent) {
                             <li class="sense-equivalent">
-                              <app-translation-rune />
+                              <app-translation-lantern />
                               <app-reveal [text]="equivalent" [language]="element().language" />
                             </li>
                           }
@@ -1517,7 +1517,7 @@ function writeExampleSuggestions(
                     [disabled]="!canTranslate()"
                     (click)="translateDraft()"
                   >
-                    <app-translation-rune />
+                    <app-translation-lantern />
                   </button>
                 </div>
                 <textarea
@@ -2818,7 +2818,7 @@ function writeExampleSuggestions(
     }
 
     .icon-btn svg,
-    .icon-btn app-translation-rune {
+    .icon-btn app-translation-lantern {
       display: block;
       width: 1rem;
       height: 1rem;
@@ -3113,7 +3113,7 @@ function writeExampleSuggestions(
       font-weight: 650;
     }
 
-    .sense-equivalent app-translation-rune {
+    .sense-equivalent app-translation-lantern {
       width: 0.95rem;
       height: 0.95rem;
       flex: none;

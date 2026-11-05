@@ -14,7 +14,7 @@ import { ExtractGame } from '../elements/extract-game';
 import { PolishGame } from '../elements/polish-game';
 import { RefineGame } from '../elements/refine-game';
 import { DefinitionGemIcon } from '../elements/definition-gem';
-import { TranslationRune } from '../elements/translation-rune';
+import { TranslationLantern } from '../elements/translation-lantern';
 import {
   gemAccessibleName,
   rememberGemMeanings,
@@ -118,7 +118,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     PolishGame,
     RefineGame,
     DefinitionGemIcon,
-    TranslationRune,
+    TranslationLantern,
     ModeIcon,
     ModeProgress,
     LanguageAiSettings,
@@ -386,7 +386,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                               : element.equivalents.length + ' translations'
                           "
                         >
-                          <app-translation-rune />
+                          <app-translation-lantern />
                           @if (element.equivalents.length > 1) {
                             <span>x{{ element.equivalents.length }}</span>
                           }
@@ -1387,7 +1387,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       line-height: 1;
     }
 
-    .stat app-translation-rune {
+    .stat app-translation-lantern {
       width: 1rem;
       height: 1rem;
       flex: none;
