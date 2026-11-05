@@ -45,6 +45,34 @@ export function definitionGemFallbackName(gem: DefinitionGem): string {
   return `Gem ${index}`;
 }
 
+export const GEM_MEANING_MAX_LENGTH = 40;
+
+/** A meaning for each stone. An empty string means that stone is unlabeled. */
+export type GemMeanings = Record<DefinitionGem, string>;
+
+export function emptyGemMeanings(): GemMeanings {
+  return {
+    'gem-1': '',
+    'gem-2': '',
+    'gem-3': '',
+    'gem-4': '',
+    'gem-5': '',
+  };
+}
+
+/** Keeps the five stones. Missing or non-text values are blank. */
+export function normalizeGemMeanings(value: unknown): GemMeanings {
+  const meanings = emptyGemMeanings();
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return meanings;
+  const source = value as Record<string, unknown>;
+  for (const gem of DEFINITION_GEMS) {
+    const text = source[gem];
+    if (typeof text !== 'string') continue;
+    meanings[gem] = text.replace(/\r?\n/g, ' ').slice(0, GEM_MEANING_MAX_LENGTH);
+  }
+  return meanings;
+}
+
 export type ElementExample = {
   text: string;
   metadata: ElementMetadata;

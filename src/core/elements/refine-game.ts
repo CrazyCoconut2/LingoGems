@@ -37,7 +37,7 @@ import {
 } from 'collection';
 import { ExtractPassage } from './extract-game';
 import { DefinitionGemIcon } from './definition-gem';
-import { gemAccessibleName, gemMeaning } from './gem-meanings';
+import { gemAccessibleName } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
 import { scoreColor } from './mode-palette';
 import { ModeProgress } from './mode-progress';
@@ -168,6 +168,13 @@ type HighlightSource = {
             @for (definition of element().definitions; track $index; let index = $index) {
               @let passage = parsePassage(definition.text);
               <li class="sense">
+                <span
+                  class="sense-gem"
+                  [attr.title]="gemAccessibleName(element().language, definition.gem)"
+                  [attr.aria-label]="gemAccessibleName(element().language, definition.gem)"
+                >
+                  <app-definition-gem [gem]="definition.gem" />
+                </span>
                 @if (passage.text) {
                   <app-extract-passage
                     [definitionIndex]="index"
@@ -188,25 +195,16 @@ type HighlightSource = {
                 @if (passagePick(index, null); as pick) {
                   <ng-container *ngTemplateOutlet="lookup; context: { pick: pick }" />
                 }
-                <ul class="sense-meta">
-                  <li
-                    class="sense-gem"
-                    [attr.aria-label]="
-                      gemMeaning(definition.gem) ? null : gemAccessibleName(definition.gem)
-                    "
-                  >
-                    <app-definition-gem [gem]="definition.gem" />
-                    @if (gemMeaning(definition.gem)) {
-                      {{ gemMeaning(definition.gem) }}
+                @if (entries(definition.metadata).length) {
+                  <ul class="sense-meta">
+                    @for (entry of entries(definition.metadata); track entry.key) {
+                      <li>
+                        <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                        {{ label(entry.value) }}
+                      </li>
                     }
-                  </li>
-                  @for (entry of entries(definition.metadata); track entry.key) {
-                    <li>
-                      <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                      {{ label(entry.value) }}
-                    </li>
-                  }
-                </ul>
+                  </ul>
+                }
                 @if (definitionWarning(definition.text); as warning) {
                   <p class="warning" role="status">{{ warning }}</p>
                 } @else {
@@ -539,10 +537,23 @@ type HighlightSource = {
     }
 
     .sense {
+      position: relative;
       padding: 0.8rem 0.9rem;
       border: 1px solid var(--border);
       border-radius: var(--radius);
       background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
+    }
+
+    .sense-gem {
+      position: absolute;
+      top: 0.9rem;
+      right: 0.9rem;
+      width: 1.15rem;
+      height: 1.15rem;
+    }
+
+    .sense:has(.sense-gem) > app-extract-passage {
+      padding-right: 1.55rem;
     }
 
     .equivalents {
@@ -572,16 +583,6 @@ type HighlightSource = {
       font-size: 0.72rem;
       line-height: 1;
       white-space: nowrap;
-    }
-
-    .sense-gem {
-      gap: 0.28rem;
-    }
-
-    .sense-gem app-definition-gem {
-      width: 1.15rem;
-      height: 1.15rem;
-      flex: none;
     }
 
     .sense-meta-key {
@@ -786,7 +787,6 @@ export class RefineGame {
   readonly addPrepared = output<PreparedElement>();
 
   readonly modeLabel = elementModeLabel;
-  readonly gemMeaning = gemMeaning;
   readonly gemAccessibleName = gemAccessibleName;
   readonly answerMax = ANSWER_MAX;
 

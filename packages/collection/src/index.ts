@@ -12,6 +12,7 @@ export {
   readLanguages,
   replaceLanguageMetadata,
   saveLanguage,
+  saveLanguageGemMeanings,
   type StoredLanguage,
 } from './languages/language-store';
 
@@ -21,6 +22,9 @@ export {
   DEFAULT_DEFINITION_GEM,
   DEFINITION_GEMS,
   definitionGemFallbackName,
+  emptyGemMeanings,
+  GEM_MEANING_MAX_LENGTH,
+  normalizeGemMeanings,
   displayTitle,
   readElements,
   assignEquivalent,
@@ -33,6 +37,7 @@ export {
   type ElementDefinition,
   type ElementForm,
   type DefinitionGem,
+  type GemMeanings,
   type ParsedPassage,
   type PassageTranslation,
   type ElementEquivalent,

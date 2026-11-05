@@ -8,6 +8,11 @@ import {
   type ElementMetadataIndexes,
   type ElementMetadataVariability,
 } from '../elements/metadata-variability';
+import {
+  emptyGemMeanings,
+  normalizeGemMeanings,
+  type GemMeanings,
+} from '../elements/element-store';
 import { isLearnableLanguage, type LearnableLanguage } from './catalog';
 
 export type StoredLanguage = {
@@ -19,6 +24,8 @@ export type StoredLanguage = {
   exampleMetadata: ElementMetadataVariability;
   /** Every form metadata value seen in this language. */
   formMetadata: ElementMetadataVariability;
+  /** What each stone means in this language. Blank stones stay unlabeled. */
+  gemMeanings: GemMeanings;
 };
 
 export async function readLanguages(): Promise<StoredLanguage[]> {
@@ -53,6 +60,7 @@ export async function addLanguage(code: string): Promise<StoredLanguage> {
     code: normalized,
     createdAt: Date.now(),
     ...emptyMetadataIndexes(),
+    gemMeanings: emptyGemMeanings(),
   };
   await putLanguage(created);
   return created;
@@ -104,6 +112,15 @@ export async function saveLanguage(language: StoredLanguage): Promise<void> {
   await putLanguage(normalized);
 }
 
+/** Writes this language's stone meanings without touching its other fields. */
+export async function saveLanguageGemMeanings(code: string, meanings: GemMeanings): Promise<void> {
+  const language = await getLanguage(code.trim().toLowerCase());
+  if (!language) return;
+  const gemMeanings = normalizeGemMeanings(meanings);
+  if (sameGemMeanings(language.gemMeanings, gemMeanings)) return;
+  await putLanguage({ ...language, gemMeanings });
+}
+
 async function getLanguage(code: string): Promise<StoredLanguage | null> {
   if (!isLearnableLanguage(code) || typeof indexedDB === 'undefined') return null;
   const db = await openDatabase();
@@ -129,13 +146,23 @@ function normalizeLanguage(raw: unknown): StoredLanguage | null {
     definitionMetadata: normalizeMetadataVariability(source.definitionMetadata),
     exampleMetadata: normalizeMetadataVariability(source.exampleMetadata),
     formMetadata: normalizeMetadataVariability(source.formMetadata),
+    gemMeanings: normalizeGemMeanings(source.gemMeanings),
   };
+}
+
+function sameGemMeanings(left: GemMeanings, right: GemMeanings): boolean {
+  return (
+    left['gem-1'] === right['gem-1'] &&
+    left['gem-2'] === right['gem-2'] &&
+    left['gem-3'] === right['gem-3'] &&
+    left['gem-4'] === right['gem-4'] &&
+    left['gem-5'] === right['gem-5']
+  );
 }
 
 function withMetadata(language: StoredLanguage, indexes: ElementMetadataIndexes): StoredLanguage {
   return {
-    code: language.code,
-    createdAt: language.createdAt,
+    ...language,
     definitionMetadata: indexes.definitionMetadata,
     exampleMetadata: indexes.exampleMetadata,
     formMetadata: indexes.formMetadata,

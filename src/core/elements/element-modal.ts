@@ -736,13 +736,13 @@ function writeExampleSuggestions(
                             class="gem-choice"
                             [class.selected]="suggestionGem(suggestion.text) === gem"
                             [attr.aria-pressed]="suggestionGem(suggestion.text) === gem"
-                            [attr.aria-label]="gemAccessibleName(gem)"
+                            [attr.aria-label]="gemAccessibleName(element().language, gem)"
                             [disabled]="busy()"
                             (click)="chooseSuggestionGem(suggestion.text, gem)"
                           >
                             <app-definition-gem [gem]="gem" />
-                            @if (gemMeaning(gem)) {
-                              <span>{{ gemMeaning(gem) }}</span>
+                            @if (gemMeaning(element().language, gem)) {
+                              <span>{{ gemMeaning(element().language, gem) }}</span>
                             }
                           </button>
                         }
@@ -802,6 +802,13 @@ function writeExampleSuggestions(
                 <li class="sense">
                   <div class="sense-main">
                     <div class="sense-copy">
+                      <span
+                        class="sense-gem"
+                        [attr.title]="gemAccessibleName(element().language, definition.gem)"
+                        [attr.aria-label]="gemAccessibleName(element().language, definition.gem)"
+                      >
+                        <app-definition-gem [gem]="definition.gem" />
+                      </span>
                       @let passage = parsePassage(definition.text);
                       @if (passage.text) {
                         <p class="passage sense-selectable" [attr.data-definition-index]="index">
@@ -851,30 +858,29 @@ function writeExampleSuggestions(
                       }
                       @let equivalent = equivalentText(definition);
                       @let meta = entries(definition.metadata);
-                      <ul class="sense-meta">
-                        @if (equivalent) {
-                          <li class="sense-equivalent">
-                            <app-reveal [text]="equivalent" [language]="element().language" />
-                          </li>
-                        }
-                        <li
-                          class="sense-gem"
-                          [attr.aria-label]="
-                            gemMeaning(definition.gem) ? null : gemAccessibleName(definition.gem)
-                          "
-                        >
-                          <app-definition-gem [gem]="definition.gem" />
-                          @if (gemMeaning(definition.gem)) {
-                            {{ gemMeaning(definition.gem) }}
+                      @if (equivalent || meta.length) {
+                        <ul class="sense-meta">
+                          @if (equivalent) {
+                            <li class="sense-equivalent">
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m5 8 6 6" />
+                                <path d="m4 14 6-6 2-3" />
+                                <path d="M2 5h12" />
+                                <path d="M7 2h1" />
+                                <path d="m22 22-5-10-5 10" />
+                                <path d="M14 18h6" />
+                              </svg>
+                              <app-reveal [text]="equivalent" [language]="element().language" />
+                            </li>
                           }
-                        </li>
-                        @for (entry of meta; track entry.key) {
-                          <li>
-                            <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                            {{ label(entry.value) }}
-                          </li>
-                        }
-                      </ul>
+                          @for (entry of meta; track entry.key) {
+                            <li>
+                              <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                              {{ label(entry.value) }}
+                            </li>
+                          }
+                        </ul>
+                      }
                     </div>
                   </div>
                   <div class="item-actions">
@@ -1613,13 +1619,13 @@ function writeExampleSuggestions(
                         class="gem-choice"
                         [class.selected]="gemDraft() === gem"
                         [attr.aria-pressed]="gemDraft() === gem"
-                        [attr.aria-label]="gemAccessibleName(gem)"
+                        [attr.aria-label]="gemAccessibleName(element().language, gem)"
                         [disabled]="busy()"
                         (click)="gemDraft.set(gem)"
                       >
                         <app-definition-gem [gem]="gem" />
-                        @if (gemMeaning(gem)) {
-                          <span>{{ gemMeaning(gem) }}</span>
+                        @if (gemMeaning(element().language, gem)) {
+                          <span>{{ gemMeaning(element().language, gem) }}</span>
                         }
                       </button>
                     }
@@ -3053,15 +3059,16 @@ function writeExampleSuggestions(
       font-weight: 600;
     }
 
-    .sense-gem {
-      align-items: center;
-      gap: 0.28rem;
+    .sense-copy:has(.sense-gem) > .passage {
+      padding-right: 1.55rem;
     }
 
-    .sense-gem app-definition-gem {
+    .sense-gem {
+      position: absolute;
+      top: 0.12rem;
+      right: 0;
       width: 1.15rem;
       height: 1.15rem;
-      flex: none;
     }
 
     .gem-field {
@@ -3108,10 +3115,22 @@ function writeExampleSuggestions(
     }
 
     .sense-meta li.sense-equivalent {
+      gap: 0.28rem;
       border-color: rgba(var(--accent-rgb), 0.45);
       background: rgba(var(--accent-rgb), 0.12);
       color: var(--accent-text);
       font-weight: 650;
+    }
+
+    .sense-equivalent svg {
+      width: 0.85rem;
+      height: 0.85rem;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .suggestion .sense-meta li {
@@ -3130,6 +3149,7 @@ function writeExampleSuggestions(
     }
 
     .sense-copy {
+      position: relative;
       flex: 1;
       min-width: 0;
       display: flex;

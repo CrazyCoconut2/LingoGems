@@ -14,7 +14,7 @@ import { ExtractGame } from '../elements/extract-game';
 import { PolishGame } from '../elements/polish-game';
 import { RefineGame } from '../elements/refine-game';
 import { DefinitionGemIcon } from '../elements/definition-gem';
-import { gemAccessibleName } from '../elements/gem-meanings';
+import { gemAccessibleName, rememberGemMeanings, takeLegacyGemMeanings } from '../elements/gem-meanings';
 import { ModeIcon } from '../elements/mode-icon';
 import { ModeProgress } from '../elements/mode-progress';
 import { scoreColor } from '../elements/mode-palette';
@@ -39,6 +39,7 @@ import {
   elementMatchesPrefix,
   elementModeLabel,
   elementPrefixSearch,
+  emptyGemMeanings,
   emptyMetadataIndexes,
   formatElementCountRange,
   formatMetadataFilter,
@@ -56,6 +57,7 @@ import {
   readLanguages,
   replaceLanguageMetadata,
   saveElement,
+  saveLanguageGemMeanings,
   setCountRangeBound,
   stepCountRange,
   type DefinitionGem,
@@ -384,7 +386,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       @let groups = definitionCounts(element.definitions);
                       <span class="stat stones" [attr.aria-label]="definitionsLabel(groups)">
                         @for (group of groups; track group.gem) {
-                          <span class="stone" [attr.title]="gemAccessibleName(group.gem)">
+                          <span class="stone" [attr.title]="gemAccessibleName(code(), group.gem)">
                             <app-definition-gem [gem]="group.gem" />
                             @if (group.count > 1) {
                               <span>x{{ group.count }}</span>
@@ -2116,7 +2118,7 @@ export class LanguagePage {
     if (groups.length === 0) return 'No definitions';
     return groups
       .map((group) => {
-        const name = gemAccessibleName(group.gem);
+        const name = gemAccessibleName(this.code(), group.gem);
         return group.count === 1 ? `1 ${name}` : `${group.count} ${name}`;
       })
       .join(', ');
@@ -2532,6 +2534,16 @@ export class LanguagePage {
           }
         : emptyMetadataIndexes(),
     );
+    const code = language?.code ?? this.code();
+    let meanings = language?.gemMeanings ?? emptyGemMeanings();
+    if (language && !Object.values(meanings).some((text) => text.trim())) {
+      const legacy = takeLegacyGemMeanings();
+      if (legacy) {
+        meanings = legacy;
+        void saveLanguageGemMeanings(language.code, meanings);
+      }
+    }
+    rememberGemMeanings(code, meanings);
   }
 
   private reconcileOpen(): void {

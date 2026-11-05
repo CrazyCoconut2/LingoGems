@@ -1,4 +1,16 @@
 import { Component, effect, input, output, signal } from '@angular/core';
+import {
+  DEFINITION_GEMS,
+  definitionGemFallbackName,
+  emptyGemMeanings,
+  GEM_MEANING_MAX_LENGTH,
+  readLanguage,
+  saveLanguageGemMeanings,
+  type DefinitionGem,
+  type GemMeanings,
+} from 'collection';
+import { DefinitionGemIcon } from '../elements/definition-gem';
+import { rememberGemMeanings } from '../elements/gem-meanings';
 import { readBlurTranslations, writeBlurTranslations } from '../elements/blur-translations';
 import { MAX_STEP_GOAL, MIN_STEP_GOAL, currentStepGoal, writeStepGoal } from '../elements/step-goal';
 import {
@@ -28,6 +40,7 @@ import {
 
 @Component({
   selector: 'app-language-ai-settings',
+  imports: [DefinitionGemIcon],
   template: `
     <div class="backdrop" (click)="onBackdrop($event)">
       <section
@@ -77,6 +90,25 @@ import {
               />
               Blur translations
             </label>
+          </section>
+
+          <section class="metadata" aria-label="Gems">
+            <div class="copy">
+              <h3>Gems</h3>
+              <p>Each stone can carry a meaning in this language. Leave one blank and it stays unlabeled.</p>
+            </div>
+            @for (gem of gems; track gem) {
+              <label class="gem-row">
+                <app-definition-gem [gem]="gem" />
+                <input
+                  type="text"
+                  [attr.aria-label]="gemFallbackName(gem) + ' meaning'"
+                  [attr.maxlength]="gemMeaningMax"
+                  [attr.value]="gemMeanings()[gem]"
+                  (input)="setGemMeaning(gem, $event)"
+                />
+              </label>
+            }
           </section>
 
           <section class="metadata" aria-label="Definition metadata">
@@ -410,6 +442,22 @@ import {
       gap: 0.9rem;
     }
 
+    .gem-row {
+      display: grid;
+      grid-template-columns: 1.35rem minmax(0, 1fr);
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .gem-row app-definition-gem {
+      width: 1.35rem;
+      height: 1.35rem;
+    }
+
+    .gem-row input {
+      min-width: 0;
+    }
+
     .section-head {
       display: flex;
       align-items: flex-start;
@@ -592,6 +640,10 @@ export class LanguageAiSettings {
   readonly definitionExtraFields = signal(false);
   readonly exampleExtraFields = signal(false);
   readonly blurTranslations = signal(true);
+  readonly gems = DEFINITION_GEMS;
+  readonly gemFallbackName = definitionGemFallbackName;
+  readonly gemMeaningMax = GEM_MEANING_MAX_LENGTH;
+  readonly gemMeanings = signal<GemMeanings>(emptyGemMeanings());
   readonly recommendingDefinitions = signal(false);
   readonly recommendingExamples = signal(false);
   readonly definitionSuggestions = signal<AiMetadataField[]>([]);
@@ -600,6 +652,8 @@ export class LanguageAiSettings {
   readonly exampleRecommendError = signal('');
   private definitionRecommendJob = 0;
   private exampleRecommendJob = 0;
+  private gemLoad = 0;
+  private gemEdited = false;
 
   constructor() {
     effect(() => {
@@ -612,11 +666,33 @@ export class LanguageAiSettings {
       this.exampleExtraFields.set(readExampleExtraFields(language));
       this.blurTranslations.set(readBlurTranslations(language));
       this.stepGoal.set(currentStepGoal(language));
+      this.gemEdited = false;
+      void this.loadGemMeanings(language);
       this.definitionSuggestions.set([]);
       this.exampleSuggestions.set([]);
       this.definitionRecommendError.set('');
       this.exampleRecommendError.set('');
     });
+  }
+
+  setGemMeaning(gem: DefinitionGem, event: Event): void {
+    const raw = event.target instanceof HTMLInputElement ? event.target.value : '';
+    const text = raw.replace(/\r?\n/g, ' ').slice(0, GEM_MEANING_MAX_LENGTH);
+    const next = { ...this.gemMeanings(), [gem]: text };
+    this.gemEdited = true;
+    this.gemMeanings.set(next);
+    const code = this.language();
+    rememberGemMeanings(code, next);
+    void saveLanguageGemMeanings(code, next);
+  }
+
+  private async loadGemMeanings(language: string): Promise<void> {
+    const job = ++this.gemLoad;
+    const record = await readLanguage(language);
+    if (job !== this.gemLoad || this.language() !== language || this.gemEdited) return;
+    const meanings = record?.gemMeanings ?? emptyGemMeanings();
+    this.gemMeanings.set(meanings);
+    rememberGemMeanings(language, meanings);
   }
 
   onBackdrop(event: MouseEvent): void {
