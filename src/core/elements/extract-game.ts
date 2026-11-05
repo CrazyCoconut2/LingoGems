@@ -181,7 +181,7 @@ export class ExtractPassage {
   }
 }
 
-/** Extract: guess one equivalent per definition, then the saved equivalent is shown. */
+/** Sieving: guess one equivalent per definition, then the saved equivalent is shown. */
 @Component({
   selector: 'app-extract-game',
   imports: [ExtractPassage, DefinitionGemIcon, ModeIcon, ModeProgress, NgTemplateOutlet, Reveal],
@@ -190,7 +190,7 @@ export class ExtractPassage {
       class="backdrop"
       role="dialog"
       aria-modal="true"
-      [attr.aria-label]="'Extract, ' + shownTitle()"
+      [attr.aria-label]="modeLabel(1) + ', ' + shownTitle()"
       (click)="onBackdrop($event)"
     >
       <div class="panel">

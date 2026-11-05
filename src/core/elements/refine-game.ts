@@ -75,7 +75,7 @@ type HighlightSource = {
   style: HighlightStyle;
 };
 
-/** Refine: recall the element or any form. An example blank grades that exact surface. */
+/** Pickaxing: recall the element or any form. An example blank grades that exact surface. */
 @Component({
   selector: 'app-refine-game',
   imports: [ExtractPassage, DefinitionGemIcon, ModeIcon, ModeProgress, NgTemplateOutlet, Reveal],
@@ -84,7 +84,7 @@ type HighlightSource = {
       class="backdrop"
       role="dialog"
       aria-modal="true"
-      [attr.aria-label]="recalled() ? 'Refine, ' + shownTitle() : 'Refine'"
+      [attr.aria-label]="recalled() ? modeLabel(2) + ', ' + shownTitle() : modeLabel(2)"
       (click)="onBackdrop($event)"
     >
       <div class="panel">

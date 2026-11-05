@@ -72,7 +72,7 @@ type HighlightSource = {
   style: HighlightStyle;
 };
 
-/** Polish: recall each definition. A model scores how close the meaning is. */
+/** Drilling: recall each definition. A model scores how close the meaning is. */
 @Component({
   selector: 'app-polish-game',
   imports: [ExtractPassage, ModeIcon, ModeProgress, NgTemplateOutlet, Reveal],
@@ -81,7 +81,7 @@ type HighlightSource = {
       class="backdrop"
       role="dialog"
       aria-modal="true"
-      [attr.aria-label]="'Polish, ' + shownTitle()"
+      [attr.aria-label]="modeLabel(3) + ', ' + shownTitle()"
       (click)="onBackdrop($event)"
     >
       <div class="panel">

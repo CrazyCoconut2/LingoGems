@@ -2343,7 +2343,7 @@ function writeExampleSuggestions(
                     +
                   </button>
                 </div>
-                <div class="mode-sequence" role="group" aria-label="Modes, from Extract to Polish">
+                <div class="mode-sequence" role="group" [attr.aria-label]="'Modes, from ' + modeLabel(1) + ' to ' + modeLabel(3)">
                   @for (step of modes; track step) {
                     @if (!$first) {
                       <span class="mode-next" aria-hidden="true">

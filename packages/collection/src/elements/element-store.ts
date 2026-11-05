@@ -116,13 +116,13 @@ export function formTexts(forms: readonly ElementForm[]): string[] {
   return forms.map((form) => form.text);
 }
 
-/** 1 is Extract, 2 is Refine, and 3 is Polish. */
+/** 1 is Sieving, 2 is Pickaxing, and 3 is Drilling. Yield rises in that order. */
 export type ElementMode = 1 | 2 | 3;
 
 const ELEMENT_MODE_LABELS: Record<ElementMode, string> = {
-  1: 'Extract',
-  2: 'Refine',
-  3: 'Polish',
+  1: 'Sieving',
+  2: 'Pickaxing',
+  3: 'Drilling',
 };
 
 export function elementModeLabel(mode: ElementMode): string {
@@ -143,7 +143,7 @@ export type StoredElement = {
   /** Custom underline style. Null is solid. */
   highlightStyle: HighlightStyle | null;
   mode: ElementMode;
-  /** Succeeded exercises for Extract, Refine, and Polish. Missing counts are 0. */
+  /** Succeeded exercises for Sieving, Pickaxing, and Drilling. Missing counts are 0. */
   modeProgress: ElementModeProgress;
   /** Distinct metadata values across this element's definitions. */
   definitionMetadata: ElementMetadataVariability;
@@ -297,7 +297,7 @@ function appearanceOf(source: Partial<StoredElement> | null | undefined): {
   };
 }
 
-/** Missing or unknown values are Extract. */
+/** Missing or unknown values are Sieving. */
 export function normalizeElementMode(value: unknown): ElementMode {
   const mode = Math.round(Number(value));
   return mode === 2 || mode === 3 ? mode : 1;

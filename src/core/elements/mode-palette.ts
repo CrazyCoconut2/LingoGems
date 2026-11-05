@@ -54,7 +54,7 @@ function readStored(): Record<ElementMode, ModePalette> {
   return palettes;
 }
 
-/** Start and end colors for Extract, Refine, and Polish. Later edits are watched. */
+/** Start and end colors for Sieving, Pickaxing, and Drilling. Later edits are watched. */
 export function readModePalettes(): Record<ElementMode, ModePalette> {
   revision();
   return readStored();
