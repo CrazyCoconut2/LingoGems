@@ -40,6 +40,8 @@ const FORM_METADATA_KEYS = ['tense', 'person', 'number', 'mood'] as const;
 const FREQUENCY_RULE =
   '- frequency is required on every sense and is exactly one of "common", "uncommon", "rare", "archaic", or "obsolete". common is everyday, uncommon is known but not everyday, rare is seldom met, archaic is old and out of normal use, obsolete is gone from living use. Write that word in English';
 
+const NO_SELF_MENTION = '- A gloss MUST NOT contain the lemma or any inflected form of the lemma';
+
 const FORM_SHAPE = `{"text":"<surface form>","metadata":{"tense":"<in writeFieldsIn>","person":"<in writeFieldsIn>","number":"<in writeFieldsIn>","mood":"<in writeFieldsIn>"}}`;
 
 export function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
@@ -54,6 +56,7 @@ export function definitionsSystemPrompt(fields: readonly AiMetadataField[], extr
     '- Do not repeat a meaning or a gloss already listed in existingDefinitions. Those are senses already kept, and they include no forms',
     `- Return at most ${MAX_SENSES} senses`,
     '- One short dictionary-style gloss per sense',
+    NO_SELF_MENTION,
     '- Do not include examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in every gloss and English gloss',
@@ -81,6 +84,7 @@ export function elementFromSelectionSystemPrompt(
     '- One sense per distinct meaning of that lemma',
     `- Return at most ${MAX_SENSES} senses`,
     '- One short dictionary-style gloss per sense',
+    NO_SELF_MENTION,
     '- Do not include examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in the lemma, every gloss, and every English gloss',
@@ -108,6 +112,7 @@ export function definitionFromExampleSystemPrompt(
     '- Do not define a different meaning',
     '- Do not repeat a meaning or a gloss already listed in existingDefinitions',
     '- One short dictionary-style gloss',
+    NO_SELF_MENTION,
     '- Do not include the example, other examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in the gloss and the English gloss',

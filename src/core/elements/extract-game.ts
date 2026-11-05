@@ -17,7 +17,9 @@ import {
 } from '@angular/core';
 import { generateElementFromSelection, generateExamples } from 'ai';
 import {
+  definitionEligibleForGames,
   definitionFrequencyLabel,
+  definitionSelfMentionWarningFor,
   displayTitle,
   elementModeLabel,
   formTexts,
@@ -253,110 +255,118 @@ class ExtractPassage {
                     </li>
                   }
                 </ul>
-                <label class="field-label" [attr.for]="'extract-equivalent-' + index">
-                  Equivalent
-                </label>
-                <div class="guess">
-                  <input
-                    [id]="'extract-equivalent-' + index"
-                    type="text"
-                    autocomplete="off"
-                    [value]="draftAt(index)"
-                    [attr.maxlength]="equivalentMax"
-                    [disabled]="busy()"
-                    [readOnly]="guessSubmitted(index)"
-                    placeholder="Write the equivalent"
-                    (input)="onDraft(index, $event)"
-                    (keydown.enter)="submitGuess(index, $event)"
-                  />
-                  @if (!guessSubmitted(index)) {
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      [disabled]="busy() || !draftAt(index).trim()"
-                      (click)="submitGuess(index)"
-                    >
-                      Submit
-                    </button>
-                  }
-                </div>
-                @if (shownEquivalent(index); as answer) {
-                  <p class="answer">{{ answer }}</p>
-                }
-                <button
-                  type="button"
-                  class="example-btn"
-                  aria-label="Example"
-                  title="Example"
-                  [disabled]="aiBusy() || !passage.text"
-                  [attr.aria-busy]="askingExample() === index ? true : null"
-                  (click)="generateExample(index)"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                @if (definitionWarning(definition.text); as warning) {
+                  <p class="warning" role="status">{{ warning }}</p>
+                } @else {
+                  <label class="field-label" [attr.for]="'extract-equivalent-' + index">
+                    Equivalent
+                  </label>
+                  <div class="guess">
+                    <input
+                      [id]="'extract-equivalent-' + index"
+                      type="text"
+                      autocomplete="off"
+                      [value]="draftAt(index)"
+                      [attr.maxlength]="equivalentMax"
+                      [disabled]="busy()"
+                      [readOnly]="guessSubmitted(index)"
+                      placeholder="Write the equivalent"
+                      (input)="onDraft(index, $event)"
+                      (keydown.enter)="submitGuess(index, $event)"
                     />
-                    <path
-                      d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                    />
-                  </svg>
-                </button>
-                @if (exampleList(index).length) {
-                  <ul class="examples">
-                    @for (sentence of exampleList(index); track $index; let exampleIndex = $index) {
-                      <li>
-                        <div class="example-quote">
-                          <app-extract-passage
-                            [definitionIndex]="index"
-                            [exampleIndex]="exampleIndex"
-                            [parts]="highlightPassage(sentence)"
-                            (visit)="visitHighlight($event)"
-                            (collide)="collision.set($event)"
-                          />
-                        </div>
-                        @if (passagePick(index, exampleIndex); as pick) {
-                          <ng-container *ngTemplateOutlet="lookup; context: { pick: pick }" />
-                        }
-                      </li>
-                    }
-                  </ul>
-                }
-                @if (formTexts(definition.forms); as forms) {
-                  @if (forms.length) {
-                    <section class="group">
+                    @if (!guessSubmitted(index)) {
                       <button
                         type="button"
-                        class="section-title forms-fold"
-                        [attr.aria-expanded]="formsOpen(index)"
-                        (click)="toggleForms(index)"
+                        class="btn btn-secondary"
+                        [disabled]="busy() || !draftAt(index).trim()"
+                        (click)="submitGuess(index)"
                       >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
-                          />
-                          <path d="m22 12.5-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5" />
-                          <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
-                        </svg>
-                        Forms
-                        <svg
-                          class="fold-chevron"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                          [class.open]="formsOpen(index)"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
+                        Submit
                       </button>
-                      @if (formsOpen(index)) {
-                        <ul class="forms">
-                          @for (form of forms; track form) {
-                            <li>
-                              <span class="form-chip">{{ form }}</span>
-                            </li>
+                    }
+                  </div>
+                  @if (shownEquivalent(index); as answer) {
+                    <p class="answer">{{ answer }}</p>
+                  }
+                  <button
+                    type="button"
+                    class="example-btn"
+                    aria-label="Example"
+                    title="Example"
+                    [disabled]="aiBusy() || !passage.text"
+                    [attr.aria-busy]="askingExample() === index ? true : null"
+                    (click)="generateExample(index)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                      />
+                      <path
+                        d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                      />
+                    </svg>
+                  </button>
+                  @if (exampleList(index).length) {
+                    <ul class="examples">
+                      @for (
+                        sentence of exampleList(index);
+                        track $index;
+                        let exampleIndex = $index
+                      ) {
+                        <li>
+                          <div class="example-quote">
+                            <app-extract-passage
+                              [definitionIndex]="index"
+                              [exampleIndex]="exampleIndex"
+                              [parts]="highlightPassage(sentence)"
+                              (visit)="visitHighlight($event)"
+                              (collide)="collision.set($event)"
+                            />
+                          </div>
+                          @if (passagePick(index, exampleIndex); as pick) {
+                            <ng-container *ngTemplateOutlet="lookup; context: { pick: pick }" />
                           }
-                        </ul>
+                        </li>
                       }
-                    </section>
+                    </ul>
+                  }
+                  @if (formTexts(definition.forms); as forms) {
+                    @if (forms.length) {
+                      <section class="group">
+                        <button
+                          type="button"
+                          class="section-title forms-fold"
+                          [attr.aria-expanded]="formsOpen(index)"
+                          (click)="toggleForms(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
+                            />
+                            <path d="m22 12.5-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5" />
+                            <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
+                          </svg>
+                          Forms
+                          <svg
+                            class="fold-chevron"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                            [class.open]="formsOpen(index)"
+                          >
+                            <path d="m6 9 6 6 6-6" />
+                          </svg>
+                        </button>
+                        @if (formsOpen(index)) {
+                          <ul class="forms">
+                            @for (form of forms; track form) {
+                              <li>
+                                <span class="form-chip">{{ form }}</span>
+                              </li>
+                            }
+                          </ul>
+                        }
+                      </section>
+                    }
                   }
                 }
               </li>
@@ -531,7 +541,8 @@ class ExtractPassage {
       padding: 1rem 1.15rem 1.25rem;
     }
 
-    .error {
+    .error,
+    .warning {
       color: var(--danger);
       font-size: 0.82rem;
     }
@@ -860,7 +871,11 @@ export class ExtractGame {
     const progress = Math.min(goal, Math.max(0, element.modeProgress[1] ?? 0));
     if (progress >= goal) return false;
     const drafts = this.drafts();
-    return element.definitions.every((_, index) => (drafts[index] ?? '').trim().length > 0);
+    const playable = element.definitions
+      .map((definition, index) => ({ definition, index }))
+      .filter(({ definition }) => definitionEligibleForGames(definition.text, element));
+    if (!playable.length) return false;
+    return playable.every(({ index }) => (drafts[index] ?? '').trim().length > 0);
   });
 
   private readonly host = inject(ElementRef<HTMLElement>);
@@ -911,6 +926,10 @@ export class ExtractGame {
   }
 
   readonly parsePassage = parsePassage;
+
+  definitionWarning(text: string): string {
+    return definitionSelfMentionWarningFor(text, this.element());
+  }
 
   shownTitle(title = this.element().title): string {
     return displayTitle(title, this.element().language);

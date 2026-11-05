@@ -49,6 +49,13 @@ export {
 export { isValidForm } from './elements/forms';
 
 export {
+  definitionEligibleForGames,
+  definitionSelfMentionWarningFor,
+  definitionSelfMentions,
+  elementHasInvalidDefinition,
+} from './elements/definition-eligibility';
+
+export {
   highlightDefinitionPassage,
   type DefinitionHighlightMatch,
   type DefinitionHighlightPart,

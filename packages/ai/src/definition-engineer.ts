@@ -64,6 +64,7 @@ Rules:
 - When words is present, add how the lemma relates to every word in words. The phrase MUST contain every word in words as its own word, exactly as given
 - When words is absent, follow definitionInstruction
 - definitionInstruction, when present, guides the wording. It does not override the other rules
+- The phrase MUST NOT contain the lemma or any inflected form of the lemma
 - Do not add citations or bracket tags such as [en:…]
 - Keep the phrase at most ${MAX_DEFINITION_WORDING} characters
 - Spelling MUST be correct

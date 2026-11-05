@@ -24,8 +24,10 @@ import {
   compareElements,
   DEFAULT_ELEMENT_SORT,
   DEFINITION_FREQUENCIES,
+  definitionEligibleForGames,
   definitionFrequencyLabel,
   displayTitle,
+  elementHasInvalidDefinition,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
   elementMatchesCountRanges,
@@ -282,14 +284,29 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     </button>
                   } @else {
                     <button type="button" class="element-open" (click)="openElement(element.id)">
-                      <span class="title">
-                        @for (part of highlight(element.title); track $index) {
-                          @if (part.hit) {
-                            <mark class="hit">{{ part.text }}</mark>
-                          } @else {
-                            <span>{{ part.text }}</span>
-                          }
+                      <span class="title-line">
+                        @if (needsDefinitionEdit(element)) {
+                          <span
+                            class="definition-flag"
+                            role="img"
+                            aria-label="A definition needs editing"
+                            title="A definition needs editing"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path class="pole" d="M6 21V3.5" />
+                              <path class="cloth" d="M6 4.2h11.2L14.6 8.4 17.2 12.6H6z" />
+                            </svg>
+                          </span>
                         }
+                        <span class="title">
+                          @for (part of highlight(element.title); track $index) {
+                            @if (part.hit) {
+                              <mark class="hit">{{ part.text }}</mark>
+                            } @else {
+                              <span>{{ part.text }}</span>
+                            }
+                          }
+                        </span>
                       </span>
                     </button>
                     <div class="mode-stack">
@@ -1078,6 +1095,38 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       cursor: pointer;
     }
 
+    .title-line {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      min-width: 0;
+    }
+
+    .definition-flag {
+      display: grid;
+      flex: none;
+      width: 0.95rem;
+      height: 0.95rem;
+      color: var(--danger);
+    }
+
+    .definition-flag svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .definition-flag .pole {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+    }
+
+    .definition-flag .cloth {
+      fill: currentColor;
+    }
+
     .title {
       min-width: 0;
       font-size: 1.05rem;
@@ -1585,6 +1634,7 @@ export class LanguagePage {
 
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly modeLabel = elementModeLabel;
+  readonly needsDefinitionEdit = elementHasInvalidDefinition;
   readonly frequencyLabel = definitionFrequencyLabel;
   readonly readStepGoal = readStepGoal;
   readonly asking = signal(false);
@@ -1654,12 +1704,15 @@ export class LanguagePage {
     });
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
   });
+  readonly playable = computed(() =>
+    this.visible().filter((element) => !elementHasInvalidDefinition(element)),
+  );
   readonly shown = computed(() => {
     const visible = this.visible();
     if (!this.playing()) return visible;
     const dismissed = this.dismissed();
     const rank = new Map(this.playOrder().map((id, index) => [id, index]));
-    return visible
+    return this.playable()
       .filter((element) => !dismissed.has(element.id))
       .slice()
       .sort((left, right) => {
@@ -1674,7 +1727,8 @@ export class LanguagePage {
   });
   readonly emptyMessage = computed(() => {
     if (!this.elements().length) return 'No elements yet.';
-    if (this.playing() && this.visible().length > 0) return 'Nothing left this round.';
+    if (this.playing() && this.playable().length > 0) return 'Nothing left this round.';
+    if (this.playing() && this.visible().length > 0) return 'No elements ready for games.';
     return 'No matching elements.';
   });
 
@@ -1702,7 +1756,7 @@ export class LanguagePage {
       const dismissed = this.dismissed();
       const order = this.playOrder();
       const known = new Set([...order, ...dismissed]);
-      const newcomers = this.visible()
+      const newcomers = this.playable()
         .map((element) => element.id)
         .filter((id) => !known.has(id));
       if (newcomers.length === 0) return;
@@ -1931,7 +1985,10 @@ export class LanguagePage {
     if (!this.playing() || !id) return;
     this.dismissCard(id);
     const element = this.elements().find((item) => item.id === id);
-    if (element?.mode === 1 && element.definitions.length > 0) {
+    if (
+      element?.mode === 1 &&
+      element.definitions.some((definition) => definitionEligibleForGames(definition.text, element))
+    ) {
       this.extractId.set(id);
       return;
     }
@@ -1957,7 +2014,7 @@ export class LanguagePage {
     this.commitSearch();
     this.sortOpen.set(false);
     this.dismissed.set(new Set());
-    this.playOrder.set(shuffleIds(this.visible().map((element) => element.id)));
+    this.playOrder.set(shuffleIds(this.playable().map((element) => element.id)));
     this.playing.set(true);
   }
 

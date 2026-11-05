@@ -14,6 +14,7 @@ import {
 import {
   assignEquivalent,
   definitionFrequencyLabel,
+  definitionSelfMentionWarningFor,
   DEFINITION_FREQUENCIES,
   deleteElement,
   displayTitle,
@@ -714,6 +715,9 @@ function writeExampleSuggestions(
                       @if (passage.text) {
                         <p class="passage">{{ passage.text }}</p>
                       }
+                      @if (definitionWarning(suggestion.text); as warning) {
+                        <p class="warning" role="status">{{ warning }}</p>
+                      }
                       @if (passage.translations.length) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
@@ -814,6 +818,9 @@ function writeExampleSuggestions(
                             }
                           }
                         </p>
+                      }
+                      @if (definitionWarning(definition.text); as warning) {
+                        <p class="warning" role="status">{{ warning }}</p>
                       }
                       @if (passage.translations.length) {
                         <ul class="equivalents">
@@ -1477,6 +1484,9 @@ function writeExampleSuggestions(
                 [value]="textDraft()"
                 (input)="textDraft.set(inputValue($event))"
               ></textarea>
+              @if (current.kind === 'definition' && definitionWarning(textDraft()); as warning) {
+                <p class="warning" role="status">{{ warning }}</p>
+              }
               @if (showTranslationField()) {
                 <div class="field-heading">
                   <label for="translation-text">Translation</label>
@@ -1897,6 +1907,9 @@ function writeExampleSuggestions(
                   aria-label="Definition"
                   (input)="onEngineerGloss($event)"
                 ></textarea>
+                @if (definitionWarning(engineerGloss()); as warning) {
+                  <p class="warning" role="status">{{ warning }}</p>
+                }
                 @if (element().language !== 'en') {
                   <label class="field-label" for="engineer-english">English</label>
                   <textarea
@@ -2936,12 +2949,14 @@ function writeExampleSuggestions(
 
     .empty,
     .hint,
-    .error {
+    .error,
+    .warning {
       color: var(--text-muted);
       font-size: 0.82rem;
     }
 
-    .error {
+    .error,
+    .warning {
       color: var(--danger);
     }
 
@@ -3927,6 +3942,10 @@ export class ElementModal {
     } finally {
       if (this.element().id === element.id) this.busy.set(false);
     }
+  }
+
+  definitionWarning(text: string): string {
+    return definitionSelfMentionWarningFor(text, this.element());
   }
 
   shownTitle(title = this.element().title): string {
