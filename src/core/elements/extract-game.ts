@@ -66,9 +66,13 @@ type HighlightSource = {
 /** One selectable passage. Translations are already stripped by the caller. */
 @Component({
   selector: 'app-extract-passage',
+  host: {
+    '[class.inline]': 'inline()',
+  },
   template: `
     <p
       class="passage sense-selectable"
+      [class.inline]="inline()"
       [attr.data-definition-index]="definitionIndex()"
       [attr.data-example-index]="exampleIndex()"
     >
@@ -106,9 +110,18 @@ type HighlightSource = {
       display: block;
     }
 
+    :host(.inline) {
+      display: inline;
+      vertical-align: baseline;
+    }
+
     .passage {
       margin: 0;
       white-space: pre-wrap;
+    }
+
+    .passage.inline {
+      display: inline;
     }
 
     .linguagem-highlighted {
@@ -145,7 +158,8 @@ type HighlightSource = {
     }
   `,
 })
-class ExtractPassage {
+export class ExtractPassage {
+  readonly inline = input(false);
   readonly definitionIndex = input.required<number>();
   readonly exampleIndex = input<number | null>(null);
   readonly parts = input.required<DefinitionHighlightPart[]>();

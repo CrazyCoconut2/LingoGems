@@ -46,13 +46,15 @@ export {
   type HighlightStyle,
 } from './elements/appearance';
 
-export { isValidForm } from './elements/forms';
+export { formMatchesTerm, isValidForm } from './elements/forms';
 
 export {
   definitionEligibleForGames,
   definitionSelfMentionWarningFor,
   definitionSelfMentions,
   elementHasInvalidDefinition,
+  surfaceSpans,
+  type SurfaceSpan,
 } from './elements/definition-eligibility';
 
 export {

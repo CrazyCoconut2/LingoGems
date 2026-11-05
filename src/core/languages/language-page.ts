@@ -11,6 +11,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
 import { ExtractGame } from '../elements/extract-game';
+import { RefineGame } from '../elements/refine-game';
 import { FrequencyGem } from '../elements/frequency-gem';
 import { ModeIcon } from '../elements/mode-icon';
 import { ModeProgress } from '../elements/mode-progress';
@@ -74,6 +75,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     RouterLink,
     ElementModal,
     ExtractGame,
+    RefineGame,
     FrequencyGem,
     ModeIcon,
     ModeProgress,
@@ -668,6 +670,19 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           [collection]="elements()"
           [covered]="opened() !== null"
           (closed)="extractId.set('')"
+          (changed)="replaceElement($event)"
+          (visit)="visitElement($event)"
+          (addSelection)="addFromSelection($event)"
+          (addPrepared)="addPrepared($event)"
+        />
+      }
+
+      @if (refineElement(); as element) {
+        <app-refine-game
+          [element]="element"
+          [collection]="elements()"
+          [covered]="opened() !== null"
+          (closed)="refineId.set('')"
           (changed)="replaceElement($event)"
           (visit)="visitElement($event)"
           (addSelection)="addFromSelection($event)"
@@ -1671,6 +1686,14 @@ export class LanguagePage {
     if (!element || element.mode !== 1 || element.definitions.length === 0) return null;
     return element;
   });
+  readonly refineId = signal('');
+  readonly refineElement = computed(() => {
+    const id = this.refineId();
+    if (!this.playing() || !id) return null;
+    const element = this.elements().find((item) => item.id === id);
+    if (!element || element.mode !== 2 || element.definitions.length === 0) return null;
+    return element;
+  });
   readonly playOrder = signal<readonly string[]>([]);
   readonly dismissed = signal<ReadonlySet<string>>(new Set());
   readonly expanded = signal<'mode' | 'translations' | 'definitions' | null>('translations');
@@ -1985,11 +2008,17 @@ export class LanguagePage {
     if (!this.playing() || !id) return;
     this.dismissCard(id);
     const element = this.elements().find((item) => item.id === id);
-    if (
-      element?.mode === 1 &&
-      element.definitions.some((definition) => definitionEligibleForGames(definition.text, element))
-    ) {
+    const eligible =
+      !!element &&
+      element.definitions.some((definition) =>
+        definitionEligibleForGames(definition.text, element),
+      );
+    if (element?.mode === 1 && eligible) {
       this.extractId.set(id);
+      return;
+    }
+    if (element?.mode === 2 && eligible) {
+      this.refineId.set(id);
       return;
     }
     this.openElement(id);
@@ -2009,6 +2038,7 @@ export class LanguagePage {
       this.playOrder.set([]);
       this.dismissed.set(new Set());
       this.extractId.set('');
+      this.refineId.set('');
       return;
     }
     this.commitSearch();
@@ -2132,6 +2162,7 @@ export class LanguagePage {
     this.playOrder.set([]);
     this.dismissed.set(new Set());
     this.extractId.set('');
+    this.refineId.set('');
     const params = this.route.snapshot.queryParamMap;
     const restored = (params.get('q') ?? '').slice(0, ELEMENT_SEARCH_MAX_LENGTH);
     this.query.set(restored);

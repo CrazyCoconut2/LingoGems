@@ -1,7 +1,7 @@
 import { Component, input } from '@angular/core';
 import type { ElementMode } from 'collection';
 
-/** The gem at one stage: a rough find, a cut stone, or a finished gem. */
+/** The gem at one stage: a rough find, a step-cut stone, or a finished brilliant. */
 @Component({
   selector: 'app-mode-icon',
   template: `
@@ -19,11 +19,12 @@ import type { ElementMode } from 'collection';
           <path fill="#c9ceda" d="m16 16.5 5.2.6-1.6 5.2-4.6-1.6z" />
         }
         @case (2) {
-          <path fill="#8d889e" d="M19 17 12 28 22 38 32 22Z" />
-          <path fill="#6a657a" d="M12 28 32 54V22L22 38Z" />
-          <path fill="#6a6494" d="M45 17 52 28 32 54V22Z" />
-          <path fill="#ddd8f2" d="M32 9 45 17 32 22 19 17Z" />
-          <path fill="#f7f5ff" d="m32 12 3.2 4h-6.4z" />
+          <path fill="#8d889e" d="M22 14h20l8 12-4 10-8 14H26L18 36 14 26Z" />
+          <path fill="#5c5670" d="M32 14h10l8 12-4 10-8 14H32Z" />
+          <path fill="#6a657a" d="M18 36h28L38 50H26Z" />
+          <path fill="#4a445c" d="M32 36h14L38 50H32Z" />
+          <path fill="#f3f0fa" d="M26 20h12l-2 10H28Z" />
+          <path fill="#fff" d="M28 22h6l-.6 4H29Z" />
         }
         @default {
           <path fill="#2b2670" d="M19 17 12 28 32 54V22Z" />
