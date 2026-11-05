@@ -216,7 +216,7 @@ export function metadataRuleLines(
 export function definitionSenseShape(fields: readonly AiMetadataField[], extra = false): string {
   const meta = metadataSuffix(fields, extra);
   const rest = meta === '}' ? '}' : `${meta.slice(0, -1)}}`;
-  return `{"gloss":"<definition in writeFieldsIn>","frequency":"<common|uncommon|rare|archaic|obsolete>"${rest}`;
+  return `{"gloss":"<definition in writeFieldsIn>"${rest}`;
 }
 
 export function exampleSentenceShape(fields: readonly AiMetadataField[], extra = false): string {
@@ -248,7 +248,14 @@ export function pickMetadata(
     if (typeof rawValue !== 'string') continue;
     const key = rawKey.replace(/\s+/g, ' ').trim().slice(0, MAX_METADATA_FIELD_KEY);
     const id = key.toLowerCase();
-    if (!key || key.includes('<') || key.includes('>') || seen.has(id) || id === 'frequency') {
+    if (
+      !key ||
+      key.includes('<') ||
+      key.includes('>') ||
+      seen.has(id) ||
+      id === 'frequency' ||
+      id === 'gem'
+    ) {
       continue;
     }
     if (keys.some((item) => item.toLowerCase() === id)) continue;

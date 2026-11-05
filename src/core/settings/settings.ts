@@ -8,7 +8,19 @@ import {
   writeStoredAiCredentials,
   type AiProviderId,
 } from 'ai';
-import { elementModeLabel, type ElementMode } from 'collection';
+import {
+  DEFINITION_GEMS,
+  definitionGemFallbackName,
+  elementModeLabel,
+  type DefinitionGem,
+  type ElementMode,
+} from 'collection';
+import { DefinitionGemIcon } from '../elements/definition-gem';
+import {
+  GEM_MEANING_MAX_LENGTH,
+  gemMeaningDraft,
+  writeGemMeaning,
+} from '../elements/gem-meanings';
 import {
   DEFAULT_MODE_PALETTES,
   readModePalettes,
@@ -30,7 +42,7 @@ const AI_PROVIDERS: ProviderOption[] = [
 
 @Component({
   selector: 'app-settings',
-  imports: [FormsModule],
+  imports: [FormsModule, DefinitionGemIcon],
   template: `
     <main>
       <header>
@@ -119,6 +131,25 @@ const AI_PROVIDERS: ProviderOption[] = [
             Reset colors
           </button>
         </div>
+      </section>
+
+      <section class="gems" aria-label="Gems">
+        <div class="copy">
+          <h2>Gems</h2>
+          <p>Each stone can carry a meaning. Leave one blank and it stays unlabeled.</p>
+        </div>
+        @for (gem of gems; track gem) {
+          <label class="gem-row">
+            <app-definition-gem [gem]="gem" />
+            <input
+              type="text"
+              [attr.aria-label]="gemFallbackName(gem) + ' meaning'"
+              [attr.maxlength]="gemMeaningMax"
+              [attr.value]="gemMeaningDraft(gem)"
+              (input)="setGemMeaning(gem, $event)"
+            />
+          </label>
+        }
       </section>
     </main>
   `,
@@ -273,6 +304,24 @@ const AI_PROVIDERS: ProviderOption[] = [
       border: 1px solid var(--border);
       border-radius: 999px;
     }
+
+    .gems {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+
+    .gem-row {
+      display: grid;
+      grid-template-columns: 1.35rem minmax(0, 1fr);
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .gem-row app-definition-gem {
+      width: 1.35rem;
+      height: 1.35rem;
+    }
   `,
 })
 export class Settings {
@@ -282,7 +331,11 @@ export class Settings {
 
   readonly providers = AI_PROVIDERS;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
+  readonly gems = DEFINITION_GEMS;
   readonly modeLabel = elementModeLabel;
+  readonly gemFallbackName = definitionGemFallbackName;
+  readonly gemMeaningDraft = gemMeaningDraft;
+  readonly gemMeaningMax = GEM_MEANING_MAX_LENGTH;
   readonly provider = signal<AiProviderId>(this.stored?.provider ?? 'openai');
   readonly apiKey = signal(this.stored?.apiKey ?? '');
   readonly saved = signal(false);
@@ -326,6 +379,10 @@ export class Settings {
 
   resetPalettes(): void {
     resetModePalettes();
+  }
+
+  setGemMeaning(gem: DefinitionGem, event: Event): void {
+    writeGemMeaning(gem, (event.target as HTMLInputElement).value);
   }
 
   save(event?: Event): void {

@@ -17,8 +17,8 @@ import {
 } from '@angular/core';
 import { generateElementFromSelection, generateExamples } from 'ai';
 import {
+  DEFAULT_DEFINITION_GEM,
   definitionEligibleForGames,
-  definitionFrequencyLabel,
   definitionSelfMentionWarningFor,
   displayTitle,
   elementModeLabel,
@@ -34,7 +34,8 @@ import {
   type HighlightStyle,
   type StoredElement,
 } from 'collection';
-import { FrequencyGem } from './frequency-gem';
+import { DefinitionGemIcon } from './definition-gem';
+import { gemAccessibleName, gemMeaning } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
 import { scoreColor } from './mode-palette';
 import { ModeProgress } from './mode-progress';
@@ -182,7 +183,7 @@ export class ExtractPassage {
 /** Extract: guess one equivalent per definition, then the saved equivalent is shown. */
 @Component({
   selector: 'app-extract-game',
-  imports: [ExtractPassage, FrequencyGem, ModeIcon, ModeProgress, NgTemplateOutlet, Reveal],
+  imports: [ExtractPassage, DefinitionGemIcon, ModeIcon, ModeProgress, NgTemplateOutlet, Reveal],
   template: `
     <div
       class="backdrop"
@@ -258,9 +259,16 @@ export class ExtractPassage {
                   <ng-container *ngTemplateOutlet="lookup; context: { pick: pick }" />
                 }
                 <ul class="sense-meta">
-                  <li class="sense-frequency">
-                    <app-frequency-gem [frequency]="definition.frequency" />
-                    {{ frequencyLabel(definition.frequency) }}
+                  <li
+                    class="sense-gem"
+                    [attr.aria-label]="
+                      gemMeaning(definition.gem) ? null : gemAccessibleName(definition.gem)
+                    "
+                  >
+                    <app-definition-gem [gem]="definition.gem" />
+                    @if (gemMeaning(definition.gem)) {
+                      {{ gemMeaning(definition.gem) }}
+                    }
                   </li>
                   @for (entry of entries(definition.metadata); track entry.key) {
                     <li>
@@ -621,11 +629,11 @@ export class ExtractPassage {
       white-space: nowrap;
     }
 
-    .sense-frequency {
+    .sense-gem {
       gap: 0.28rem;
     }
 
-    .sense-frequency app-frequency-gem {
+    .sense-gem app-definition-gem {
       width: 1.15rem;
       height: 1.15rem;
       flex: none;
@@ -862,7 +870,8 @@ export class ExtractGame {
   readonly addPrepared = output<PreparedElement>();
 
   readonly modeLabel = elementModeLabel;
-  readonly frequencyLabel = definitionFrequencyLabel;
+  readonly gemMeaning = gemMeaning;
+  readonly gemAccessibleName = gemAccessibleName;
   readonly formTexts = formTexts;
   readonly equivalentMax = EQUIVALENT_MAX;
 
@@ -1157,7 +1166,7 @@ export class ExtractGame {
           forms: selectionForms(generated.lemma, title),
           examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
-          frequency: sense.frequency,
+          gem: DEFAULT_DEFINITION_GEM,
         })),
       });
     } catch {

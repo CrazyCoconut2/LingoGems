@@ -23,6 +23,7 @@ import {
   type GradedDefinition,
 } from 'ai';
 import {
+  DEFAULT_DEFINITION_GEM,
   definitionEligibleForGames,
   definitionSelfMentionWarningFor,
   displayTitle,
@@ -1023,7 +1024,7 @@ export class PolishGame {
           forms: selectionForms(generated.lemma, title),
           examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
-          frequency: sense.frequency,
+          gem: DEFAULT_DEFINITION_GEM,
         })),
       });
     } catch {

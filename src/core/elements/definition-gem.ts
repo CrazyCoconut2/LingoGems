@@ -1,17 +1,17 @@
 import { Component, computed, input } from '@angular/core';
-import { normalizeDefinitionFrequency, type DefinitionFrequency } from 'collection';
+import { normalizeDefinitionGem, type DefinitionGem } from 'collection';
 
-const FREQUENCY_COLORS: Record<DefinitionFrequency, string> = {
-  common: '#c8c4bc',
-  uncommon: '#8d5cf6',
-  rare: '#3a63f5',
-  archaic: '#d12b45',
-  obsolete: '#f7fbff',
+const GEM_COLORS: Record<DefinitionGem, string> = {
+  'gem-1': '#c8c4bc',
+  'gem-2': '#8d5cf6',
+  'gem-3': '#3a63f5',
+  'gem-4': '#d12b45',
+  'gem-5': '#f7fbff',
 };
 
-/** One cut stone. The color is the sense's frequency. */
+/** One cut stone. The color is the definition's gem. */
 @Component({
-  selector: 'app-frequency-gem',
+  selector: 'app-definition-gem',
   template: `
     <svg viewBox="0 0 16 16" aria-hidden="true">
       <path [attr.fill]="fill()" d="M8 1.4 13.2 6.1 8 14.6 2.8 6.1Z" />
@@ -33,9 +33,7 @@ const FREQUENCY_COLORS: Record<DefinitionFrequency, string> = {
     }
   `,
 })
-export class FrequencyGem {
-  readonly frequency = input.required<DefinitionFrequency>();
-  readonly fill = computed(
-    () => FREQUENCY_COLORS[normalizeDefinitionFrequency(this.frequency())],
-  );
+export class DefinitionGemIcon {
+  readonly gem = input.required<DefinitionGem>();
+  readonly fill = computed(() => GEM_COLORS[normalizeDefinitionGem(this.gem())]);
 }

@@ -11,37 +11,38 @@ import {
 
 export type ElementMetadata = Record<string, string>;
 
-/** Everyday, then less often, then old, then gone from living use. */
-export const DEFINITION_FREQUENCIES = [
-  'common',
-  'uncommon',
-  'rare',
-  'archaic',
-  'obsolete',
-] as const;
+/** The five stones a definition can carry. Nothing is built into a stone. */
+export const DEFINITION_GEMS = ['gem-1', 'gem-2', 'gem-3', 'gem-4', 'gem-5'] as const;
 
-export type DefinitionFrequency = (typeof DEFINITION_FREQUENCIES)[number];
+export type DefinitionGem = (typeof DEFINITION_GEMS)[number];
 
-const DEFINITION_FREQUENCY_LABELS: Record<DefinitionFrequency, string> = {
-  common: 'Common',
-  uncommon: 'Uncommon',
-  rare: 'Rare',
-  archaic: 'Archaic',
-  obsolete: 'Obsolete',
+export const DEFAULT_DEFINITION_GEM: DefinitionGem = 'gem-1';
+
+/** Older records stored a frequency word. Those map onto the same stones, in the same order. */
+const LEGACY_FREQUENCY_GEMS: Record<string, DefinitionGem> = {
+  common: 'gem-1',
+  uncommon: 'gem-2',
+  rare: 'gem-3',
+  archaic: 'gem-4',
+  obsolete: 'gem-5',
 };
 
-/** Anything other than the five frequency words is common. */
-export function normalizeDefinitionFrequency(value: unknown): DefinitionFrequency {
-  const text = String(value ?? '')
+/** A known gem id, else the stone that used to match a frequency, else the first stone. */
+export function normalizeDefinitionGem(value: unknown, legacyFrequency?: unknown): DefinitionGem {
+  const id = String(value ?? '')
     .trim()
     .toLowerCase();
-  return (DEFINITION_FREQUENCIES as readonly string[]).includes(text)
-    ? (text as DefinitionFrequency)
-    : 'common';
+  if ((DEFINITION_GEMS as readonly string[]).includes(id)) return id as DefinitionGem;
+  const frequency = String(legacyFrequency ?? '')
+    .trim()
+    .toLowerCase();
+  return LEGACY_FREQUENCY_GEMS[frequency] ?? DEFAULT_DEFINITION_GEM;
 }
 
-export function definitionFrequencyLabel(frequency: DefinitionFrequency): string {
-  return DEFINITION_FREQUENCY_LABELS[normalizeDefinitionFrequency(frequency)];
+/** Spoken name when a stone has no meaning of its own. */
+export function definitionGemFallbackName(gem: DefinitionGem): string {
+  const index = DEFINITION_GEMS.indexOf(normalizeDefinitionGem(gem)) + 1;
+  return `Gem ${index}`;
 }
 
 export type ElementExample = {
@@ -65,8 +66,8 @@ export type ElementDefinition = {
   forms: ElementForm[];
   examples: ElementExample[];
   metadata: ElementMetadata;
-  /** How often this sense is met. Missing or unknown values are common. */
-  frequency: DefinitionFrequency;
+  /** The stone chosen for this sense. Missing or unknown values are the first stone. */
+  gem: DefinitionGem;
 };
 
 /** The strings a form list is matched and highlighted with. */
@@ -321,6 +322,7 @@ function normalizeDefinitions(
     const source = raw as Partial<ElementDefinition> & {
       equivalent?: unknown;
       translation?: unknown;
+      frequency?: unknown;
     };
     const text = withEmbeddedTranslation(String(source.text ?? ''), source.translation);
     if (!text) continue;
@@ -330,7 +332,7 @@ function normalizeDefinitions(
       forms: normalizeForms(source.forms),
       examples: normalizeExamples(source.examples),
       metadata: normalizeMetadata(source.metadata),
-      frequency: normalizeDefinitionFrequency(source.frequency),
+      gem: normalizeDefinitionGem(source.gem, source.frequency),
     });
   }
   return definitions;

@@ -16,8 +16,8 @@ import {
 } from '@angular/core';
 import { generateElementFromSelection, generateExamples } from 'ai';
 import {
+  DEFAULT_DEFINITION_GEM,
   definitionEligibleForGames,
-  definitionFrequencyLabel,
   definitionSelfMentionWarningFor,
   displayTitle,
   elementModeLabel,
@@ -36,7 +36,8 @@ import {
   type StoredElement,
 } from 'collection';
 import { ExtractPassage } from './extract-game';
-import { FrequencyGem } from './frequency-gem';
+import { DefinitionGemIcon } from './definition-gem';
+import { gemAccessibleName, gemMeaning } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
 import { scoreColor } from './mode-palette';
 import { ModeProgress } from './mode-progress';
@@ -76,7 +77,7 @@ type HighlightSource = {
 /** Refine: recall the element or any form. An example blank grades that exact surface. */
 @Component({
   selector: 'app-refine-game',
-  imports: [ExtractPassage, FrequencyGem, ModeIcon, ModeProgress, NgTemplateOutlet, Reveal],
+  imports: [ExtractPassage, DefinitionGemIcon, ModeIcon, ModeProgress, NgTemplateOutlet, Reveal],
   template: `
     <div
       class="backdrop"
@@ -188,9 +189,16 @@ type HighlightSource = {
                   <ng-container *ngTemplateOutlet="lookup; context: { pick: pick }" />
                 }
                 <ul class="sense-meta">
-                  <li class="sense-frequency">
-                    <app-frequency-gem [frequency]="definition.frequency" />
-                    {{ frequencyLabel(definition.frequency) }}
+                  <li
+                    class="sense-gem"
+                    [attr.aria-label]="
+                      gemMeaning(definition.gem) ? null : gemAccessibleName(definition.gem)
+                    "
+                  >
+                    <app-definition-gem [gem]="definition.gem" />
+                    @if (gemMeaning(definition.gem)) {
+                      {{ gemMeaning(definition.gem) }}
+                    }
                   </li>
                   @for (entry of entries(definition.metadata); track entry.key) {
                     <li>
@@ -566,11 +574,11 @@ type HighlightSource = {
       white-space: nowrap;
     }
 
-    .sense-frequency {
+    .sense-gem {
       gap: 0.28rem;
     }
 
-    .sense-frequency app-frequency-gem {
+    .sense-gem app-definition-gem {
       width: 1.15rem;
       height: 1.15rem;
       flex: none;
@@ -778,7 +786,8 @@ export class RefineGame {
   readonly addPrepared = output<PreparedElement>();
 
   readonly modeLabel = elementModeLabel;
-  readonly frequencyLabel = definitionFrequencyLabel;
+  readonly gemMeaning = gemMeaning;
+  readonly gemAccessibleName = gemAccessibleName;
   readonly answerMax = ANSWER_MAX;
 
   readonly recall = signal('');
@@ -1090,7 +1099,7 @@ export class RefineGame {
           forms: selectionForms(generated.lemma, title),
           examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
-          frequency: sense.frequency,
+          gem: DEFAULT_DEFINITION_GEM,
         })),
       });
     } catch {

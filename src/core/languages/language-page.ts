@@ -13,7 +13,8 @@ import { ElementModal } from '../elements/element-modal';
 import { ExtractGame } from '../elements/extract-game';
 import { PolishGame } from '../elements/polish-game';
 import { RefineGame } from '../elements/refine-game';
-import { FrequencyGem } from '../elements/frequency-gem';
+import { DefinitionGemIcon } from '../elements/definition-gem';
+import { gemAccessibleName } from '../elements/gem-meanings';
 import { ModeIcon } from '../elements/mode-icon';
 import { ModeProgress } from '../elements/mode-progress';
 import { scoreColor } from '../elements/mode-palette';
@@ -24,10 +25,10 @@ import { generateElementFromSelection } from 'ai';
 import {
   addElement,
   compareElements,
+  DEFAULT_DEFINITION_GEM,
   DEFAULT_ELEMENT_SORT,
-  DEFINITION_FREQUENCIES,
+  DEFINITION_GEMS,
   definitionEligibleForGames,
-  definitionFrequencyLabel,
   displayTitle,
   elementHasInvalidDefinition,
   ELEMENT_SEARCH_MAX_LENGTH,
@@ -57,7 +58,7 @@ import {
   saveElement,
   setCountRangeBound,
   stepCountRange,
-  type DefinitionFrequency,
+  type DefinitionGem,
   type ElementCountRange,
   type ElementDefinition,
   type ElementMetadataIndexes,
@@ -102,7 +103,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     ExtractGame,
     PolishGame,
     RefineGame,
-    FrequencyGem,
+    DefinitionGemIcon,
     ModeIcon,
     ModeProgress,
     LanguageAiSettings,
@@ -382,9 +383,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       </span>
                       @let groups = definitionCounts(element.definitions);
                       <span class="stat stones" [attr.aria-label]="definitionsLabel(groups)">
-                        @for (group of groups; track group.frequency) {
-                          <span class="stone" [attr.title]="frequencyLabel(group.frequency)">
-                            <app-frequency-gem [frequency]="group.frequency" />
+                        @for (group of groups; track group.gem) {
+                          <span class="stone" [attr.title]="gemAccessibleName(group.gem)">
+                            <app-definition-gem [gem]="group.gem" />
                             @if (group.count > 1) {
                               <span>x{{ group.count }}</span>
                             }
@@ -1354,7 +1355,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       gap: 0.08rem;
     }
 
-    .stones app-frequency-gem {
+    .stones app-definition-gem {
       width: 1rem;
       height: 1rem;
       flex: none;
@@ -1792,7 +1793,7 @@ export class LanguagePage {
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly modeLabel = elementModeLabel;
   readonly needsDefinitionEdit = elementHasInvalidDefinition;
-  readonly frequencyLabel = definitionFrequencyLabel;
+  readonly gemAccessibleName = gemAccessibleName;
   readonly readStepGoal = readStepGoal;
   readonly asking = signal(false);
   readonly lookupError = signal('');
@@ -2099,23 +2100,23 @@ export class LanguagePage {
 
   definitionCounts(
     definitions: readonly ElementDefinition[],
-  ): { frequency: DefinitionFrequency; count: number }[] {
-    const counts = new Map<DefinitionFrequency, number>();
+  ): { gem: DefinitionGem; count: number }[] {
+    const counts = new Map<DefinitionGem, number>();
     for (const definition of definitions) {
-      const frequency = definition.frequency;
-      counts.set(frequency, (counts.get(frequency) ?? 0) + 1);
+      const gem = definition.gem;
+      counts.set(gem, (counts.get(gem) ?? 0) + 1);
     }
-    return DEFINITION_FREQUENCIES.flatMap((frequency) => {
-      const count = counts.get(frequency) ?? 0;
-      return count > 0 ? [{ frequency, count }] : [];
+    return DEFINITION_GEMS.flatMap((gem) => {
+      const count = counts.get(gem) ?? 0;
+      return count > 0 ? [{ gem, count }] : [];
     });
   }
 
-  definitionsLabel(groups: readonly { frequency: DefinitionFrequency; count: number }[]): string {
+  definitionsLabel(groups: readonly { gem: DefinitionGem; count: number }[]): string {
     if (groups.length === 0) return 'No definitions';
     return groups
       .map((group) => {
-        const name = definitionFrequencyLabel(group.frequency).toLowerCase();
+        const name = gemAccessibleName(group.gem);
         return group.count === 1 ? `1 ${name}` : `${group.count} ${name}`;
       })
       .join(', ');
@@ -2173,7 +2174,7 @@ export class LanguagePage {
             forms: searchForms(generated.lemma, selected),
             examples: [],
             metadata: { ...sense.metadata },
-            frequency: sense.frequency,
+            gem: DEFAULT_DEFINITION_GEM,
           })),
         },
         true,

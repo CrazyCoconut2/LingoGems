@@ -13,9 +13,9 @@ import {
 } from '@angular/core';
 import {
   assignEquivalent,
-  definitionFrequencyLabel,
+  DEFAULT_DEFINITION_GEM,
+  DEFINITION_GEMS,
   definitionSelfMentionWarningFor,
-  DEFINITION_FREQUENCIES,
   deleteElement,
   displayTitle,
   embedTranslation,
@@ -24,10 +24,10 @@ import {
   formTexts,
   highlightDefinitionPassage,
   isValidForm,
-  normalizeDefinitionFrequency,
+  normalizeDefinitionGem,
   parsePassage,
   saveElement,
-  type DefinitionFrequency,
+  type DefinitionGem,
   type DefinitionHighlightMatch,
   type DefinitionHighlightPart,
   type ElementDefinition,
@@ -54,7 +54,8 @@ import {
   type RelatedWord,
 } from 'ai';
 import { Reveal } from './reveal';
-import { FrequencyGem } from './frequency-gem';
+import { DefinitionGemIcon } from './definition-gem';
+import { gemAccessibleName, gemMeaning } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
 import { scoreColor } from './mode-palette';
 import { ModeProgress } from './mode-progress';
@@ -126,7 +127,6 @@ type ConfirmDelete =
 type DefinitionSuggestion = {
   text: string;
   metadata: ElementMetadata;
-  frequency: DefinitionFrequency;
   example?: string;
 };
 
@@ -157,7 +157,6 @@ function suggestionList(raw: unknown): DefinitionSuggestion[] {
     suggestions.push({
       text,
       metadata: suggestionMetadata((item as { metadata?: unknown }).metadata),
-      frequency: normalizeDefinitionFrequency((item as { frequency?: unknown }).frequency),
       ...(example ? { example } : {}),
     });
   }
@@ -496,7 +495,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [Reveal, ModeIcon, ModeProgress, FrequencyGem],
+  imports: [Reveal, ModeIcon, ModeProgress, DefinitionGemIcon],
   template: `
     <div
       class="backdrop"
@@ -730,18 +729,34 @@ function writeExampleSuggestions(
                           }
                         </ul>
                       }
-                      <ul class="sense-meta">
-                        <li class="sense-frequency">
-                          <app-frequency-gem [frequency]="suggestion.frequency" />
-                          {{ frequencyLabel(suggestion.frequency) }}
-                        </li>
-                        @for (entry of entries(suggestion.metadata); track entry.key) {
-                          <li>
-                            <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                            {{ label(entry.value) }}
-                          </li>
+                      <div class="gem-choices" role="radiogroup" aria-label="Gem">
+                        @for (gem of gems; track gem) {
+                          <button
+                            type="button"
+                            class="gem-choice"
+                            [class.selected]="suggestionGem(suggestion.text) === gem"
+                            [attr.aria-pressed]="suggestionGem(suggestion.text) === gem"
+                            [attr.aria-label]="gemAccessibleName(gem)"
+                            [disabled]="busy()"
+                            (click)="chooseSuggestionGem(suggestion.text, gem)"
+                          >
+                            <app-definition-gem [gem]="gem" />
+                            @if (gemMeaning(gem)) {
+                              <span>{{ gemMeaning(gem) }}</span>
+                            }
+                          </button>
                         }
-                      </ul>
+                      </div>
+                      @if (entries(suggestion.metadata).length) {
+                        <ul class="sense-meta">
+                          @for (entry of entries(suggestion.metadata); track entry.key) {
+                            <li>
+                              <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                              {{ label(entry.value) }}
+                            </li>
+                          }
+                        </ul>
+                      }
                       @if (suggestion.example) {
                         <div class="example-quote">
                           <p class="passage example-line">
@@ -772,7 +787,7 @@ function writeExampleSuggestions(
                   <button
                     type="button"
                     class="btn btn-primary add-suggestion"
-                    [disabled]="aiBusy()"
+                    [disabled]="aiBusy() || !suggestionGem(suggestion.text)"
                     (click)="addSuggestion(index)"
                   >
                     Add
@@ -842,9 +857,16 @@ function writeExampleSuggestions(
                             <app-reveal [text]="equivalent" [language]="element().language" />
                           </li>
                         }
-                        <li class="sense-frequency">
-                          <app-frequency-gem [frequency]="definition.frequency" />
-                          {{ frequencyLabel(definition.frequency) }}
+                        <li
+                          class="sense-gem"
+                          [attr.aria-label]="
+                            gemMeaning(definition.gem) ? null : gemAccessibleName(definition.gem)
+                          "
+                        >
+                          <app-definition-gem [gem]="definition.gem" />
+                          @if (gemMeaning(definition.gem)) {
+                            {{ gemMeaning(definition.gem) }}
+                          }
                         </li>
                         @for (entry of meta; track entry.key) {
                           <li>
@@ -1582,21 +1604,23 @@ function writeExampleSuggestions(
                 </div>
               }
               @if (current.kind === 'definition') {
-                <div class="frequency-field">
-                  <p class="field-label">Frequency</p>
-                  <div class="frequency-choices" role="radiogroup" aria-label="Frequency">
-                    @for (frequency of frequencies; track frequency) {
+                <div class="gem-field">
+                  <p class="field-label">Gem</p>
+                  <div class="gem-choices" role="radiogroup" aria-label="Gem">
+                    @for (gem of gems; track gem) {
                       <button
                         type="button"
-                        class="frequency-choice"
-                        [class.selected]="frequencyDraft() === frequency"
-                        [attr.aria-pressed]="frequencyDraft() === frequency"
-                        [attr.aria-label]="frequencyLabel(frequency)"
+                        class="gem-choice"
+                        [class.selected]="gemDraft() === gem"
+                        [attr.aria-pressed]="gemDraft() === gem"
+                        [attr.aria-label]="gemAccessibleName(gem)"
                         [disabled]="busy()"
-                        (click)="frequencyDraft.set(frequency)"
+                        (click)="gemDraft.set(gem)"
                       >
-                        <app-frequency-gem [frequency]="frequency" />
-                        <span>{{ frequencyLabel(frequency) }}</span>
+                        <app-definition-gem [gem]="gem" />
+                        @if (gemMeaning(gem)) {
+                          <span>{{ gemMeaning(gem) }}</span>
+                        }
                       </button>
                     }
                   </div>
@@ -3029,35 +3053,35 @@ function writeExampleSuggestions(
       font-weight: 600;
     }
 
-    .sense-frequency {
+    .sense-gem {
       align-items: center;
       gap: 0.28rem;
     }
 
-    .sense-frequency app-frequency-gem {
+    .sense-gem app-definition-gem {
       width: 1.15rem;
       height: 1.15rem;
       flex: none;
     }
 
-    .frequency-field {
+    .gem-field {
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
     }
 
-    .frequency-choices {
+    .gem-choices {
       display: flex;
       flex-wrap: wrap;
       gap: 0.35rem;
     }
 
-    .frequency-choice {
+    .gem-choice {
       display: inline-flex;
       align-items: center;
       gap: 0.28rem;
       margin: 0;
-      padding: 0.2rem 0.5rem 0.2rem 0.35rem;
+      padding: 0.2rem 0.45rem;
       border: 1px solid var(--border);
       border-radius: 999px;
       background: transparent;
@@ -3068,18 +3092,18 @@ function writeExampleSuggestions(
       cursor: pointer;
     }
 
-    .frequency-choice app-frequency-gem {
+    .gem-choice app-definition-gem {
       width: 1.15rem;
       height: 1.15rem;
       flex: none;
     }
 
-    .frequency-choice.selected {
+    .gem-choice.selected {
       border-color: rgba(var(--accent-rgb), 0.75);
       color: var(--text);
     }
 
-    .frequency-choice:disabled {
+    .gem-choice:disabled {
       cursor: default;
     }
 
@@ -3653,9 +3677,11 @@ export class ElementModal {
   readonly modeLabel = elementModeLabel;
   readonly readStepGoal = readStepGoal;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
-  readonly frequencies = DEFINITION_FREQUENCIES;
-  readonly frequencyLabel = definitionFrequencyLabel;
-  readonly frequencyDraft = signal<DefinitionFrequency>('common');
+  readonly gems = DEFINITION_GEMS;
+  readonly gemMeaning = gemMeaning;
+  readonly gemAccessibleName = gemAccessibleName;
+  readonly gemDraft = signal<DefinitionGem>(DEFAULT_DEFINITION_GEM);
+  readonly suggestionGems = signal<Record<string, DefinitionGem>>({});
   readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
   readonly relatedPickMax = MAX_RELATED_PICKS;
@@ -3762,6 +3788,7 @@ export class ElementModal {
       this.modeOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
+      this.suggestionGems.set({});
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
       this.dismissTranslations();
@@ -4303,12 +4330,10 @@ export class ElementModal {
           ...element.definitions.map((definition) => ({
             text: definition.text,
             metadata: definition.metadata,
-            frequency: definition.frequency,
           })),
           ...this.suggestions().map((suggestion) => ({
             text: suggestion.text,
             metadata: suggestion.metadata,
-            frequency: suggestion.frequency,
           })),
         ],
       });
@@ -4357,12 +4382,10 @@ export class ElementModal {
           ...element.definitions.map((definition) => ({
             text: definition.text,
             metadata: definition.metadata,
-            frequency: definition.frequency,
           })),
           ...this.suggestions().map((suggestion) => ({
             text: suggestion.text,
             metadata: suggestion.metadata,
-            frequency: suggestion.frequency,
           })),
         ],
       });
@@ -4402,10 +4425,19 @@ export class ElementModal {
     );
   }
 
+  suggestionGem(text: string): DefinitionGem | null {
+    return this.suggestionGems()[text] ?? null;
+  }
+
+  chooseSuggestionGem(text: string, gem: DefinitionGem): void {
+    this.suggestionGems.update((current) => ({ ...current, [text]: gem }));
+  }
+
   async addSuggestion(index: number): Promise<void> {
     if (this.aiBusy()) return;
     const suggestion = this.suggestions()[index];
-    if (!suggestion) return;
+    const gem = suggestion ? this.suggestionGem(suggestion.text) : null;
+    if (!suggestion || !gem) return;
     const element = this.element();
     const created: ElementDefinition = {
       text: suggestion.text,
@@ -4413,7 +4445,7 @@ export class ElementModal {
       forms: [],
       examples: suggestion.example ? [{ text: suggestion.example, metadata: {} }] : [],
       metadata: { ...suggestion.metadata },
-      frequency: suggestion.frequency,
+      gem,
     };
     const definitions = [created, ...this.copyDefinitions()];
     if (!(await this.persist(definitions, element.equivalents))) return;
@@ -4426,7 +4458,16 @@ export class ElementModal {
 
   private replaceSuggestions(elementId: string, list: DefinitionSuggestion[]): void {
     writeDefinitionSuggestions(elementId, list);
-    if (this.element().id === elementId) this.suggestions.set(list);
+    if (this.element().id !== elementId) return;
+    this.suggestions.set(list);
+    const kept = new Set(list.map((item) => item.text));
+    this.suggestionGems.update((current) => {
+      const next: Record<string, DefinitionGem> = {};
+      for (const [text, gem] of Object.entries(current)) {
+        if (kept.has(text)) next[text] = gem;
+      }
+      return next;
+    });
   }
 
   private stopSpeech(): void {
@@ -4635,7 +4676,7 @@ export class ElementModal {
         : null;
     this.equivalentIdDraft.set(known);
     this.equivalentDraft.set('');
-    this.frequencyDraft.set(normalizeDefinitionFrequency(definition?.frequency));
+    this.gemDraft.set(definition ? normalizeDefinitionGem(definition.gem) : DEFAULT_DEFINITION_GEM);
     this.beginSheet(definition?.text ?? '');
     this.editor.set({ kind: 'definition', index });
     this.focusDraft();
@@ -5280,7 +5321,7 @@ export class ElementModal {
           forms: selectionForms(generated.lemma, title),
           examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
-          frequency: sense.frequency,
+          gem: DEFAULT_DEFINITION_GEM,
         })),
       });
     } catch {
@@ -5386,7 +5427,7 @@ export class ElementModal {
         forms: current?.forms ?? [],
         examples: current?.examples ?? [],
         metadata: this.metadataToStore(),
-        frequency: this.frequencyDraft(),
+        gem: this.gemDraft(),
       };
       if (editor.index == null) definitions.push(next);
       else definitions[editor.index] = next;
