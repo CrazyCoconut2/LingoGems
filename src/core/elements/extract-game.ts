@@ -163,7 +163,7 @@ class ExtractPassage {
   }
 }
 
-/** Extract: write one equivalent per definition. Definition translations can be revealed. */
+/** Extract: guess one equivalent per definition, then the saved equivalent is shown. */
 @Component({
   selector: 'app-extract-game',
   imports: [ExtractPassage, FrequencyGem, ModeIcon, ModeProgress, NgTemplateOutlet, Reveal],
@@ -256,24 +256,50 @@ class ExtractPassage {
                 <label class="field-label" [attr.for]="'extract-equivalent-' + index">
                   Equivalent
                 </label>
-                <input
-                  [id]="'extract-equivalent-' + index"
-                  type="text"
-                  autocomplete="off"
-                  [value]="draftAt(index)"
-                  [attr.maxlength]="equivalentMax"
-                  [disabled]="busy()"
-                  placeholder="Write the equivalent"
-                  (input)="onDraft(index, $event)"
-                />
+                <div class="guess">
+                  <input
+                    [id]="'extract-equivalent-' + index"
+                    type="text"
+                    autocomplete="off"
+                    [value]="draftAt(index)"
+                    [attr.maxlength]="equivalentMax"
+                    [disabled]="busy()"
+                    [readOnly]="guessSubmitted(index)"
+                    placeholder="Write the equivalent"
+                    (input)="onDraft(index, $event)"
+                    (keydown.enter)="submitGuess(index, $event)"
+                  />
+                  @if (!guessSubmitted(index)) {
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [disabled]="busy() || !draftAt(index).trim()"
+                      (click)="submitGuess(index)"
+                    >
+                      Submit
+                    </button>
+                  }
+                </div>
+                @if (shownEquivalent(index); as answer) {
+                  <p class="answer">{{ answer }}</p>
+                }
                 <button
                   type="button"
-                  class="btn btn-secondary example-btn"
+                  class="example-btn"
+                  aria-label="Example"
+                  title="Example"
                   [disabled]="aiBusy() || !passage.text"
                   [attr.aria-busy]="askingExample() === index ? true : null"
                   (click)="generateExample(index)"
                 >
-                  Example
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                    />
+                    <path
+                      d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                    />
+                  </svg>
                 </button>
                 @if (exampleList(index).length) {
                   <ul class="examples">
@@ -606,6 +632,29 @@ class ExtractPassage {
       opacity: 0.45;
     }
 
+    .guess {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .guess input {
+      flex: 1;
+      width: auto;
+      min-width: 0;
+    }
+
+    .guess input[readonly] {
+      color: var(--text-muted);
+    }
+
+    .answer {
+      margin: 0;
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
     .group {
       display: flex;
       flex-direction: column;
@@ -680,7 +729,34 @@ class ExtractPassage {
     }
 
     .example-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       align-self: flex-start;
+      width: 1.8rem;
+      height: 1.8rem;
+      padding: 0;
+      border: 0;
+      border-radius: 0.4rem;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .example-btn:hover:not(:disabled) {
+      color: var(--text);
+      background: rgba(139, 144, 165, 0.16);
+    }
+
+    .example-btn svg {
+      display: block;
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .example-quote {
@@ -766,6 +842,7 @@ export class ExtractGame {
   readonly equivalentMax = EQUIVALENT_MAX;
 
   readonly drafts = signal<string[]>([]);
+  readonly revealed = signal<boolean[]>([]);
   readonly examples = signal<string[][]>([]);
   readonly formsExpanded = signal<boolean[]>([]);
   readonly error = signal('');
@@ -853,6 +930,29 @@ export class ExtractGame {
 
   onDraft(index: number, event: Event): void {
     this.writeRow(this.drafts, index, (event.target as HTMLInputElement).value, EQUIVALENT_MAX);
+  }
+
+  equivalentText(definition: ElementDefinition | undefined): string {
+    const id = definition?.equivalentId;
+    if (!id) return '';
+    return this.element().equivalents.find((item) => item.id === id)?.text ?? '';
+  }
+
+  guessSubmitted(index: number): boolean {
+    return this.revealed()[index] === true;
+  }
+
+  shownEquivalent(index: number): string {
+    if (!this.guessSubmitted(index)) return '';
+    return this.equivalentText(this.element().definitions[index]);
+  }
+
+  submitGuess(index: number, event?: Event): void {
+    event?.preventDefault();
+    if (this.busy() || this.guessSubmitted(index) || !this.draftAt(index).trim()) return;
+    const next = this.revealed().slice();
+    next[index] = true;
+    this.revealed.set(next);
   }
 
   entries(metadata: ElementMetadata): Array<{ key: string; value: string }> {
@@ -1046,6 +1146,7 @@ export class ExtractGame {
     if (id !== this.trackedId) {
       this.trackedId = id;
       this.drafts.set(Array.from({ length: count }, () => ''));
+      this.revealed.set(Array.from({ length: count }, () => false));
       this.examples.set(Array.from({ length: count }, () => []));
       this.formsExpanded.set(Array.from({ length: count }, () => false));
       this.passageSelection.set(null);
@@ -1057,9 +1158,11 @@ export class ExtractGame {
     }
     if (this.drafts().length === count) return;
     const drafts = this.drafts();
+    const revealed = this.revealed();
     const examples = this.examples();
     const formsExpanded = this.formsExpanded();
     this.drafts.set(Array.from({ length: count }, (_, index) => drafts[index] ?? ''));
+    this.revealed.set(Array.from({ length: count }, (_, index) => revealed[index] ?? false));
     this.examples.set(Array.from({ length: count }, (_, index) => examples[index] ?? []));
     this.formsExpanded.set(
       Array.from({ length: count }, (_, index) => formsExpanded[index] ?? false),
