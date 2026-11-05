@@ -60,4 +60,4 @@ For more information on using the Angular CLI, including detailed command refere
 
 
 TODO:
-- Enforce a rule that the element or it's forms cannot be present in the definitions.
+- Allow users to choose colors for a part of speech or it's values.

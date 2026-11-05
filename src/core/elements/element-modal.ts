@@ -55,6 +55,7 @@ import {
 } from 'ai';
 import { Reveal } from './reveal';
 import { DefinitionGemIcon } from './definition-gem';
+import { metadataChipColor, type MetadataColorPlace } from './metadata-colors';
 import { gemAccessibleName, gemMeaning } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
 import { scoreColor } from './mode-palette';
@@ -750,7 +751,8 @@ function writeExampleSuggestions(
                       @if (entries(suggestion.metadata).length) {
                         <ul class="sense-meta">
                           @for (entry of entries(suggestion.metadata); track entry.key) {
-                            <li>
+                            @let color = metaColor('definitions', entry.key, entry.value);
+                            <li [class.colored]="color" [style.--meta-color]="color">
                               <span class="sense-meta-key">{{ label(entry.key) }}</span>
                               {{ label(entry.value) }}
                             </li>
@@ -874,7 +876,8 @@ function writeExampleSuggestions(
                             </li>
                           }
                           @for (entry of meta; track entry.key) {
-                            <li>
+                            @let color = metaColor('definitions', entry.key, entry.value);
+                            <li [class.colored]="color" [style.--meta-color]="color">
                               <span class="sense-meta-key">{{ label(entry.key) }}</span>
                               {{ label(entry.value) }}
                             </li>
@@ -1128,7 +1131,8 @@ function writeExampleSuggestions(
                                 @if (meta.length) {
                                   <ul class="pills">
                                     @for (entry of meta; track entry.key) {
-                                      <li>
+                                      @let color = metaColor('examples', entry.key, entry.value);
+                                      <li [class.colored]="color" [style.--meta-color]="color">
                                         <span>{{ entry.key }}: {{ entry.value }}</span>
                                       </li>
                                     }
@@ -1697,7 +1701,8 @@ function writeExampleSuggestions(
                     <ul class="pills">
                       @for (entry of meta; track entry.key) {
                         @if (metaEdit()?.previousKey !== entry.key) {
-                          <li>
+                          @let color = sheetMetaColor(current.kind, entry.key, entry.value);
+                          <li [class.colored]="color" [style.--meta-color]="color">
                             <button
                               type="button"
                               [disabled]="busy()"
@@ -2092,7 +2097,8 @@ function writeExampleSuggestions(
                     <ul class="pills">
                       @for (entry of features; track entry.key) {
                         @if (formFeatureEdit()?.previousKey !== entry.key) {
-                          <li>
+                          @let color = metaColor('forms', entry.key, entry.value);
+                          <li [class.colored]="color" [style.--meta-color]="color">
                             <button
                               type="button"
                               [disabled]="busy()"
@@ -3138,6 +3144,13 @@ function writeExampleSuggestions(
       color: var(--accent-text);
     }
 
+    .sense-meta li.colored,
+    .suggestion .sense-meta li.colored {
+      color: var(--meta-color);
+      border-color: color-mix(in srgb, var(--meta-color) 55%, transparent);
+      background: color-mix(in srgb, var(--meta-color) 14%, transparent);
+    }
+
     .add-suggestion {
       align-self: flex-end;
     }
@@ -3244,6 +3257,12 @@ function writeExampleSuggestions(
       background: var(--surface-2);
       color: var(--text-muted);
       font-size: 0.8125rem;
+    }
+
+    .pills li.colored {
+      color: var(--meta-color);
+      background: color-mix(in srgb, var(--meta-color) 16%, var(--surface-2));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--meta-color) 55%, transparent);
     }
 
     .form-chip button,
@@ -4162,6 +4181,14 @@ export class ElementModal {
 
   entries(metadata: ElementMetadata): Array<{ key: string; value: string }> {
     return Object.entries(metadata).map(([key, value]) => ({ key, value }));
+  }
+
+  metaColor(place: MetadataColorPlace, key: string, value: string): string | null {
+    return metadataChipColor(this.element().language, place, key, value);
+  }
+
+  sheetMetaColor(kind: Editor['kind'], key: string, value: string): string | null {
+    return this.metaColor(kind === 'definition' ? 'definitions' : 'examples', key, value);
   }
 
   /** First letter of a metadata label, leaving the rest of the wording alone. */

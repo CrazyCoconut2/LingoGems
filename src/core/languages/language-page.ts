@@ -14,9 +14,20 @@ import { ExtractGame } from '../elements/extract-game';
 import { PolishGame } from '../elements/polish-game';
 import { RefineGame } from '../elements/refine-game';
 import { DefinitionGemIcon } from '../elements/definition-gem';
-import { gemAccessibleName, rememberGemMeanings, takeLegacyGemMeanings } from '../elements/gem-meanings';
+import {
+  gemAccessibleName,
+  rememberGemMeanings,
+  takeLegacyGemMeanings,
+} from '../elements/gem-meanings';
 import { ModeIcon } from '../elements/mode-icon';
 import { ModeProgress } from '../elements/mode-progress';
+import {
+  metadataChipColor,
+  readFieldColor,
+  readValueColor,
+  writeFieldColor,
+  writeValueColor,
+} from '../elements/metadata-colors';
 import { scoreColor } from '../elements/mode-palette';
 import { setPlayBlur } from '../elements/blur-translations';
 import { readStepGoal } from '../elements/step-goal';
@@ -700,22 +711,71 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                         @if (entries.length) {
                           @for (entry of entries; track entry.key) {
                             <div class="meta-key">
-                              <span class="bound-label">{{ entry.key }}</span>
-                              <div class="meta-values" role="group" [attr.aria-label]="entry.key">
-                                @for (value of entry.values; track value) {
+                              <div class="meta-key-head">
+                                <span class="bound-label">{{ entry.key }}</span>
+                                <input
+                                  type="color"
+                                  class="meta-color"
+                                  [attr.aria-label]="'Color for ' + entry.key"
+                                  [value]="fieldColor(section.kind, entry.key) || '#8b90a5'"
+                                  (input)="setFieldColor(section.kind, entry.key, $event)"
+                                />
+                                @if (fieldColor(section.kind, entry.key)) {
                                   <button
                                     type="button"
-                                    class="meta-value"
-                                    [class.selected]="
-                                      metadataSelected(section.kind, entry.key, value)
-                                    "
-                                    [attr.aria-pressed]="
-                                      metadataSelected(section.kind, entry.key, value)
-                                    "
-                                    (click)="toggleMetadata(section.kind, entry.key, value)"
+                                    class="meta-color-clear"
+                                    [attr.aria-label]="'Clear color for ' + entry.key"
+                                    (click)="clearFieldColor(section.kind, entry.key)"
                                   >
-                                    {{ value }}
+                                    ×
                                   </button>
+                                }
+                              </div>
+                              <div class="meta-values" role="group" [attr.aria-label]="entry.key">
+                                @for (value of entry.values; track value) {
+                                  @let color = chipColor(section.kind, entry.key, value);
+                                  <span class="meta-value-row">
+                                    <button
+                                      type="button"
+                                      class="meta-value"
+                                      [class.colored]="color"
+                                      [class.selected]="
+                                        metadataSelected(section.kind, entry.key, value)
+                                      "
+                                      [style.--meta-color]="color"
+                                      [attr.aria-pressed]="
+                                        metadataSelected(section.kind, entry.key, value)
+                                      "
+                                      (click)="toggleMetadata(section.kind, entry.key, value)"
+                                    >
+                                      {{ value }}
+                                    </button>
+                                    <input
+                                      type="color"
+                                      class="meta-color"
+                                      [attr.aria-label]="'Color for ' + entry.key + ' ' + value"
+                                      [value]="
+                                        valueColor(section.kind, entry.key, value) ||
+                                        fieldColor(section.kind, entry.key) ||
+                                        '#8b90a5'
+                                      "
+                                      (input)="
+                                        setValueColor(section.kind, entry.key, value, $event)
+                                      "
+                                    />
+                                    @if (valueColor(section.kind, entry.key, value)) {
+                                      <button
+                                        type="button"
+                                        class="meta-color-clear"
+                                        [attr.aria-label]="
+                                          'Clear color for ' + entry.key + ' ' + value
+                                        "
+                                        (click)="clearValueColor(section.kind, entry.key, value)"
+                                      >
+                                        ×
+                                      </button>
+                                    }
+                                  </span>
                                 }
                               </div>
                             </div>
@@ -1697,6 +1757,34 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       margin-top: 0.2rem;
     }
 
+    .meta-key-head,
+    .meta-value-row {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .meta-color {
+      width: 1.45rem;
+      height: 1.35rem;
+      padding: 0.1rem;
+      border: 1px solid var(--border);
+      border-radius: 0.35rem;
+      background: var(--surface);
+      cursor: pointer;
+    }
+
+    .meta-color-clear {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 0 0.15rem;
+      font: inherit;
+      font-size: 0.95rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+
     .meta-values {
       display: flex;
       flex-wrap: wrap;
@@ -1724,6 +1812,22 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       background: rgba(var(--accent-rgb), 0.16);
       color: var(--accent-text);
       box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.45);
+    }
+
+    .meta-value.colored {
+      color: var(--meta-color);
+      background: color-mix(in srgb, var(--meta-color) 16%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--meta-color) 55%, transparent);
+    }
+
+    .meta-value.colored:hover {
+      background: color-mix(in srgb, var(--meta-color) 24%, transparent);
+    }
+
+    .meta-value.colored.selected {
+      color: var(--meta-color);
+      background: color-mix(in srgb, var(--meta-color) 32%, transparent);
+      box-shadow: inset 0 0 0 1px var(--meta-color);
     }
 
     .link-btn {
@@ -2364,6 +2468,34 @@ export class LanguagePage {
 
   metadataSelected(kind: MetadataKind, key: string, value: string): boolean {
     return (this.metadataFilter(kind)[key] ?? []).includes(value);
+  }
+
+  fieldColor(kind: MetadataKind, key: string): string | null {
+    return readFieldColor(this.code(), kind, key);
+  }
+
+  valueColor(kind: MetadataKind, key: string, value: string): string | null {
+    return readValueColor(this.code(), kind, key, value);
+  }
+
+  chipColor(kind: MetadataKind, key: string, value: string): string | null {
+    return metadataChipColor(this.code(), kind, key, value);
+  }
+
+  setFieldColor(kind: MetadataKind, key: string, event: Event): void {
+    writeFieldColor(this.code(), kind, key, (event.target as HTMLInputElement).value);
+  }
+
+  clearFieldColor(kind: MetadataKind, key: string): void {
+    writeFieldColor(this.code(), kind, key, null);
+  }
+
+  setValueColor(kind: MetadataKind, key: string, value: string, event: Event): void {
+    writeValueColor(this.code(), kind, key, value, (event.target as HTMLInputElement).value);
+  }
+
+  clearValueColor(kind: MetadataKind, key: string, value: string): void {
+    writeValueColor(this.code(), kind, key, value, null);
   }
 
   toggleMetadata(kind: MetadataKind, key: string, value: string): void {

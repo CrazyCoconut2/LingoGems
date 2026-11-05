@@ -37,6 +37,7 @@ import {
 import { DefinitionGemIcon } from './definition-gem';
 import { gemAccessibleName } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
+import { metadataChipColor } from './metadata-colors';
 import { scoreColor } from './mode-palette';
 import { ModeProgress } from './mode-progress';
 import { Reveal } from './reveal';
@@ -254,10 +255,7 @@ export class ExtractPassage {
                   <ul class="equivalents">
                     @for (translation of passage.translations; track $index) {
                       <li>
-                        <app-reveal
-                          [text]="translation.text"
-                          [language]="element().language"
-                        />
+                        <app-reveal [text]="translation.text" [language]="element().language" />
                       </li>
                     }
                   </ul>
@@ -268,7 +266,8 @@ export class ExtractPassage {
                 @if (entries(definition.metadata).length) {
                   <ul class="sense-meta">
                     @for (entry of entries(definition.metadata); track entry.key) {
-                      <li>
+                      @let color = metaColor(entry.key, entry.value);
+                      <li [class.colored]="color" [style.--meta-color]="color">
                         <span class="sense-meta-key">{{ label(entry.key) }}</span>
                         {{ label(entry.value) }}
                       </li>
@@ -640,6 +639,12 @@ export class ExtractPassage {
       white-space: nowrap;
     }
 
+    .sense-meta li.colored {
+      color: var(--meta-color);
+      border-color: color-mix(in srgb, var(--meta-color) 55%, transparent);
+      background: color-mix(in srgb, var(--meta-color) 14%, transparent);
+    }
+
     .sense-meta-key {
       margin-right: 0.35rem;
       font-weight: 600;
@@ -999,6 +1004,10 @@ export class ExtractGame {
 
   entries(metadata: ElementMetadata): Array<{ key: string; value: string }> {
     return Object.entries(metadata).map(([key, value]) => ({ key, value }));
+  }
+
+  metaColor(key: string, value: string): string | null {
+    return metadataChipColor(this.element().language, 'definitions', key, value);
   }
 
   /** First letter of a metadata label, leaving the rest of the wording alone. */
