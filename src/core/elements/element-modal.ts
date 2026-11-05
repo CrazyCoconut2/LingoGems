@@ -55,6 +55,7 @@ import {
 } from 'ai';
 import { Reveal } from './reveal';
 import { DefinitionGemIcon } from './definition-gem';
+import { TranslationRune } from './translation-rune';
 import { metadataChipColor, type MetadataColorPlace } from './metadata-colors';
 import { gemAccessibleName, gemMeaning } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
@@ -496,7 +497,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [Reveal, ModeIcon, ModeProgress, DefinitionGemIcon],
+  imports: [Reveal, ModeIcon, ModeProgress, DefinitionGemIcon, TranslationRune],
   template: `
     <div
       class="backdrop"
@@ -638,14 +639,7 @@ function writeExampleSuggestions(
               [disabled]="busy()"
               (click)="openTranslations()"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m5 8 6 6" />
-                <path d="m4 14 6-6 2-3" />
-                <path d="M2 5h12" />
-                <path d="M7 2h1" />
-                <path d="m22 22-5-10-5 10" />
-                <path d="M14 18h6" />
-              </svg>
+              <app-translation-rune />
             </button>
             <button
               type="button"
@@ -864,14 +858,7 @@ function writeExampleSuggestions(
                         <ul class="sense-meta">
                           @if (equivalent) {
                             <li class="sense-equivalent">
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m5 8 6 6" />
-                                <path d="m4 14 6-6 2-3" />
-                                <path d="M2 5h12" />
-                                <path d="M7 2h1" />
-                                <path d="m22 22-5-10-5 10" />
-                                <path d="M14 18h6" />
-                              </svg>
+                              <app-translation-rune />
                               <app-reveal [text]="equivalent" [language]="element().language" />
                             </li>
                           }
@@ -1530,14 +1517,7 @@ function writeExampleSuggestions(
                     [disabled]="!canTranslate()"
                     (click)="translateDraft()"
                   >
-                    <svg viewBox="0 0 24 24">
-                      <path d="m5 8 6 6" />
-                      <path d="m4 14 6-6 2-3" />
-                      <path d="M2 5h12" />
-                      <path d="M7 2h1" />
-                      <path d="m22 22-5-10-5 10" />
-                      <path d="M14 18h6" />
-                    </svg>
+                    <app-translation-rune />
                   </button>
                 </div>
                 <textarea
@@ -2837,10 +2817,15 @@ function writeExampleSuggestions(
       background: color-mix(in srgb, var(--danger) 12%, transparent);
     }
 
-    .icon-btn svg {
+    .icon-btn svg,
+    .icon-btn app-translation-rune {
       display: block;
       width: 1rem;
       height: 1rem;
+      flex: none;
+    }
+
+    .icon-btn svg {
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
@@ -3128,15 +3113,10 @@ function writeExampleSuggestions(
       font-weight: 650;
     }
 
-    .sense-equivalent svg {
-      width: 0.85rem;
-      height: 0.85rem;
+    .sense-equivalent app-translation-rune {
+      width: 0.95rem;
+      height: 0.95rem;
       flex: none;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     .suggestion .sense-meta li {

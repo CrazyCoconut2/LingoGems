@@ -14,6 +14,7 @@ import { ExtractGame } from '../elements/extract-game';
 import { PolishGame } from '../elements/polish-game';
 import { RefineGame } from '../elements/refine-game';
 import { DefinitionGemIcon } from '../elements/definition-gem';
+import { TranslationRune } from '../elements/translation-rune';
 import {
   gemAccessibleName,
   rememberGemMeanings,
@@ -117,6 +118,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     PolishGame,
     RefineGame,
     DefinitionGemIcon,
+    TranslationRune,
     ModeIcon,
     ModeProgress,
     LanguageAiSettings,
@@ -384,15 +386,10 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                             : element.equivalents.length + ' translations'
                         "
                       >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m5 8 6 6" />
-                          <path d="m4 14 6-6 2-3" />
-                          <path d="M2 5h12" />
-                          <path d="M7 2h1" />
-                          <path d="m22 22-5-10-5 10" />
-                          <path d="M14 18h6" />
-                        </svg>
-                        <span>{{ element.equivalents.length }}</span>
+                        <app-translation-rune />
+                        @if (element.equivalents.length > 1) {
+                          <span>x{{ element.equivalents.length }}</span>
+                        }
                       </span>
                       @let groups = definitionCounts(element.definitions);
                       <span class="stat stones" [attr.aria-label]="definitionsLabel(groups)">
@@ -1393,16 +1390,10 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       opacity: 0.4;
     }
 
-    .stat svg {
-      display: block;
-      width: 0.85rem;
-      height: 0.85rem;
+    .stat app-translation-rune {
+      width: 1rem;
+      height: 1rem;
       flex: none;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     .stones {
