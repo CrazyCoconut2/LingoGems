@@ -60,8 +60,6 @@ import { metadataChipColor, type MetadataColorPlace } from './metadata-colors';
 import { gemAccessibleName } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
 import { comfortColor } from './comfort-palette';
-import { ModeProgress } from './mode-progress';
-import { readStepGoal } from './step-goal';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
@@ -497,7 +495,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [Reveal, ModeIcon, ModeProgress, DefinitionGemIcon, TranslationLantern],
+  imports: [Reveal, ModeIcon, DefinitionGemIcon, TranslationLantern],
   template: `
     <div
       class="backdrop"
@@ -601,26 +599,17 @@ function writeExampleSuggestions(
             >
               {{ element().comfort }}
             </button>
-            <div class="mode-control">
-              <button
-                type="button"
-                class="mode-btn"
-                [attr.aria-label]="modeLabel(element().mode)"
-                [attr.title]="modeLabel(element().mode)"
-                [attr.aria-expanded]="modeOpen()"
-                [disabled]="busy()"
-                (click)="modeOpen.set(true)"
-              >
-                <app-mode-icon [mode]="element().mode" />
-              </button>
-              <app-mode-progress
-                [mode]="element().mode"
-                [succeeded]="element().modeProgress[element().mode]"
-                [goal]="readStepGoal(element().language)"
-                [color]="comfortColor(element().comfort)"
-                [compact]="true"
-              />
-            </div>
+            <button
+              type="button"
+              class="mode-btn"
+              [attr.aria-label]="modeLabel(element().mode)"
+              [attr.title]="modeLabel(element().mode)"
+              [attr.aria-expanded]="modeOpen()"
+              [disabled]="busy()"
+              (click)="modeOpen.set(true)"
+            >
+              <app-mode-icon [mode]="element().mode" />
+            </button>
             @if (canHear(shownTitle())) {
               <button
                 type="button"
@@ -2381,36 +2370,9 @@ function writeExampleSuggestions(
               </div>
               <div class="mode-editor">
                 @let mode = element().mode;
-                @let goal = readStepGoal(element().language);
-                @let succeeded = element().modeProgress[mode];
                 <div class="mode-current">
                   <app-mode-icon [mode]="mode" />
                   <span>{{ modeLabel(mode) }}</span>
-                </div>
-                <div class="mode-adjust">
-                  <button
-                    type="button"
-                    aria-label="Remove a point"
-                    [disabled]="busy() || succeeded <= 0"
-                    (click)="adjustModeProgress(-1)"
-                  >
-                    −
-                  </button>
-                  <app-mode-progress
-                    [mode]="mode"
-                    [succeeded]="succeeded"
-                    [goal]="goal"
-                    [color]="comfortColor(element().comfort)"
-                    [labeled]="true"
-                  />
-                  <button
-                    type="button"
-                    aria-label="Add a point"
-                    [disabled]="busy() || succeeded >= goal"
-                    (click)="adjustModeProgress(1)"
-                  >
-                    +
-                  </button>
                 </div>
                 <div class="mode-sequence" role="group" [attr.aria-label]="'Modes, from ' + modeLabel(1) + ' to ' + modeLabel(3)">
                   @for (step of modes; track step) {
@@ -2637,14 +2599,6 @@ function writeExampleSuggestions(
     .mode-btn app-mode-icon {
       width: 1.25rem;
       height: 1.25rem;
-    }
-
-    .mode-control {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex: none;
-      gap: 0.02rem;
     }
 
     .mode-sheet {
@@ -3797,7 +3751,6 @@ export class ElementModal {
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
   readonly modeLabel = elementModeLabel;
   readonly comfortColor = comfortColor;
-  readonly readStepGoal = readStepGoal;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
   readonly gems = DEFINITION_GEMS;
   readonly gemAccessibleName = gemAccessibleName;
@@ -5370,18 +5323,8 @@ export class ElementModal {
     await this.saveAppearance({ mode });
   }
 
-  async adjustModeProgress(delta: 1 | -1): Promise<void> {
-    const element = this.element();
-    const mode = element.mode;
-    const goal = readStepGoal(element.language);
-    const current = Math.min(goal, element.modeProgress[mode] ?? 0);
-    const next = Math.min(goal, Math.max(0, current + delta));
-    if (next === element.modeProgress[mode]) return;
-    await this.saveAppearance({ modeProgress: { ...element.modeProgress, [mode]: next } });
-  }
-
   private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'mode' | 'modeProgress' | 'comfort'>>,
+    patch: Partial<Pick<StoredElement, 'mode' | 'comfort'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
     this.busy.set(true);

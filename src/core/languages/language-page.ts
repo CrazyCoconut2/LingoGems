@@ -21,7 +21,6 @@ import {
   takeLegacyGemMeanings,
 } from '../elements/gem-meanings';
 import { ModeIcon } from '../elements/mode-icon';
-import { ModeProgress } from '../elements/mode-progress';
 import {
   metadataChipColor,
   readFieldColor,
@@ -31,7 +30,6 @@ import {
 } from '../elements/metadata-colors';
 import { comfortColor } from '../elements/comfort-palette';
 import { setPlayBlur } from '../elements/blur-translations';
-import { readStepGoal } from '../elements/step-goal';
 import { DiscoverModal } from './discover-modal';
 import { LanguageAiSettings } from './language-ai-settings';
 import { generateElementFromSelection } from 'ai';
@@ -121,7 +119,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     DefinitionGemIcon,
     TranslationLantern,
     ModeIcon,
-    ModeProgress,
     LanguageAiSettings,
     DiscoverModal,
   ],
@@ -335,13 +332,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       <span class="play-icon" [attr.aria-label]="modeLabel(element.mode)">
                         <app-mode-icon [mode]="element.mode" />
                       </span>
-                      <app-mode-progress
-                        [mode]="element.mode"
-                        [succeeded]="element.modeProgress[element.mode]"
-                        [goal]="readStepGoal(code())"
-                        [color]="highlightColor(element)"
-                        [compact]="true"
-                      />
                     </button>
                   } @else {
                     <button type="button" class="element-open" (click)="openElement(element.id)">
@@ -379,13 +369,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       >
                         <app-mode-icon [mode]="element.mode" />
                       </button>
-                      <app-mode-progress
-                        [mode]="element.mode"
-                        [succeeded]="element.modeProgress[element.mode]"
-                        [goal]="readStepGoal(code())"
-                        [color]="highlightColor(element)"
-                        [compact]="true"
-                      />
                     </div>
                   }
                   <button
@@ -1913,7 +1896,6 @@ export class LanguagePage {
   readonly modeLabel = elementModeLabel;
   readonly needsDefinitionEdit = elementHasInvalidDefinition;
   readonly gemAccessibleName = gemAccessibleName;
-  readonly readStepGoal = readStepGoal;
   readonly asking = signal(false);
   readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
