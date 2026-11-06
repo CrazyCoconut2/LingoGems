@@ -1232,10 +1232,10 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       gap: 0.45rem;
       min-height: 0;
       padding: 0.6rem 1rem 0.55rem;
-      border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 28%, transparent);
-      border-left: 3px solid var(--highlight-color, var(--accent));
+      border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 55%, var(--border));
+      border-left: 3px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 78%, var(--surface));
       border-radius: var(--radius);
-      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 14%, var(--surface));
+      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 22%, var(--surface));
       color: inherit;
       font: inherit;
       text-align: left;
@@ -1251,7 +1251,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .element:hover {
-      background: var(--surface);
+      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 30%, var(--surface));
     }
 
     .element-open {
@@ -1306,7 +1306,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       letter-spacing: -0.02em;
       text-decoration-line: underline;
       text-decoration-style: solid;
-      text-decoration-color: var(--highlight-color, #6c63ff);
+      text-decoration-color: var(--text);
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
     }

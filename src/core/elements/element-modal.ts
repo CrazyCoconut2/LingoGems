@@ -59,7 +59,7 @@ import { TranslationLantern } from './translation-lantern';
 import { metadataChipColor, type MetadataColorPlace } from './metadata-colors';
 import { gemAccessibleName } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
-import { comfortColor } from './comfort-palette';
+import { COMFORT_RATES, comfortColor } from './comfort-palette';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
@@ -504,7 +504,7 @@ function writeExampleSuggestions(
       [attr.aria-label]="shownTitle()"
       (click)="onBackdrop($event)"
     >
-      <div class="panel">
+      <div class="panel" [style.--highlight-color]="highlightColor(element())">
         <header>
           <div class="title-row">
             @if (canGoBack()) {
@@ -2313,32 +2313,21 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <div class="mode-editor">
-                <div class="mode-adjust">
+              <div class="comfort-rates" role="group" aria-label="Comfort">
+                @for (rate of comfortRates; track rate) {
                   <button
                     type="button"
-                    aria-label="Lower comfort"
-                    [disabled]="busy() || element().comfort <= 1"
-                    (click)="adjustComfort(-1)"
+                    class="comfort-rate"
+                    [class.current]="element().comfort === rate"
+                    [disabled]="busy()"
+                    [style.--rate-color]="comfortColor(rate)"
+                    [attr.aria-label]="'Comfort ' + rate"
+                    [attr.aria-pressed]="element().comfort === rate"
+                    (click)="setComfort(rate)"
                   >
-                    −
+                    {{ rate }}
                   </button>
-                  <span
-                    class="comfort-current"
-                    [style.color]="comfortColor(element().comfort)"
-                    aria-hidden="true"
-                  >
-                    {{ element().comfort }}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Raise comfort"
-                    [disabled]="busy() || element().comfort >= 10"
-                    (click)="adjustComfort(1)"
-                  >
-                    +
-                  </button>
-                </div>
+                }
               </div>
             </section>
           </div>
@@ -2474,9 +2463,11 @@ function writeExampleSuggestions(
       height: min(90dvh, calc(100dvh - 2.5rem));
       min-height: 0;
       overflow: hidden;
-      border: 1px solid var(--border);
+      --card-line: color-mix(in srgb, var(--highlight-color, var(--accent)) 42%, transparent);
+      --card-border: color-mix(in srgb, var(--highlight-color, var(--accent)) 58%, var(--border));
+      border: 1px solid var(--card-border);
       border-radius: calc(var(--radius) + 4px);
-      background: var(--surface);
+      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 24%, var(--surface));
       box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
     }
 
@@ -2500,7 +2491,7 @@ function writeExampleSuggestions(
       align-items: stretch;
       gap: 0.7rem;
       padding: 0.9rem 1.15rem;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--card-line);
     }
 
     header > .header-actions {
@@ -2530,9 +2521,10 @@ function writeExampleSuggestions(
 
     .title-main h2 {
       flex: 0 1 auto;
+      color: var(--text);
       text-decoration-line: underline;
       text-decoration-style: solid;
-      text-decoration-color: var(--highlight-color, #6c63ff);
+      text-decoration-color: var(--text);
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
     }
@@ -2564,13 +2556,43 @@ function writeExampleSuggestions(
       cursor: not-allowed;
     }
 
-    .comfort-current {
-      min-width: 1.6rem;
-      font-size: 1.35rem;
+    .comfort-rates {
+      display: grid;
+      grid-template-columns: repeat(5, 2.45rem);
+      gap: 0.45rem;
+      justify-content: center;
+    }
+
+    .comfort-rate {
+      display: grid;
+      place-items: center;
+      width: 2.45rem;
+      height: 2.45rem;
+      margin: 0;
+      padding: 0;
+      border: 1px solid var(--rate-color, var(--border));
+      border-radius: 8px;
+      background: transparent;
+      color: var(--rate-color, var(--text));
+      font: inherit;
+      font-size: 0.95rem;
       font-weight: 750;
       font-variant-numeric: tabular-nums;
-      text-align: center;
-      line-height: 1;
+      cursor: pointer;
+    }
+
+    .comfort-rate:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--rate-color, var(--text)) 18%, transparent);
+    }
+
+    .comfort-rate.current {
+      background: var(--rate-color, var(--text));
+      color: var(--bg);
+    }
+
+    .comfort-rate:disabled {
+      opacity: 0.45;
+      cursor: default;
     }
 
     .mode-btn {
@@ -2625,35 +2647,6 @@ function writeExampleSuggestions(
     .mode-current app-mode-icon {
       width: 5.5rem;
       height: 5.5rem;
-    }
-
-    .mode-adjust {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .mode-adjust button {
-      display: grid;
-      place-items: center;
-      width: 2.15rem;
-      height: 2.15rem;
-      margin: 0;
-      padding: 0;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: transparent;
-      color: var(--text);
-      font: inherit;
-      font-size: 1.25rem;
-      font-weight: 700;
-      line-height: 1;
-      cursor: pointer;
-    }
-
-    .mode-adjust button:disabled {
-      opacity: 0.35;
-      cursor: default;
     }
 
     .mode-sequence {
@@ -2815,15 +2808,16 @@ function writeExampleSuggestions(
       flex: none;
       border: 0;
       background: transparent;
-      color: var(--text-muted);
+      color: var(--text);
       cursor: pointer;
     }
 
     .close {
       width: 2rem;
       height: 2rem;
+      border: 1px solid var(--card-border);
       border-radius: 999px;
-      color: var(--muted);
+      color: var(--text);
       font-size: 1.4rem;
       line-height: 1;
     }
@@ -2981,6 +2975,11 @@ function writeExampleSuggestions(
       gap: 0.35rem;
     }
 
+    h3.section-title,
+    button.section-title {
+      color: var(--text);
+    }
+
     h3.section-title svg,
     button.section-title svg {
       display: block;
@@ -2988,7 +2987,7 @@ function writeExampleSuggestions(
       height: 1.15rem;
       flex: none;
       fill: none;
-      stroke: var(--accent-text);
+      stroke: currentColor;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
@@ -3003,7 +3002,6 @@ function writeExampleSuggestions(
       padding: 0;
       border: 0;
       background: transparent;
-      color: var(--text-muted);
       font: inherit;
       font-size: 0.78rem;
       font-weight: 700;
@@ -3061,9 +3059,9 @@ function writeExampleSuggestions(
       flex-direction: column;
       gap: 0.55rem;
       padding: 0.8rem 0.9rem;
-      border: 1px solid var(--border);
+      border: 1px solid var(--card-border);
       border-radius: var(--radius);
-      background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
+      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 18%, var(--surface-2));
     }
 
     .suggestion {
@@ -3265,7 +3263,7 @@ function writeExampleSuggestions(
     .sense > .group {
       margin-top: 0.2rem;
       padding-top: 0.85rem;
-      border-top: 1px solid rgba(139, 144, 165, 0.28);
+      border-top: 1px solid var(--card-line);
     }
 
     .group {
@@ -3360,7 +3358,7 @@ function writeExampleSuggestions(
       gap: 0.25rem;
       min-width: 0;
       padding: 0.1rem 0 0.1rem 0.85rem;
-      border-left: 3px solid rgba(var(--accent-rgb), 0.45);
+      border-left: 3px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 72%, transparent);
       color: var(--text-muted);
       font-size: 0.88rem;
       line-height: 1.5;
@@ -3751,6 +3749,7 @@ export class ElementModal {
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
   readonly modeLabel = elementModeLabel;
   readonly comfortColor = comfortColor;
+  readonly comfortRates = COMFORT_RATES;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
   readonly gems = DEFINITION_GEMS;
   readonly gemAccessibleName = gemAccessibleName;
@@ -5301,11 +5300,10 @@ export class ElementModal {
     return comfortColor(element.comfort);
   }
 
-  async adjustComfort(delta: 1 | -1): Promise<void> {
+  async setComfort(rate: number): Promise<void> {
     const element = this.element();
-    const next = Math.min(10, Math.max(1, element.comfort + delta));
-    if (next === element.comfort) return;
-    await this.saveAppearance({ comfort: next });
+    if (rate === element.comfort || rate < 1 || rate > 10) return;
+    await this.saveAppearance({ comfort: rate });
   }
 
   closeComfort(event: MouseEvent): void {

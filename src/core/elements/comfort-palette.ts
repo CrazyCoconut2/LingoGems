@@ -6,18 +6,18 @@ export const COMFORT_RATES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 export type ComfortRate = (typeof COMFORT_RATES)[number];
 
-/** Rate 1 is the first color. Rate 10 is the last. */
+/** Rate 1 is the first color. Rate 10 is the last. Soft rose through gold into mint. */
 export const DEFAULT_COMFORT_PALETTE: Record<ComfortRate, string> = {
-  1: '#e23b3b',
-  2: '#d04b42',
-  3: '#bd5b49',
-  4: '#ab6b4f',
-  5: '#997b56',
-  6: '#868c5d',
-  7: '#749c64',
-  8: '#62ac6a',
-  9: '#4fbc71',
-  10: '#3dcc78',
+  1: '#cf7b6e',
+  2: '#cf946e',
+  3: '#cfae6e',
+  4: '#cfc86e',
+  5: '#b8cf6e',
+  6: '#94cf6e',
+  7: '#71cf6e',
+  8: '#6ecf8b',
+  9: '#6ecfa5',
+  10: '#6ecfbb',
 };
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
