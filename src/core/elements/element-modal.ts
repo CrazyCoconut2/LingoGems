@@ -2313,21 +2313,28 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <div class="comfort-rates" role="group" aria-label="Comfort">
-                @for (rate of comfortRates; track rate) {
-                  <button
-                    type="button"
-                    class="comfort-rate"
-                    [class.current]="element().comfort === rate"
-                    [disabled]="busy()"
-                    [style.--rate-color]="comfortColor(rate)"
-                    [attr.aria-label]="'Comfort ' + rate"
-                    [attr.aria-pressed]="element().comfort === rate"
-                    (click)="setComfort(rate)"
-                  >
-                    {{ rate }}
-                  </button>
-                }
+              <div class="mode-editor">
+                <div class="mode-current">
+                  <span class="comfort-figure" [style.color]="comfortColor(element().comfort)">
+                    {{ element().comfort }}
+                  </span>
+                </div>
+                <div class="comfort-rates" role="group" aria-label="Comfort">
+                  @for (rate of comfortRates; track rate) {
+                    <button
+                      type="button"
+                      class="comfort-rate"
+                      [class.current]="element().comfort === rate"
+                      [disabled]="busy()"
+                      [style.--rate-color]="comfortColor(rate)"
+                      [attr.aria-label]="'Comfort ' + rate"
+                      [attr.aria-pressed]="element().comfort === rate"
+                      (click)="setComfort(rate)"
+                    >
+                      {{ rate }}
+                    </button>
+                  }
+                </div>
               </div>
             </section>
           </div>
@@ -2459,8 +2466,10 @@ function writeExampleSuggestions(
       position: relative;
       display: flex;
       flex-direction: column;
+      box-sizing: border-box;
       width: min(100%, 42rem);
-      height: min(90dvh, calc(100dvh - 2.5rem));
+      height: auto;
+      max-height: min(90dvh, calc(100dvh - 2.5rem));
       min-height: 0;
       overflow: hidden;
       --card-line: color-mix(in srgb, var(--highlight-color, var(--accent)) 42%, transparent);
@@ -2487,6 +2496,7 @@ function writeExampleSuggestions(
     }
 
     header {
+      flex: none;
       flex-direction: column;
       align-items: stretch;
       gap: 0.7rem;
@@ -2556,22 +2566,29 @@ function writeExampleSuggestions(
       cursor: not-allowed;
     }
 
+    .comfort-figure {
+      font-size: 3.5rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
     .comfort-rates {
       display: grid;
-      grid-template-columns: repeat(5, 2.45rem);
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 0.45rem;
-      justify-content: center;
+      width: 100%;
     }
 
     .comfort-rate {
       display: grid;
       place-items: center;
-      width: 2.45rem;
+      min-width: 0;
       height: 2.45rem;
       margin: 0;
       padding: 0;
       border: 1px solid var(--rate-color, var(--border));
-      border-radius: 8px;
+      border-radius: 12px;
       background: transparent;
       color: var(--rate-color, var(--text));
       font: inherit;
@@ -2581,13 +2598,14 @@ function writeExampleSuggestions(
       cursor: pointer;
     }
 
-    .comfort-rate:hover:not(:disabled) {
+    .comfort-rate:hover:not(:disabled):not(.current) {
       background: color-mix(in srgb, var(--rate-color, var(--text)) 18%, transparent);
     }
 
     .comfort-rate.current {
       background: var(--rate-color, var(--text));
       color: var(--bg);
+      cursor: default;
     }
 
     .comfort-rate:disabled {
@@ -2951,13 +2969,14 @@ function writeExampleSuggestions(
     }
 
     .body {
-      flex: 1;
+      box-sizing: border-box;
+      flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      padding: 1rem 1.15rem 1.25rem;
+      padding: 1rem 1.15rem;
     }
 
     h3 {
@@ -3059,10 +3078,10 @@ function writeExampleSuggestions(
       flex-direction: column;
       gap: 0.55rem;
       padding: 0.8rem 0.9rem;
-      border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 82%, transparent);
+      border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 42%, black);
       border-radius: var(--radius);
-      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 24%, var(--surface));
-      box-shadow: 0 1px 7px color-mix(in srgb, var(--highlight-color, var(--accent)) 30%, transparent);
+      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 22%, var(--bg));
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
     }
 
     .suggestion {

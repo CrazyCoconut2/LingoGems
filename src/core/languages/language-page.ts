@@ -1830,19 +1830,20 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
     .comfort-choices {
       display: grid;
-      grid-template-columns: repeat(5, 2.2rem);
-      gap: 0.4rem;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0.45rem;
     }
 
     .comfort-choice {
       display: grid;
       place-items: center;
-      width: 2.2rem;
-      height: 2.2rem;
+      width: 100%;
+      min-width: 0;
+      height: 2.45rem;
       margin: 0;
       padding: 0;
       border: 1px solid var(--rate-color, var(--border));
-      border-radius: 8px;
+      border-radius: 0.75rem;
       background: transparent;
       color: var(--rate-color, var(--text));
       font: inherit;
