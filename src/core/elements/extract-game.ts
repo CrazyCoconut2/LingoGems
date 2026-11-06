@@ -205,7 +205,6 @@ export class ExtractPassage {
               [succeeded]="element().modeProgress[1]"
               [goal]="goal()"
               [color]="comfortColor(element().comfort)"
-              [labeled]="true"
             />
             <button
               #closeButton

@@ -2469,7 +2469,7 @@ function writeExampleSuggestions(
       box-sizing: border-box;
       width: min(100%, 42rem);
       height: auto;
-      max-height: min(90dvh, calc(100dvh - 2.5rem));
+      max-height: calc(100dvh - 2.5rem);
       min-height: 0;
       overflow: hidden;
       --card-line: color-mix(in srgb, var(--highlight-color, var(--accent)) 42%, transparent);
@@ -2976,7 +2976,7 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      padding: 1rem 1.15rem;
+      padding: 1rem 1.15rem 0.75rem;
     }
 
     h3 {
@@ -3081,7 +3081,7 @@ function writeExampleSuggestions(
       border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 42%, black);
       border-radius: var(--radius);
       background: color-mix(in srgb, var(--highlight-color, var(--accent)) 22%, var(--bg));
-      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
     }
 
     .suggestion {

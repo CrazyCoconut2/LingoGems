@@ -96,7 +96,6 @@ type HighlightSource = {
               [succeeded]="element().modeProgress[3]"
               [goal]="goal()"
               [color]="comfortColor(element().comfort)"
-              [labeled]="true"
             />
             <button
               #closeButton

@@ -10,15 +10,12 @@ import { DEFAULT_STEP_GOAL, MAX_STEP_GOAL, MIN_STEP_GOAL } from './step-goal';
       class="progress"
       [class.compact]="compact()"
       role="img"
-      [attr.aria-label]="modeLabel(mode()) + ', ' + shown() + ' of ' + total()"
+      [attr.aria-label]="modeLabel(mode())"
       [style.--mode-color]="color()"
     >
       <span class="track" aria-hidden="true">
         <span class="fill" [style.width.%]="percent()"></span>
       </span>
-      @if (labeled()) {
-        <span class="ratio" aria-hidden="true">{{ shown() }}/{{ total() }}</span>
-      }
     </div>
   `,
   styles: `
@@ -50,14 +47,6 @@ import { DEFAULT_STEP_GOAL, MAX_STEP_GOAL, MIN_STEP_GOAL } from './step-goal';
       background: var(--mode-color, var(--accent));
     }
 
-    .ratio {
-      color: var(--text-muted);
-      font-size: 0.72rem;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
     .compact {
       width: 2.5rem;
       gap: 0.12rem;
@@ -74,8 +63,6 @@ export class ModeProgress {
   readonly goal = input(DEFAULT_STEP_GOAL);
   readonly color = input.required<string>();
   readonly compact = input(false);
-  /** The ratio is shown only while choosing a mode. */
-  readonly labeled = input(false);
   readonly modeLabel = elementModeLabel;
 
   readonly total = computed(() => {
