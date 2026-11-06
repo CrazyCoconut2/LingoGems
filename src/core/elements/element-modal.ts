@@ -3059,9 +3059,10 @@ function writeExampleSuggestions(
       flex-direction: column;
       gap: 0.55rem;
       padding: 0.8rem 0.9rem;
-      border: 1px solid var(--card-border);
+      border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 82%, transparent);
       border-radius: var(--radius);
-      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 18%, var(--surface-2));
+      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 24%, var(--surface));
+      box-shadow: 0 1px 7px color-mix(in srgb, var(--highlight-color, var(--accent)) 30%, transparent);
     }
 
     .suggestion {
