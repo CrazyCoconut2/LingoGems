@@ -28,7 +28,7 @@ import {
   writeFieldColor,
   writeValueColor,
 } from '../elements/metadata-colors';
-import { comfortColor } from '../elements/comfort-palette';
+import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { setPlayBlur } from '../elements/blur-translations';
 import { DiscoverModal } from './discover-modal';
 import { LanguageAiSettings } from './language-ai-settings';
@@ -46,6 +46,7 @@ import {
   elementHighlightParts,
   elementMatchesCountRanges,
   elementMatchesMetadata,
+  elementMatchesComfort,
   elementMatchesMode,
   elementMatchesPrefix,
   elementModeLabel,
@@ -60,6 +61,7 @@ import {
   mergeMetadataVariability,
   metadataFilterSize,
   parseElementCountRange,
+  parseComfort,
   parseElementMode,
   parseElementSort,
   parseMetadataFilter,
@@ -84,7 +86,7 @@ import {
   type StoredLanguage,
 } from 'collection';
 
-type FilterSection = 'mode' | 'translations' | 'definitions' | 'examples' | 'forms';
+type FilterSection = 'mode' | 'comfort' | 'translations' | 'definitions' | 'examples' | 'forms';
 
 type MetadataKind = 'definitions' | 'examples' | 'forms';
 
@@ -407,6 +409,15 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     </span>
                   </button>
                 </div>
+                <div
+                  class="comfort-track"
+                  role="img"
+                  [attr.aria-label]="'Comfort ' + element.comfort + ' of 10'"
+                >
+                  @for (rate of comfortRates; track rate) {
+                    <span class="comfort-mark" [class.filled]="rate <= element.comfort"></span>
+                  }
+                </div>
               </div>
             </li>
           }
@@ -446,7 +457,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
             <header class="filter-header">
               <div>
                 <h2 class="filter-title">Filters</h2>
-                <p class="filter-subtitle">Keep elements by mode, counts, or metadata.</p>
+                <p class="filter-subtitle">Keep elements by mode, comfort, counts, or metadata.</p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
                 <svg viewBox="0 0 24 24">
@@ -520,6 +531,54 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                         >
                           <app-mode-icon [mode]="mode" />
                           <span>{{ modeLabel(mode) }}</span>
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              </section>
+
+              <section class="filter-section" [class.expanded]="expanded() === 'comfort'">
+                <button
+                  type="button"
+                  class="section-header"
+                  [attr.aria-expanded]="expanded() === 'comfort'"
+                  (click)="toggleSection('comfort')"
+                >
+                  <span class="section-title">
+                    Comfort
+                    @if (comfortFilter(); as rate) {
+                      <span class="section-count">{{ rate }}</span>
+                    }
+                  </span>
+                  <svg class="section-chevron" viewBox="0 0 24 24">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+                @if (expanded() === 'comfort') {
+                  <div class="section-body">
+                    <div class="section-actions">
+                      <button
+                        type="button"
+                        class="link-btn"
+                        [disabled]="comfortFilter() == null"
+                        (click)="clearComfort()"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <p class="section-hint">Show elements at this comfort rate.</p>
+                    <div class="comfort-choices" role="group" aria-label="Comfort">
+                      @for (rate of comfortRates; track rate) {
+                        <button
+                          type="button"
+                          class="comfort-choice"
+                          [class.selected]="comfortFilter() === rate"
+                          [attr.aria-pressed]="comfortFilter() === rate"
+                          [style.--rate-color]="comfortColor(rate)"
+                          (click)="chooseComfort(rate)"
+                        >
+                          {{ rate }}
                         </button>
                       }
                     </div>
@@ -1229,10 +1288,12 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       flex-direction: column;
       align-items: stretch;
       justify-content: flex-start;
-      gap: 0.45rem;
+      gap: 0.55rem;
       min-height: 0;
-      padding: 0.6rem 1rem 0.55rem;
+      padding: 0.6rem 0 0;
+      overflow: hidden;
       border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 55%, var(--border));
+      border-bottom: 0;
       border-left: 3px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 78%, var(--surface));
       border-radius: var(--radius);
       background: color-mix(in srgb, var(--highlight-color, var(--accent)) 22%, var(--surface));
@@ -1248,6 +1309,23 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       align-content: start;
       column-gap: 0.75rem;
       row-gap: 0.2rem;
+      padding: 0 1rem;
+    }
+
+    .comfort-track {
+      display: flex;
+      gap: 0.12rem;
+      width: 100%;
+    }
+
+    .comfort-mark {
+      flex: 1;
+      height: 0.28rem;
+      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 55%, var(--border));
+    }
+
+    .comfort-mark.filled {
+      background: var(--highlight-color, var(--accent));
     }
 
     .element:hover {
@@ -1750,6 +1828,39 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       flex: none;
     }
 
+    .comfort-choices {
+      display: grid;
+      grid-template-columns: repeat(5, 2.2rem);
+      gap: 0.4rem;
+    }
+
+    .comfort-choice {
+      display: grid;
+      place-items: center;
+      width: 2.2rem;
+      height: 2.2rem;
+      margin: 0;
+      padding: 0;
+      border: 1px solid var(--rate-color, var(--border));
+      border-radius: 8px;
+      background: transparent;
+      color: var(--rate-color, var(--text));
+      font: inherit;
+      font-size: 0.9rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+    }
+
+    .comfort-choice:hover {
+      background: color-mix(in srgb, var(--rate-color, var(--text)) 18%, transparent);
+    }
+
+    .comfort-choice.selected {
+      background: var(--rate-color, var(--text));
+      color: var(--bg);
+    }
+
     .meta-key {
       display: flex;
       flex-direction: column;
@@ -1894,6 +2005,8 @@ export class LanguagePage {
 
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly modeLabel = elementModeLabel;
+  readonly comfortRates = COMFORT_RATES;
+  readonly comfortColor = comfortColor;
   readonly needsDefinitionEdit = elementHasInvalidDefinition;
   readonly gemAccessibleName = gemAccessibleName;
   readonly asking = signal(false);
@@ -1942,6 +2055,7 @@ export class LanguagePage {
   readonly translationRange = signal<ElementCountRange>({ min: 0, max: null });
   readonly definitionRange = signal<ElementCountRange>({ min: 0, max: null });
   readonly modeFilter = signal<ElementMode | null>(null);
+  readonly comfortFilter = signal<number | null>(null);
   readonly definitionMetaFilter = signal<ElementMetadataVariability>({});
   readonly exampleMetaFilter = signal<ElementMetadataVariability>({});
   readonly formMetaFilter = signal<ElementMetadataVariability>({});
@@ -1990,6 +2104,7 @@ export class LanguagePage {
   readonly filterCount = computed(
     () =>
       (this.modeFilter() == null ? 0 : 1) +
+      (this.comfortFilter() == null ? 0 : 1) +
       (this.rangeActive(this.translationRange()) ? 1 : 0) +
       (this.rangeActive(this.definitionRange()) ? 1 : 0) +
       metadataFilterSize(this.definitionMetaFilter()) +
@@ -2005,12 +2120,14 @@ export class LanguagePage {
     const translations = this.translationRange();
     const definitions = this.definitionRange();
     const mode = this.modeFilter();
+    const comfort = this.comfortFilter();
     const definitionMeta = this.definitionMetaFilter();
     const exampleMeta = this.exampleMetaFilter();
     const formMeta = this.formMetaFilter();
     const matched = this.elements().filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
       if (!elementMatchesMode(element, mode)) return false;
+      if (!elementMatchesComfort(element, comfort)) return false;
       if (!elementMatchesCountRanges(element, translations, definitions)) return false;
       return elementMatchesMetadata(element, definitionMeta, exampleMeta, formMeta);
     });
@@ -2471,8 +2588,19 @@ export class LanguagePage {
     this.writeBrowse();
   }
 
+  chooseComfort(rate: number): void {
+    this.comfortFilter.set(this.comfortFilter() === rate ? null : rate);
+    this.writeBrowse();
+  }
+
+  clearComfort(): void {
+    this.comfortFilter.set(null);
+    this.writeBrowse();
+  }
+
   clearFilters(): void {
     this.modeFilter.set(null);
+    this.comfortFilter.set(null);
     this.translationRange.set({ min: 0, max: null });
     this.definitionRange.set({ min: 0, max: null });
     this.definitionMetaFilter.set({});
@@ -2591,6 +2719,7 @@ export class LanguagePage {
     this.translationRange.set(parseElementCountRange(params.get('translations')));
     this.definitionRange.set(parseElementCountRange(params.get('definitions')));
     this.modeFilter.set(parseElementMode(params.get('mode')));
+    this.comfortFilter.set(parseComfort(params.get('comfort')));
     this.definitionMetaFilter.set(parseMetadataFilter(params.get('definitionMeta')));
     this.exampleMetaFilter.set(parseMetadataFilter(params.get('exampleMeta')));
     this.formMetaFilter.set(parseMetadataFilter(params.get('formMeta')));
@@ -2616,11 +2745,13 @@ export class LanguagePage {
     const translations = formatElementCountRange(this.translationRange());
     const definitions = formatElementCountRange(this.definitionRange());
     const mode = this.modeFilter();
+    const comfort = this.comfortFilter();
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: {
         sort: sort === DEFAULT_ELEMENT_SORT ? null : sort,
         mode: mode == null ? null : String(mode),
+        comfort: comfort == null ? null : String(comfort),
         translations,
         definitions,
         definitionMeta: formatMetadataFilter(this.definitionMetaFilter()),

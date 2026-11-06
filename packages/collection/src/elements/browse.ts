@@ -120,6 +120,17 @@ export function elementMatchesMode(element: StoredElement, mode: ElementMode | n
   return mode == null || element.mode === mode;
 }
 
+/** A comfort rate from 1 to 10. Anything else means every rate. */
+export function parseComfort(raw: string | null): number | null {
+  const rate = Number(raw);
+  return Number.isInteger(rate) && rate >= 1 && rate <= 10 ? rate : null;
+}
+
+/** Keep an element at the chosen comfort rate. A missing rate keeps every element. */
+export function elementMatchesComfort(element: StoredElement, comfort: number | null): boolean {
+  return comfort == null || element.comfort === comfort;
+}
+
 /** `definitionMeta`, `exampleMeta`, and `formMeta` query values. Empty means no constraint. */
 export function parseMetadataFilter(raw: string | null): ElementMetadataVariability {
   if (!raw) return {};
