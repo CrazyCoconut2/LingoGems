@@ -11,7 +11,6 @@ import {
 } from 'collection';
 import { DefinitionGemIcon } from '../elements/definition-gem';
 import { rememberGemMeanings } from '../elements/gem-meanings';
-import { readBlurTranslations, writeBlurTranslations } from '../elements/blur-translations';
 import {
   DEFAULT_DEFINITION_METADATA_FIELDS,
   DEFAULT_EXAMPLE_METADATA_FIELDS,
@@ -62,21 +61,6 @@ import {
           </button>
         </header>
         <div class="sheet-body">
-          <section class="metadata" aria-label="Translations">
-            <div class="copy">
-              <h3>Translations</h3>
-              <p>Hide a translation until you click it.</p>
-            </div>
-            <label class="translation-toggle">
-              <input
-                type="checkbox"
-                [checked]="blurTranslations()"
-                (change)="setBlurTranslations($event)"
-              />
-              Blur translations
-            </label>
-          </section>
-
           <section class="metadata" aria-label="Runes of gems">
             <div class="copy">
               <h3>Runes of gems</h3>
@@ -608,7 +592,6 @@ export class LanguageAiSettings {
   readonly generateExampleTranslations = signal(true);
   readonly definitionExtraFields = signal(false);
   readonly exampleExtraFields = signal(false);
-  readonly blurTranslations = signal(true);
   readonly gems = DEFINITION_GEMS;
   readonly gemMeaningMax = GEM_MEANING_MAX_LENGTH;
   readonly gemMeanings = signal<GemMeanings>(emptyGemMeanings());
@@ -632,7 +615,6 @@ export class LanguageAiSettings {
       this.generateExampleTranslations.set(readGenerateExampleTranslations(language));
       this.definitionExtraFields.set(readDefinitionExtraFields(language));
       this.exampleExtraFields.set(readExampleExtraFields(language));
-      this.blurTranslations.set(readBlurTranslations(language));
       this.gemEdited = false;
       void this.loadGemMeanings(language);
       this.definitionSuggestions.set([]);
@@ -706,12 +688,6 @@ export class LanguageAiSettings {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
     this.exampleExtraFields.set(enabled);
     writeExampleExtraFields(this.language(), enabled);
-  }
-
-  setBlurTranslations(event: Event): void {
-    const enabled = event.target instanceof HTMLInputElement && event.target.checked;
-    this.blurTranslations.set(enabled);
-    writeBlurTranslations(this.language(), enabled);
   }
 
   setDefinitionField(index: number, part: 'key' | 'prompt', value: string): void {

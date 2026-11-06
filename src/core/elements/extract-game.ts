@@ -244,7 +244,7 @@ export class ExtractPassage {
                   <ul class="equivalents">
                     @for (translation of passage.translations; track $index) {
                       <li>
-                        <app-reveal [text]="translation.text" [language]="element().language" />
+                        <app-reveal [text]="translation.text" />
                       </li>
                     }
                   </ul>

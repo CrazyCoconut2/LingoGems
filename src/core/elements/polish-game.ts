@@ -235,7 +235,7 @@ type HighlightSource = {
                       @if (storedEnglish(index); as english) {
                         <ul class="equivalents">
                           <li>
-                            <app-reveal [text]="english" [language]="element().language" />
+                            <app-reveal [text]="english" />
                           </li>
                         </ul>
                       }

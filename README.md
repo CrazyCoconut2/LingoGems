@@ -57,3 +57,9 @@ Angular CLI does not come with an end-to-end testing framework by default. You c
 ## Additional Resources
 
 For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+
+TODO
+- Translations are always blurred. If you unblur too much
+  that's usually a sign to rework the definition or other shit
+  cause you don't want to systematically unblur. So we need to 
+  keep track of when the user unblurs.

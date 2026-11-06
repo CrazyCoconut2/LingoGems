@@ -29,7 +29,6 @@ import {
   writeValueColor,
 } from '../elements/metadata-colors';
 import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
-import { setPlayBlur } from '../elements/blur-translations';
 import { DiscoverModal } from './discover-modal';
 import { LanguageAiSettings } from './language-ai-settings';
 import { generateElementFromSelection } from 'ai';
@@ -2163,7 +2162,6 @@ export class LanguagePage {
     inject(DestroyRef).onDestroy(() => {
       if (this.searchTimer) clearTimeout(this.searchTimer);
       if (this.filtersOpen() || this.aiSettingsOpen() || this.discoverOpen()) this.unlockScroll();
-      setPlayBlur(false);
     });
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       void this.load(params.get('code') ?? '');
@@ -2174,9 +2172,6 @@ export class LanguagePage {
       if (!id) this.trail.set([]);
       else if (this.trail().at(-1) !== id) this.trail.set([id]);
       this.reconcileOpen();
-    });
-    effect(() => {
-      setPlayBlur(this.playing());
     });
     effect(() => {
       if (!this.playing()) return;
