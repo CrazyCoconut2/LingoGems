@@ -109,26 +109,36 @@ export function elementDefinitionCount(element: StoredElement): number {
   return element.definitions.length;
 }
 
-/** `1`, `2`, or `3`. Anything else means every mode. */
-export function parseElementMode(raw: string | null): ElementMode | null {
-  const mode = Number(raw);
-  return mode === 1 || mode === 2 || mode === 3 ? mode : null;
+/** `1`, `2`, `3`, or a comma-separated list of those. Anything else is dropped. */
+export function parseElementMode(raw: string | null): ElementMode[] {
+  if (!raw) return [];
+  const modes = new Set<ElementMode>();
+  for (const part of raw.split(',')) {
+    const mode = Number(part.trim());
+    if (mode === 1 || mode === 2 || mode === 3) modes.add(mode);
+  }
+  return [...modes].sort((left, right) => left - right);
 }
 
-/** Keep an element in the chosen mode. A missing mode keeps every element. */
-export function elementMatchesMode(element: StoredElement, mode: ElementMode | null): boolean {
-  return mode == null || element.mode === mode;
+/** Keep an element in one of the chosen modes. An empty list keeps every element. */
+export function elementMatchesMode(element: StoredElement, modes: readonly ElementMode[]): boolean {
+  return modes.length === 0 || modes.includes(element.mode);
 }
 
-/** A comfort rate from 1 to 10. Anything else means every rate. */
-export function parseComfort(raw: string | null): number | null {
-  const rate = Number(raw);
-  return Number.isInteger(rate) && rate >= 1 && rate <= 10 ? rate : null;
+/** Comfort rates from 1 to 10, one or a comma-separated list. Anything else is dropped. */
+export function parseComfort(raw: string | null): number[] {
+  if (!raw) return [];
+  const rates = new Set<number>();
+  for (const part of raw.split(',')) {
+    const rate = Number(part.trim());
+    if (Number.isInteger(rate) && rate >= 1 && rate <= 10) rates.add(rate);
+  }
+  return [...rates].sort((left, right) => left - right);
 }
 
-/** Keep an element at the chosen comfort rate. A missing rate keeps every element. */
-export function elementMatchesComfort(element: StoredElement, comfort: number | null): boolean {
-  return comfort == null || element.comfort === comfort;
+/** Keep an element at one of the chosen comfort rates. An empty list keeps every element. */
+export function elementMatchesComfort(element: StoredElement, comforts: readonly number[]): boolean {
+  return comforts.length === 0 || comforts.includes(element.comfort);
 }
 
 /** `definitionMeta`, `exampleMeta`, and `formMeta` query values. Empty means no constraint. */

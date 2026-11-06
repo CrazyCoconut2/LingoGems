@@ -45,7 +45,6 @@ export {
   type ElementExample,
   type ElementMetadata,
   type ElementMode,
-  type ElementModeProgress,
   type StoredElement,
 } from './elements/element-store';
 

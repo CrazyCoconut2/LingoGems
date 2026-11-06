@@ -33,7 +33,6 @@ import {
   isValidForm,
   languageDisplayName,
   parsePassage,
-  saveElement,
   type DefinitionHighlightMatch,
   type DefinitionHighlightPart,
   type ElementDefinition,
@@ -44,9 +43,7 @@ import {
 import { ExtractPassage } from './extract-game';
 import { ModeIcon } from './mode-icon';
 import { comfortColor } from './comfort-palette';
-import { ModeProgress } from './mode-progress';
 import { Reveal } from './reveal';
-import { readStepGoal } from './step-goal';
 
 const ANSWER_MAX = 500;
 
@@ -75,7 +72,7 @@ type HighlightSource = {
 /** Drilling: recall each definition. A model scores how close the meaning is. */
 @Component({
   selector: 'app-polish-game',
-  imports: [ExtractPassage, ModeIcon, ModeProgress, NgTemplateOutlet, Reveal],
+  imports: [ExtractPassage, ModeIcon, NgTemplateOutlet, Reveal],
   template: `
     <div
       class="backdrop"
@@ -91,12 +88,6 @@ type HighlightSource = {
               <app-mode-icon [mode]="3" />
               <span>{{ modeLabel(3) }}</span>
             </div>
-            <app-mode-progress
-              [mode]="3"
-              [succeeded]="element().modeProgress[3]"
-              [goal]="goal()"
-              [color]="comfortColor(element().comfort)"
-            />
             <button
               #closeButton
               type="button"
@@ -255,16 +246,6 @@ type HighlightSource = {
             }
           </ol>
         </div>
-        <footer>
-          <button
-            type="button"
-            class="btn btn-primary"
-            [disabled]="!canAddPoint()"
-            (click)="addPoint()"
-          >
-            Add a point
-          </button>
-        </footer>
       </div>
     </div>
     <ng-template #lookup let-pick="pick">
@@ -332,23 +313,14 @@ type HighlightSource = {
       box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
     }
 
-    header,
-    footer {
+    header {
       display: flex;
       flex: none;
-      gap: 0.7rem;
-      padding: 0.9rem 1.15rem;
-    }
-
-    header {
       flex-direction: column;
       align-items: stretch;
+      gap: 0.7rem;
+      padding: 0.9rem 1.15rem;
       border-bottom: 1px solid var(--border);
-    }
-
-    footer {
-      justify-content: flex-end;
-      border-top: 1px solid var(--border);
     }
 
     .title-row {
@@ -648,7 +620,6 @@ export class PolishGame {
   /** The element modal is open on top, so this panel ignores Escape and selections. */
   readonly covered = input(false);
   readonly closed = output<void>();
-  readonly changed = output<StoredElement>();
   readonly visit = output<string>();
   readonly addSelection = output<string>();
   readonly addPrepared = output<PreparedElement>();
@@ -669,28 +640,12 @@ export class PolishGame {
   readonly collision = signal<DefinitionHighlightMatch[] | null>(null);
   readonly passageSelection = signal<PassageSelection | null>(null);
 
-  readonly goal = computed(() => readStepGoal(this.element().language));
-  readonly comfortColor = comfortColor;
   readonly supportAvailable = computed(
     () => this.element().language.trim().toLowerCase() !== 'en',
   );
   readonly originalLanguageName = computed(
     () => languageDisplayName(this.element().language) || this.element().language,
   );
-  readonly canAddPoint = computed(() => {
-    if (this.aiBusy()) return false;
-    const element = this.element();
-    const goal = this.goal();
-    const progress = Math.min(goal, Math.max(0, element.modeProgress[3] ?? 0));
-    if (progress >= goal) return false;
-    const grades = this.grades();
-    const playable = element.definitions
-      .map((definition, index) => ({ definition, index }))
-      .filter(({ definition }) => definitionEligibleForGames(definition.text, element));
-    if (!playable.length) return false;
-    return playable.every(({ index }) => grades[index] != null);
-  });
-
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private trackedId = '';
@@ -960,30 +915,6 @@ export class PolishGame {
       }
     } finally {
       if (this.alive && job === this.gradeJob) this.askingGrade.set(null);
-    }
-  }
-
-  async addPoint(): Promise<void> {
-    if (!this.canAddPoint()) return;
-    const element = this.element();
-    const goal = readStepGoal(element.language);
-    const current = Math.min(goal, Math.max(0, element.modeProgress[3] ?? 0));
-    if (current >= goal) return;
-    this.busy.set(true);
-    this.error.set('');
-    try {
-      const saved = await saveElement({
-        ...element,
-        modeProgress: { ...element.modeProgress, 3: current + 1 },
-      });
-      if (!this.alive || this.element().id !== element.id) return;
-      this.changed.emit(saved);
-      this.closed.emit();
-    } catch {
-      if (this.alive && this.element().id === element.id)
-        this.error.set('Could not save this element.');
-    } finally {
-      if (this.alive && this.element().id === element.id) this.busy.set(false);
     }
   }
 

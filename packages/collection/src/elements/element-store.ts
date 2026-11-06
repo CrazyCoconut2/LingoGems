@@ -129,10 +129,6 @@ export function elementModeLabel(mode: ElementMode): string {
   return ELEMENT_MODE_LABELS[normalizeElementMode(mode)];
 }
 
-/** Succeeded exercises for each mode. */
-export type ElementModeProgress = Record<ElementMode, number>;
-
-const MAX_MODE_PROGRESS = 99;
 const MIN_COMFORT = 1;
 const MAX_COMFORT = 10;
 
@@ -145,8 +141,6 @@ export type StoredElement = {
   /** Custom underline style. Null is solid. */
   highlightStyle: HighlightStyle | null;
   mode: ElementMode;
-  /** Succeeded exercises for Sieving, Pickaxing, and Drilling. Missing counts are 0. */
-  modeProgress: ElementModeProgress;
   /** How comfortable this element feels, from 1 to 10. Missing values are 1. */
   comfort: number;
   /** Distinct metadata values across this element's definitions. */
@@ -208,7 +202,6 @@ export async function addElement(language: string, title: string): Promise<Store
     definitions: [],
     highlightStyle: null,
     mode: 1,
-    modeProgress: emptyModeProgress(),
     comfort: MIN_COMFORT,
     ...emptyMetadataIndexes(),
     createdAt: Date.now(),
@@ -242,7 +235,6 @@ export async function saveElement(
     definitions: content.definitions,
     ...appearanceOf(element),
     mode: normalizeElementMode(element?.mode),
-    modeProgress: normalizeModeProgress(element?.modeProgress),
     comfort: normalizeComfort(element?.comfort),
     ...indexes,
     createdAt:
@@ -288,7 +280,6 @@ function normalizeElement(raw: unknown): StoredElement | null {
     definitions: content.definitions,
     ...appearanceOf(source),
     mode: normalizeElementMode(source.mode),
-    modeProgress: normalizeModeProgress(source.modeProgress),
     comfort: normalizeComfort(source.comfort),
     ...collectMetadataIndexes(content.definitions),
     createdAt:
@@ -308,28 +299,6 @@ function appearanceOf(source: Partial<StoredElement> | null | undefined): {
 export function normalizeElementMode(value: unknown): ElementMode {
   const mode = Math.round(Number(value));
   return mode === 2 || mode === 3 ? mode : 1;
-}
-
-function emptyModeProgress(): ElementModeProgress {
-  return { 1: 0, 2: 0, 3: 0 };
-}
-
-function normalizeModeProgress(value: unknown): ElementModeProgress {
-  const source =
-    value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {};
-  return {
-    1: normalizeProgressCount(source['1']),
-    2: normalizeProgressCount(source['2']),
-    3: normalizeProgressCount(source['3']),
-  };
-}
-
-function normalizeProgressCount(value: unknown): number {
-  const count = Math.round(Number(value));
-  if (!Number.isInteger(count) || count < 0) return 0;
-  return Math.min(MAX_MODE_PROGRESS, count);
 }
 
 /** Missing or out-of-range values are 1. */

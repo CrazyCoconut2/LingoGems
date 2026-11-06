@@ -499,8 +499,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 >
                   <span class="section-title">
                     Mode
-                    @if (modeFilter(); as mode) {
-                      <span class="section-count">{{ modeLabel(mode) }}</span>
+                    @if (modeFilter().length) {
+                      <span class="section-count">{{ modeSummary() }}</span>
                     }
                   </span>
                   <svg class="section-chevron" viewBox="0 0 24 24">
@@ -513,20 +513,20 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       <button
                         type="button"
                         class="link-btn"
-                        [disabled]="modeFilter() == null"
+                        [disabled]="modeFilter().length === 0"
                         (click)="clearMode()"
                       >
                         Clear
                       </button>
                     </div>
-                    <p class="section-hint">Show elements in this mode.</p>
+                    <p class="section-hint">Show elements in any selected mode.</p>
                     <div class="mode-choices" role="group" aria-label="Mode">
                       @for (mode of modes; track mode) {
                         <button
                           type="button"
                           class="mode-choice"
-                          [class.selected]="modeFilter() === mode"
-                          [attr.aria-pressed]="modeFilter() === mode"
+                          [class.selected]="modeSelected(mode)"
+                          [attr.aria-pressed]="modeSelected(mode)"
                           (click)="chooseMode(mode)"
                         >
                           <app-mode-icon [mode]="mode" />
@@ -547,8 +547,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 >
                   <span class="section-title">
                     Comfort
-                    @if (comfortFilter(); as rate) {
-                      <span class="section-count">{{ rate }}</span>
+                    @if (comfortFilter().length) {
+                      <span class="section-count">{{ comfortSummary() }}</span>
                     }
                   </span>
                   <svg class="section-chevron" viewBox="0 0 24 24">
@@ -561,20 +561,20 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       <button
                         type="button"
                         class="link-btn"
-                        [disabled]="comfortFilter() == null"
+                        [disabled]="comfortFilter().length === 0"
                         (click)="clearComfort()"
                       >
                         Clear
                       </button>
                     </div>
-                    <p class="section-hint">Show elements at this comfort rate.</p>
+                    <p class="section-hint">Show elements at any selected comfort rate.</p>
                     <div class="comfort-choices" role="group" aria-label="Comfort">
                       @for (rate of comfortRates; track rate) {
                         <button
                           type="button"
                           class="comfort-choice"
-                          [class.selected]="comfortFilter() === rate"
-                          [attr.aria-pressed]="comfortFilter() === rate"
+                          [class.selected]="comfortSelected(rate)"
+                          [attr.aria-pressed]="comfortSelected(rate)"
                           [style.--rate-color]="comfortColor(rate)"
                           (click)="chooseComfort(rate)"
                         >
@@ -872,7 +872,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           [collection]="elements()"
           [covered]="opened() !== null"
           (closed)="extractId.set('')"
-          (changed)="replaceElement($event)"
           (visit)="visitElement($event)"
           (addSelection)="addFromSelection($event)"
           (addPrepared)="addPrepared($event)"
@@ -885,7 +884,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           [collection]="elements()"
           [covered]="opened() !== null"
           (closed)="refineId.set('')"
-          (changed)="replaceElement($event)"
           (visit)="visitElement($event)"
           (addSelection)="addFromSelection($event)"
           (addPrepared)="addPrepared($event)"
@@ -898,7 +896,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           [collection]="elements()"
           [covered]="opened() !== null"
           (closed)="polishId.set('')"
-          (changed)="replaceElement($event)"
           (visit)="visitElement($event)"
           (addSelection)="addFromSelection($event)"
           (addPrepared)="addPrepared($event)"
@@ -2055,8 +2052,8 @@ export class LanguagePage {
   ];
   readonly translationRange = signal<ElementCountRange>({ min: 0, max: null });
   readonly definitionRange = signal<ElementCountRange>({ min: 0, max: null });
-  readonly modeFilter = signal<ElementMode | null>(null);
-  readonly comfortFilter = signal<number | null>(null);
+  readonly modeFilter = signal<ElementMode[]>([]);
+  readonly comfortFilter = signal<number[]>([]);
   readonly definitionMetaFilter = signal<ElementMetadataVariability>({});
   readonly exampleMetaFilter = signal<ElementMetadataVariability>({});
   readonly formMetaFilter = signal<ElementMetadataVariability>({});
@@ -2104,8 +2101,8 @@ export class LanguagePage {
   });
   readonly filterCount = computed(
     () =>
-      (this.modeFilter() == null ? 0 : 1) +
-      (this.comfortFilter() == null ? 0 : 1) +
+      this.modeFilter().length +
+      this.comfortFilter().length +
       (this.rangeActive(this.translationRange()) ? 1 : 0) +
       (this.rangeActive(this.definitionRange()) ? 1 : 0) +
       metadataFilterSize(this.definitionMetaFilter()) +
@@ -2579,29 +2576,55 @@ export class LanguagePage {
     this.setRange(kind, { min: 0, max: null });
   }
 
+  modeSelected(mode: ElementMode): boolean {
+    return this.modeFilter().includes(mode);
+  }
+
+  modeSummary(): string {
+    const modes = this.modeFilter();
+    return modes.length === 1 ? this.modeLabel(modes[0]) : String(modes.length);
+  }
+
   chooseMode(mode: ElementMode): void {
-    this.modeFilter.set(this.modeFilter() === mode ? null : mode);
+    const current = this.modeFilter();
+    const next = current.includes(mode)
+      ? current.filter((item) => item !== mode)
+      : [...current, mode].sort((left, right) => left - right);
+    this.modeFilter.set(next);
     this.writeBrowse();
   }
 
   clearMode(): void {
-    this.modeFilter.set(null);
+    this.modeFilter.set([]);
     this.writeBrowse();
   }
 
+  comfortSelected(rate: number): boolean {
+    return this.comfortFilter().includes(rate);
+  }
+
+  comfortSummary(): string {
+    const rates = this.comfortFilter();
+    return rates.length === 1 ? String(rates[0]) : String(rates.length);
+  }
+
   chooseComfort(rate: number): void {
-    this.comfortFilter.set(this.comfortFilter() === rate ? null : rate);
+    const current = this.comfortFilter();
+    const next = current.includes(rate)
+      ? current.filter((item) => item !== rate)
+      : [...current, rate].sort((left, right) => left - right);
+    this.comfortFilter.set(next);
     this.writeBrowse();
   }
 
   clearComfort(): void {
-    this.comfortFilter.set(null);
+    this.comfortFilter.set([]);
     this.writeBrowse();
   }
 
   clearFilters(): void {
-    this.modeFilter.set(null);
-    this.comfortFilter.set(null);
+    this.modeFilter.set([]);
+    this.comfortFilter.set([]);
     this.translationRange.set({ min: 0, max: null });
     this.definitionRange.set({ min: 0, max: null });
     this.definitionMetaFilter.set({});
@@ -2751,8 +2774,8 @@ export class LanguagePage {
       relativeTo: this.route,
       queryParams: {
         sort: sort === DEFAULT_ELEMENT_SORT ? null : sort,
-        mode: mode == null ? null : String(mode),
-        comfort: comfort == null ? null : String(comfort),
+        mode: mode.length ? mode.join(',') : null,
+        comfort: comfort.length ? comfort.join(',') : null,
         translations,
         definitions,
         definitionMeta: formatMetadataFilter(this.definitionMetaFilter()),
