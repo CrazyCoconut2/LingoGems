@@ -1,6 +1,5 @@
 import { Component, computed, input } from '@angular/core';
 import { elementModeLabel, type ElementMode } from 'collection';
-import { scoreColor } from './mode-palette';
 import { DEFAULT_STEP_GOAL, MAX_STEP_GOAL, MIN_STEP_GOAL } from './step-goal';
 
 /** Succeeded exercises out of the goal for one mode. Display only. */
@@ -12,7 +11,7 @@ import { DEFAULT_STEP_GOAL, MAX_STEP_GOAL, MIN_STEP_GOAL } from './step-goal';
       [class.compact]="compact()"
       role="img"
       [attr.aria-label]="modeLabel(mode()) + ', ' + shown() + ' of ' + total()"
-      [style.--mode-color]="scoreColor(mode(), succeeded(), total()).color"
+      [style.--mode-color]="color()"
     >
       <span class="track" aria-hidden="true">
         <span class="fill" [style.width.%]="percent()"></span>
@@ -73,11 +72,11 @@ export class ModeProgress {
   readonly mode = input.required<ElementMode>();
   readonly succeeded = input(0);
   readonly goal = input(DEFAULT_STEP_GOAL);
+  readonly color = input.required<string>();
   readonly compact = input(false);
   /** The ratio is shown only while choosing a mode. */
   readonly labeled = input(false);
   readonly modeLabel = elementModeLabel;
-  readonly scoreColor = scoreColor;
 
   readonly total = computed(() => {
     const goal = Math.round(Number(this.goal()));

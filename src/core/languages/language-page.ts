@@ -29,7 +29,7 @@ import {
   writeFieldColor,
   writeValueColor,
 } from '../elements/metadata-colors';
-import { scoreColor } from '../elements/mode-palette';
+import { comfortColor } from '../elements/comfort-palette';
 import { setPlayBlur } from '../elements/blur-translations';
 import { readStepGoal } from '../elements/step-goal';
 import { DiscoverModal } from './discover-modal';
@@ -339,6 +339,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                         [mode]="element.mode"
                         [succeeded]="element.modeProgress[element.mode]"
                         [goal]="readStepGoal(code())"
+                        [color]="highlightColor(element)"
                         [compact]="true"
                       />
                     </button>
@@ -382,6 +383,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                         [mode]="element.mode"
                         [succeeded]="element.modeProgress[element.mode]"
                         [goal]="readStepGoal(code())"
+                        [color]="highlightColor(element)"
                         [compact]="true"
                       />
                     </div>
@@ -2209,11 +2211,7 @@ export class LanguagePage {
   }
 
   highlightColor(element: StoredElement): string {
-    return scoreColor(
-      element.mode,
-      element.modeProgress[element.mode],
-      readStepGoal(element.language),
-    ).color;
+    return comfortColor(element.comfort);
   }
 
   highlight(text: string): ElementSearchPart[] {

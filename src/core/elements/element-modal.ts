@@ -59,7 +59,7 @@ import { TranslationLantern } from './translation-lantern';
 import { metadataChipColor, type MetadataColorPlace } from './metadata-colors';
 import { gemAccessibleName } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
-import { scoreColor } from './mode-palette';
+import { comfortColor } from './comfort-palette';
 import { ModeProgress } from './mode-progress';
 import { readStepGoal } from './step-goal';
 import { translatePhrase } from '../translate/translate';
@@ -548,7 +548,7 @@ function writeExampleSuggestions(
               </form>
             } @else {
               <div class="title-main">
-                <h2>{{ shownTitle() }}</h2>
+                <h2 [style.--highlight-color]="highlightColor(element())">{{ shownTitle() }}</h2>
                 <button
                   type="button"
                   class="icon-btn"
@@ -589,6 +589,18 @@ function writeExampleSuggestions(
             }
           }
           <div class="header-actions">
+            <button
+              type="button"
+              class="comfort-btn"
+              [attr.aria-label]="'Comfort ' + element().comfort"
+              [attr.title]="'Comfort ' + element().comfort"
+              [attr.aria-expanded]="comfortOpen()"
+              [disabled]="busy()"
+              [style.color]="comfortColor(element().comfort)"
+              (click)="comfortOpen.set(true)"
+            >
+              {{ element().comfort }}
+            </button>
             <div class="mode-control">
               <button
                 type="button"
@@ -605,6 +617,7 @@ function writeExampleSuggestions(
                 [mode]="element().mode"
                 [succeeded]="element().modeProgress[element().mode]"
                 [goal]="readStepGoal(element().language)"
+                [color]="comfortColor(element().comfort)"
                 [compact]="true"
               />
             </div>
@@ -2287,6 +2300,61 @@ function writeExampleSuggestions(
           </div>
         }
 
+        @if (comfortOpen()) {
+          <div class="sheet-backdrop" (click)="closeComfort($event)">
+            <section
+              class="sheet mode-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Comfort"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>Comfort</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  [disabled]="busy()"
+                  (click)="comfortOpen.set(false)"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div class="mode-editor">
+                <div class="mode-adjust">
+                  <button
+                    type="button"
+                    aria-label="Lower comfort"
+                    [disabled]="busy() || element().comfort <= 1"
+                    (click)="adjustComfort(-1)"
+                  >
+                    −
+                  </button>
+                  <span
+                    class="comfort-current"
+                    [style.color]="comfortColor(element().comfort)"
+                    aria-hidden="true"
+                  >
+                    {{ element().comfort }}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Raise comfort"
+                    [disabled]="busy() || element().comfort >= 10"
+                    (click)="adjustComfort(1)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        }
+
         @if (modeOpen()) {
           <div class="sheet-backdrop" (click)="closeMode($event)">
             <section
@@ -2332,6 +2400,7 @@ function writeExampleSuggestions(
                     [mode]="mode"
                     [succeeded]="succeeded"
                     [goal]="goal"
+                    [color]="comfortColor(element().comfort)"
                     [labeled]="true"
                   />
                   <button
@@ -2499,6 +2568,47 @@ function writeExampleSuggestions(
 
     .title-main h2 {
       flex: 0 1 auto;
+      text-decoration-line: underline;
+      text-decoration-style: solid;
+      text-decoration-color: var(--highlight-color, #6c63ff);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.18em;
+    }
+
+    .comfort-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      min-width: 1.8rem;
+      height: 1.8rem;
+      border: 0;
+      padding: 0 0.2rem;
+      border-radius: 0.4rem;
+      background: transparent;
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+    }
+
+    .comfort-btn:hover:not(:disabled) {
+      background: rgba(139, 144, 165, 0.16);
+    }
+
+    .comfort-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .comfort-current {
+      min-width: 1.6rem;
+      font-size: 1.35rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      line-height: 1;
     }
 
     .mode-btn {
@@ -3686,6 +3796,7 @@ export class ElementModal {
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
   readonly modeLabel = elementModeLabel;
+  readonly comfortColor = comfortColor;
   readonly readStepGoal = readStepGoal;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
   readonly gems = DEFINITION_GEMS;
@@ -3743,6 +3854,7 @@ export class ElementModal {
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
   readonly modeOpen = signal(false);
+  readonly comfortOpen = signal(false);
   readonly engineerGloss = signal('');
   readonly engineerEnglish = signal('');
   readonly error = signal('');
@@ -3796,6 +3908,7 @@ export class ElementModal {
       this.addFormFor.set(null);
       this.expandedForms.set(new Set());
       this.modeOpen.set(false);
+      this.comfortOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
       this.suggestionGems.set({});
@@ -3854,6 +3967,10 @@ export class ElementModal {
   onEscape(): void {
     if (this.titleEdit()) {
       if (!this.busy()) this.cancelTitle();
+      return;
+    }
+    if (this.comfortOpen()) {
+      if (!this.busy()) this.comfortOpen.set(false);
       return;
     }
     if (this.modeOpen()) {
@@ -5228,11 +5345,19 @@ export class ElementModal {
   }
 
   highlightColor(element: StoredElement): string {
-    return scoreColor(
-      element.mode,
-      element.modeProgress[element.mode],
-      readStepGoal(element.language),
-    ).color;
+    return comfortColor(element.comfort);
+  }
+
+  async adjustComfort(delta: 1 | -1): Promise<void> {
+    const element = this.element();
+    const next = Math.min(10, Math.max(1, element.comfort + delta));
+    if (next === element.comfort) return;
+    await this.saveAppearance({ comfort: next });
+  }
+
+  closeComfort(event: MouseEvent): void {
+    if (event.target !== event.currentTarget || this.busy()) return;
+    this.comfortOpen.set(false);
   }
 
   closeMode(event: MouseEvent): void {
@@ -5256,7 +5381,7 @@ export class ElementModal {
   }
 
   private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'mode' | 'modeProgress'>>,
+    patch: Partial<Pick<StoredElement, 'mode' | 'modeProgress' | 'comfort'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
     this.busy.set(true);
@@ -5905,11 +6030,7 @@ function selectionCoversPassage(passage: Element, range: Range): boolean {
 
 function appearanceOf(element: StoredElement): { color: string; style: HighlightStyle } {
   return {
-    color: scoreColor(
-      element.mode,
-      element.modeProgress[element.mode],
-      readStepGoal(element.language),
-    ).color,
+    color: comfortColor(element.comfort),
     style: 'solid',
   };
 }

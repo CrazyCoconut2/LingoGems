@@ -1,5 +1,5 @@
 import { signal } from '@angular/core';
-import { sanitizePaletteColor } from './mode-palette';
+import { sanitizePaletteColor } from './comfort-palette';
 
 const STORAGE_KEY = 'lingogem.metadata-colors.v1';
 

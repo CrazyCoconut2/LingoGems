@@ -43,7 +43,7 @@ import {
 } from 'collection';
 import { ExtractPassage } from './extract-game';
 import { ModeIcon } from './mode-icon';
-import { scoreColor } from './mode-palette';
+import { comfortColor } from './comfort-palette';
 import { ModeProgress } from './mode-progress';
 import { Reveal } from './reveal';
 import { readStepGoal } from './step-goal';
@@ -95,6 +95,7 @@ type HighlightSource = {
               [mode]="3"
               [succeeded]="element().modeProgress[3]"
               [goal]="goal()"
+              [color]="comfortColor(element().comfort)"
               [labeled]="true"
             />
             <button
@@ -670,6 +671,7 @@ export class PolishGame {
   readonly passageSelection = signal<PassageSelection | null>(null);
 
   readonly goal = computed(() => readStepGoal(this.element().language));
+  readonly comfortColor = comfortColor;
   readonly supportAvailable = computed(
     () => this.element().language.trim().toLowerCase() !== 'en',
   );
@@ -1135,11 +1137,7 @@ export class PolishGame {
 
 function appearanceOf(element: StoredElement): { color: string; style: HighlightStyle } {
   return {
-    color: scoreColor(
-      element.mode,
-      element.modeProgress[element.mode],
-      readStepGoal(element.language),
-    ).color,
+    color: comfortColor(element.comfort),
     style: 'solid',
   };
 }

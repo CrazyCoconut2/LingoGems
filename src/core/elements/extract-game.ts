@@ -38,7 +38,7 @@ import { DefinitionGemIcon } from './definition-gem';
 import { gemAccessibleName } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
 import { metadataChipColor } from './metadata-colors';
-import { scoreColor } from './mode-palette';
+import { comfortColor } from './comfort-palette';
 import { ModeProgress } from './mode-progress';
 import { Reveal } from './reveal';
 import { readStepGoal } from './step-goal';
@@ -204,6 +204,7 @@ export class ExtractPassage {
               [mode]="1"
               [succeeded]="element().modeProgress[1]"
               [goal]="goal()"
+              [color]="comfortColor(element().comfort)"
               [labeled]="true"
             />
             <button
@@ -890,6 +891,7 @@ export class ExtractGame {
   readonly passageSelection = signal<PassageSelection | null>(null);
 
   readonly goal = computed(() => readStepGoal(this.element().language));
+  readonly comfortColor = comfortColor;
   readonly canAddPoint = computed(() => {
     if (this.aiBusy()) return false;
     const element = this.element();
@@ -1287,11 +1289,7 @@ export class ExtractGame {
 
 function appearanceOf(element: StoredElement): { color: string; style: HighlightStyle } {
   return {
-    color: scoreColor(
-      element.mode,
-      element.modeProgress[element.mode],
-      readStepGoal(element.language),
-    ).color,
+    color: comfortColor(element.comfort),
     style: 'solid',
   };
 }

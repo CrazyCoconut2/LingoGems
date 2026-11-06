@@ -133,6 +133,8 @@ export function elementModeLabel(mode: ElementMode): string {
 export type ElementModeProgress = Record<ElementMode, number>;
 
 const MAX_MODE_PROGRESS = 99;
+const MIN_COMFORT = 1;
+const MAX_COMFORT = 10;
 
 export type StoredElement = {
   id: string;
@@ -145,6 +147,8 @@ export type StoredElement = {
   mode: ElementMode;
   /** Succeeded exercises for Sieving, Pickaxing, and Drilling. Missing counts are 0. */
   modeProgress: ElementModeProgress;
+  /** How comfortable this element feels, from 1 to 10. Missing values are 1. */
+  comfort: number;
   /** Distinct metadata values across this element's definitions. */
   definitionMetadata: ElementMetadataVariability;
   /** Distinct metadata values across this element's examples. */
@@ -205,6 +209,7 @@ export async function addElement(language: string, title: string): Promise<Store
     highlightStyle: null,
     mode: 1,
     modeProgress: emptyModeProgress(),
+    comfort: MIN_COMFORT,
     ...emptyMetadataIndexes(),
     createdAt: Date.now(),
   };
@@ -238,6 +243,7 @@ export async function saveElement(
     ...appearanceOf(element),
     mode: normalizeElementMode(element?.mode),
     modeProgress: normalizeModeProgress(element?.modeProgress),
+    comfort: normalizeComfort(element?.comfort),
     ...indexes,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
@@ -283,6 +289,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     ...appearanceOf(source),
     mode: normalizeElementMode(source.mode),
     modeProgress: normalizeModeProgress(source.modeProgress),
+    comfort: normalizeComfort(source.comfort),
     ...collectMetadataIndexes(content.definitions),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
@@ -323,6 +330,13 @@ function normalizeProgressCount(value: unknown): number {
   const count = Math.round(Number(value));
   if (!Number.isInteger(count) || count < 0) return 0;
   return Math.min(MAX_MODE_PROGRESS, count);
+}
+
+/** Missing or out-of-range values are 1. */
+function normalizeComfort(value: unknown): number {
+  const rate = Math.round(Number(value));
+  if (!Number.isInteger(rate) || rate < MIN_COMFORT || rate > MAX_COMFORT) return MIN_COMFORT;
+  return rate;
 }
 
 function normalizeContent(
