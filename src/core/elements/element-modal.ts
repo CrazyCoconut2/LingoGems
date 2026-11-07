@@ -50,7 +50,6 @@ import {
   type RelatedWord,
 } from 'ai';
 import { Reveal } from './reveal';
-import { TranslationLantern } from './translation-lantern';
 import { metadataChipColor, type MetadataColorPlace } from './metadata-colors';
 import { ModeIcon } from './mode-icon';
 import { COMFORT_RATES, comfortColor } from './comfort-palette';
@@ -489,7 +488,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [Reveal, ModeIcon, TranslationLantern],
+  imports: [Reveal, ModeIcon],
   template: `
     <div
       class="backdrop"
@@ -498,7 +497,7 @@ function writeExampleSuggestions(
       [attr.aria-label]="shownTitle()"
       (click)="onBackdrop($event)"
     >
-      <div class="panel" [style.--highlight-color]="highlightColor(element())">
+      <div class="panel">
         <header>
           <div class="title-row">
             @if (canGoBack()) {
@@ -540,7 +539,7 @@ function writeExampleSuggestions(
               </form>
             } @else {
               <div class="title-main">
-                <h2 [style.--highlight-color]="highlightColor(element())">{{ shownTitle() }}</h2>
+                <h2>{{ shownTitle() }}</h2>
                 <button
                   type="button"
                   class="icon-btn"
@@ -635,7 +634,14 @@ function writeExampleSuggestions(
               [disabled]="busy()"
               (click)="openTranslations()"
             >
-              <app-translation-lantern />
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m5 8 6 6" />
+                <path d="m4 14 6-6 2-3" />
+                <path d="M2 5h12" />
+                <path d="M7 2h1" />
+                <path d="m22 22-5-10-5 10" />
+                <path d="M14 18h6" />
+              </svg>
             </button>
             <button
               type="button"
@@ -781,7 +787,6 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 class="linguagem-highlighted"
-                                [style.--highlight-color]="part.color"
                                 [textContent]="part.text"
                                 (click)="showCollision($event, part.matches)"
                               ></button>
@@ -789,14 +794,12 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 class="linguagem-highlighted"
-                                [style.--highlight-color]="part.color"
                                 [textContent]="part.text"
                                 (click)="visitHighlight(part.matches[0].elementId)"
                               ></button>
                             } @else if (part.current) {
                               <span
                                 class="linguagem-highlighted linguagem-highlighted--current"
-                                [style.--highlight-color]="part.color"
                                 [textContent]="part.text"
                               ></span>
                             } @else {
@@ -823,7 +826,14 @@ function writeExampleSuggestions(
                         <ul class="sense-meta">
                           @if (equivalent) {
                             <li class="sense-equivalent">
-                              <app-translation-lantern />
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m5 8 6 6" />
+                                <path d="m4 14 6-6 2-3" />
+                                <path d="M2 5h12" />
+                                <path d="M7 2h1" />
+                                <path d="m22 22-5-10-5 10" />
+                                <path d="M14 18h6" />
+                              </svg>
                               <app-reveal [text]="equivalent" />
                             </li>
                           }
@@ -934,29 +944,6 @@ function writeExampleSuggestions(
                         <button
                           type="button"
                           class="icon-btn"
-                          [class.copied]="copied() === 'definition:' + index"
-                          [attr.aria-label]="
-                            copied() === 'definition:' + index ? 'Copied' : 'Copy definition'
-                          "
-                          [attr.title]="
-                            copied() === 'definition:' + index ? 'Copied' : 'Copy definition'
-                          "
-                          (click)="copyText('definition:' + index, definition.text)"
-                        >
-                          @if (copied() === 'definition:' + index) {
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M20 6 9 17l-5-5" />
-                            </svg>
-                          } @else {
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                              <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                            </svg>
-                          }
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
                           [attr.aria-label]="
                             definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
                           "
@@ -972,22 +959,6 @@ function writeExampleSuggestions(
                           @if (!definition.equivalentId) {
                             <span class="notify" aria-hidden="true"></span>
                           }
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn danger"
-                          aria-label="Delete definition"
-                          title="Delete definition"
-                          [disabled]="aiBusy()"
-                          (click)="askDeleteDefinition(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M3 6h18" />
-                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                            <path d="M10 11v6" />
-                            <path d="M14 11v6" />
-                          </svg>
                         </button>
                       </span>
                     }
@@ -1043,7 +1014,6 @@ function writeExampleSuggestions(
                                       <button
                                         type="button"
                                         class="linguagem-highlighted"
-                                        [style.--highlight-color]="part.color"
                                         [textContent]="part.text"
                                         (click)="showCollision($event, part.matches)"
                                       ></button>
@@ -1051,14 +1021,12 @@ function writeExampleSuggestions(
                                       <button
                                         type="button"
                                         class="linguagem-highlighted"
-                                        [style.--highlight-color]="part.color"
                                         [textContent]="part.text"
                                         (click)="visitHighlight(part.matches[0].elementId)"
                                       ></button>
                                     } @else if (part.current) {
                                       <span
                                         class="linguagem-highlighted linguagem-highlighted--current"
-                                        [style.--highlight-color]="part.color"
                                         [textContent]="part.text"
                                       ></span>
                                     } @else {
@@ -1170,42 +1138,6 @@ function writeExampleSuggestions(
                                   <button
                                     type="button"
                                     class="icon-btn"
-                                    [class.copied]="
-                                      copied() === 'example:' + index + ':' + exampleIndex
-                                    "
-                                    [attr.aria-label]="
-                                      copied() === 'example:' + index + ':' + exampleIndex
-                                        ? 'Copied'
-                                        : 'Copy example'
-                                    "
-                                    [attr.title]="
-                                      copied() === 'example:' + index + ':' + exampleIndex
-                                        ? 'Copied'
-                                        : 'Copy example'
-                                    "
-                                    (click)="
-                                      copyText(
-                                        'example:' + index + ':' + exampleIndex,
-                                        example.text
-                                      )
-                                    "
-                                  >
-                                    @if (copied() === 'example:' + index + ':' + exampleIndex) {
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <path d="M20 6 9 17l-5-5" />
-                                      </svg>
-                                    } @else {
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                                        <path
-                                          d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
-                                        />
-                                      </svg>
-                                    }
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="icon-btn"
                                     aria-label="Edit example"
                                     title="Edit example"
                                     [disabled]="aiBusy()"
@@ -1213,22 +1145,6 @@ function writeExampleSuggestions(
                                   >
                                     <svg viewBox="0 0 24 24" aria-hidden="true">
                                       <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="icon-btn danger"
-                                    aria-label="Delete example"
-                                    title="Delete example"
-                                    [disabled]="aiBusy()"
-                                    (click)="askDeleteExample(index, exampleIndex)"
-                                  >
-                                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                                      <path d="M3 6h18" />
-                                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                      <path d="M10 11v6" />
-                                      <path d="M14 11v6" />
                                     </svg>
                                   </button>
                                 </span>
@@ -1418,17 +1334,41 @@ function writeExampleSuggestions(
             >
               <div class="sheet-head">
                 <h3>{{ sheetTitle(current) }}</h3>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  (click)="editor.set(null)"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
+                <span class="sheet-tools">
+                  @if (current.kind === 'example') {
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      [class.copied]="copied() === 'sheet'"
+                      [attr.aria-label]="copied() === 'sheet' ? 'Copied' : 'Copy example'"
+                      [attr.title]="copied() === 'sheet' ? 'Copied' : 'Copy example'"
+                      [disabled]="!parsePassage(textDraft()).text.trim()"
+                      (click)="copyText('sheet', textDraft())"
+                    >
+                      @if (copied() === 'sheet') {
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      } @else {
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                        </svg>
+                      }
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Close"
+                    (click)="editor.set(null)"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
+                </span>
               </div>
               <div class="field-heading">
                 <label
@@ -1436,26 +1376,50 @@ function writeExampleSuggestions(
                 >
                   {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
                 </label>
-                @if (current.kind === 'definition' && current.index != null) {
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Engineer definition"
-                    title="Engineer definition"
-                    [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
-                    [disabled]="aiBusy()"
-                    (click)="openDefinitionEngineer(current.index)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                      />
-                      <path d="M5 3v4" />
-                      <path d="M3 5h4" />
-                      <path d="M19 17v4" />
-                      <path d="M17 19h4" />
-                    </svg>
-                  </button>
+                @if (current.kind === 'definition') {
+                  <span class="header-actions">
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      [class.copied]="copied() === 'sheet'"
+                      [attr.aria-label]="copied() === 'sheet' ? 'Copied' : 'Copy definition'"
+                      [attr.title]="copied() === 'sheet' ? 'Copied' : 'Copy definition'"
+                      [disabled]="!parsePassage(textDraft()).text.trim()"
+                      (click)="copyText('sheet', textDraft())"
+                    >
+                      @if (copied() === 'sheet') {
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      } @else {
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                        </svg>
+                      }
+                    </button>
+                    @if (current.index != null) {
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Engineer definition"
+                        title="Engineer definition"
+                        [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
+                        [disabled]="aiBusy()"
+                        (click)="openDefinitionEngineer(current.index)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                          />
+                          <path d="M5 3v4" />
+                          <path d="M3 5h4" />
+                          <path d="M19 17v4" />
+                          <path d="M17 19h4" />
+                        </svg>
+                      </button>
+                    }
+                  </span>
                 }
               </div>
               <textarea
@@ -1479,7 +1443,14 @@ function writeExampleSuggestions(
                     [disabled]="!canTranslate()"
                     (click)="translateDraft()"
                   >
-                    <app-translation-lantern />
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m5 8 6 6" />
+                      <path d="m4 14 6-6 2-3" />
+                      <path d="M2 5h12" />
+                      <path d="M7 2h1" />
+                      <path d="m22 22-5-10-5 10" />
+                      <path d="M14 18h6" />
+                    </svg>
                   </button>
                 </div>
                 <textarea
@@ -1655,14 +1626,14 @@ function writeExampleSuggestions(
                 >
                   Save
                 </button>
-                @if (current.kind === 'example' && current.exampleIndex != null) {
+                @if (canDeleteEditor(current)) {
                   <button
                     type="button"
                     class="btn btn-danger"
                     [disabled]="busy()"
                     (click)="askDelete()"
                   >
-                    Delete example
+                    {{ current.kind === 'definition' ? 'Delete definition' : 'Delete example' }}
                   </button>
                 }
               </div>
@@ -2417,18 +2388,19 @@ function writeExampleSuggestions(
       max-height: calc(100dvh - 2.5rem);
       min-height: 0;
       overflow: hidden;
-      --card-line: color-mix(in srgb, var(--highlight-color, var(--accent)) 42%, transparent);
-      --card-border: color-mix(in srgb, var(--highlight-color, var(--accent)) 58%, var(--border));
-      border: 1px solid var(--card-border);
+      --card-line: var(--border);
+      --card-border: var(--border);
+      border: 1px solid var(--border);
       border-radius: calc(var(--radius) + 4px);
-      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 24%, var(--surface));
+      background: var(--surface);
       box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
     }
 
     header,
     .sheet-head,
     .section-heading,
-    .sheet-actions {
+    .sheet-actions,
+    .sheet-tools {
       display: flex;
       align-items: center;
       gap: 0.45rem;
@@ -2834,8 +2806,7 @@ function writeExampleSuggestions(
       background: color-mix(in srgb, var(--danger) 12%, transparent);
     }
 
-    .icon-btn svg,
-    .icon-btn app-translation-lantern {
+    .icon-btn svg {
       display: block;
       width: 1rem;
       height: 1rem;
@@ -3023,9 +2994,9 @@ function writeExampleSuggestions(
       flex-direction: column;
       gap: 0.55rem;
       padding: 0.8rem 0.9rem;
-      border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 42%, black);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
-      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 22%, var(--bg));
+      background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
     }
 
@@ -3081,10 +3052,15 @@ function writeExampleSuggestions(
       font-weight: 650;
     }
 
-    .sense-equivalent app-translation-lantern {
+    .sense-equivalent svg {
       width: 0.95rem;
       height: 0.95rem;
       flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .suggestion .sense-meta li {
@@ -3126,7 +3102,7 @@ function writeExampleSuggestions(
       border-bottom: none;
       text-decoration-line: underline;
       text-decoration-style: solid;
-      text-decoration-color: var(--highlight-color, #6c63ff);
+      text-decoration-color: var(--accent);
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
     }
@@ -3148,7 +3124,7 @@ function writeExampleSuggestions(
       text-decoration: none;
       border-radius: 0.18em;
       padding: 0 0.12em;
-      background: color-mix(in srgb, var(--highlight-color, #6c63ff) 32%, transparent);
+      background: color-mix(in srgb, var(--accent) 32%, transparent);
       box-decoration-break: clone;
       -webkit-box-decoration-break: clone;
     }
@@ -3268,8 +3244,7 @@ function writeExampleSuggestions(
       gap: 0.25rem;
       min-width: 0;
       padding: 0.1rem 0 0.1rem 0.85rem;
-      border-left: 3px solid
-        color-mix(in srgb, var(--highlight-color, var(--accent)) 72%, transparent);
+      border-left: 3px solid rgba(var(--accent-rgb), 0.45);
       color: var(--text-muted);
       font-size: 0.88rem;
       line-height: 1.5;
@@ -4608,16 +4583,6 @@ export class ElementModal {
     }, 1500);
   }
 
-  askDeleteExample(definitionIndex: number, exampleIndex: number): void {
-    if (this.aiBusy()) return;
-    this.confirm.set({ kind: 'example', definitionIndex, exampleIndex });
-  }
-
-  askDeleteDefinition(index: number): void {
-    if (this.aiBusy() || !this.element().definitions[index]) return;
-    this.confirm.set({ kind: 'definition', index });
-  }
-
   async moveDefinition(index: number, delta: -1 | 1): Promise<void> {
     if (this.aiBusy()) return;
     const target = index + delta;
@@ -5183,10 +5148,6 @@ export class ElementModal {
     );
   }
 
-  highlightColor(element: StoredElement): string {
-    return comfortColor(element.comfort);
-  }
-
   async setComfort(rate: number): Promise<void> {
     const element = this.element();
     if (rate === element.comfort || rate < 1 || rate > 10) return;
@@ -5505,14 +5466,25 @@ export class ElementModal {
     this.confirm.set({ kind: 'element' });
   }
 
+  canDeleteEditor(editor: Editor): boolean {
+    if (editor.kind === 'definition') return editor.index != null;
+    return editor.exampleIndex != null;
+  }
+
   askDelete(): void {
     const editor = this.editor();
-    if (editor?.kind !== 'example' || editor.exampleIndex == null) return;
-    this.confirm.set({
-      kind: 'example',
-      definitionIndex: editor.definitionIndex,
-      exampleIndex: editor.exampleIndex,
-    });
+    if (!editor || this.busy() || !this.canDeleteEditor(editor)) return;
+    if (editor.kind === 'definition' && editor.index != null) {
+      this.confirm.set({ kind: 'definition', index: editor.index });
+      return;
+    }
+    if (editor.kind === 'example' && editor.exampleIndex != null) {
+      this.confirm.set({
+        kind: 'example',
+        definitionIndex: editor.definitionIndex,
+        exampleIndex: editor.exampleIndex,
+      });
+    }
   }
 
   async confirmDelete(): Promise<void> {

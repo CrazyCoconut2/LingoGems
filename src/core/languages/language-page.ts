@@ -13,7 +13,6 @@ import { ElementModal } from '../elements/element-modal';
 import { ExtractGame } from '../elements/extract-game';
 import { PolishGame } from '../elements/polish-game';
 import { RefineGame } from '../elements/refine-game';
-import { TranslationLantern } from '../elements/translation-lantern';
 import { ModeIcon } from '../elements/mode-icon';
 import {
   metadataChipColor,
@@ -106,7 +105,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     ExtractGame,
     PolishGame,
     RefineGame,
-    TranslationLantern,
     ModeIcon,
     LanguageAiSettings,
     DiscoverModal,
@@ -376,14 +374,35 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                               : element.equivalents.length + ' translations'
                           "
                         >
-                          <app-translation-lantern />
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
                           @if (element.equivalents.length > 1) {
                             <span>x{{ element.equivalents.length }}</span>
                           }
                         </span>
                       }
                       @if (element.definitions.length) {
-                        <span class="stat">{{ definitionsLabel(element.definitions.length) }}</span>
+                        <span
+                          class="stat"
+                          [attr.aria-label]="definitionsLabel(element.definitions.length)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
+                            />
+                            <path d="m8 13 4-7 4 7" />
+                            <path d="M9.1 11h5.7" />
+                          </svg>
+                          @if (element.definitions.length > 1) {
+                            <span>x{{ element.definitions.length }}</span>
+                          }
+                        </span>
                       }
                     </span>
                   </button>
@@ -1454,10 +1473,16 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       line-height: 1;
     }
 
-    .stat app-translation-lantern {
-      width: 1rem;
-      height: 1rem;
+    .stat svg {
+      display: block;
+      width: 0.85rem;
+      height: 0.85rem;
       flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .skeleton {
