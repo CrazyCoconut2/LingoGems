@@ -971,6 +971,15 @@ function writeExampleSuggestions(
                           </div>
                         </div>
                       }
+                      @if (passage.translations.length && !definitionConcealed(index) && !gradeAt(index)) {
+                        <ul class="equivalents">
+                          @for (translation of passage.translations; track $index) {
+                            <li>
+                              <app-reveal [text]="translation.text" />
+                            </li>
+                          }
+                        </ul>
+                      }
                       @if ((equivalent && !equivalentCompared) || meta.length) {
                         <ul class="sense-meta">
                           @if (equivalent && !equivalentCompared) {
@@ -1075,15 +1084,6 @@ function writeExampleSuggestions(
                               Evaluate
                             </button>
                         </div>
-                      }
-                      @if (passage.translations.length && !definitionConcealed(index) && !gradeAt(index)) {
-                        <ul class="equivalents">
-                          @for (translation of passage.translations; track $index) {
-                            <li>
-                              <app-reveal [text]="translation.text" />
-                            </li>
-                          }
-                        </ul>
                       }
                     </div>
                   </div>
@@ -5478,6 +5478,7 @@ export class ElementModal {
 
   highlightPassage(text: string): DefinitionHighlightPart[] {
     const element = this.element();
+    const shown = displayTitle(text, element.language);
     const others: HighlightSource[] = [];
     for (const item of this.collection()) {
       if (item.id === element.id) continue;
@@ -5489,7 +5490,7 @@ export class ElementModal {
       });
     }
     return highlightDefinitionPassage(
-      text,
+      shown,
       {
         id: element.id,
         title: element.title,

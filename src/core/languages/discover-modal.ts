@@ -128,7 +128,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
               class="filter-btn search-btn"
               [attr.aria-label]="results().length ? 'More' : 'Search'"
               [attr.title]="results().length ? 'More' : 'Search'"
-              [disabled]="busy() || adding()"
+              [disabled]="!canSearch() || busy() || adding()"
               (click)="submit()"
             >
               @if (results().length) {
@@ -674,7 +674,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       stroke-linejoin: round;
     }
 
-    .filter-btn:hover {
+    .filter-btn:hover:not(:disabled) {
       color: var(--text);
       border-color: rgba(var(--accent-rgb), 0.4);
     }
@@ -1388,7 +1388,8 @@ export class DiscoverModal implements OnInit {
   }
 
   sensePassage(sense: DiscoverSense): ParsedPassage {
-    return parsePassage(sense.text);
+    const passage = parsePassage(sense.text);
+    return { ...passage, text: displayTitle(passage.text, this.language()) };
   }
 
   senseMeta(sense: DiscoverSense): { key: string; value: string; color: string | null }[] {
@@ -1430,6 +1431,10 @@ export class DiscoverModal implements OnInit {
     );
   }
 
+  canSearch(): boolean {
+    return this.instruction().trim().length > 0 || this.results().length > 0;
+  }
+
   clearSearch(): void {
     if (this.busy() || this.adding()) return;
     const id = this.activeId();
@@ -1445,7 +1450,7 @@ export class DiscoverModal implements OnInit {
   }
 
   search(): void {
-    if (this.busy() || this.adding()) return;
+    if (this.busy() || this.adding() || !this.instruction().trim()) return;
     this.notice.set('');
     void this.load(false);
   }
