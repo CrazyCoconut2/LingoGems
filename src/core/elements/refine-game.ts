@@ -16,7 +16,6 @@ import {
 } from '@angular/core';
 import { generateElementFromSelection, generateExamples } from 'ai';
 import {
-  DEFAULT_DEFINITION_GEM,
   definitionEligibleForGames,
   definitionSelfMentionWarningFor,
   displayTitle,
@@ -35,8 +34,6 @@ import {
   type StoredElement,
 } from 'collection';
 import { ExtractPassage } from './extract-game';
-import { DefinitionGemIcon } from './definition-gem';
-import { gemAccessibleName } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
 import { metadataChipColor } from './metadata-colors';
 import { comfortColor } from './comfort-palette';
@@ -44,13 +41,7 @@ import { Reveal } from './reveal';
 
 const ANSWER_MAX = 200;
 
-type ClozeGrade = '' | 'red' | 'orange' | 'green';
-
-type ClozePart =
-  | { kind: 'text'; text: string }
-  | { kind: 'blank'; answer: string; draft: string; grade: ClozeGrade };
-
-type ClozeExample = { parts: ClozePart[] };
+type ExamplePart = { kind: 'text'; text: string } | { kind: 'blur'; text: string };
 
 type PassageSelection = {
   text: string;
@@ -72,10 +63,10 @@ type HighlightSource = {
   style: HighlightStyle;
 };
 
-/** Pickaxing: recall the element or any form. An example blank grades that exact surface. */
+/** Pickaxing: recall the title by writing any form. An example includes the element, and that word stays blurred until the title is recalled. */
 @Component({
   selector: 'app-refine-game',
-  imports: [ExtractPassage, DefinitionGemIcon, ModeIcon, NgTemplateOutlet, Reveal],
+  imports: [ExtractPassage, ModeIcon, NgTemplateOutlet, Reveal],
   template: `
     <div
       class="backdrop"
@@ -116,7 +107,7 @@ type HighlightSource = {
             </button>
           }
           <span class="sr" aria-live="polite">{{ cueAnnouncement() }}</span>
-          <label class="field-label" for="refine-recall">Element or a form</label>
+          <label class="field-label" for="refine-recall">Title</label>
           <div class="guess">
             <input
               id="refine-recall"
@@ -127,7 +118,7 @@ type HighlightSource = {
               [attr.maxlength]="answerMax"
               [disabled]="busy()"
               [readOnly]="recalled()"
-              placeholder="Write the element or a form"
+              placeholder="Write any form"
               (input)="onRecall($event)"
               (keydown.enter)="submitRecall($event)"
             />
@@ -160,13 +151,6 @@ type HighlightSource = {
             @for (definition of element().definitions; track $index; let index = $index) {
               @let passage = parsePassage(definition.text);
               <li class="sense">
-                <span
-                  class="sense-gem"
-                  [attr.title]="gemAccessibleName(element().language, definition.gem)"
-                  [attr.aria-label]="gemAccessibleName(element().language, definition.gem)"
-                >
-                  <app-definition-gem [gem]="definition.gem" />
-                </span>
                 @if (passage.text) {
                   <app-extract-passage
                     [definitionIndex]="index"
@@ -222,55 +206,24 @@ type HighlightSource = {
                   @if (exampleList(index).length) {
                     <ul class="examples">
                       @for (
-                        example of exampleList(index);
+                        sentence of exampleList(index);
                         track $index;
                         let exampleIndex = $index
                       ) {
                         <li>
-                          <div class="example-quote cloze">
-                            @for (part of example.parts; track $index; let partIndex = $index) {
+                          <div class="example-quote">
+                            @for (part of exampleParts(sentence); track $index) {
                               @if (part.kind === 'text') {
                                 <app-extract-passage
                                   [inline]="true"
                                   [definitionIndex]="index"
                                   [exampleIndex]="exampleIndex"
-                                  [parts]="highlightPassage(part.text, true)"
+                                  [parts]="highlightPassage(part.text, !recalled())"
                                   (visit)="visitHighlight($event)"
                                   (collide)="collision.set($event)"
                                 />
-                              } @else if (part.kind === 'blank') {
-                                <span class="blank">
-                                  <input
-                                    type="text"
-                                    autocomplete="off"
-                                    spellcheck="false"
-                                    aria-label="Form"
-                                    [value]="part.draft"
-                                    [attr.maxlength]="answerMax"
-                                    [disabled]="busy()"
-                                    [readOnly]="part.grade === 'green'"
-                                    [class.grade-red]="part.grade === 'red'"
-                                    [class.grade-orange]="part.grade === 'orange'"
-                                    [class.grade-green]="part.grade === 'green'"
-                                    (input)="onBlank(index, exampleIndex, partIndex, $event)"
-                                    (keydown.enter)="
-                                      submitBlank(index, exampleIndex, partIndex, $event)
-                                    "
-                                  />
-                                  @if (part.grade !== 'green') {
-                                    <button
-                                      type="button"
-                                      class="blank-submit"
-                                      aria-label="Submit"
-                                      [disabled]="busy() || !part.draft.trim()"
-                                      (click)="submitBlank(index, exampleIndex, partIndex)"
-                                    >
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <path d="M20 6 9 17l-5-5" />
-                                      </svg>
-                                    </button>
-                                  }
-                                </span>
+                              } @else {
+                                <span class="cue-rest" aria-hidden="true">{{ part.text }}</span>
                               }
                             }
                           </div>
@@ -406,6 +359,8 @@ type HighlightSource = {
     .cue-rest {
       filter: blur(0.55em);
       pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     .cue {
@@ -464,8 +419,7 @@ type HighlightSource = {
     }
 
     .close:disabled,
-    .example-btn:disabled,
-    .blank-submit:disabled {
+    .example-btn:disabled {
       opacity: 0.45;
       cursor: not-allowed;
     }
@@ -516,18 +470,6 @@ type HighlightSource = {
       border: 1px solid var(--border);
       border-radius: var(--radius);
       background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
-    }
-
-    .sense-gem {
-      position: absolute;
-      top: 0.9rem;
-      right: 0.9rem;
-      width: 1.15rem;
-      height: 1.15rem;
-    }
-
-    .sense:has(.sense-gem) > app-extract-passage {
-      padding-right: 1.55rem;
     }
 
     .equivalents {
@@ -605,8 +547,7 @@ type HighlightSource = {
       color: var(--text-muted);
     }
 
-    .example-btn,
-    .blank-submit {
+    .example-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -624,14 +565,12 @@ type HighlightSource = {
       border-radius: 0.4rem;
     }
 
-    .example-btn:hover:not(:disabled),
-    .blank-submit:hover:not(:disabled) {
+    .example-btn:hover:not(:disabled) {
       color: var(--text);
       background: rgba(139, 144, 165, 0.16);
     }
 
-    .example-btn svg,
-    .blank-submit svg {
+    .example-btn svg {
       display: block;
       fill: none;
       stroke: currentColor;
@@ -651,48 +590,6 @@ type HighlightSource = {
       color: var(--text-muted);
       font-size: 0.88rem;
       line-height: 1.9;
-    }
-
-    .cloze {
-      white-space: pre-wrap;
-    }
-
-    .blank {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.2rem;
-      white-space: nowrap;
-      vertical-align: baseline;
-    }
-
-    .blank input {
-      width: 7.5rem;
-      padding: 0.2rem 0.45rem;
-      border-radius: 8px;
-      font-size: inherit;
-    }
-
-    .blank input.grade-red {
-      border-color: var(--danger);
-    }
-
-    .blank input.grade-orange {
-      border-color: #f5a142;
-    }
-
-    .blank input.grade-green {
-      border-color: #3dcc78;
-    }
-
-    .blank-submit {
-      width: 1.6rem;
-      height: 1.6rem;
-      border-radius: 0.35rem;
-    }
-
-    .blank-submit svg {
-      width: 0.95rem;
-      height: 0.95rem;
     }
 
     .lookup-actions {
@@ -764,7 +661,6 @@ export class RefineGame {
   readonly addPrepared = output<PreparedElement>();
 
   readonly modeLabel = elementModeLabel;
-  readonly gemAccessibleName = gemAccessibleName;
   readonly answerMax = ANSWER_MAX;
 
   readonly recall = signal('');
@@ -772,7 +668,7 @@ export class RefineGame {
   /** Graphemes of the title that the letter cue has uncovered. */
   readonly revealedCount = signal(0);
   readonly titleChars = computed(() => graphemes(this.shownTitle()));
-  readonly examples = signal<ClozeExample[][]>([]);
+  readonly examples = signal<string[][]>([]);
   readonly error = signal('');
   readonly busy = signal(false);
   readonly askingExample = signal<number | null>(null);
@@ -859,8 +755,14 @@ export class RefineGame {
     this.revealedCount.set(nextLetterCount(this.titleChars(), this.revealedCount()));
   }
 
-  exampleList(index: number): ClozeExample[] {
+  exampleList(index: number): string[] {
     return this.examples()[index] ?? [];
+  }
+
+  /** The element in an example stays blurred until the title is recalled. */
+  exampleParts(sentence: string): ExamplePart[] {
+    if (this.recalled()) return [{ kind: 'text', text: sentence }];
+    return blurredParts(sentence, this.element());
   }
 
   aiBusy(): boolean {
@@ -877,35 +779,6 @@ export class RefineGame {
     if (this.busy() || this.recalled() || !this.recall().trim()) return;
     if (!matchesElement(this.recall(), this.element())) return;
     this.recalled.set(true);
-  }
-
-  onBlank(definitionIndex: number, exampleIndex: number, partIndex: number, event: Event): void {
-    const value = (event.target as HTMLInputElement).value.slice(0, ANSWER_MAX);
-    this.mapExample(definitionIndex, exampleIndex, (example) => ({
-      parts: example.parts.map((part, index) => {
-        if (index !== partIndex || part.kind !== 'blank' || part.grade === 'green') return part;
-        return { ...part, draft: value, grade: '' };
-      }),
-    }));
-  }
-
-  submitBlank(
-    definitionIndex: number,
-    exampleIndex: number,
-    partIndex: number,
-    event?: Event,
-  ): void {
-    event?.preventDefault();
-    if (this.busy()) return;
-    const part = this.examples()[definitionIndex]?.[exampleIndex]?.parts[partIndex];
-    if (!part || part.kind !== 'blank' || part.grade === 'green' || !part.draft.trim()) return;
-    const grade = gradeBlank(part.draft, part.answer, this.element());
-    this.mapExample(definitionIndex, exampleIndex, (example) => ({
-      parts: example.parts.map((item, index) => {
-        if (index !== partIndex || item.kind !== 'blank') return item;
-        return { ...item, grade };
-      }),
-    }));
   }
 
   entries(metadata: ElementMetadata): Array<{ key: string; value: string }> {
@@ -986,30 +859,39 @@ export class RefineGame {
     this.askingExample.set(index);
     this.error.set('');
     try {
-      const temporary = (this.examples()[index] ?? []).map((example) => clozeText(example.parts));
+      const temporary = this.examples()[index] ?? [];
       const stored = definition.examples.map((item) => parsePassage(item.text).text);
-      const examples = await generateExamples({
-        language: element.language,
-        title: element.title,
+      const forms = definition.forms.map((form) => form.text);
+      let sentence = await requestExample(
+        element,
         gloss,
-        partOfSpeech: definition.metadata['part of speech'],
-        existingExamples: [...stored, ...temporary],
-        forms: definition.forms.map((form) => form.text),
-        exampleWords: [],
-      });
+        definition,
+        [...stored, ...temporary],
+        forms,
+      );
       if (!this.alive || job !== this.exampleJob || this.element().id !== element.id) return;
-      const sentence = parsePassage(examples[0]?.text ?? '')
-        .text.replace(/\s+/g, ' ')
-        .trim();
+      if (sentence && !sentenceCovers(sentence, element)) {
+        sentence = await requestExample(
+          element,
+          gloss,
+          definition,
+          [...stored, ...temporary, sentence],
+          forms,
+        );
+        if (!this.alive || job !== this.exampleJob || this.element().id !== element.id) return;
+      }
       const key = sentence.toLowerCase();
       const current = this.examples()[index] ?? [];
-      const parts = sentence ? clozeParts(sentence, element) : null;
-      if (!parts || current.some((item) => clozeText(item.parts).toLowerCase() === key)) {
+      if (
+        !sentence ||
+        !sentenceCovers(sentence, element) ||
+        current.some((item) => item.toLowerCase() === key)
+      ) {
         this.error.set('No further examples.');
         return;
       }
       const next = this.examples().slice();
-      next[index] = [...current, { parts }];
+      next[index] = [...current, sentence];
       this.examples.set(next);
     } catch {
       if (this.alive && this.element().id === element.id)
@@ -1047,7 +929,6 @@ export class RefineGame {
           forms: selectionForms(generated.lemma, title),
           examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
-          gem: DEFAULT_DEFINITION_GEM,
         })),
       });
     } catch {
@@ -1062,8 +943,8 @@ export class RefineGame {
     if (pick.exampleIndex == null) {
       return parsePassage(this.element().definitions[pick.definitionIndex]?.text ?? '').text;
     }
-    const example = this.examples()[pick.definitionIndex]?.[pick.exampleIndex];
-    return example ? clozeVisible(example.parts) : '';
+    const sentence = this.examples()[pick.definitionIndex]?.[pick.exampleIndex] ?? '';
+    return this.recalled() ? sentence : maskedSentence(sentence, this.element());
   }
 
   private rememberElement(id: string, count: number): void {
@@ -1083,18 +964,6 @@ export class RefineGame {
     if (this.examples().length === count) return;
     const examples = this.examples();
     this.examples.set(Array.from({ length: count }, (_, index) => examples[index] ?? []));
-  }
-
-  private mapExample(
-    definitionIndex: number,
-    exampleIndex: number,
-    change: (example: ClozeExample) => ClozeExample,
-  ): void {
-    const next = this.examples().map((row, index) => {
-      if (index !== definitionIndex) return row;
-      return row.map((example, item) => (item === exampleIndex ? change(example) : example));
-    });
-    this.examples.set(next);
   }
 
   private readonly syncPassageSelection = (): void => {
@@ -1172,12 +1041,6 @@ function nextLetterCount(chars: readonly string[], from: number): number {
   return from;
 }
 
-function gradeBlank(answer: string, surface: string, element: StoredElement): ClozeGrade {
-  if (sameSurface(answer, surface)) return 'green';
-  if (matchesElement(answer, element)) return 'orange';
-  return 'red';
-}
-
 function matchesElement(answer: string, element: StoredElement): boolean {
   const text = answer.trim();
   if (!text) return false;
@@ -1197,36 +1060,50 @@ function normalizeSurface(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
 }
 
-function clozeParts(sentence: string, element: StoredElement): ClozePart[] | null {
-  const forms = element.definitions.flatMap((definition) =>
-    definition.forms.map((form) => form.text),
-  );
-  const spans = surfaceSpans(sentence, element.title, forms);
-  if (!spans.length) return null;
-  const parts: ClozePart[] = [];
+function sentenceCovers(sentence: string, element: StoredElement): boolean {
+  return surfaceSpans(sentence, element.title, elementFormTexts(element)).length > 0;
+}
+
+function blurredParts(sentence: string, element: StoredElement): ExamplePart[] {
+  const spans = surfaceSpans(sentence, element.title, elementFormTexts(element));
+  if (!spans.length) return [{ kind: 'text', text: sentence }];
+  const parts: ExamplePart[] = [];
   let cursor = 0;
   for (const span of spans) {
     if (span.start < cursor) continue;
     if (span.start > cursor) parts.push({ kind: 'text', text: sentence.slice(cursor, span.start) });
-    parts.push({ kind: 'blank', answer: span.surface, draft: '', grade: '' });
+    parts.push({ kind: 'blur', text: span.surface });
     cursor = span.end;
   }
   if (cursor < sentence.length) parts.push({ kind: 'text', text: sentence.slice(cursor) });
   return parts;
 }
 
-function clozeText(parts: readonly ClozePart[]): string {
-  return parts.map((part) => (part.kind === 'text' ? part.text : part.answer)).join('');
+function maskedSentence(sentence: string, element: StoredElement): string {
+  return blurredParts(sentence, element)
+    .map((part) => (part.kind === 'text' ? part.text : '…'))
+    .join('');
 }
 
-/** The sentence as the learner sees it, so a saved selection does not include a hidden form. */
-function clozeVisible(parts: readonly ClozePart[]): string {
-  return parts
-    .map((part) => {
-      if (part.kind === 'text') return part.text;
-      return part.draft.trim() || '…';
-    })
-    .join('');
+async function requestExample(
+  element: StoredElement,
+  gloss: string,
+  definition: ElementDefinition,
+  existingExamples: string[],
+  forms: string[],
+): Promise<string> {
+  const examples = await generateExamples({
+    language: element.language,
+    title: element.title,
+    gloss,
+    partOfSpeech: definition.metadata['part of speech'],
+    existingExamples,
+    forms,
+    exampleWords: [],
+  });
+  return parsePassage(examples[0]?.text ?? '')
+    .text.replace(/\s+/g, ' ')
+    .trim();
 }
 
 function appearanceOf(element: StoredElement): { color: string; style: HighlightStyle } {

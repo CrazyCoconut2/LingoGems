@@ -13,8 +13,6 @@ import {
 } from '@angular/core';
 import {
   assignEquivalent,
-  DEFAULT_DEFINITION_GEM,
-  DEFINITION_GEMS,
   definitionSelfMentionWarningFor,
   deleteElement,
   displayTitle,
@@ -24,10 +22,8 @@ import {
   formTexts,
   highlightDefinitionPassage,
   isValidForm,
-  normalizeDefinitionGem,
   parsePassage,
   saveElement,
-  type DefinitionGem,
   type DefinitionHighlightMatch,
   type DefinitionHighlightPart,
   type ElementDefinition,
@@ -54,10 +50,8 @@ import {
   type RelatedWord,
 } from 'ai';
 import { Reveal } from './reveal';
-import { DefinitionGemIcon } from './definition-gem';
 import { TranslationLantern } from './translation-lantern';
 import { metadataChipColor, type MetadataColorPlace } from './metadata-colors';
-import { gemAccessibleName } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
 import { COMFORT_RATES, comfortColor } from './comfort-palette';
 import { translatePhrase } from '../translate/translate';
@@ -495,7 +489,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [Reveal, ModeIcon, DefinitionGemIcon, TranslationLantern],
+  imports: [Reveal, ModeIcon, TranslationLantern],
   template: `
     <div
       class="backdrop"
@@ -723,22 +717,6 @@ function writeExampleSuggestions(
                           }
                         </ul>
                       }
-                      <div class="gem-choices" role="radiogroup" aria-label="Rune">
-                        @for (gem of gems; track gem) {
-                          <button
-                            type="button"
-                            class="gem-choice"
-                            [class.selected]="suggestionGem(suggestion.text) === gem"
-                            [attr.aria-pressed]="suggestionGem(suggestion.text) === gem"
-                            [attr.aria-label]="gemAccessibleName(element().language, gem)"
-                            [disabled]="busy()"
-                            (click)="chooseSuggestionGem(suggestion.text, gem)"
-                          >
-                            <app-definition-gem [gem]="gem" />
-                            <span>{{ gemAccessibleName(element().language, gem) }}</span>
-                          </button>
-                        }
-                      </div>
                       @if (entries(suggestion.metadata).length) {
                         <ul class="sense-meta">
                           @for (entry of entries(suggestion.metadata); track entry.key) {
@@ -780,7 +758,7 @@ function writeExampleSuggestions(
                   <button
                     type="button"
                     class="btn btn-primary add-suggestion"
-                    [disabled]="aiBusy() || !suggestionGem(suggestion.text)"
+                    [disabled]="aiBusy()"
                     (click)="addSuggestion(index)"
                   >
                     Add
@@ -795,13 +773,6 @@ function writeExampleSuggestions(
                 <li class="sense">
                   <div class="sense-main">
                     <div class="sense-copy">
-                      <span
-                        class="sense-gem"
-                        [attr.title]="gemAccessibleName(element().language, definition.gem)"
-                        [attr.aria-label]="gemAccessibleName(element().language, definition.gem)"
-                      >
-                        <app-definition-gem [gem]="definition.gem" />
-                      </span>
                       @let passage = parsePassage(definition.text);
                       @if (passage.text) {
                         <p class="passage sense-selectable" [attr.data-definition-index]="index">
@@ -1584,27 +1555,6 @@ function writeExampleSuggestions(
                   />
                 </div>
               }
-              @if (current.kind === 'definition') {
-                <div class="gem-field">
-                  <p class="field-label">Rune</p>
-                  <div class="gem-choices" role="radiogroup" aria-label="Rune">
-                    @for (gem of gems; track gem) {
-                      <button
-                        type="button"
-                        class="gem-choice"
-                        [class.selected]="gemDraft() === gem"
-                        [attr.aria-pressed]="gemDraft() === gem"
-                        [attr.aria-label]="gemAccessibleName(element().language, gem)"
-                        [disabled]="busy()"
-                        (click)="gemDraft.set(gem)"
-                      >
-                        <app-definition-gem [gem]="gem" />
-                        <span>{{ gemAccessibleName(element().language, gem) }}</span>
-                      </button>
-                    }
-                  </div>
-                </div>
-              }
               <div class="meta">
                 <div class="section-heading">
                   <h3>Metadata</h3>
@@ -2361,7 +2311,11 @@ function writeExampleSuggestions(
                   <app-mode-icon [mode]="mode" />
                   <span>{{ modeLabel(mode) }}</span>
                 </div>
-                <div class="mode-sequence" role="group" [attr.aria-label]="'Modes, from ' + modeLabel(1) + ' to ' + modeLabel(3)">
+                <div
+                  class="mode-sequence"
+                  role="group"
+                  [attr.aria-label]="'Modes, from ' + modeLabel(1) + ' to ' + modeLabel(3)"
+                >
                   @for (step of modes; track step) {
                     @if (!$first) {
                       <span class="mode-next" aria-hidden="true">
@@ -3119,61 +3073,6 @@ function writeExampleSuggestions(
       font-weight: 600;
     }
 
-    .sense-copy:has(.sense-gem) > .passage {
-      padding-right: 1.55rem;
-    }
-
-    .sense-gem {
-      position: absolute;
-      top: 0.12rem;
-      right: 0;
-      width: 1.15rem;
-      height: 1.15rem;
-    }
-
-    .gem-field {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-    }
-
-    .gem-choices {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-    }
-
-    .gem-choice {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.28rem;
-      margin: 0;
-      padding: 0.2rem 0.45rem;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: transparent;
-      color: var(--text-muted);
-      font: inherit;
-      font-size: 0.72rem;
-      font-weight: 650;
-      cursor: pointer;
-    }
-
-    .gem-choice app-definition-gem {
-      width: 1.15rem;
-      height: 1.15rem;
-      flex: none;
-    }
-
-    .gem-choice.selected {
-      border-color: rgba(var(--accent-rgb), 0.75);
-      color: var(--text);
-    }
-
-    .gem-choice:disabled {
-      cursor: default;
-    }
-
     .sense-meta li.sense-equivalent {
       gap: 0.28rem;
       border-color: rgba(var(--accent-rgb), 0.45);
@@ -3369,7 +3268,8 @@ function writeExampleSuggestions(
       gap: 0.25rem;
       min-width: 0;
       padding: 0.1rem 0 0.1rem 0.85rem;
-      border-left: 3px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 72%, transparent);
+      border-left: 3px solid
+        color-mix(in srgb, var(--highlight-color, var(--accent)) 72%, transparent);
       color: var(--text-muted);
       font-size: 0.88rem;
       line-height: 1.5;
@@ -3762,10 +3662,6 @@ export class ElementModal {
   readonly comfortColor = comfortColor;
   readonly comfortRates = COMFORT_RATES;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
-  readonly gems = DEFINITION_GEMS;
-  readonly gemAccessibleName = gemAccessibleName;
-  readonly gemDraft = signal<DefinitionGem>(DEFAULT_DEFINITION_GEM);
-  readonly suggestionGems = signal<Record<string, DefinitionGem>>({});
   readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
   readonly relatedPickMax = MAX_RELATED_PICKS;
@@ -3874,7 +3770,6 @@ export class ElementModal {
       this.comfortOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
-      this.suggestionGems.set({});
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
       this.dismissTranslations();
@@ -4523,19 +4418,10 @@ export class ElementModal {
     );
   }
 
-  suggestionGem(text: string): DefinitionGem | null {
-    return this.suggestionGems()[text] ?? null;
-  }
-
-  chooseSuggestionGem(text: string, gem: DefinitionGem): void {
-    this.suggestionGems.update((current) => ({ ...current, [text]: gem }));
-  }
-
   async addSuggestion(index: number): Promise<void> {
     if (this.aiBusy()) return;
     const suggestion = this.suggestions()[index];
-    const gem = suggestion ? this.suggestionGem(suggestion.text) : null;
-    if (!suggestion || !gem) return;
+    if (!suggestion) return;
     const element = this.element();
     const created: ElementDefinition = {
       text: suggestion.text,
@@ -4543,7 +4429,6 @@ export class ElementModal {
       forms: [],
       examples: suggestion.example ? [{ text: suggestion.example, metadata: {} }] : [],
       metadata: { ...suggestion.metadata },
-      gem,
     };
     const definitions = [created, ...this.copyDefinitions()];
     if (!(await this.persist(definitions, element.equivalents))) return;
@@ -4558,14 +4443,6 @@ export class ElementModal {
     writeDefinitionSuggestions(elementId, list);
     if (this.element().id !== elementId) return;
     this.suggestions.set(list);
-    const kept = new Set(list.map((item) => item.text));
-    this.suggestionGems.update((current) => {
-      const next: Record<string, DefinitionGem> = {};
-      for (const [text, gem] of Object.entries(current)) {
-        if (kept.has(text)) next[text] = gem;
-      }
-      return next;
-    });
   }
 
   private stopSpeech(): void {
@@ -4774,7 +4651,6 @@ export class ElementModal {
         : null;
     this.equivalentIdDraft.set(known);
     this.equivalentDraft.set('');
-    this.gemDraft.set(definition ? normalizeDefinitionGem(definition.gem) : DEFAULT_DEFINITION_GEM);
     this.beginSheet(definition?.text ?? '');
     this.editor.set({ kind: 'definition', index });
     this.focusDraft();
@@ -5416,7 +5292,6 @@ export class ElementModal {
           forms: selectionForms(generated.lemma, title),
           examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
-          gem: DEFAULT_DEFINITION_GEM,
         })),
       });
     } catch {
@@ -5522,7 +5397,6 @@ export class ElementModal {
         forms: current?.forms ?? [],
         examples: current?.examples ?? [],
         metadata: this.metadataToStore(),
-        gem: this.gemDraft(),
       };
       if (editor.index == null) definitions.push(next);
       else definitions[editor.index] = next;

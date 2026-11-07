@@ -13,13 +13,7 @@ import { ElementModal } from '../elements/element-modal';
 import { ExtractGame } from '../elements/extract-game';
 import { PolishGame } from '../elements/polish-game';
 import { RefineGame } from '../elements/refine-game';
-import { DefinitionGemIcon } from '../elements/definition-gem';
 import { TranslationLantern } from '../elements/translation-lantern';
-import {
-  gemAccessibleName,
-  rememberGemMeanings,
-  takeLegacyGemMeanings,
-} from '../elements/gem-meanings';
 import { ModeIcon } from '../elements/mode-icon';
 import {
   metadataChipColor,
@@ -35,9 +29,7 @@ import { generateElementFromSelection } from 'ai';
 import {
   addElement,
   compareElements,
-  DEFAULT_DEFINITION_GEM,
   DEFAULT_ELEMENT_SORT,
-  DEFINITION_GEMS,
   definitionEligibleForGames,
   displayTitle,
   elementHasInvalidDefinition,
@@ -50,7 +42,6 @@ import {
   elementMatchesPrefix,
   elementModeLabel,
   elementPrefixSearch,
-  emptyGemMeanings,
   emptyMetadataIndexes,
   formatElementCountRange,
   formatMetadataFilter,
@@ -69,10 +60,8 @@ import {
   readLanguages,
   replaceLanguageMetadata,
   saveElement,
-  saveLanguageGemMeanings,
   setCountRangeBound,
   stepCountRange,
-  type DefinitionGem,
   type ElementCountRange,
   type ElementDefinition,
   type ElementMetadataIndexes,
@@ -117,7 +106,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     ExtractGame,
     PolishGame,
     RefineGame,
-    DefinitionGemIcon,
     TranslationLantern,
     ModeIcon,
     LanguageAiSettings,
@@ -394,17 +382,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                           }
                         </span>
                       }
-                      @let groups = definitionCounts(element.definitions);
-                      <span class="stat stones" [attr.aria-label]="definitionsLabel(groups)">
-                        @for (group of groups; track group.gem) {
-                          <span class="stone" [attr.title]="gemAccessibleName(code(), group.gem)">
-                            <app-definition-gem [gem]="group.gem" />
-                            @if (group.count > 1) {
-                              <span>x{{ group.count }}</span>
-                            }
-                          </span>
-                        }
-                      </span>
+                      @if (element.definitions.length) {
+                        <span class="stat">{{ definitionsLabel(element.definitions.length) }}</span>
+                      }
                     </span>
                   </button>
                 </div>
@@ -1290,7 +1270,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       overflow: hidden;
       border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 55%, var(--border));
       border-bottom: 0;
-      border-left: 3px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 78%, var(--surface));
+      border-left: 3px solid
+        color-mix(in srgb, var(--highlight-color, var(--accent)) 78%, var(--surface));
       border-radius: var(--radius);
       background: color-mix(in srgb, var(--highlight-color, var(--accent)) 22%, var(--surface));
       color: inherit;
@@ -1474,24 +1455,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .stat app-translation-lantern {
-      width: 1rem;
-      height: 1rem;
-      flex: none;
-    }
-
-    .stones {
-      flex-wrap: wrap;
-      gap: 0.45rem;
-      max-width: 100%;
-    }
-
-    .stone {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.08rem;
-    }
-
-    .stones app-definition-gem {
       width: 1rem;
       height: 1rem;
       flex: none;
@@ -2005,7 +1968,6 @@ export class LanguagePage {
   readonly comfortRates = COMFORT_RATES;
   readonly comfortColor = comfortColor;
   readonly needsDefinitionEdit = elementHasInvalidDefinition;
-  readonly gemAccessibleName = gemAccessibleName;
   readonly asking = signal(false);
   readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
@@ -2310,28 +2272,8 @@ export class LanguagePage {
     return elementHighlightParts(displayTitle(text, this.code()), this.search());
   }
 
-  definitionCounts(
-    definitions: readonly ElementDefinition[],
-  ): { gem: DefinitionGem; count: number }[] {
-    const counts = new Map<DefinitionGem, number>();
-    for (const definition of definitions) {
-      const gem = definition.gem;
-      counts.set(gem, (counts.get(gem) ?? 0) + 1);
-    }
-    return DEFINITION_GEMS.flatMap((gem) => {
-      const count = counts.get(gem) ?? 0;
-      return count > 0 ? [{ gem, count }] : [];
-    });
-  }
-
-  definitionsLabel(groups: readonly { gem: DefinitionGem; count: number }[]): string {
-    if (groups.length === 0) return 'No definitions';
-    return groups
-      .map((group) => {
-        const name = gemAccessibleName(this.code(), group.gem);
-        return group.count === 1 ? `1 ${name}` : `${group.count} ${name}`;
-      })
-      .join(', ');
+  definitionsLabel(count: number): string {
+    return count === 1 ? '1 definition' : `${count} definitions`;
   }
 
   inputValue(event: Event): string {
@@ -2386,7 +2328,6 @@ export class LanguagePage {
             forms: searchForms(generated.lemma, selected),
             examples: [],
             metadata: { ...sense.metadata },
-            gem: DEFAULT_DEFINITION_GEM,
           })),
         },
         true,
@@ -2841,16 +2782,6 @@ export class LanguagePage {
           }
         : emptyMetadataIndexes(),
     );
-    const code = language?.code ?? this.code();
-    let meanings = language?.gemMeanings ?? emptyGemMeanings();
-    if (language && !Object.values(meanings).some((text) => text.trim())) {
-      const legacy = takeLegacyGemMeanings();
-      if (legacy) {
-        meanings = legacy;
-        void saveLanguageGemMeanings(language.code, meanings);
-      }
-    }
-    rememberGemMeanings(code, meanings);
   }
 
   private reconcileOpen(): void {

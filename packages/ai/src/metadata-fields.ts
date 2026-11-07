@@ -104,7 +104,8 @@ export function writeDefinitionMetadataFields(
 ): void {
   const normalized = normalizeMetadataFields(fields);
   updateLanguage(language, (entry) => {
-    if (metadataFieldsMatch(normalized, DEFAULT_DEFINITION_METADATA_FIELDS)) delete entry.definitions;
+    if (metadataFieldsMatch(normalized, DEFAULT_DEFINITION_METADATA_FIELDS))
+      delete entry.definitions;
     else entry.definitions = normalized;
   });
 }
@@ -247,15 +248,7 @@ export function pickMetadata(
     if (typeof rawValue !== 'string') continue;
     const key = rawKey.replace(/\s+/g, ' ').trim().slice(0, MAX_METADATA_FIELD_KEY);
     const id = key.toLowerCase();
-    if (
-      !key ||
-      key.includes('<') ||
-      key.includes('>') ||
-      seen.has(id) ||
-      id === 'frequency' ||
-      id === 'gem' ||
-      id === 'rune'
-    ) {
+    if (!key || key.includes('<') || key.includes('>') || seen.has(id) || id === 'frequency') {
       continue;
     }
     if (keys.some((item) => item.toLowerCase() === id)) continue;
@@ -269,10 +262,10 @@ export function pickMetadata(
 
 function metadataSuffix(fields: readonly AiMetadataField[], extra = false): string {
   if (!fields.length && !extra) return '}';
-  const body = fields
-    .map((field) => `${JSON.stringify(field.key)}:"<in writeFieldsIn>"`)
+  const body = fields.map((field) => `${JSON.stringify(field.key)}:"<in writeFieldsIn>"`).join(',');
+  const pairs = [body, extra ? '"<other relevant key>":"<in writeFieldsIn>"' : '']
+    .filter(Boolean)
     .join(',');
-  const pairs = [body, extra ? '"<other relevant key>":"<in writeFieldsIn>"' : ''].filter(Boolean).join(',');
   return `,"metadata":{${pairs}}}`;
 }
 
@@ -320,10 +313,7 @@ function readEntry(language: string): StoredLanguageSettings | null {
   return Object.prototype.hasOwnProperty.call(map, code) ? map[code] : null;
 }
 
-function updateLanguage(
-  language: string,
-  change: (entry: StoredLanguageSettings) => void,
-): void {
+function updateLanguage(language: string, change: (entry: StoredLanguageSettings) => void): void {
   const code = languageCode(language);
   if (!code || typeof localStorage === 'undefined') return;
   const map = readMap();
@@ -444,4 +434,3 @@ function readFieldList(raw: unknown[]): AiMetadataField[] {
   }
   return normalizeMetadataFields(fields);
 }
-

@@ -11,81 +11,6 @@ import {
 
 export type ElementMetadata = Record<string, string>;
 
-/** The five gems a definition's rune can be cut from. Nothing is built into a gem. */
-export const DEFINITION_GEMS = ['gem-1', 'gem-2', 'gem-3', 'gem-4', 'gem-5'] as const;
-
-export type DefinitionGem = (typeof DEFINITION_GEMS)[number];
-
-export const DEFAULT_DEFINITION_GEM: DefinitionGem = 'gem-1';
-
-/** Older records stored a frequency word. Those map onto the same gems, in the same order. */
-const LEGACY_FREQUENCY_GEMS: Record<string, DefinitionGem> = {
-  common: 'gem-1',
-  uncommon: 'gem-2',
-  rare: 'gem-3',
-  archaic: 'gem-4',
-  obsolete: 'gem-5',
-};
-
-/** A known gem id, else the gem that used to match a frequency, else the first gem. */
-export function normalizeDefinitionGem(value: unknown, legacyFrequency?: unknown): DefinitionGem {
-  const id = String(value ?? '')
-    .trim()
-    .toLowerCase();
-  if ((DEFINITION_GEMS as readonly string[]).includes(id)) return id as DefinitionGem;
-  const frequency = String(legacyFrequency ?? '')
-    .trim()
-    .toLowerCase();
-  return LEGACY_FREQUENCY_GEMS[frequency] ?? DEFAULT_DEFINITION_GEM;
-}
-
-/** Spoken name when a gem has no name of its own. The definition still carries this rune. */
-export function definitionGemFallbackName(gem: DefinitionGem): string {
-  const index = DEFINITION_GEMS.indexOf(normalizeDefinitionGem(gem)) + 1;
-  return `Rune ${index}`;
-}
-
-/** The gem a rune starts from. The color of the engraving is this gem. */
-const DEFAULT_GEM_NAMES: Record<DefinitionGem, string> = {
-  'gem-1': 'quartz',
-  'gem-2': 'amethyst',
-  'gem-3': 'sapphire',
-  'gem-4': 'ruby',
-  'gem-5': 'diamond',
-};
-
-export function defaultGemName(gem: DefinitionGem): string {
-  return DEFAULT_GEM_NAMES[normalizeDefinitionGem(gem)];
-}
-
-export const GEM_MEANING_MAX_LENGTH = 40;
-
-/** The gem named for each rune. An empty string uses that rune's default gem. */
-export type GemMeanings = Record<DefinitionGem, string>;
-
-export function emptyGemMeanings(): GemMeanings {
-  return {
-    'gem-1': '',
-    'gem-2': '',
-    'gem-3': '',
-    'gem-4': '',
-    'gem-5': '',
-  };
-}
-
-/** Keeps the five gems. Missing or non-text values are blank. */
-export function normalizeGemMeanings(value: unknown): GemMeanings {
-  const meanings = emptyGemMeanings();
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return meanings;
-  const source = value as Record<string, unknown>;
-  for (const gem of DEFINITION_GEMS) {
-    const text = source[gem];
-    if (typeof text !== 'string') continue;
-    meanings[gem] = text.replace(/\r?\n/g, ' ').slice(0, GEM_MEANING_MAX_LENGTH);
-  }
-  return meanings;
-}
-
 export type ElementExample = {
   text: string;
   metadata: ElementMetadata;
@@ -107,8 +32,6 @@ export type ElementDefinition = {
   forms: ElementForm[];
   examples: ElementExample[];
   metadata: ElementMetadata;
-  /** The gem whose rune this sense carries. Missing or unknown values are the first gem. */
-  gem: DefinitionGem;
 };
 
 /** The strings a form list is matched and highlighted with. */
@@ -177,12 +100,33 @@ export async function readElements(language: string): Promise<StoredElement[]> {
       .getAll(code),
   );
   const records = Array.isArray(result) ? result : [];
+  const stale = records.filter(recordHasDefinitionGem);
+  if (stale.length) {
+    await Promise.all(
+      stale.map(async (record) => {
+        const element = normalizeElement(record);
+        if (element) await putElement(element);
+      }),
+    );
+  }
   return records
     .map(normalizeElement)
     .filter((element): element is StoredElement => element !== null && element.language === code)
     .sort(
       (left, right) => left.createdAt - right.createdAt || left.title.localeCompare(right.title),
     );
+}
+
+function recordHasDefinitionGem(record: unknown): boolean {
+  if (!record || typeof record !== 'object') return false;
+  const definitions = (record as { definitions?: unknown }).definitions;
+  if (!Array.isArray(definitions)) return false;
+  return definitions.some(
+    (definition) =>
+      !!definition &&
+      typeof definition === 'object' &&
+      ('gem' in definition || 'frequency' in definition),
+  );
 }
 
 export async function addElement(language: string, title: string): Promise<StoredElement> {
@@ -346,7 +290,6 @@ function normalizeDefinitions(
     const source = raw as Partial<ElementDefinition> & {
       equivalent?: unknown;
       translation?: unknown;
-      frequency?: unknown;
     };
     const text = withEmbeddedTranslation(String(source.text ?? ''), source.translation);
     if (!text) continue;
@@ -356,7 +299,6 @@ function normalizeDefinitions(
       forms: normalizeForms(source.forms),
       examples: normalizeExamples(source.examples),
       metadata: normalizeMetadata(source.metadata),
-      gem: normalizeDefinitionGem(source.gem, source.frequency),
     });
   }
   return definitions;

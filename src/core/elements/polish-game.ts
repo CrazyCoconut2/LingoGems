@@ -23,7 +23,6 @@ import {
   type GradedDefinition,
 } from 'ai';
 import {
-  DEFAULT_DEFINITION_GEM,
   definitionEligibleForGames,
   definitionSelfMentionWarningFor,
   displayTitle,
@@ -640,9 +639,7 @@ export class PolishGame {
   readonly collision = signal<DefinitionHighlightMatch[] | null>(null);
   readonly passageSelection = signal<PassageSelection | null>(null);
 
-  readonly supportAvailable = computed(
-    () => this.element().language.trim().toLowerCase() !== 'en',
-  );
+  readonly supportAvailable = computed(() => this.element().language.trim().toLowerCase() !== 'en');
   readonly originalLanguageName = computed(
     () => languageDisplayName(this.element().language) || this.element().language,
   );
@@ -956,7 +953,6 @@ export class PolishGame {
           forms: selectionForms(generated.lemma, title),
           examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
-          gem: DEFAULT_DEFINITION_GEM,
         })),
       });
     } catch {
@@ -995,9 +991,7 @@ export class PolishGame {
     const translations = this.translations();
     const examples = this.examples();
     this.drafts.set(Array.from({ length: count }, (_, index) => drafts[index] ?? ''));
-    this.languages.set(
-      Array.from({ length: count }, (_, index) => languages[index] ?? 'original'),
-    );
+    this.languages.set(Array.from({ length: count }, (_, index) => languages[index] ?? 'original'));
     this.grades.set(Array.from({ length: count }, (_, index) => grades[index] ?? null));
     this.translations.set(Array.from({ length: count }, (_, index) => translations[index] ?? ''));
     this.examples.set(Array.from({ length: count }, (_, index) => examples[index] ?? []));

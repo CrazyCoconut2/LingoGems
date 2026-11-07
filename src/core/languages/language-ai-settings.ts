@@ -1,17 +1,5 @@
 import { Component, effect, input, output, signal } from '@angular/core';
 import {
-  defaultGemName,
-  DEFINITION_GEMS,
-  emptyGemMeanings,
-  GEM_MEANING_MAX_LENGTH,
-  readLanguage,
-  saveLanguageGemMeanings,
-  type DefinitionGem,
-  type GemMeanings,
-} from 'collection';
-import { DefinitionGemIcon } from '../elements/definition-gem';
-import { rememberGemMeanings } from '../elements/gem-meanings';
-import {
   DEFAULT_DEFINITION_METADATA_FIELDS,
   DEFAULT_EXAMPLE_METADATA_FIELDS,
   MAX_METADATA_FIELD_KEY,
@@ -38,7 +26,6 @@ import {
 
 @Component({
   selector: 'app-language-ai-settings',
-  imports: [DefinitionGemIcon],
   template: `
     <div class="backdrop" (click)="onBackdrop($event)">
       <section
@@ -61,27 +48,6 @@ import {
           </button>
         </header>
         <div class="sheet-body">
-          <section class="metadata" aria-label="Runes of gems">
-            <div class="copy">
-              <h3>Runes of gems</h3>
-              <p>
-                Each rune starts from its gem, as in Rune of sapphire. Change a name to override it.
-              </p>
-            </div>
-            @for (gem of gems; track gem) {
-              <label class="gem-row">
-                <app-definition-gem [gem]="gem" />
-                <input
-                  type="text"
-                  [attr.aria-label]="'Rune of ' + gemFieldValue(gem)"
-                  [attr.maxlength]="gemMeaningMax"
-                  [attr.value]="gemFieldValue(gem)"
-                  (input)="setGemMeaning(gem, $event)"
-                />
-              </label>
-            }
-          </section>
-
           <section class="metadata" aria-label="Definition metadata">
             <div class="section-head">
               <div class="copy">
@@ -413,22 +379,6 @@ import {
       gap: 0.9rem;
     }
 
-    .gem-row {
-      display: grid;
-      grid-template-columns: 1.35rem minmax(0, 1fr);
-      align-items: center;
-      gap: 0.65rem;
-    }
-
-    .gem-row app-definition-gem {
-      width: 1.35rem;
-      height: 1.35rem;
-    }
-
-    .gem-row input {
-      min-width: 0;
-    }
-
     .section-head {
       display: flex;
       align-items: flex-start;
@@ -592,9 +542,6 @@ export class LanguageAiSettings {
   readonly generateExampleTranslations = signal(true);
   readonly definitionExtraFields = signal(false);
   readonly exampleExtraFields = signal(false);
-  readonly gems = DEFINITION_GEMS;
-  readonly gemMeaningMax = GEM_MEANING_MAX_LENGTH;
-  readonly gemMeanings = signal<GemMeanings>(emptyGemMeanings());
   readonly recommendingDefinitions = signal(false);
   readonly recommendingExamples = signal(false);
   readonly definitionSuggestions = signal<AiMetadataField[]>([]);
@@ -603,8 +550,6 @@ export class LanguageAiSettings {
   readonly exampleRecommendError = signal('');
   private definitionRecommendJob = 0;
   private exampleRecommendJob = 0;
-  private gemLoad = 0;
-  private gemEdited = false;
 
   constructor() {
     effect(() => {
@@ -615,43 +560,11 @@ export class LanguageAiSettings {
       this.generateExampleTranslations.set(readGenerateExampleTranslations(language));
       this.definitionExtraFields.set(readDefinitionExtraFields(language));
       this.exampleExtraFields.set(readExampleExtraFields(language));
-      this.gemEdited = false;
-      void this.loadGemMeanings(language);
       this.definitionSuggestions.set([]);
       this.exampleSuggestions.set([]);
       this.definitionRecommendError.set('');
       this.exampleRecommendError.set('');
     });
-  }
-
-  /** The saved gem, or this rune's default when the field has not been overridden. */
-  gemFieldValue(gem: DefinitionGem): string {
-    const stored = this.gemMeanings()[gem];
-    return stored.trim() ? stored : defaultGemName(gem);
-  }
-
-  setGemMeaning(gem: DefinitionGem, event: Event): void {
-    const raw = event.target instanceof HTMLInputElement ? event.target.value : '';
-    const text = raw.replace(/\r?\n/g, ' ').slice(0, GEM_MEANING_MAX_LENGTH);
-    const stored = text.trim() ? text : '';
-    if (event.target instanceof HTMLInputElement && !stored) {
-      event.target.value = defaultGemName(gem);
-    }
-    const next = { ...this.gemMeanings(), [gem]: stored };
-    this.gemEdited = true;
-    this.gemMeanings.set(next);
-    const code = this.language();
-    rememberGemMeanings(code, next);
-    void saveLanguageGemMeanings(code, next);
-  }
-
-  private async loadGemMeanings(language: string): Promise<void> {
-    const job = ++this.gemLoad;
-    const record = await readLanguage(language);
-    if (job !== this.gemLoad || this.language() !== language || this.gemEdited) return;
-    const meanings = record?.gemMeanings ?? emptyGemMeanings();
-    this.gemMeanings.set(meanings);
-    rememberGemMeanings(language, meanings);
   }
 
   onBackdrop(event: MouseEvent): void {

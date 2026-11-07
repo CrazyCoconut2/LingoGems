@@ -1,7 +1,6 @@
 import { Component, computed, ElementRef, OnInit, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
-  emptyGemMeanings,
   emptyMetadataIndexes,
   isLearnableLanguage,
   LEARNABLE_LANGUAGES,
@@ -325,7 +324,6 @@ export class LanguageList implements OnInit {
       code,
       createdAt: Date.now(),
       ...emptyMetadataIndexes(),
-      gemMeanings: emptyGemMeanings(),
     };
     this.languages.update((list) => [...list, created]);
     this.selected.set(this.available()[0] ?? '');

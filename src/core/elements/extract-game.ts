@@ -16,7 +16,6 @@ import {
 } from '@angular/core';
 import { generateElementFromSelection, generateExamples } from 'ai';
 import {
-  DEFAULT_DEFINITION_GEM,
   definitionSelfMentionWarningFor,
   displayTitle,
   elementModeLabel,
@@ -31,8 +30,6 @@ import {
   type HighlightStyle,
   type StoredElement,
 } from 'collection';
-import { DefinitionGemIcon } from './definition-gem';
-import { gemAccessibleName } from './gem-meanings';
 import { ModeIcon } from './mode-icon';
 import { metadataChipColor } from './metadata-colors';
 import { comfortColor } from './comfort-palette';
@@ -179,7 +176,7 @@ export class ExtractPassage {
 /** Sieving: guess one equivalent per definition, then the saved equivalent is shown. */
 @Component({
   selector: 'app-extract-game',
-  imports: [ExtractPassage, DefinitionGemIcon, ModeIcon, NgTemplateOutlet, Reveal],
+  imports: [ExtractPassage, ModeIcon, NgTemplateOutlet, Reveal],
   template: `
     <div
       class="backdrop"
@@ -225,13 +222,6 @@ export class ExtractPassage {
             @for (definition of element().definitions; track $index; let index = $index) {
               @let passage = parsePassage(definition.text);
               <li class="sense">
-                <span
-                  class="sense-gem"
-                  [attr.title]="gemAccessibleName(element().language, definition.gem)"
-                  [attr.aria-label]="gemAccessibleName(element().language, definition.gem)"
-                >
-                  <app-definition-gem [gem]="definition.gem" />
-                </span>
                 @if (passage.text) {
                   <app-extract-passage
                     [definitionIndex]="index"
@@ -568,18 +558,6 @@ export class ExtractPassage {
       background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
     }
 
-    .sense-gem {
-      position: absolute;
-      top: 0.9rem;
-      right: 0.9rem;
-      width: 1.15rem;
-      height: 1.15rem;
-    }
-
-    .sense:has(.sense-gem) > app-extract-passage {
-      padding-right: 1.55rem;
-    }
-
     .equivalents {
       margin: 0;
       padding: 0;
@@ -843,7 +821,6 @@ export class ExtractGame {
   readonly addPrepared = output<PreparedElement>();
 
   readonly modeLabel = elementModeLabel;
-  readonly gemAccessibleName = gemAccessibleName;
   readonly formTexts = formTexts;
   readonly equivalentMax = EQUIVALENT_MAX;
 
@@ -1103,7 +1080,6 @@ export class ExtractGame {
           forms: selectionForms(generated.lemma, title),
           examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
-          gem: DEFAULT_DEFINITION_GEM,
         })),
       });
     } catch {

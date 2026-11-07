@@ -63,3 +63,9 @@ TODO
   that's usually a sign to rework the definition or other shit
   cause you don't want to systematically unblur. So we need to 
   keep track of when the user unblurs.
+- Edit or delete metadata for all the elements : Example, modify
+  mexico with a flat and it modified the region for all the things.
+
+
+Also, with the embedded browser we can save links for shit. Or put
+them in examples, that's fucking great man it will be awesome.
