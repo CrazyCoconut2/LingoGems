@@ -56,18 +56,6 @@ export function rememberDiscoverSearch(language: string, search: DiscoverSearch)
   return searches;
 }
 
-export function deleteDiscoverSearch(language: string, id: string): DiscoverSearch[] {
-  const code = language.trim().toLowerCase();
-  const key = id.trim();
-  if (!code || !key) return readDiscoverSearches(language);
-  const all = readAll();
-  const searches = (all[code] ?? []).filter((item) => item.id !== key);
-  if (searches.length) all[code] = searches;
-  else delete all[code];
-  writeAll(all);
-  return searches;
-}
-
 export function discoverQueryMatches(search: DiscoverQuery, query: DiscoverQuery): boolean {
   return (
     search.instruction.trim() === query.instruction.trim() &&

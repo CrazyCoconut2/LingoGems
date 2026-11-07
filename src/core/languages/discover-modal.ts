@@ -32,7 +32,6 @@ import {
 import { metadataChipColor } from '../elements/metadata-colors';
 import { Reveal } from '../elements/reveal';
 import {
-  deleteDiscoverSearch,
   discoverQueryMatches,
   readDiscoverSearches,
   rememberDiscoverSearch,
@@ -108,6 +107,23 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
             <button
               type="button"
               class="filter-btn"
+              [class.active]="historyOpen()"
+              [attr.aria-expanded]="historyOpen()"
+              aria-label="Search history"
+              title="History"
+              (click)="openHistory()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+              @if (searches().length) {
+                <span class="filter-count">{{ searches().length }}</span>
+              }
+            </button>
+            <button
+              type="button"
+              class="filter-btn"
               [class.active]="filtersOpen() || metaCount() > 0"
               [attr.aria-expanded]="filtersOpen()"
               aria-label="Filter by metadata"
@@ -122,25 +138,6 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
               }
             </button>
           </div>
-
-          @if (searches().length) {
-            <div class="search-row" role="list" aria-label="Saved searches">
-              @for (search of searches(); track search.id) {
-                <button
-                  type="button"
-                  class="search-chip"
-                  role="listitem"
-                  [class.selected]="search.id === activeId()"
-                  [attr.aria-pressed]="search.id === activeId()"
-                  [disabled]="busy() || adding()"
-                  (click)="loadSearch(search.id)"
-                >
-                  <span class="search-label">{{ searchLabel(search) }}</span>
-                  <span class="search-count">{{ search.elements.length }}</span>
-                </button>
-              }
-            </div>
-          }
 
           <div class="results">
             @if (error()) {
@@ -245,14 +242,6 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
 
         <footer class="foot">
           @if (results().length) {
-            <button
-              type="button"
-              class="link-btn"
-              [disabled]="busy() || adding()"
-              (click)="clearResults()"
-            >
-              Clear
-            </button>
             <button
               type="button"
               class="link-btn"
@@ -379,6 +368,53 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
           </div>
         </div>
       }
+
+      @if (historyOpen()) {
+        <div
+          class="filter-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Search history"
+          (click)="closeHistoryOnBackdrop($event)"
+        >
+          <div class="filter-sheet" (click)="$event.stopPropagation()">
+            <header class="filter-head">
+              <div>
+                <h3>History</h3>
+                <p>Saved searches for this language.</p>
+              </div>
+              <button type="button" class="icon-btn" aria-label="Close" (click)="closeHistory()">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </header>
+            <div class="filter-sheet-body">
+              @if (searches().length) {
+                <div class="history-list" role="list">
+                  @for (search of searches(); track search.id) {
+                    <button
+                      type="button"
+                      class="history-item"
+                      role="listitem"
+                      [class.selected]="search.id === activeId()"
+                      [attr.aria-pressed]="search.id === activeId()"
+                      [disabled]="busy() || adding()"
+                      (click)="chooseSearch(search.id)"
+                    >
+                      <span class="search-label">{{ searchLabel(search) }}</span>
+                      <span class="search-count">{{ search.elements.length }}</span>
+                    </button>
+                  }
+                </div>
+              } @else {
+                <p class="hint">No saved searches.</p>
+              }
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: `
@@ -489,8 +525,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       padding: 0 1.15rem 1rem;
     }
 
-    .query,
-    .search-row {
+    .query {
       flex-shrink: 0;
     }
 
@@ -820,36 +855,37 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       cursor: not-allowed;
     }
 
-    .search-row {
+    .history-list {
       display: flex;
+      flex-direction: column;
       gap: 0.4rem;
-      overflow-x: auto;
-      padding-bottom: 0.15rem;
     }
 
-    .search-chip {
-      display: inline-flex;
+    .history-item {
+      display: flex;
       align-items: center;
-      gap: 0.4rem;
-      flex: none;
-      max-width: 16rem;
+      gap: 0.6rem;
+      width: 100%;
       border: 0;
-      border-radius: 999px;
-      padding: 0.4rem 0.7rem;
+      border-radius: 0.8rem;
+      padding: 0.7rem 0.8rem;
       background: rgba(127, 127, 127, 0.12);
       color: var(--text);
       font: inherit;
-      font-size: 0.8rem;
+      font-size: 0.9rem;
       font-weight: 650;
+      text-align: left;
       cursor: pointer;
     }
 
-    .search-chip.selected {
+    .history-item.selected {
       background: rgba(var(--accent-rgb), 0.18);
       box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.55);
     }
 
     .search-label {
+      flex: 1;
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -1081,6 +1117,7 @@ export class DiscoverModal implements OnInit {
 
   readonly instruction = signal('');
   readonly filtersOpen = signal(false);
+  readonly historyOpen = signal(false);
   readonly expanded = signal<DiscoverKind | null>(null);
   readonly definitionMeta = signal<ElementMetadataVariability>({});
   readonly exampleMeta = signal<ElementMetadataVariability>({});
@@ -1135,10 +1172,11 @@ export class DiscoverModal implements OnInit {
 
   constructor() {
     const onEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || !this.filtersOpen()) return;
+      if (event.key !== 'Escape' || (!this.historyOpen() && !this.filtersOpen())) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      this.filtersOpen.set(false);
+      if (this.historyOpen()) this.historyOpen.set(false);
+      else this.filtersOpen.set(false);
     };
     document.addEventListener('keydown', onEscape, true);
     inject(DestroyRef).onDestroy(() => document.removeEventListener('keydown', onEscape, true));
@@ -1157,7 +1195,27 @@ export class DiscoverModal implements OnInit {
   }
 
   openFilters(): void {
+    this.historyOpen.set(false);
     this.filtersOpen.set(true);
+  }
+
+  openHistory(): void {
+    this.filtersOpen.set(false);
+    this.historyOpen.set(true);
+  }
+
+  closeHistory(): void {
+    this.historyOpen.set(false);
+  }
+
+  closeHistoryOnBackdrop(event: MouseEvent): void {
+    event.stopPropagation();
+    if (event.target === event.currentTarget) this.historyOpen.set(false);
+  }
+
+  chooseSearch(id: string): void {
+    this.loadSearch(id);
+    this.historyOpen.set(false);
   }
 
   closeFilters(): void {
@@ -1277,22 +1335,6 @@ export class DiscoverModal implements OnInit {
     return this.resultFilter() === 'collected'
       ? 'None of these are in the collection yet.'
       : 'All of these are already in the collection.';
-  }
-
-  clearResults(): void {
-    if (this.busy() || this.adding()) return;
-    this.job += 1;
-    const id = this.activeId();
-    if (id) this.searches.set(deleteDiscoverSearch(this.language(), id));
-    this.activeId.set(null);
-    this.results.set([]);
-    this.instruction.set('');
-    this.definitionMeta.set({});
-    this.exampleMeta.set({});
-    this.formMeta.set({});
-    this.notice.set('');
-    this.error.set('');
-    this.resultFilter.set('all');
   }
 
   async discover(): Promise<void> {

@@ -293,8 +293,19 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       @if (!ready()) {
         <ul class="elements" aria-hidden="true">
           @for (item of skeletons; track item) {
-            <li class="element skeleton">
-              <span class="bone bone-title"></span>
+            <li>
+              <div class="element skeleton">
+                <div class="element-body">
+                  <span class="bone bone-title"></span>
+                  <span class="bone bone-mode"></span>
+                  <span class="bone bone-stats"></span>
+                </div>
+                <div class="comfort-track">
+                  @for (rate of comfortRates; track rate) {
+                    <span class="comfort-mark"></span>
+                  }
+                </div>
+              </div>
             </li>
           }
         </ul>
@@ -1486,22 +1497,42 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .skeleton {
-      flex-direction: row;
-      align-items: center;
-      gap: 0.55rem;
+      border-color: color-mix(in srgb, var(--text) 7%, transparent);
       border-left-color: color-mix(in srgb, var(--text) 7%, transparent);
+      background: color-mix(in srgb, var(--surface) 88%, transparent);
+      pointer-events: none;
     }
 
     .bone {
       display: block;
-      height: 0.7rem;
       border-radius: 999px;
       background: color-mix(in srgb, var(--text) 10%, transparent);
     }
 
-    .bone-title {
+    .skeleton .bone-title {
+      grid-column: 1;
       width: 58%;
-      height: 0.95rem;
+      height: 1.26rem;
+      align-self: center;
+    }
+
+    .skeleton .bone-mode {
+      grid-column: 2;
+      grid-row: 1;
+      width: 1.45rem;
+      height: 1.45rem;
+      border-radius: 0.4rem;
+    }
+
+    .skeleton .bone-stats {
+      grid-column: 1;
+      width: 5.5rem;
+      height: 0.85rem;
+      align-self: center;
+    }
+
+    .skeleton .comfort-mark {
+      background: color-mix(in srgb, var(--text) 12%, transparent);
     }
 
     .empty {
