@@ -282,6 +282,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
       @if (ready()) {
         <p class="list-count">{{ countLabel() }}</p>
+      } @else {
+        <p class="list-count" aria-hidden="true"><span class="bone bone-count"></span></p>
       }
 
       @if (!ready()) {
@@ -1466,6 +1468,13 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       display: block;
       border-radius: 999px;
       background: color-mix(in srgb, var(--text) 10%, transparent);
+    }
+
+    .list-count .bone-count {
+      display: inline-block;
+      width: 5.5rem;
+      height: 0.72em;
+      vertical-align: -0.08em;
     }
 
     .skeleton .bone-title {
