@@ -32,7 +32,6 @@ import {
 import { metadataChipColor } from '../elements/metadata-colors';
 import { Reveal } from '../elements/reveal';
 import {
-  forgetDiscoverSearch,
   readDiscoverSearches,
   rememberDiscoverSearch,
   type DiscoverHit,
@@ -102,8 +101,9 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                   [attr.maxlength]="instructionMax"
                   placeholder="Argentine expressions"
                   aria-label="Instruction"
+                  [readonly]="locked()"
                   [value]="instruction()"
-                  (input)="instruction.set(fieldValue($event))"
+                  (input)="onInstruction($event)"
                   (keydown.enter)="submit()"
                 />
                 @if (canClear()) {
@@ -334,7 +334,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                         <button
                           type="button"
                           class="link-btn"
-                          [disabled]="valueCount(section.id) === 0"
+                          [disabled]="locked() || valueCount(section.id) === 0"
                           (click)="clearMeta(section.id)"
                         >
                           Clear
@@ -352,6 +352,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                                     class="meta-value"
                                     [class.selected]="selected(section.id, entry.key, value)"
                                     [attr.aria-pressed]="selected(section.id, entry.key, value)"
+                                    [attr.aria-disabled]="locked() ? true : null"
                                     (click)="toggleValue(section.id, entry.key, value)"
                                   >
                                     {{ value }}
@@ -370,6 +371,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                           placeholder="Key"
                           aria-label="Metadata key"
                           [attr.maxlength]="keyMax"
+                          [disabled]="locked()"
                           [value]="draft(section.id).key"
                           (input)="setDraft(section.id, 'key', $event)"
                         />
@@ -378,10 +380,11 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                           placeholder="Value"
                           aria-label="Metadata value"
                           [attr.maxlength]="valueMax"
+                          [disabled]="locked()"
                           [value]="draft(section.id).value"
                           (input)="setDraft(section.id, 'value', $event)"
                         />
-                        <button type="submit" [disabled]="!canAdd(section.id)">Add</button>
+                        <button type="submit" [disabled]="locked() || !canAdd(section.id)">Add</button>
                       </form>
                     </div>
                   }
@@ -641,6 +644,22 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     .clear-x:hover:not(:disabled) {
       background: rgba(127, 127, 127, 0.16);
       color: var(--text);
+    }
+
+    .instruction[readonly] {
+      cursor: default;
+    }
+
+    .meta-value[aria-disabled='true'] {
+      cursor: default;
+    }
+
+    .meta-value[aria-disabled='true']:hover {
+      background: transparent;
+    }
+
+    .meta-value.selected[aria-disabled='true']:hover {
+      background: rgba(var(--accent-rgb), 0.16);
     }
 
     .instruction:focus,
@@ -1281,6 +1300,15 @@ export class DiscoverModal implements OnInit {
     return (event.target as HTMLInputElement).value;
   }
 
+  locked(): boolean {
+    return this.activeId() !== null;
+  }
+
+  onInstruction(event: Event): void {
+    if (this.locked()) return;
+    this.instruction.set(this.fieldValue(event));
+  }
+
   openFilters(): void {
     this.historyOpen.set(false);
     this.filtersOpen.set(true);
@@ -1332,6 +1360,7 @@ export class DiscoverModal implements OnInit {
   }
 
   toggleValue(kind: DiscoverKind, key: string, value: string): void {
+    if (this.locked()) return;
     const current = this.meta(kind);
     const values = current[key] ?? [];
     const nextValues = values.includes(value)
@@ -1344,6 +1373,7 @@ export class DiscoverModal implements OnInit {
   }
 
   clearMeta(kind: DiscoverKind): void {
+    if (this.locked()) return;
     this.setMeta(kind, {});
   }
 
@@ -1352,6 +1382,7 @@ export class DiscoverModal implements OnInit {
   }
 
   setDraft(kind: DiscoverKind, field: keyof DiscoverDraft, event: Event): void {
+    if (this.locked()) return;
     const value = (event.target as HTMLInputElement).value;
     this.drafts.update((drafts) => ({
       ...drafts,
@@ -1366,7 +1397,7 @@ export class DiscoverModal implements OnInit {
 
   addConstraint(kind: DiscoverKind, event: Event): void {
     event.preventDefault();
-    if (!this.canAdd(kind)) return;
+    if (this.locked() || !this.canAdd(kind)) return;
     const draft = this.draft(kind);
     const added = normalizeMetadataVariability({ [draft.key]: [draft.value] });
     const key = Object.keys(added)[0];
@@ -1437,10 +1468,8 @@ export class DiscoverModal implements OnInit {
 
   clearSearch(): void {
     if (this.busy() || this.adding()) return;
-    const id = this.activeId();
     this.notice.set('');
     this.error.set('');
-    if (id) this.searches.set(forgetDiscoverSearch(this.language(), id));
     this.clearDraft();
   }
 
