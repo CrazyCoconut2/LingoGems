@@ -39,13 +39,13 @@ export function formTexts(forms: readonly ElementForm[]): string[] {
   return forms.map((form) => form.text);
 }
 
-/** 1 is Sieving, 2 is Pickaxing, and 3 is Drilling. Yield rises in that order. */
+/** 1 is Translation, 2 is Form, and 3 is Definition. */
 export type ElementMode = 1 | 2 | 3;
 
 const ELEMENT_MODE_LABELS: Record<ElementMode, string> = {
-  1: 'Sieving',
-  2: 'Pickaxing',
-  3: 'Drilling',
+  1: 'Translation',
+  2: 'Form',
+  3: 'Definition',
 };
 
 export function elementModeLabel(mode: ElementMode): string {
@@ -239,7 +239,7 @@ function appearanceOf(source: Partial<StoredElement> | null | undefined): {
   };
 }
 
-/** Missing or unknown values are Sieving. */
+/** Missing or unknown values are Translation. */
 export function normalizeElementMode(value: unknown): ElementMode {
   const mode = Math.round(Number(value));
   return mode === 2 || mode === 3 ? mode : 1;

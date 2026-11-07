@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
   DestroyRef,
@@ -562,7 +563,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [Reveal, ModeIcon],
+  imports: [NgTemplateOutlet, Reveal, ModeIcon],
   template: `
     <div
       class="backdrop"
@@ -594,6 +595,17 @@ function writeExampleSuggestions(
                   <span class="cue-shown">{{ revealedPrefix() }}</span
                   ><span class="cue-rest">{{ hiddenSuffix() }}</span>
                 </h2>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Edit title"
+                  title="Edit title"
+                  disabled
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  </svg>
+                </button>
               </div>
             } @else if (titleEdit()) {
               <form class="title-edit" (submit)="saveTitle($event)">
@@ -621,20 +633,18 @@ function writeExampleSuggestions(
             } @else {
               <div class="title-main">
                 <h2>{{ shownTitle() }}</h2>
-                @if (!playing()) {
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Edit title"
-                    title="Edit title"
-                    [disabled]="aiBusy()"
-                    (click)="openTitle()"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                    </svg>
-                  </button>
-                }
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Edit title"
+                  title="Edit title"
+                  [disabled]="playing() || aiBusy()"
+                  (click)="openTitle()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  </svg>
+                </button>
               </div>
             }
             <button
@@ -723,7 +733,7 @@ function writeExampleSuggestions(
             >
               <app-mode-icon [mode]="element().mode" />
             </button>
-            @if (canHear(shownTitle()) && !titleConcealed()) {
+            @if (canHear(shownTitle())) {
               <button
                 type="button"
                 class="icon-btn"
@@ -731,6 +741,7 @@ function writeExampleSuggestions(
                 [attr.aria-pressed]="speaking() === 'title'"
                 [attr.aria-label]="speaking() === 'title' ? 'Stop speaking' : 'Hear title'"
                 [attr.title]="speaking() === 'title' ? 'Stop speaking' : 'Hear title'"
+                [disabled]="titleConcealed()"
                 (click)="hear('title', shownTitle())"
               >
                 @if (speaking() === 'title') {
@@ -746,41 +757,39 @@ function writeExampleSuggestions(
                 }
               </button>
             }
-            @if (!playing()) {
-              <button
-                type="button"
-                class="icon-btn"
-                aria-label="Translations"
-                title="Translations"
-                [disabled]="busy()"
-                (click)="openTranslations()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m5 8 6 6" />
-                  <path d="m4 14 6-6 2-3" />
-                  <path d="M2 5h12" />
-                  <path d="M7 2h1" />
-                  <path d="m22 22-5-10-5 10" />
-                  <path d="M14 18h6" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="icon-btn danger"
-                aria-label="Delete element"
-                title="Delete"
-                [disabled]="busy()"
-                (click)="askDeleteElement()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 6h18" />
-                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                  <path d="M10 11v6" />
-                  <path d="M14 11v6" />
-                </svg>
-              </button>
-            }
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Translations"
+              title="Translations"
+              [disabled]="playing() || busy()"
+              (click)="openTranslations()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m5 8 6 6" />
+                <path d="m4 14 6-6 2-3" />
+                <path d="M2 5h12" />
+                <path d="M7 2h1" />
+                <path d="m22 22-5-10-5 10" />
+                <path d="M14 18h6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="icon-btn danger"
+              aria-label="Delete element"
+              title="Delete"
+              [disabled]="playing() || busy()"
+              (click)="askDeleteElement()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 6h18" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+              </svg>
+            </button>
           </div>
         </header>
         <div class="body">
@@ -795,23 +804,21 @@ function writeExampleSuggestions(
               </svg>
               Definitions
             </h3>
-            @if (!playing()) {
-              <div class="header-actions">
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Add a definition"
-                  title="Add a definition"
-                  [disabled]="aiBusy()"
-                  (click)="openAddDefinition()"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M5 12h14" />
-                    <path d="M12 5v14" />
-                  </svg>
-                </button>
-              </div>
-            }
+            <div class="header-actions">
+              <button
+                type="button"
+                class="icon-btn"
+                aria-label="Add a definition"
+                title="Add a definition"
+                [disabled]="playing() || aiBusy()"
+                (click)="openAddDefinition()"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M5 12h14" />
+                  <path d="M12 5v14" />
+                </svg>
+              </button>
+            </div>
           </div>
           @if (collision(); as matches) {
             <div class="collision" role="menu" aria-label="Matching elements">
@@ -832,17 +839,51 @@ function writeExampleSuggestions(
                   <div class="sense-main">
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
-                      @if (definitionIsNew(definition.text) && !playing()) {
+                      @if (definitionIsNew(definition.text)) {
                         <button
                           type="button"
                           class="new-definition"
                           aria-label="Dismiss new definition"
+                          [disabled]="playing()"
                           (click)="dismissNew(definition.text)"
                         >
                           New
                         </button>
                       }
-                      @if (passage.text) {
+                      @if (drilling() && gradeAt(index); as grade) {
+                        <div class="compare">
+                          <div class="compare-side">
+                            <p class="field-label">Your answer</p>
+                            <p>{{ definitionDraftAt(index) }}</p>
+                            @if (definitionTranslationAt(index); as translated) {
+                              <p class="field-label">Translation</p>
+                              <p>{{ translated }}</p>
+                            }
+                          </div>
+                          <div class="compare-side">
+                            <p class="field-label">Definition</p>
+                            <ng-container [ngTemplateOutlet]="definitionPassage" />
+                            @if (passage.translations.length) {
+                              <ul class="equivalents">
+                                @for (translation of passage.translations; track $index) {
+                                  <li>
+                                    <app-reveal [text]="translation.text" />
+                                  </li>
+                                }
+                              </ul>
+                            }
+                          </div>
+                          <div class="compare-score">
+                            <p class="field-label">Score</p>
+                            <p class="score">{{ grade.score }}</p>
+                            <p>{{ grade.explanation }}</p>
+                          </div>
+                        </div>
+                      } @else {
+                        <ng-container [ngTemplateOutlet]="definitionPassage" />
+                      }
+                      <ng-template #definitionPassage>
+                        @if (passage.text) {
                         <p
                           class="passage sense-selectable"
                           [class.play-blur]="definitionConcealed(index)"
@@ -884,7 +925,8 @@ function writeExampleSuggestions(
                             }
                           }
                         </p>
-                      }
+                        }
+                      </ng-template>
                       @let equivalent = equivalentText(definition);
                       @let meta = entries(definition.metadata);
                       @if (equivalent || meta.length) {
@@ -944,9 +986,8 @@ function writeExampleSuggestions(
                       @if (definitionWarning(definition.text); as warning) {
                         <p class="warning" role="status">{{ warning }}</p>
                       }
-                      @if (drilling() && !definitionWarning(definition.text)) {
+                      @if (drilling() && !definitionWarning(definition.text) && !gradeAt(index)) {
                         <div class="play-prompt">
-                          @if (!gradeAt(index)) {
                             @if (supportAvailable()) {
                               <div
                                 class="lang"
@@ -994,22 +1035,9 @@ function writeExampleSuggestions(
                             >
                               Evaluate
                             </button>
-                          } @else {
-                            @if (definitionTranslationAt(index); as translated) {
-                              <p class="field-label">Translation</p>
-                              <p>{{ translated }}</p>
-                            }
-                            <p class="field-label">Your definition</p>
-                            <p>{{ definitionDraftAt(index) }}</p>
-                            @if (gradeAt(index); as grade) {
-                              <p class="field-label">Score</p>
-                              <p class="score">{{ grade.score }}</p>
-                              <p>{{ grade.explanation }}</p>
-                            }
-                          }
                         </div>
                       }
-                      @if (passage.translations.length && !definitionConcealed(index)) {
+                      @if (passage.translations.length && !definitionConcealed(index) && !gradeAt(index)) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
                             <li>
@@ -1053,14 +1081,14 @@ function writeExampleSuggestions(
                         </button>
                       </span>
                     } @else {
-                      @if (!playing() && element().definitions.length > 1) {
+                      @if (element().definitions.length > 1) {
                         <span class="item-actions-move">
                           <button
                             type="button"
                             class="icon-btn"
                             aria-label="Move definition up"
                             title="Move definition up"
-                            [disabled]="aiBusy() || index === 0"
+                            [disabled]="playing() || aiBusy() || index === 0"
                             (click)="moveDefinition(index, -1)"
                           >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1072,7 +1100,7 @@ function writeExampleSuggestions(
                             class="icon-btn"
                             aria-label="Move definition down"
                             title="Move definition down"
-                            [disabled]="aiBusy() || index === element().definitions.length - 1"
+                            [disabled]="playing() || aiBusy() || index === element().definitions.length - 1"
                             (click)="moveDefinition(index, 1)"
                           >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1082,7 +1110,7 @@ function writeExampleSuggestions(
                         </span>
                       }
                       <span class="item-actions-main">
-                        @if (canHear(definition.text) && !definitionConcealed(index)) {
+                        @if (canHear(definition.text)) {
                           <button
                             type="button"
                             class="icon-btn"
@@ -1098,6 +1126,7 @@ function writeExampleSuggestions(
                                 ? 'Stop speaking'
                                 : 'Hear definition'
                             "
+                            [disabled]="definitionConcealed(index)"
                             (click)="hear('definition:' + index, spokenPassage(definition.text))"
                           >
                             @if (speaking() === 'definition:' + index) {
@@ -1113,27 +1142,25 @@ function writeExampleSuggestions(
                             }
                           </button>
                         }
-                        @if (!playing()) {
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            [attr.aria-label]="
-                              definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                            "
-                            [attr.title]="
-                              definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                            "
-                            [disabled]="aiBusy()"
-                            (click)="openDefinition(index)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                            </svg>
-                            @if (!definition.equivalentId) {
-                              <span class="notify" aria-hidden="true"></span>
-                            }
-                          </button>
-                        }
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          [attr.aria-label]="
+                            definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                          "
+                          [attr.title]="
+                            definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                          "
+                          [disabled]="playing() || aiBusy()"
+                          (click)="openDefinition(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                          </svg>
+                          @if (!definition.equivalentId) {
+                            <span class="notify" aria-hidden="true"></span>
+                          }
+                        </button>
                       </span>
                     }
                   </div>
@@ -1151,23 +1178,21 @@ function writeExampleSuggestions(
                         </svg>
                         Examples
                       </h3>
-                      @if (!playing()) {
-                        <div class="header-actions">
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Add an example"
-                            title="Add an example"
-                            [disabled]="aiBusy()"
-                            (click)="openAddExample(index)"
-                          >
-                            <svg viewBox="0 0 24 24">
-                              <path d="M5 12h14" />
-                              <path d="M12 5v14" />
-                            </svg>
-                          </button>
-                        </div>
-                      }
+                      <div class="header-actions">
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Add an example"
+                          title="Add an example"
+                          [disabled]="playing() || aiBusy()"
+                          (click)="openAddExample(index)"
+                        >
+                          <svg viewBox="0 0 24 24">
+                            <path d="M5 12h14" />
+                            <path d="M12 5v14" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                     @if (definition.examples.length) {
                       <ul class="examples">
@@ -1324,22 +1349,20 @@ function writeExampleSuggestions(
                                       }
                                     </button>
                                   }
-                                  @if (!playing()) {
-                                    <button
-                                      type="button"
-                                      class="icon-btn"
-                                      aria-label="Edit example"
-                                      title="Edit example"
-                                      [disabled]="aiBusy()"
-                                      (click)="openExample(index, exampleIndex)"
-                                    >
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <path
-                                          d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
-                                        />
-                                      </svg>
-                                    </button>
-                                  }
+                                  <button
+                                    type="button"
+                                    class="icon-btn"
+                                    aria-label="Edit example"
+                                    title="Edit example"
+                                    [disabled]="playing() || aiBusy()"
+                                    (click)="openExample(index, exampleIndex)"
+                                  >
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                      <path
+                                        d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
+                                      />
+                                    </svg>
+                                  </button>
                                 </span>
                               }
                             </div>
@@ -1377,52 +1400,46 @@ function writeExampleSuggestions(
                           <path d="m6 9 6 6 6-6" />
                         </svg>
                       </button>
-                      @if (!playing()) {
-                        <div class="header-actions">
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Add a form"
-                            title="Add a form"
-                            [disabled]="aiBusy()"
-                            (click)="openAddForm(index)"
-                          >
-                            <svg viewBox="0 0 24 24">
-                              <path d="M5 12h14" />
-                              <path d="M12 5v14" />
-                            </svg>
-                          </button>
-                        </div>
-                      }
+                      <div class="header-actions">
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Add a form"
+                          title="Add a form"
+                          [disabled]="playing() || aiBusy()"
+                          (click)="openAddForm(index)"
+                        >
+                          <svg viewBox="0 0 24 24">
+                            <path d="M5 12h14" />
+                            <path d="M12 5v14" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                     @if (formsOpen(index)) {
                       @if (definition.forms.length) {
                         <ul class="forms">
                           @for (form of definition.forms; track form.text) {
                             <li>
-                              @if (playing()) {
-                                <span class="form-chip readonly">{{ form.text }}</span>
-                              } @else {
-                                <div class="form-chip">
-                                  <button
-                                    type="button"
-                                    [disabled]="busy()"
-                                    [attr.aria-label]="'Edit form ' + form.text"
-                                    (click)="openExistingForm(index, form.text)"
-                                  >
-                                    {{ form.text }}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="tag-remove"
-                                    [disabled]="busy()"
-                                    [attr.aria-label]="'Remove form ' + form.text"
-                                    (click)="removeForm(index, form.text)"
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                              }
+                              <div class="form-chip">
+                                <button
+                                  type="button"
+                                  [disabled]="playing() || busy()"
+                                  [attr.aria-label]="'Edit form ' + form.text"
+                                  (click)="openExistingForm(index, form.text)"
+                                >
+                                  {{ form.text }}
+                                </button>
+                                <button
+                                  type="button"
+                                  class="tag-remove"
+                                  [disabled]="playing() || busy()"
+                                  [attr.aria-label]="'Remove form ' + form.text"
+                                  (click)="removeForm(index, form.text)"
+                                >
+                                  ×
+                                </button>
+                              </div>
                             </li>
                           }
                         </ul>
@@ -2781,8 +2798,8 @@ function writeExampleSuggestions(
     }
 
     .mode-current app-mode-icon {
-      width: 5.5rem;
-      height: 5.5rem;
+      width: 2.4rem;
+      height: 2.4rem;
     }
 
     .mode-sequence {
@@ -3223,8 +3240,13 @@ function writeExampleSuggestions(
       cursor: pointer;
     }
 
-    .new-definition:hover {
+    .new-definition:hover:not(:disabled) {
       background: color-mix(in srgb, var(--danger) 28%, transparent);
+    }
+
+    .new-definition:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .sense-meta {
@@ -3876,6 +3898,37 @@ function writeExampleSuggestions(
       flex: 1;
       min-width: 0;
       width: auto;
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+      align-items: stretch;
+    }
+
+    .compare-side {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      min-width: 0;
+      padding: 0.7rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
+    }
+
+    .compare-score {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    @media (max-width: 720px) {
+      .compare {
+        grid-template-columns: 1fr;
+      }
     }
 
     .play-prompt {
