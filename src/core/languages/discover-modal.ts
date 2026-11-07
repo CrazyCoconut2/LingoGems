@@ -1060,10 +1060,6 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
 
     button.card-title {
       cursor: pointer;
-      text-decoration: underline;
-      text-decoration-color: var(--accent);
-      text-decoration-thickness: 1px;
-      text-underline-offset: 0.18em;
     }
 
     .senses {
@@ -1119,7 +1115,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       color: var(--meta-color);
     }
 
-    .sense-meta li.colored .sense-meta-value {
+    .sense-meta-value {
       color: var(--text);
       font-weight: 650;
     }

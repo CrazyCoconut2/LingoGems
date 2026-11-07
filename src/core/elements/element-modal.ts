@@ -1319,12 +1319,10 @@ function writeExampleSuggestions(
                                     @for (entry of meta; track entry.key) {
                                       @let color = metaColor('examples', entry.key, entry.value);
                                       <li [class.colored]="color" [style.--meta-color]="color">
-                                        @if (color) {
+                                        <span>
                                           <span class="sense-meta-key">{{ entry.key }}</span>
                                           <span class="sense-meta-value">{{ entry.value }}</span>
-                                        } @else {
-                                          <span>{{ entry.key }}: {{ entry.value }}</span>
-                                        }
+                                        </span>
                                       </li>
                                     }
                                   </ul>
@@ -1899,12 +1897,8 @@ function writeExampleSuggestions(
                               [attr.aria-label]="'Edit metadata ' + entry.key"
                               (click)="openMetadata(entry.key)"
                             >
-                              @if (color) {
-                                <span class="sense-meta-key">{{ entry.key }}</span>
-                                <span class="sense-meta-value">{{ entry.value }}</span>
-                              } @else {
-                                {{ entry.key }}: {{ entry.value }}
-                              }
+                              <span class="sense-meta-key">{{ entry.key }}</span>
+                              <span class="sense-meta-value">{{ entry.value }}</span>
                             </button>
                             <button
                               type="button"
@@ -2300,12 +2294,8 @@ function writeExampleSuggestions(
                               [attr.aria-label]="'Edit metadata ' + entry.key"
                               (click)="openFormFeature(entry.key)"
                             >
-                              @if (color) {
-                                <span class="sense-meta-key">{{ entry.key }}</span>
-                                <span class="sense-meta-value">{{ entry.value }}</span>
-                              } @else {
-                                {{ entry.key }}: {{ entry.value }}
-                              }
+                              <span class="sense-meta-key">{{ entry.key }}</span>
+                              <span class="sense-meta-value">{{ entry.value }}</span>
                             </button>
                             <button
                               type="button"
@@ -3269,12 +3259,21 @@ function writeExampleSuggestions(
       font-weight: 600;
     }
 
+    .sense-meta-value {
+      color: var(--text);
+      font-weight: 650;
+    }
+
     .sense-meta li.sense-equivalent {
       gap: 0.28rem;
       border-color: rgba(var(--accent-rgb), 0.45);
       background: rgba(var(--accent-rgb), 0.12);
       color: var(--accent-text);
       font-weight: 650;
+    }
+
+    .sense-meta li.sense-equivalent app-reveal {
+      color: var(--text);
     }
 
     .sense-equivalent svg {
@@ -3305,11 +3304,6 @@ function writeExampleSuggestions(
       color: var(--meta-color);
     }
 
-    .sense-meta li.colored .sense-meta-value,
-    .pills li.colored .sense-meta-value {
-      color: var(--text);
-      font-weight: 650;
-    }
 
     .sense-main {
       display: flex;
