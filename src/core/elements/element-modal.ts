@@ -117,29 +117,94 @@ type ConfirmDelete =
   | { kind: 'definition'; index: number }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number };
 
-type DefinitionSuggestion = {
+type StoredSuggestion = {
   text: string;
   metadata: ElementMetadata;
   example?: string;
 };
 
 const SUGGESTIONS_KEY = 'lingogem.definition-suggestions.v1';
+const NEW_DEFINITIONS_KEY = 'lingogem.definition-new.v1';
 
-function suggestionMetadata(raw: unknown): ElementMetadata {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  const metadata: ElementMetadata = {};
-  for (const [key, value] of Object.entries(raw)) {
-    const name = key.trim();
-    if (!name || typeof value !== 'string') continue;
-    const text = value.trim();
-    if (text) metadata[name] = text;
-  }
-  return metadata;
+function definitionGloss(text: string): string {
+  return parsePassage(text).text.trim().toLowerCase();
 }
 
-function suggestionList(raw: unknown): DefinitionSuggestion[] {
+function readDefinitionSuggestions(elementId: string): StoredSuggestion[] {
+  if (!elementId) return [];
+  const stored = readRecord(SUGGESTIONS_KEY);
+  return suggestionList(stored[elementId]);
+}
+
+function clearDefinitionSuggestions(elementId: string): void {
+  if (!elementId) return;
+  const stored = readRecord(SUGGESTIONS_KEY);
+  if (!(elementId in stored)) return;
+  delete stored[elementId];
+  writeRecord(SUGGESTIONS_KEY, stored);
+}
+
+function readNewDefinitions(elementId: string): string[] {
+  if (!elementId) return [];
+  const value = readRecord(NEW_DEFINITIONS_KEY)[elementId];
+  if (!Array.isArray(value)) return [];
+  const glosses: string[] = [];
+  for (const item of value) {
+    const gloss = String(item ?? '')
+      .trim()
+      .toLowerCase();
+    if (!gloss || glosses.includes(gloss)) continue;
+    glosses.push(gloss);
+  }
+  return glosses;
+}
+
+function rememberNewDefinitions(elementId: string, glosses: readonly string[]): void {
+  if (!elementId) return;
+  const next = readNewDefinitions(elementId);
+  for (const gloss of glosses) {
+    const key = gloss.trim().toLowerCase();
+    if (key && !next.includes(key)) next.push(key);
+  }
+  const stored = readRecord(NEW_DEFINITIONS_KEY);
+  if (next.length) stored[elementId] = next;
+  else delete stored[elementId];
+  writeRecord(NEW_DEFINITIONS_KEY, stored);
+}
+
+function dismissNewDefinition(elementId: string, text: string): string[] {
+  const gloss = definitionGloss(text);
+  const stored = readRecord(NEW_DEFINITIONS_KEY);
+  const next = readNewDefinitions(elementId).filter((item) => item !== gloss);
+  if (next.length) stored[elementId] = next;
+  else delete stored[elementId];
+  writeRecord(NEW_DEFINITIONS_KEY, stored);
+  return next;
+}
+
+function pruneNewDefinitions(elementId: string, present: ReadonlySet<string>): string[] {
+  const next = readNewDefinitions(elementId).filter((gloss) => present.has(gloss));
+  const stored = readRecord(NEW_DEFINITIONS_KEY);
+  const current = readNewDefinitions(elementId);
+  if (next.length !== current.length) {
+    if (next.length) stored[elementId] = next;
+    else delete stored[elementId];
+    writeRecord(NEW_DEFINITIONS_KEY, stored);
+  }
+  return next;
+}
+
+function dropNewDefinitions(elementId: string): void {
+  if (!elementId) return;
+  const stored = readRecord(NEW_DEFINITIONS_KEY);
+  if (!(elementId in stored)) return;
+  delete stored[elementId];
+  writeRecord(NEW_DEFINITIONS_KEY, stored);
+}
+
+function suggestionList(raw: unknown): StoredSuggestion[] {
   if (!Array.isArray(raw)) return [];
-  const suggestions: DefinitionSuggestion[] = [];
+  const suggestions: StoredSuggestion[] = [];
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue;
     const text = String((item as { text?: unknown }).text ?? '').trim();
@@ -156,10 +221,22 @@ function suggestionList(raw: unknown): DefinitionSuggestion[] {
   return suggestions;
 }
 
-function readSuggestionStore(): Record<string, unknown> {
+function suggestionMetadata(raw: unknown): ElementMetadata {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const metadata: ElementMetadata = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const name = key.trim();
+    if (!name || typeof value !== 'string') continue;
+    const text = value.trim();
+    if (text) metadata[name] = text;
+  }
+  return metadata;
+}
+
+function readRecord(key: string): Record<string, unknown> {
   if (typeof localStorage === 'undefined') return {};
   try {
-    const raw = localStorage.getItem(SUGGESTIONS_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
@@ -169,30 +246,10 @@ function readSuggestionStore(): Record<string, unknown> {
   }
 }
 
-function readDefinitionSuggestions(elementId: string): DefinitionSuggestion[] {
-  if (!elementId) return [];
-  return suggestionList(readSuggestionStore()[elementId]);
-}
-
-function watchDefinitionSuggestions(listener: (elementId: string) => void): () => void {
-  suggestionListeners.add(listener);
-  return () => suggestionListeners.delete(listener);
-}
-
-const suggestionListeners = new Set<(elementId: string) => void>();
-
-function writeDefinitionSuggestions(
-  elementId: string,
-  suggestions: readonly DefinitionSuggestion[],
-): void {
-  if (typeof localStorage === 'undefined' || !elementId) return;
-  const stored = readSuggestionStore();
-  if (suggestions.length) stored[elementId] = suggestions;
-  else delete stored[elementId];
-  if (Object.keys(stored).length) {
-    localStorage.setItem(SUGGESTIONS_KEY, JSON.stringify(stored));
-  } else localStorage.removeItem(SUGGESTIONS_KEY);
-  for (const listener of suggestionListeners) listener(elementId);
+function writeRecord(key: string, stored: Record<string, unknown>): void {
+  if (typeof localStorage === 'undefined') return;
+  if (Object.keys(stored).length) localStorage.setItem(key, JSON.stringify(stored));
+  else localStorage.removeItem(key);
 }
 
 type ExampleSuggestion = { text: string; form: string };
@@ -701,78 +758,6 @@ function writeExampleSuggestions(
           @if (error()) {
             <p class="error">{{ error() }}</p>
           }
-          @if (suggestions().length) {
-            <ol class="definitions">
-              @for (suggestion of suggestions(); track suggestion.text; let index = $index) {
-                <li class="sense suggestion">
-                  <div class="sense-main">
-                    <div class="sense-copy">
-                      @let passage = parsePassage(suggestion.text);
-                      @if (passage.text) {
-                        <p class="passage">{{ passage.text }}</p>
-                      }
-                      @if (definitionWarning(suggestion.text); as warning) {
-                        <p class="warning" role="status">{{ warning }}</p>
-                      }
-                      @if (passage.translations.length) {
-                        <ul class="equivalents">
-                          @for (translation of passage.translations; track $index) {
-                            <li>
-                              <app-reveal [text]="translation.text" />
-                            </li>
-                          }
-                        </ul>
-                      }
-                      @if (entries(suggestion.metadata).length) {
-                        <ul class="sense-meta">
-                          @for (entry of entries(suggestion.metadata); track entry.key) {
-                            @let color = metaColor('definitions', entry.key, entry.value);
-                            <li [class.colored]="color" [style.--meta-color]="color">
-                              <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                              {{ label(entry.value) }}
-                            </li>
-                          }
-                        </ul>
-                      }
-                      @if (suggestion.example) {
-                        <div class="example-quote">
-                          <p class="passage example-line">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path
-                                d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                              />
-                              <path
-                                d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                              />
-                            </svg>
-                            <span>{{ suggestion.example }}</span>
-                          </p>
-                        </div>
-                      }
-                    </div>
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Dismiss definition"
-                      title="Dismiss definition"
-                      [disabled]="busy()"
-                      (click)="dismissSuggestion(index)"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    class="btn btn-primary add-suggestion"
-                    [disabled]="aiBusy()"
-                    (click)="addSuggestion(index)"
-                  >
-                    Add
-                  </button>
-                </li>
-              }
-            </ol>
-          }
           @if (element().definitions.length) {
             <ol class="definitions">
               @for (definition of element().definitions; track $index; let index = $index) {
@@ -780,6 +765,16 @@ function writeExampleSuggestions(
                   <div class="sense-main">
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
+                      @if (definitionIsNew(definition.text)) {
+                        <button
+                          type="button"
+                          class="new-definition"
+                          aria-label="Dismiss new definition"
+                          (click)="dismissNew(definition.text)"
+                        >
+                          New
+                        </button>
+                      }
                       @if (passage.text) {
                         <p class="passage sense-selectable" [attr.data-definition-index]="index">
                           @for (part of highlightPassage(passage.text); track $index) {
@@ -1234,7 +1229,7 @@ function writeExampleSuggestions(
                 </li>
               }
             </ol>
-          } @else if (!suggestions().length) {
+          } @else {
             <p class="empty">No definitions yet.</p>
           }
         </div>
@@ -3000,14 +2995,23 @@ function writeExampleSuggestions(
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
     }
 
-    .suggestion {
-      border-style: dashed;
-      border-color: var(--accent-border);
-      background: var(--accent-soft);
+    .new-definition {
+      align-self: flex-start;
+      border: 0;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--danger) 18%, transparent);
+      color: var(--danger);
+      padding: 0.15rem 0.5rem;
+      font: inherit;
+      font-size: 0.72rem;
+      font-weight: 750;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
     }
 
-    .suggestion .passage {
-      color: var(--accent-text);
+    .new-definition:hover {
+      background: color-mix(in srgb, var(--danger) 28%, transparent);
     }
 
     .sense-meta {
@@ -3063,18 +3067,8 @@ function writeExampleSuggestions(
       stroke-linejoin: round;
     }
 
-    .suggestion .sense-meta li {
-      border-color: var(--accent-border);
-      color: var(--accent-text);
-    }
-
-    .sense-meta li.colored,
-    .suggestion .sense-meta li.colored {
+    .sense-meta li.colored {
       border-color: var(--meta-color);
-    }
-
-    .add-suggestion {
-      align-self: flex-end;
     }
 
     .sense-main {
@@ -3682,7 +3676,7 @@ export class ElementModal {
   readonly askingExamples = signal<number | null>(null);
   readonly askingRelated = signal<number | null>(null);
   readonly askingWording = signal<number | null>(null);
-  readonly suggestions = signal<DefinitionSuggestion[]>([]);
+  readonly newGlosses = signal<ReadonlySet<string>>(new Set());
   readonly exampleSuggestions = signal<Record<string, ExampleSuggestion[]>>({});
   readonly wordingSuggestions = signal<Record<string, WordingSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
@@ -3752,23 +3746,8 @@ export class ElementModal {
       this.definitionEngineerDrafts = readRelatedDrafts(id);
       void this.commitStoredExamples(id);
       this.loadWordingSuggestions(id);
-      const saved = new Set(
-        this.element().definitions.map((definition) =>
-          parsePassage(definition.text).text.trim().toLowerCase(),
-        ),
-      );
-      const stored = readDefinitionSuggestions(id).filter((suggestion) => {
-        const gloss = parsePassage(suggestion.text).text.trim().toLowerCase();
-        return gloss && !saved.has(gloss);
-      });
-      this.suggestions.set(stored);
-      if (stored.length !== readDefinitionSuggestions(id).length) {
-        writeDefinitionSuggestions(id, stored);
-      }
-    });
-    const stopWatching = watchDefinitionSuggestions((elementId) => {
-      if (elementId !== this.trackedElementId) return;
-      this.suggestions.set(readDefinitionSuggestions(elementId));
+      this.refreshNewDefinitions(id);
+      void this.adoptStoredSuggestions(id);
     });
     const stopWatchingExamples = watchExampleSuggestions((elementId) => {
       if (elementId !== this.trackedElementId) return;
@@ -3784,7 +3763,6 @@ export class ElementModal {
     document.addEventListener('pointerdown', this.onSelectionPointerDown, true);
     document.addEventListener('pointerup', this.syncPassageSelection, true);
     inject(DestroyRef).onDestroy(() => {
-      stopWatching();
       stopWatchingExamples();
       stopWatchingWording();
       this.clearCopied();
@@ -4294,35 +4272,25 @@ export class ElementModal {
         language: element.language,
         title,
         example,
-        existingDefinitions: [
-          ...element.definitions.map((definition) => ({
-            text: definition.text,
-            metadata: definition.metadata,
-          })),
-          ...this.suggestions().map((suggestion) => ({
-            text: suggestion.text,
-            metadata: suggestion.metadata,
-          })),
-        ],
+        existingDefinitions: element.definitions.map((definition) => ({
+          text: definition.text,
+          metadata: definition.metadata,
+        })),
       });
       if (this.element().id !== element.id) return;
       if (!sense) {
         this.error.set('Could not write a definition from that example.');
         return;
       }
-      const current = this.suggestions();
       const seen = new Set(
-        [
-          ...element.definitions.map((definition) => definition.text),
-          ...current.map((item) => item.text),
-        ].map((text) => parsePassage(text).text.trim().toLowerCase()),
+        element.definitions.map((definition) => definitionGloss(definition.text)),
       );
-      const key = parsePassage(sense.text).text.trim().toLowerCase();
+      const key = definitionGloss(sense.text);
       if (!key || seen.has(key)) {
         this.error.set('That sense is already here.');
         return;
       }
-      this.replaceSuggestions(element.id, [...current, { ...sense, example }]);
+      if (!(await this.commitGeneratedSenses(element, [{ ...sense, example }]))) return;
       this.definitionExample.set('');
       this.addDefinitionOpen.set(false);
     } catch {
@@ -4346,38 +4314,26 @@ export class ElementModal {
       const senses = await generateDefinitions({
         language: element.language,
         title,
-        existingDefinitions: [
-          ...element.definitions.map((definition) => ({
-            text: definition.text,
-            metadata: definition.metadata,
-          })),
-          ...this.suggestions().map((suggestion) => ({
-            text: suggestion.text,
-            metadata: suggestion.metadata,
-          })),
-        ],
+        existingDefinitions: element.definitions.map((definition) => ({
+          text: definition.text,
+          metadata: definition.metadata,
+        })),
       });
-      const current =
-        this.element().id === element.id
-          ? this.suggestions()
-          : readDefinitionSuggestions(element.id);
+      if (this.element().id !== element.id) return;
       const seen = new Set(
-        [
-          ...element.definitions.map((definition) => definition.text),
-          ...current.map((item) => item.text),
-        ].map((text) => parsePassage(text).text.trim().toLowerCase()),
+        element.definitions.map((definition) => definitionGloss(definition.text)),
       );
       const next = senses.filter((sense) => {
-        const key = parsePassage(sense.text).text.trim().toLowerCase();
+        const key = definitionGloss(sense.text);
         if (!key || seen.has(key)) return false;
         seen.add(key);
         return true;
       });
       if (!next.length) {
-        if (this.element().id === element.id) this.error.set('No further definitions.');
+        this.error.set('No further definitions.');
         return;
       }
-      this.replaceSuggestions(element.id, [...current, ...next]);
+      await this.commitGeneratedSenses(element, next);
     } catch {
       if (this.element().id === element.id) this.error.set('Could not ask for definitions.');
     } finally {
@@ -4385,39 +4341,67 @@ export class ElementModal {
     }
   }
 
-  dismissSuggestion(index: number): void {
-    if (this.busy()) return;
-    this.replaceSuggestions(
-      this.element().id,
-      this.suggestions().filter((_, at) => at !== index),
-    );
+  definitionIsNew(text: string): boolean {
+    const gloss = definitionGloss(text);
+    return !!gloss && this.newGlosses().has(gloss);
   }
 
-  async addSuggestion(index: number): Promise<void> {
-    if (this.aiBusy()) return;
-    const suggestion = this.suggestions()[index];
-    if (!suggestion) return;
-    const element = this.element();
-    const created: ElementDefinition = {
-      text: suggestion.text,
+  dismissNew(text: string): void {
+    const glosses = dismissNewDefinition(this.element().id, text);
+    this.newGlosses.set(new Set(glosses));
+  }
+
+  private refreshNewDefinitions(elementId: string): void {
+    const present = new Set(
+      this.element()
+        .definitions.map((definition) => definitionGloss(definition.text))
+        .filter(Boolean),
+    );
+    this.newGlosses.set(new Set(pruneNewDefinitions(elementId, present)));
+  }
+
+  private async adoptStoredSuggestions(elementId: string): Promise<void> {
+    const stored = readDefinitionSuggestions(elementId);
+    if (!stored.length || this.element().id !== elementId) return;
+    const seen = new Set(
+      this.element().definitions.map((definition) => definitionGloss(definition.text)),
+    );
+    const fresh = stored.filter((suggestion) => {
+      const gloss = definitionGloss(suggestion.text);
+      if (!gloss || seen.has(gloss)) return false;
+      seen.add(gloss);
+      return true;
+    });
+    if (!fresh.length) {
+      clearDefinitionSuggestions(elementId);
+      return;
+    }
+    if (this.element().id !== elementId) return;
+    const saved = await this.commitGeneratedSenses(this.element(), fresh);
+    if (saved) clearDefinitionSuggestions(elementId);
+  }
+
+  private async commitGeneratedSenses(
+    element: StoredElement,
+    senses: readonly { text: string; metadata: ElementMetadata; example?: string }[],
+  ): Promise<boolean> {
+    if (!senses.length || this.element().id !== element.id) return false;
+    const created: ElementDefinition[] = senses.map((sense) => ({
+      text: sense.text,
       equivalentId: null,
       forms: [],
-      examples: suggestion.example ? [{ text: suggestion.example, metadata: {} }] : [],
-      metadata: { ...suggestion.metadata },
-    };
-    const definitions = [created, ...this.copyDefinitions()];
-    if (!(await this.persist(definitions, element.equivalents))) return;
-    this.replaceSuggestions(
-      element.id,
-      this.suggestions().filter((item) => item !== suggestion),
-    );
-    this.shiftDefinitionIndexes(1);
-  }
-
-  private replaceSuggestions(elementId: string, list: DefinitionSuggestion[]): void {
-    writeDefinitionSuggestions(elementId, list);
-    if (this.element().id !== elementId) return;
-    this.suggestions.set(list);
+      examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
+      metadata: { ...sense.metadata },
+    }));
+    if (!(await this.persist([...created, ...this.copyDefinitions()], element.equivalents)))
+      return false;
+    const glosses = created.map((definition) => definitionGloss(definition.text)).filter(Boolean);
+    rememberNewDefinitions(element.id, glosses);
+    if (this.element().id === element.id) {
+      this.shiftDefinitionIndexes(created.length);
+      this.newGlosses.set(new Set(readNewDefinitions(element.id)));
+    }
+    return true;
   }
 
   private stopSpeech(): void {
@@ -5576,7 +5560,8 @@ export class ElementModal {
     try {
       const id = this.element().id;
       await deleteElement(id);
-      writeDefinitionSuggestions(id, []);
+      clearDefinitionSuggestions(id);
+      dropNewDefinitions(id);
       writeExampleSuggestions(id, {});
       writeWordingSuggestions(id, {});
       writeRelatedDrafts(id, new Map());

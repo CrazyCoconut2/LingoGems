@@ -1,12 +1,25 @@
-import { Component, computed, input, output, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import {
   addElement,
   displayTitle,
   formMatchesTerm,
   mergeMetadataVariability,
   normalizeMetadataVariability,
+  parsePassage,
+  saveElement,
+  type ElementDefinition,
   type ElementMetadataIndexes,
   type ElementMetadataVariability,
+  type ParsedPassage,
   type StoredElement,
 } from 'collection';
 import {
@@ -14,7 +27,19 @@ import {
   MAX_METADATA_FIELD_KEY,
   discoverElements,
   readStoredAiCredentials,
+  type DiscoveredElement,
 } from 'ai';
+import { metadataChipColor } from '../elements/metadata-colors';
+import { Reveal } from '../elements/reveal';
+import {
+  deleteDiscoverSearch,
+  discoverQueryMatches,
+  readDiscoverSearches,
+  rememberDiscoverSearch,
+  type DiscoverHit,
+  type DiscoverSearch,
+  type DiscoverSense,
+} from './discover-store';
 
 type DiscoverKind = 'definition' | 'example' | 'form';
 
@@ -43,7 +68,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
 
 @Component({
   selector: 'app-discover-modal',
-  imports: [],
+  imports: [Reveal],
   template: `
     <div
       class="backdrop"
@@ -56,7 +81,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
         <header class="head">
           <div>
             <h2>Discover</h2>
-            <p>Titles to add. Metadata and a note narrow the batch.</p>
+            <p>Elements to add, with their definitions. A note and metadata narrow the batch.</p>
           </div>
           <button type="button" class="icon-btn" aria-label="Close" (click)="closed.emit()">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -87,7 +112,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
               [attr.aria-expanded]="filtersOpen()"
               aria-label="Filter by metadata"
               title="Metadata"
-              (click)="toggleFilters()"
+              (click)="openFilters()"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
@@ -98,147 +123,124 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
             </button>
           </div>
 
-          @if (filtersOpen()) {
-            @for (section of sections; track section.id) {
-              <section class="meta-section" [class.expanded]="expanded() === section.id">
+          @if (searches().length) {
+            <div class="search-row" role="list" aria-label="Saved searches">
+              @for (search of searches(); track search.id) {
                 <button
                   type="button"
-                  class="section-header"
-                  [attr.aria-expanded]="expanded() === section.id"
-                  (click)="toggleSection(section.id)"
+                  class="search-chip"
+                  role="listitem"
+                  [class.selected]="search.id === activeId()"
+                  [attr.aria-pressed]="search.id === activeId()"
+                  [disabled]="busy() || adding()"
+                  (click)="loadSearch(search.id)"
                 >
-                  <span class="section-title">
-                    {{ section.title }}
-                    @if (valueCount(section.id); as selected) {
-                      <span class="section-count">{{ selected }}</span>
-                    }
-                  </span>
-                  <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
-                @if (expanded() === section.id) {
-                  <div class="section-body">
-                    <div class="section-actions">
-                      <button
-                        type="button"
-                        class="link-btn"
-                        [disabled]="valueCount(section.id) === 0"
-                        (click)="clearMeta(section.id)"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    @if (entries(section.id); as rows) {
-                      @if (rows.length) {
-                        @for (entry of rows; track entry.key) {
-                          <div class="meta-key">
-                            <span class="key-label">{{ entry.key }}</span>
-                            <div class="meta-values" role="group" [attr.aria-label]="entry.key">
-                              @for (value of entry.values; track value) {
-                                <button
-                                  type="button"
-                                  class="meta-value"
-                                  [class.selected]="selected(section.id, entry.key, value)"
-                                  [attr.aria-pressed]="selected(section.id, entry.key, value)"
-                                  (click)="toggleValue(section.id, entry.key, value)"
-                                >
-                                  {{ value }}
-                                </button>
-                              }
-                            </div>
-                          </div>
-                        }
-                      } @else {
-                        <p class="hint">No saved values yet. Type a key and a value.</p>
-                      }
-                    }
-                    <form class="constraint" (submit)="addConstraint(section.id, $event)">
-                      <input
-                        type="text"
-                        placeholder="Key"
-                        aria-label="Metadata key"
-                        [attr.maxlength]="keyMax"
-                        [value]="draft(section.id).key"
-                        (input)="setDraft(section.id, 'key', $event)"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Value"
-                        aria-label="Metadata value"
-                        [attr.maxlength]="valueMax"
-                        [value]="draft(section.id).value"
-                        (input)="setDraft(section.id, 'value', $event)"
-                      />
-                      <button type="submit" [disabled]="!canAdd(section.id)">Add</button>
-                    </form>
-                  </div>
-                }
-              </section>
-            }
-          }
-
-          @if (error()) {
-            <p class="error">{{ error() }}</p>
-          } @else if (notice()) {
-            <p class="notice">{{ notice() }}</p>
-          }
-
-          @if (results().length) {
-            <div class="filter-row" role="group" aria-label="Results">
-              @for (option of resultFilters; track option.id) {
-                <button
-                  type="button"
-                  class="filter-chip"
-                  [class.selected]="resultFilter() === option.id"
-                  [attr.aria-pressed]="resultFilter() === option.id"
-                  (click)="resultFilter.set(option.id)"
-                >
-                  {{ option.label }}
+                  <span class="search-label">{{ searchLabel(search) }}</span>
+                  <span class="search-count">{{ search.elements.length }}</span>
                 </button>
               }
             </div>
-            @if (visibleResults().length) {
-              <div class="tile-grid">
-                @for (row of visibleResults(); track row.title) {
-                  @if (collectedId(row.title); as id) {
-                    <button
-                      type="button"
-                      class="tile collected"
-                      [attr.aria-label]="'Open ' + label(row.title)"
-                      (click)="open.emit(id)"
-                    >
-                      <span class="tile-title">{{ label(row.title) }}</span>
-                      <span class="tile-mark" aria-hidden="true">
-                        <svg viewBox="0 0 24 24">
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
-                      </span>
-                    </button>
-                  } @else {
-                    <article class="tile">
-                      <span class="tile-title">{{ label(row.title) }}</span>
-                      <button
-                        type="button"
-                        class="tile-add"
-                        aria-label="Add"
-                        title="Add"
-                        [disabled]="adding()"
-                        (click)="addTitle(row.title)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M5 12h14" />
-                          <path d="M12 5v14" />
-                        </svg>
-                      </button>
-                    </article>
-                  }
+          }
+
+          <div class="results">
+            @if (error()) {
+              <p class="error">{{ error() }}</p>
+            } @else if (notice()) {
+              <p class="notice">{{ notice() }}</p>
+            }
+
+            @if (results().length) {
+              <div class="filter-row" role="group" aria-label="Results">
+                @for (option of resultFilters; track option.id) {
+                  <button
+                    type="button"
+                    class="filter-chip"
+                    [class.selected]="resultFilter() === option.id"
+                    [attr.aria-pressed]="resultFilter() === option.id"
+                    (click)="resultFilter.set(option.id)"
+                  >
+                    {{ option.label }}
+                  </button>
                 }
               </div>
-            } @else {
-              <p class="notice">{{ emptyFilterMessage() }}</p>
+              @if (visibleResults().length) {
+                <div class="card-list">
+                  @for (row of visibleResults(); track row.title) {
+                    <article class="card" [class.collected]="!!collectedId(row.title)">
+                      <div class="card-head">
+                        @if (collectedId(row.title); as id) {
+                          <button
+                            type="button"
+                            class="card-title"
+                            [attr.aria-label]="'Open ' + label(row.title)"
+                            (click)="open.emit(id)"
+                          >
+                            {{ label(row.title) }}
+                          </button>
+                          <span class="tile-mark" aria-hidden="true">
+                            <svg viewBox="0 0 24 24">
+                              <path d="M20 6 9 17l-5-5" />
+                            </svg>
+                          </span>
+                        } @else {
+                          <span class="card-title">{{ label(row.title) }}</span>
+                          <button
+                            type="button"
+                            class="tile-add"
+                            aria-label="Add"
+                            title="Add"
+                            [disabled]="adding()"
+                            (click)="addHit(row)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M5 12h14" />
+                              <path d="M12 5v14" />
+                            </svg>
+                          </button>
+                        }
+                      </div>
+                      <ol class="senses">
+                        @for (sense of row.senses; track $index) {
+                          <li>
+                            @let passage = sensePassage(sense);
+                            @if (passage.text) {
+                              <p class="sense-text">{{ passage.text }}</p>
+                            }
+                            @if (passage.translations.length) {
+                              <ul class="sense-translations">
+                                @for (translation of passage.translations; track $index) {
+                                  <li>
+                                    <app-reveal [text]="translation.text" />
+                                  </li>
+                                }
+                              </ul>
+                            }
+                            @if (senseMeta(sense); as meta) {
+                              @if (meta.length) {
+                                <ul class="sense-meta">
+                                  @for (entry of meta; track entry.key) {
+                                    <li
+                                      [class.colored]="entry.color"
+                                      [style.--meta-color]="entry.color"
+                                    >
+                                      <span class="sense-meta-key">{{ metaLabel(entry.key) }}</span>
+                                      {{ metaLabel(entry.value) }}
+                                    </li>
+                                  }
+                                </ul>
+                              }
+                            }
+                          </li>
+                        }
+                      </ol>
+                    </article>
+                  }
+                </div>
+              } @else {
+                <p class="notice">{{ emptyFilterMessage() }}</p>
+              }
             }
-          }
+          </div>
         </div>
 
         <footer class="foot">
@@ -266,10 +268,117 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
             [disabled]="busy() || adding()"
             (click)="discover()"
           >
-            {{ busy() ? 'Discovering…' : results().length ? 'More' : 'Discover' }}
+            {{ busy() ? 'Discovering…' : continuing() ? 'More' : 'Discover' }}
           </button>
         </footer>
       </div>
+
+      @if (filtersOpen()) {
+        <div
+          class="filter-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Metadata"
+          (click)="closeFiltersOnBackdrop($event)"
+        >
+          <div class="filter-sheet" (click)="$event.stopPropagation()">
+            <header class="filter-head">
+              <div>
+                <h3>Metadata</h3>
+                <p>Narrow the batch by definition, example, or form.</p>
+              </div>
+              <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </header>
+            <div class="filter-sheet-body">
+              @for (section of sections; track section.id) {
+                <section class="meta-section" [class.expanded]="expanded() === section.id">
+                  <button
+                    type="button"
+                    class="section-header"
+                    [attr.aria-expanded]="expanded() === section.id"
+                    (click)="toggleSection(section.id)"
+                  >
+                    <span class="section-title">
+                      {{ section.title }}
+                      @if (valueCount(section.id); as selected) {
+                        <span class="section-count">{{ selected }}</span>
+                      }
+                    </span>
+                    <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                  @if (expanded() === section.id) {
+                    <div class="section-body">
+                      <div class="section-actions">
+                        <button
+                          type="button"
+                          class="link-btn"
+                          [disabled]="valueCount(section.id) === 0"
+                          (click)="clearMeta(section.id)"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      @if (entries(section.id); as rows) {
+                        @if (rows.length) {
+                          @for (entry of rows; track entry.key) {
+                            <div class="meta-key">
+                              <span class="key-label">{{ entry.key }}</span>
+                              <div class="meta-values" role="group" [attr.aria-label]="entry.key">
+                                @for (value of entry.values; track value) {
+                                  <button
+                                    type="button"
+                                    class="meta-value"
+                                    [class.selected]="selected(section.id, entry.key, value)"
+                                    [attr.aria-pressed]="selected(section.id, entry.key, value)"
+                                    (click)="toggleValue(section.id, entry.key, value)"
+                                  >
+                                    {{ value }}
+                                  </button>
+                                }
+                              </div>
+                            </div>
+                          }
+                        } @else {
+                          <p class="hint">No saved values yet. Type a key and a value.</p>
+                        }
+                      }
+                      <form class="constraint" (submit)="addConstraint(section.id, $event)">
+                        <input
+                          type="text"
+                          placeholder="Key"
+                          aria-label="Metadata key"
+                          [attr.maxlength]="keyMax"
+                          [value]="draft(section.id).key"
+                          (input)="setDraft(section.id, 'key', $event)"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Value"
+                          aria-label="Metadata value"
+                          [attr.maxlength]="valueMax"
+                          [value]="draft(section.id).value"
+                          (input)="setDraft(section.id, 'value', $event)"
+                        />
+                        <button type="submit" [disabled]="!canAdd(section.id)">Add</button>
+                      </form>
+                    </div>
+                  }
+                </section>
+              }
+            </div>
+            <footer class="filter-foot">
+              <button type="button" class="discover-btn" (click)="closeFilters()">Done</button>
+            </footer>
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: `
@@ -289,6 +398,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     .panel {
       box-sizing: border-box;
       width: min(40rem, 100%);
+      height: calc(100dvh - 2.5rem);
       max-height: calc(100dvh - 2.5rem);
       margin-top: auto;
       margin-bottom: auto;
@@ -375,8 +485,22 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       flex-direction: column;
       gap: 0.55rem;
       min-height: 0;
+      overflow: hidden;
+      padding: 0 1.15rem 1rem;
+    }
+
+    .query,
+    .search-row {
+      flex-shrink: 0;
+    }
+
+    .results {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      gap: 0.55rem;
+      min-height: 0;
       overflow: auto;
-      padding: 0 1.15rem 1.15rem;
     }
 
     .query {
@@ -459,6 +583,71 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       color: var(--accent-text);
       border-color: rgba(var(--accent-rgb), 0.45);
       background: rgba(var(--accent-rgb), 0.12);
+    }
+
+    .filter-backdrop {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem;
+      background: rgba(8, 10, 16, 0.55);
+    }
+
+    .filter-sheet {
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      width: min(36rem, 100%);
+      max-height: calc(100dvh - 4rem);
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 4px);
+      background:
+        radial-gradient(120% 80% at 0% 0%, rgba(var(--accent-rgb), 0.12), transparent 55%),
+        var(--surface);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+    }
+
+    .filter-head,
+    .filter-foot {
+      display: flex;
+      flex-shrink: 0;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.9rem 1rem;
+    }
+
+    .filter-head h3 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 750;
+      letter-spacing: -0.03em;
+    }
+
+    .filter-head p {
+      margin: 0.3rem 0 0;
+      color: var(--text-muted);
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    .filter-sheet-body {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      min-height: 0;
+      overflow: auto;
+      padding: 0 1rem 1rem;
+    }
+
+    .filter-foot {
+      justify-content: flex-end;
+      border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
     }
 
     .filter-count {
@@ -631,6 +820,47 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       cursor: not-allowed;
     }
 
+    .search-row {
+      display: flex;
+      gap: 0.4rem;
+      overflow-x: auto;
+      padding-bottom: 0.15rem;
+    }
+
+    .search-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex: none;
+      max-width: 16rem;
+      border: 0;
+      border-radius: 999px;
+      padding: 0.4rem 0.7rem;
+      background: rgba(127, 127, 127, 0.12);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .search-chip.selected {
+      background: rgba(var(--accent-rgb), 0.18);
+      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.55);
+    }
+
+    .search-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .search-count {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 750;
+    }
+
     .filter-row {
       display: flex;
       flex-wrap: wrap;
@@ -652,59 +882,103 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.55);
     }
 
-    .tile-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(calc((100% - 0.5rem) / 2), 11rem), 1fr));
-      gap: 0.5rem;
+    .card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
     }
 
-    .tile {
+    .card {
       box-sizing: border-box;
       display: flex;
-      align-items: center;
-      gap: 0.4rem;
+      flex-direction: column;
+      gap: 0.55rem;
       min-width: 0;
-      height: 4.6rem;
       margin: 0;
-      padding: 0.5rem 0.7rem;
+      padding: 0.75rem 0.8rem;
       border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
       border-left: 3px solid color-mix(in srgb, var(--text) 7%, transparent);
       border-radius: var(--radius);
       background: color-mix(in srgb, var(--surface) 88%, transparent);
-      color: var(--text-muted);
-      text-align: left;
+      color: var(--text);
     }
 
-    .tile.collected {
-      width: 100%;
-      cursor: pointer;
-      color: var(--text);
-      font: inherit;
+    .card.collected {
       background: color-mix(in srgb, var(--accent) 22%, var(--surface));
       border-color: color-mix(in srgb, var(--accent) 52%, transparent);
       border-left-color: var(--accent);
     }
 
-    .tile.collected:hover {
-      background: color-mix(in srgb, var(--accent) 30%, var(--surface));
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
     }
 
-    .tile-title {
+    .card-title {
       flex: 1;
       min-width: 0;
-      overflow: hidden;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      font: inherit;
       font-size: 1.05rem;
-      font-weight: 650;
-      line-height: 1.2;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-weight: 700;
+      line-height: 1.25;
+      text-align: left;
     }
 
-    .tile.collected .tile-title {
+    button.card-title {
+      cursor: pointer;
       text-decoration: underline;
       text-decoration-color: var(--accent);
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
+    }
+
+    .senses {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sense-text {
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .sense-translations,
+    .sense-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0.35rem 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sense-meta li {
+      border-radius: 999px;
+      background: rgba(127, 127, 127, 0.12);
+      padding: 0.2rem 0.55rem;
+      font-size: 0.75rem;
+      line-height: 1.35;
+    }
+
+    .sense-meta li.colored {
+      background: color-mix(in srgb, var(--meta-color) 18%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--meta-color) 45%, transparent);
+    }
+
+    .sense-meta-key {
+      margin-right: 0.25rem;
+      color: var(--text-muted);
+      font-weight: 700;
     }
 
     .tile-add,
@@ -767,9 +1041,21 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
 
       .panel {
         width: 100%;
+        height: calc(100dvh - 1.3rem);
         max-height: calc(100dvh - 1.3rem);
         margin-top: auto;
         margin-bottom: 0;
+        border-radius: 14px 14px 0 0;
+      }
+
+      .filter-backdrop {
+        align-items: flex-end;
+        padding: 0.65rem;
+      }
+
+      .filter-sheet {
+        width: 100%;
+        max-height: calc(100dvh - 1.3rem);
         border-radius: 14px 14px 0 0;
       }
 
@@ -779,7 +1065,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     }
   `,
 })
-export class DiscoverModal {
+export class DiscoverModal implements OnInit {
   readonly language = input.required<string>();
   readonly catalog = input.required<ElementMetadataIndexes>();
   readonly elements = input.required<readonly StoredElement[]>();
@@ -804,7 +1090,9 @@ export class DiscoverModal {
     example: { ...EMPTY_DRAFT },
     form: { ...EMPTY_DRAFT },
   });
-  readonly results = signal<{ title: string }[]>([]);
+  readonly searches = signal<DiscoverSearch[]>([]);
+  readonly activeId = signal<string | null>(null);
+  readonly results = signal<DiscoverHit[]>([]);
   readonly resultFilter = signal<ResultFilter>('all');
   readonly busy = signal(false);
   readonly adding = signal(false);
@@ -836,8 +1124,29 @@ export class DiscoverModal {
       return true;
     });
   });
+  readonly continuing = computed(() => {
+    const id = this.activeId();
+    const search = this.searches().find((item) => item.id === id);
+    if (!search) return false;
+    return discoverQueryMatches(search, this.query());
+  });
 
   private job = 0;
+
+  constructor() {
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !this.filtersOpen()) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.filtersOpen.set(false);
+    };
+    document.addEventListener('keydown', onEscape, true);
+    inject(DestroyRef).onDestroy(() => document.removeEventListener('keydown', onEscape, true));
+  }
+
+  ngOnInit(): void {
+    this.restore(this.language());
+  }
 
   onBackdrop(event: MouseEvent): void {
     if (event.target === event.currentTarget) this.closed.emit();
@@ -847,8 +1156,17 @@ export class DiscoverModal {
     return (event.target as HTMLInputElement).value;
   }
 
-  toggleFilters(): void {
-    this.filtersOpen.update((open) => !open);
+  openFilters(): void {
+    this.filtersOpen.set(true);
+  }
+
+  closeFilters(): void {
+    this.filtersOpen.set(false);
+  }
+
+  closeFiltersOnBackdrop(event: MouseEvent): void {
+    event.stopPropagation();
+    if (event.target === event.currentTarget) this.filtersOpen.set(false);
   }
 
   toggleSection(kind: DiscoverKind): void {
@@ -920,6 +1238,37 @@ export class DiscoverModal {
     return displayTitle(title, this.language());
   }
 
+  searchLabel(search: DiscoverSearch): string {
+    return search.instruction.trim() || 'Any titles';
+  }
+
+  sensePassage(sense: DiscoverSense): ParsedPassage {
+    return parsePassage(sense.text);
+  }
+
+  senseMeta(sense: DiscoverSense): { key: string; value: string; color: string | null }[] {
+    return Object.entries(sense.metadata).map(([key, value]) => ({
+      key,
+      value,
+      color: metadataChipColor(this.language(), 'definitions', key, value),
+    }));
+  }
+
+  metaLabel(value: string): string {
+    return value.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase());
+  }
+
+  loadSearch(id: string): void {
+    if (this.busy() || this.adding()) return;
+    const search = this.searches().find((item) => item.id === id);
+    if (!search) return;
+    this.job += 1;
+    this.busy.set(false);
+    this.error.set('');
+    this.notice.set('');
+    this.apply(search);
+  }
+
   collectedId(title: string): string {
     return this.matchIds().get(title) ?? '';
   }
@@ -933,7 +1282,14 @@ export class DiscoverModal {
   clearResults(): void {
     if (this.busy() || this.adding()) return;
     this.job += 1;
+    const id = this.activeId();
+    if (id) this.searches.set(deleteDiscoverSearch(this.language(), id));
+    this.activeId.set(null);
     this.results.set([]);
+    this.instruction.set('');
+    this.definitionMeta.set({});
+    this.exampleMeta.set({});
+    this.formMeta.set({});
     this.notice.set('');
     this.error.set('');
     this.resultFilter.set('all');
@@ -945,14 +1301,14 @@ export class DiscoverModal {
     await this.load();
   }
 
-  async addTitle(title: string): Promise<void> {
-    if (this.adding() || this.collectedId(title)) return;
+  async addHit(row: DiscoverHit): Promise<void> {
+    if (this.adding() || this.collectedId(row.title)) return;
     const language = this.language().trim();
     if (!language) return;
     this.adding.set(true);
     this.error.set('');
     try {
-      await addElement(language, title);
+      await saveDiscoveredElement(language, row);
       this.added.emit();
     } catch {
       this.error.set('Could not add that element.');
@@ -964,14 +1320,12 @@ export class DiscoverModal {
   async addAllNew(): Promise<void> {
     if (this.adding() || this.busy() || this.newCount() === 0) return;
     const language = this.language().trim();
-    const titles = this.results()
-      .map((row) => row.title)
-      .filter((title) => !this.collectedId(title));
-    if (!language || titles.length === 0) return;
+    const rows = this.results().filter((row) => !this.collectedId(row.title));
+    if (!language || rows.length === 0) return;
     this.adding.set(true);
     this.error.set('');
     try {
-      for (const title of titles) await addElement(language, title);
+      for (const row of rows) await saveDiscoveredElement(language, row);
     } catch {
       this.error.set('Could not add those elements.');
     } finally {
@@ -983,6 +1337,10 @@ export class DiscoverModal {
   private async load(): Promise<void> {
     const language = this.language().trim();
     if (!language || this.busy()) return;
+    const query = this.query();
+    const continuing = this.continuing();
+    const prior = continuing ? this.results() : [];
+    const activeId = continuing ? this.activeId() : null;
     const job = ++this.job;
     this.busy.set(true);
     this.error.set('');
@@ -992,26 +1350,35 @@ export class DiscoverModal {
       return;
     }
     try {
-      const titles = await discoverElements({
+      const found = await discoverElements({
         language,
-        instruction: this.instruction(),
+        instruction: query.instruction,
         metadata: {
-          definition: this.definitionMeta(),
-          example: this.exampleMeta(),
-          form: this.formMeta(),
+          definition: query.definition,
+          example: query.example,
+          form: query.form,
         },
-        excludeTitles: this.excludeTitles(),
+        excludeTitles: this.excludeTitles(prior),
       });
       if (job !== this.job) return;
-      const fresh = titles.filter((title) => !this.shown(title));
+      const fresh = found.filter((item) => !prior.some((row) => sameTitle(row.title, item.title)));
       if (!fresh.length) {
-        this.notice.set(
-          this.results().length ? 'Nothing new in that batch.' : 'Nothing new to add.',
-        );
+        this.notice.set(prior.length ? 'Nothing new in that batch.' : 'Nothing new to add.');
         return;
       }
+      const search: DiscoverSearch = {
+        id: activeId ?? crypto.randomUUID(),
+        instruction: query.instruction.trim(),
+        definition: query.definition,
+        example: query.example,
+        form: query.form,
+        elements: [...prior, ...fresh.map(hitFromDiscovered)],
+        updatedAt: Date.now(),
+      };
       this.notice.set('');
-      this.results.update((rows) => [...rows, ...fresh.map((title) => ({ title }))]);
+      this.searches.set(rememberDiscoverSearch(language, search));
+      const saved = this.searches().find((item) => item.id === search.id) ?? search;
+      this.apply(saved, continuing);
     } catch {
       if (job !== this.job) return;
       this.error.set('Could not discover elements.');
@@ -1020,15 +1387,48 @@ export class DiscoverModal {
     }
   }
 
-  private excludeTitles(): string[] {
+  private excludeTitles(prior: readonly DiscoverHit[]): string[] {
     const collected = [...this.elements()]
       .sort((left, right) => right.createdAt - left.createdAt)
       .map((element) => element.title);
-    return [...this.results().map((row) => row.title), ...collected];
+    return [...prior.map((row) => row.title), ...collected];
   }
 
-  private shown(title: string): boolean {
-    return this.results().some((row) => sameTitle(row.title, title));
+  private restore(language: string): void {
+    const searches = readDiscoverSearches(language);
+    this.searches.set(searches);
+    const latest = searches[0];
+    if (latest) this.apply(latest);
+    else this.clearDraft();
+  }
+
+  private apply(search: DiscoverSearch, keepFilter = false): void {
+    this.activeId.set(search.id);
+    this.instruction.set(search.instruction);
+    this.definitionMeta.set(search.definition);
+    this.exampleMeta.set(search.example);
+    this.formMeta.set(search.form);
+    this.results.set(search.elements);
+    if (!keepFilter) this.resultFilter.set('all');
+  }
+
+  private clearDraft(): void {
+    this.activeId.set(null);
+    this.results.set([]);
+    this.instruction.set('');
+    this.definitionMeta.set({});
+    this.exampleMeta.set({});
+    this.formMeta.set({});
+    this.resultFilter.set('all');
+  }
+
+  private query(): Pick<DiscoverSearch, 'instruction' | 'definition' | 'example' | 'form'> {
+    return {
+      instruction: this.instruction(),
+      definition: this.definitionMeta(),
+      example: this.exampleMeta(),
+      form: this.formMeta(),
+    };
   }
 
   private catalogPart(kind: DiscoverKind): ElementMetadataVariability {
@@ -1049,6 +1449,29 @@ export class DiscoverModal {
     else if (kind === 'example') this.exampleMeta.set(next);
     else this.formMeta.set(next);
   }
+}
+
+function hitFromDiscovered(element: DiscoveredElement): DiscoverHit {
+  return {
+    title: element.title,
+    senses: element.senses.map((sense) => ({
+      text: sense.text,
+      metadata: { ...sense.metadata },
+    })),
+  };
+}
+
+async function saveDiscoveredElement(language: string, hit: DiscoverHit): Promise<void> {
+  const created = await addElement(language, hit.title);
+  if (created.definitions.length || !hit.senses.length) return;
+  const definitions: ElementDefinition[] = hit.senses.map((sense) => ({
+    text: sense.text,
+    equivalentId: null,
+    forms: [],
+    examples: [],
+    metadata: { ...sense.metadata },
+  }));
+  await saveElement({ ...created, definitions });
 }
 
 function sameTitle(left: string, right: string): boolean {

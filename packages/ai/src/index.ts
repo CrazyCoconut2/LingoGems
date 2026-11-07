@@ -67,6 +67,7 @@ export {
   buildDiscoverElementsUserMessage,
   discoverElements,
   parseDiscoveredElements,
+  type DiscoveredElement,
   type DiscoverElementsInput,
   type DiscoverMetadata,
 } from './discover-elements';
