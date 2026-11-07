@@ -65,7 +65,8 @@ TODO
   keep track of when the user unblurs.
 - Edit or delete metadata for all the elements : Example, modify
   mexico with a flat and it modified the region for all the things.
-
+- There should be a give up option too and we get to the regular
+  data for our shit.
 
 Also, with the embedded browser we can save links for shit. Or put
 them in examples, that's fucking great man it will be awesome.

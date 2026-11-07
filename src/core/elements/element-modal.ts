@@ -929,9 +929,32 @@ function writeExampleSuggestions(
                       </ng-template>
                       @let equivalent = equivalentText(definition);
                       @let meta = entries(definition.metadata);
-                      @if (equivalent || meta.length) {
+                      @let equivalentCompared = sieving() && !!equivalent && equivalentSubmitted(index);
+                      @if (equivalentCompared) {
+                        <div class="compare">
+                          <div class="compare-side">
+                            <p class="field-label">You wrote</p>
+                            <p>{{ equivalentDraftAt(index) }}</p>
+                          </div>
+                          <div class="compare-side">
+                            <p class="field-label">Equivalent</p>
+                            <p class="equivalent-result">
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m5 8 6 6" />
+                                <path d="m4 14 6-6 2-3" />
+                                <path d="M2 5h12" />
+                                <path d="M7 2h1" />
+                                <path d="m22 22-5-10-5 10" />
+                                <path d="M14 18h6" />
+                              </svg>
+                              <span>{{ equivalent }}</span>
+                            </p>
+                          </div>
+                        </div>
+                      }
+                      @if ((equivalent && !equivalentCompared) || meta.length) {
                         <ul class="sense-meta">
-                          @if (equivalent) {
+                          @if (equivalent && !equivalentCompared) {
                             <li class="sense-equivalent" [class.guessing]="sieving()">
                               <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <path d="m5 8 6 6" />
@@ -941,7 +964,7 @@ function writeExampleSuggestions(
                                 <path d="m22 22-5-10-5 10" />
                                 <path d="M14 18h6" />
                               </svg>
-                              @if (sieving() && !equivalentSubmitted(index)) {
+                              @if (sieving()) {
                                 <label class="sr" [attr.for]="'play-equivalent-' + index">
                                   Equivalent
                                 </label>
@@ -966,9 +989,6 @@ function writeExampleSuggestions(
                                     Submit
                                   </button>
                                 </span>
-                              } @else if (sieving()) {
-                                <span>{{ equivalentDraftAt(index) }}</span>
-                                <span class="play-answer">{{ equivalent }}</span>
                               } @else {
                                 <app-reveal [text]="equivalent" />
                               }
@@ -4003,8 +4023,23 @@ function writeExampleSuggestions(
       font-size: 0.78rem;
     }
 
-    .play-answer {
-      font-weight: 750;
+    .equivalent-result {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      color: var(--accent-text);
+      font-weight: 650;
+    }
+
+    .equivalent-result svg {
+      width: 0.95rem;
+      height: 0.95rem;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .form-chip.readonly {
