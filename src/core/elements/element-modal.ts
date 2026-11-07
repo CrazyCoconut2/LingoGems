@@ -808,10 +808,29 @@ function writeExampleSuggestions(
               <button
                 type="button"
                 class="icon-btn"
+                aria-label="Generate definitions"
+                title="Generate definitions"
+                [disabled]="playing() || aiBusy()"
+                [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
+                (click)="openAddDefinition()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                  />
+                  <path d="M5 3v4" />
+                  <path d="M3 5h4" />
+                  <path d="M19 17v4" />
+                  <path d="M17 19h4" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
                 aria-label="Add a definition"
                 title="Add a definition"
                 [disabled]="playing() || aiBusy()"
-                (click)="openAddDefinition()"
+                (click)="addDefinitionManually()"
               >
                 <svg viewBox="0 0 24 24">
                   <path d="M5 12h14" />
@@ -1202,10 +1221,29 @@ function writeExampleSuggestions(
                         <button
                           type="button"
                           class="icon-btn"
+                          aria-label="Generate an example"
+                          title="Generate an example"
+                          [disabled]="playing() || aiBusy()"
+                          [attr.aria-busy]="askingExamples() === index ? true : null"
+                          (click)="generateExample(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                            />
+                            <path d="M5 3v4" />
+                            <path d="M3 5h4" />
+                            <path d="M19 17v4" />
+                            <path d="M17 19h4" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
                           aria-label="Add an example"
                           title="Add an example"
                           [disabled]="playing() || aiBusy()"
-                          (click)="openAddExample(index)"
+                          (click)="addExampleManually(index)"
                         >
                           <svg viewBox="0 0 24 24">
                             <path d="M5 12h14" />
@@ -1424,10 +1462,29 @@ function writeExampleSuggestions(
                         <button
                           type="button"
                           class="icon-btn"
+                          aria-label="Generate forms"
+                          title="Generate forms"
+                          [disabled]="playing() || aiBusy()"
+                          [attr.aria-busy]="askingForms() === index ? true : null"
+                          (click)="generateForms(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                            />
+                            <path d="M5 3v4" />
+                            <path d="M3 5h4" />
+                            <path d="M19 17v4" />
+                            <path d="M17 19h4" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
                           aria-label="Add a form"
                           title="Add a form"
                           [disabled]="playing() || aiBusy()"
-                          (click)="openAddForm(index)"
+                          (click)="addFormManually(index)"
                         >
                           <svg viewBox="0 0 24 24">
                             <path d="M5 12h14" />
@@ -2265,99 +2322,6 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (addFormFor() != null) {
-          <div class="sheet-backdrop" (click)="closeAddForm($event)">
-            <section
-              class="sheet add-definition"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Add a form"
-              (click)="$event.stopPropagation()"
-            >
-              <div class="sheet-head">
-                <h3>Add a form</h3>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  [disabled]="askingForms() !== null"
-                  (click)="addFormFor.set(null)"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div class="add-choices">
-                <button
-                  type="button"
-                  class="btn btn-secondary add-choice"
-                  [disabled]="askingForms() !== null"
-                  (click)="addFormManually()"
-                >
-                  Write it yourself
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary add-choice"
-                  [disabled]="askingForms() !== null"
-                  [attr.aria-busy]="askingForms() !== null ? true : null"
-                  (click)="addFormWithAi()"
-                >
-                  Ask AI
-                </button>
-              </div>
-              @if (error()) {
-                <p class="error">{{ error() }}</p>
-              }
-            </section>
-          </div>
-        }
-
-        @if (addExampleFor() != null) {
-          <div class="sheet-backdrop" (click)="closeAddExample($event)">
-            <section
-              class="sheet add-definition"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Add an example"
-              (click)="$event.stopPropagation()"
-            >
-              <div class="sheet-head">
-                <h3>Add an example</h3>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  (click)="addExampleFor.set(null)"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div class="add-choices">
-                <button
-                  type="button"
-                  class="btn btn-secondary add-choice"
-                  (click)="addExampleManually()"
-                >
-                  Write it yourself
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary add-choice"
-                  (click)="addExampleWithAi()"
-                >
-                  Ask AI
-                </button>
-              </div>
-            </section>
-          </div>
-        }
-
         @if (addDefinitionOpen()) {
           <div class="sheet-backdrop" (click)="closeAddDefinition($event)">
             <section
@@ -2383,14 +2347,6 @@ function writeExampleSuggestions(
                 </button>
               </div>
               <div class="add-choices">
-                <button
-                  type="button"
-                  class="btn btn-secondary add-choice"
-                  [disabled]="asking()"
-                  (click)="addDefinitionManually()"
-                >
-                  Write it yourself
-                </button>
                 <button
                   type="button"
                   class="btn btn-secondary add-choice"
@@ -4119,8 +4075,6 @@ export class ElementModal {
   readonly titleDraft = signal('');
   readonly titleError = signal('');
   readonly addDefinitionOpen = signal(false);
-  readonly addExampleFor = signal<number | null>(null);
-  readonly addFormFor = signal<number | null>(null);
   readonly expandedForms = signal<ReadonlySet<number>>(new Set());
   readonly addingDefinitions = signal<'missing' | 'example' | null>(null);
   readonly definitionExample = signal('');
@@ -4187,8 +4141,6 @@ export class ElementModal {
       this.exampleEngineer.set(null);
       this.definitionEngineer.set(null);
       this.addDefinitionOpen.set(false);
-      this.addExampleFor.set(null);
-      this.addFormFor.set(null);
       this.expandedForms.set(new Set());
       this.modeOpen.set(false);
       this.comfortOpen.set(false);
@@ -4243,14 +4195,6 @@ export class ElementModal {
     }
     if (this.modeOpen()) {
       if (!this.busy()) this.modeOpen.set(false);
-      return;
-    }
-    if (this.addFormFor() != null) {
-      if (this.askingForms() === null) this.addFormFor.set(null);
-      return;
-    }
-    if (this.addExampleFor() != null) {
-      this.addExampleFor.set(null);
       return;
     }
     if (this.addDefinitionOpen()) {
@@ -4391,8 +4335,6 @@ export class ElementModal {
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.addDefinitionOpen.set(false);
-    this.addExampleFor.set(null);
-    this.addFormFor.set(null);
     this.confirm.set(null);
     this.titleTranslationDraft.set('');
     this.translationEditId.set(null);
@@ -4591,42 +4533,20 @@ export class ElementModal {
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.confirm.set(null);
-    this.addExampleFor.set(null);
-    this.addFormFor.set(null);
     this.dismissTranslations();
     this.addDefinitionOpen.set(true);
   }
 
-  openAddExample(index: number): void {
+  generateExample(index: number): void {
     if (this.playing() || this.aiBusy() || !this.element().definitions[index]) return;
-    this.editor.set(null);
-    this.formEdit.set(null);
-    this.formFeatureEdit.set(null);
-    this.metaEdit.set(null);
-    this.exampleEngineer.set(null);
-    this.definitionEngineer.set(null);
-    this.confirm.set(null);
-    this.addDefinitionOpen.set(false);
-    this.addFormFor.set(null);
     this.dismissTranslations();
-    this.addExampleFor.set(index);
+    this.openExampleEngineer(index);
   }
 
-  openAddForm(index: number): void {
+  generateForms(index: number): void {
     if (this.playing() || this.aiBusy() || !this.element().definitions[index]) return;
-    this.error.set('');
-    this.editor.set(null);
-    this.formEdit.set(null);
-    this.formFeatureEdit.set(null);
-    this.metaEdit.set(null);
-    this.exampleEngineer.set(null);
-    this.definitionEngineer.set(null);
-    this.confirm.set(null);
-    this.addDefinitionOpen.set(false);
-    this.addExampleFor.set(null);
-    this.dismissTranslations();
     this.showForms(index);
-    this.addFormFor.set(index);
+    void this.askForms(index);
   }
 
   formsOpen(index: number): boolean {
@@ -4658,43 +4578,15 @@ export class ElementModal {
     this.expandedForms.set(next);
   }
 
-  closeAddForm(event?: MouseEvent): void {
-    if (event && event.target !== event.currentTarget) return;
-    if (this.askingForms() !== null) return;
-    this.addFormFor.set(null);
-  }
-
-  addFormManually(): void {
-    const index = this.addFormFor();
-    if (index == null || this.askingForms() !== null) return;
-    this.addFormFor.set(null);
+  addFormManually(index: number): void {
+    if (this.playing() || this.aiBusy() || !this.element().definitions[index]) return;
+    this.showForms(index);
     this.openForm(index);
   }
 
-  async addFormWithAi(): Promise<void> {
-    const index = this.addFormFor();
-    if (index == null || this.aiBusy()) return;
-    await this.askForms(index);
-    if (!this.error() && this.addFormFor() === index) this.addFormFor.set(null);
-  }
-
-  closeAddExample(event?: MouseEvent): void {
-    if (event && event.target !== event.currentTarget) return;
-    this.addExampleFor.set(null);
-  }
-
-  addExampleManually(): void {
-    const index = this.addExampleFor();
-    if (index == null) return;
-    this.addExampleFor.set(null);
+  addExampleManually(index: number): void {
+    if (this.playing() || this.aiBusy()) return;
     this.openExample(index, null);
-  }
-
-  addExampleWithAi(): void {
-    const index = this.addExampleFor();
-    if (index == null) return;
-    this.addExampleFor.set(null);
-    this.openExampleEngineer(index);
   }
 
   closeAddDefinition(event?: MouseEvent): void {
@@ -4704,7 +4596,7 @@ export class ElementModal {
   }
 
   addDefinitionManually(): void {
-    if (this.asking()) return;
+    if (this.playing() || this.asking()) return;
     this.addDefinitionOpen.set(false);
     this.openDefinition(null);
   }
@@ -4891,10 +4783,6 @@ export class ElementModal {
     }
     const asking = this.askingExamples();
     if (asking != null) this.askingExamples.set(map(asking));
-    const addingExample = this.addExampleFor();
-    if (addingExample != null) this.addExampleFor.set(map(addingExample));
-    const addingForm = this.addFormFor();
-    if (addingForm != null) this.addFormFor.set(map(addingForm));
     const related = this.askingRelated();
     if (related != null) this.askingRelated.set(map(related));
     const wording = this.askingWording();
@@ -4934,10 +4822,6 @@ export class ElementModal {
     }
     const asking = this.askingExamples();
     if (asking != null) this.askingExamples.set(asking + by);
-    const addingExample = this.addExampleFor();
-    if (addingExample != null) this.addExampleFor.set(addingExample + by);
-    const addingForm = this.addFormFor();
-    if (addingForm != null) this.addFormFor.set(addingForm + by);
     const forms = this.askingForms();
     if (forms != null) this.askingForms.set(forms + by);
     this.moveExpandedForms((index) => index + by);
@@ -5052,8 +4936,6 @@ export class ElementModal {
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.addDefinitionOpen.set(false);
-    this.addExampleFor.set(null);
-    this.addFormFor.set(null);
     this.dismissTranslations();
     this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
     const equivalentId = definition?.equivalentId ?? null;
@@ -5080,8 +4962,6 @@ export class ElementModal {
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.addDefinitionOpen.set(false);
-    this.addExampleFor.set(null);
-    this.addFormFor.set(null);
     this.dismissTranslations();
     this.sheetMetadata.set({ ...(example?.metadata ?? {}) });
     this.beginSheet(example?.text ?? '');
@@ -5106,8 +4986,6 @@ export class ElementModal {
     if (!definition || !key) return;
     this.definitionEngineer.set(null);
     this.addDefinitionOpen.set(false);
-    this.addExampleFor.set(null);
-    this.addFormFor.set(null);
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -5157,8 +5035,6 @@ export class ElementModal {
     this.metaEdit.set(null);
     this.confirm.set(null);
     this.addDefinitionOpen.set(false);
-    this.addExampleFor.set(null);
-    this.addFormFor.set(null);
     this.exampleEngineer.set(null);
     this.dismissTranslations();
     const draft = this.definitionEngineerDrafts.get(key) ?? {
@@ -5490,8 +5366,6 @@ export class ElementModal {
 
   openForm(definitionIndex: number, form?: { text: string; metadata: ElementMetadata }): void {
     if (!this.element().definitions[definitionIndex]) return;
-    this.addFormFor.set(null);
-    this.addExampleFor.set(null);
     this.addDefinitionOpen.set(false);
     this.editor.set(null);
     this.exampleEngineer.set(null);
@@ -5975,16 +5849,6 @@ export class ElementModal {
       const asking = this.askingExamples();
       if (asking === pending.index) this.askingExamples.set(null);
       else if (asking != null && asking > pending.index) this.askingExamples.set(asking - 1);
-      const addingExample = this.addExampleFor();
-      if (addingExample === pending.index) this.addExampleFor.set(null);
-      else if (addingExample != null && addingExample > pending.index) {
-        this.addExampleFor.set(addingExample - 1);
-      }
-      const addingForm = this.addFormFor();
-      if (addingForm === pending.index) this.addFormFor.set(null);
-      else if (addingForm != null && addingForm > pending.index) {
-        this.addFormFor.set(addingForm - 1);
-      }
       const forms = this.askingForms();
       if (forms === pending.index) this.askingForms.set(null);
       else if (forms != null && forms > pending.index) this.askingForms.set(forms - 1);
