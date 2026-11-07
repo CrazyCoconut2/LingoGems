@@ -683,12 +683,14 @@ function writeExampleSuggestions(
           }
           @if (headerEquivalents(); as equivalents) {
             @if (equivalents.length) {
-              <p class="equivalents">
+              <p class="equivalents" [attr.aria-hidden]="headerTranslationsLocked() ? true : null">
                 @for (text of equivalents; track $index) {
                   @if ($index > 0) {
                     <span class="sep" aria-hidden="true">·</span>
                   }
-                  @if (sieving()) {
+                  @if (headerTranslationsLocked()) {
+                    <span class="locked-translation">{{ text }}</span>
+                  } @else if (playing()) {
                     <span>{{ text }}</span>
                   } @else {
                     <app-reveal [text]="text" />
@@ -883,6 +885,62 @@ function writeExampleSuggestions(
                           }
                         </p>
                       }
+                      @let equivalent = equivalentText(definition);
+                      @let meta = entries(definition.metadata);
+                      @if (equivalent || meta.length) {
+                        <ul class="sense-meta">
+                          @if (equivalent) {
+                            <li class="sense-equivalent" [class.guessing]="sieving()">
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m5 8 6 6" />
+                                <path d="m4 14 6-6 2-3" />
+                                <path d="M2 5h12" />
+                                <path d="M7 2h1" />
+                                <path d="m22 22-5-10-5 10" />
+                                <path d="M14 18h6" />
+                              </svg>
+                              @if (sieving() && !equivalentSubmitted(index)) {
+                                <label class="sr" [attr.for]="'play-equivalent-' + index">
+                                  Equivalent
+                                </label>
+                                <span class="play-guess">
+                                  <input
+                                    [id]="'play-equivalent-' + index"
+                                    type="text"
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                    [value]="equivalentDraftAt(index)"
+                                    [attr.maxlength]="equivalentMax"
+                                    placeholder="Write the equivalent"
+                                    (input)="onEquivalentDraft(index, $event)"
+                                    (keydown.enter)="submitEquivalent(index, $event)"
+                                  />
+                                  <button
+                                    type="button"
+                                    class="btn btn-secondary"
+                                    [disabled]="!equivalentDraftAt(index).trim()"
+                                    (click)="submitEquivalent(index)"
+                                  >
+                                    Submit
+                                  </button>
+                                </span>
+                              } @else if (sieving()) {
+                                <span>{{ equivalentDraftAt(index) }}</span>
+                                <span class="play-answer">{{ equivalent }}</span>
+                              } @else {
+                                <app-reveal [text]="equivalent" />
+                              }
+                            </li>
+                          }
+                          @for (entry of meta; track entry.key) {
+                            @let color = metaColor('definitions', entry.key, entry.value);
+                            <li [class.colored]="color" [style.--meta-color]="color">
+                              <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                              {{ label(entry.value) }}
+                            </li>
+                          }
+                        </ul>
+                      }
                       @if (definitionWarning(definition.text); as warning) {
                         <p class="warning" role="status">{{ warning }}</p>
                       }
@@ -956,62 +1014,6 @@ function writeExampleSuggestions(
                           @for (translation of passage.translations; track $index) {
                             <li>
                               <app-reveal [text]="translation.text" />
-                            </li>
-                          }
-                        </ul>
-                      }
-                      @let equivalent = equivalentText(definition);
-                      @let meta = entries(definition.metadata);
-                      @if (equivalent || meta.length) {
-                        <ul class="sense-meta">
-                          @if (equivalent) {
-                            <li class="sense-equivalent" [class.guessing]="sieving()">
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m5 8 6 6" />
-                                <path d="m4 14 6-6 2-3" />
-                                <path d="M2 5h12" />
-                                <path d="M7 2h1" />
-                                <path d="m22 22-5-10-5 10" />
-                                <path d="M14 18h6" />
-                              </svg>
-                              @if (sieving() && !equivalentSubmitted(index)) {
-                                <label class="sr" [attr.for]="'play-equivalent-' + index">
-                                  Equivalent
-                                </label>
-                                <span class="play-guess">
-                                  <input
-                                    [id]="'play-equivalent-' + index"
-                                    type="text"
-                                    autocomplete="off"
-                                    spellcheck="false"
-                                    [value]="equivalentDraftAt(index)"
-                                    [attr.maxlength]="equivalentMax"
-                                    placeholder="Write the equivalent"
-                                    (input)="onEquivalentDraft(index, $event)"
-                                    (keydown.enter)="submitEquivalent(index, $event)"
-                                  />
-                                  <button
-                                    type="button"
-                                    class="btn btn-secondary"
-                                    [disabled]="!equivalentDraftAt(index).trim()"
-                                    (click)="submitEquivalent(index)"
-                                  >
-                                    Submit
-                                  </button>
-                                </span>
-                              } @else if (sieving()) {
-                                <span>{{ equivalentDraftAt(index) }}</span>
-                                <span class="play-answer">{{ equivalent }}</span>
-                              } @else {
-                                <app-reveal [text]="equivalent" />
-                              }
-                            </li>
-                          }
-                          @for (entry of meta; track entry.key) {
-                            @let color = metaColor('definitions', entry.key, entry.value);
-                            <li [class.colored]="color" [style.--meta-color]="color">
-                              <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                              {{ label(entry.value) }}
                             </li>
                           }
                         </ul>
@@ -2868,6 +2870,13 @@ function writeExampleSuggestions(
     p.equivalents .sep {
       margin-inline: 0.45rem;
       color: var(--text-muted);
+    }
+
+    .locked-translation {
+      filter: blur(0.55em);
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     .equivalent-choices {
@@ -6159,6 +6168,17 @@ export class ElementModal {
 
   drilling(): boolean {
     return this.playing() && this.element().mode === 3;
+  }
+
+  /** Header translations stay blurred until every prompted definition has been compared. */
+  headerTranslationsLocked(): boolean {
+    if (!this.drilling()) return false;
+    const definitions = this.element().definitions;
+    const prompted = definitions.some((definition) =>
+      definitionEligibleForGames(definition.text, this.element()),
+    );
+    if (!prompted) return true;
+    return definitions.some((_, index) => this.definitionConcealed(index));
   }
 
   titleConcealed(): boolean {
