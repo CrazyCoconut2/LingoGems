@@ -32,7 +32,7 @@ import {
 import { metadataChipColor } from '../elements/metadata-colors';
 import { Reveal } from '../elements/reveal';
 import {
-  discoverQueryMatches,
+  forgetDiscoverSearch,
   readDiscoverSearches,
   rememberDiscoverSearch,
   type DiscoverHit,
@@ -92,18 +92,57 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
 
         <div class="body">
           <div class="query">
-            <label class="note">
+            <div class="note">
               <span>Instruction</span>
-              <input
-                class="instruction"
-                type="text"
-                [attr.maxlength]="instructionMax"
-                placeholder="Argentine expressions"
-                aria-label="Instruction"
-                [value]="instruction()"
-                (input)="instruction.set(fieldValue($event))"
-              />
-            </label>
+              <div class="instruction-field">
+                <input
+                  class="instruction"
+                  type="text"
+                  [class.has-clear]="canClear()"
+                  [attr.maxlength]="instructionMax"
+                  placeholder="Argentine expressions"
+                  aria-label="Instruction"
+                  [value]="instruction()"
+                  (input)="instruction.set(fieldValue($event))"
+                  (keydown.enter)="submit()"
+                />
+                @if (canClear()) {
+                  <button
+                    type="button"
+                    class="clear-x"
+                    aria-label="Clear"
+                    title="Clear"
+                    [disabled]="busy() || adding()"
+                    (click)="clearSearch()"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
+                }
+              </div>
+            </div>
+            <button
+              type="button"
+              class="filter-btn search-btn"
+              [attr.aria-label]="results().length ? 'More' : 'Search'"
+              [attr.title]="results().length ? 'More' : 'Search'"
+              [disabled]="busy() || adding()"
+              (click)="submit()"
+            >
+              @if (results().length) {
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+              } @else {
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-3.5-3.5" />
+                </svg>
+              }
+            </button>
             <button
               type="button"
               class="filter-btn"
@@ -147,18 +186,20 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
             }
 
             @if (results().length) {
-              <div class="filter-row" role="group" aria-label="Results">
-                @for (option of resultFilters; track option.id) {
-                  <button
-                    type="button"
-                    class="filter-chip"
-                    [class.selected]="resultFilter() === option.id"
-                    [attr.aria-pressed]="resultFilter() === option.id"
-                    (click)="resultFilter.set(option.id)"
-                  >
-                    {{ option.label }}
-                  </button>
-                }
+              <div class="filter-row">
+                <div class="filter-chips" role="group" aria-label="Results">
+                  @for (option of resultFilters; track option.id) {
+                    <button
+                      type="button"
+                      class="filter-chip"
+                      [class.selected]="resultFilter() === option.id"
+                      [attr.aria-pressed]="resultFilter() === option.id"
+                      (click)="resultFilter.set(option.id)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  }
+                </div>
               </div>
               @if (visibleResults().length) {
                 <div class="card-list">
@@ -239,27 +280,6 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
             }
           </div>
         </div>
-
-        <footer class="foot">
-          @if (results().length) {
-            <button
-              type="button"
-              class="link-btn"
-              [disabled]="busy() || adding() || newCount() === 0"
-              (click)="addAllNew()"
-            >
-              Add all new
-            </button>
-          }
-          <button
-            type="button"
-            class="discover-btn"
-            [disabled]="busy() || adding()"
-            (click)="discover()"
-          >
-            {{ busy() ? 'Discovering…' : continuing() ? 'More' : 'Discover' }}
-          </button>
-        </footer>
       </div>
 
       @if (filtersOpen()) {
@@ -450,8 +470,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
     }
 
-    .head,
-    .foot {
+    .head {
       display: flex;
       flex-shrink: 0;
     }
@@ -574,8 +593,48 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       padding: 0.65rem 0.75rem;
     }
 
+    .instruction-field {
+      position: relative;
+    }
+
     .instruction {
       height: 2.4rem;
+    }
+
+    .instruction.has-clear {
+      padding-right: 2.15rem;
+    }
+
+    .clear-x {
+      position: absolute;
+      top: 50%;
+      right: 0.3rem;
+      display: grid;
+      place-items: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transform: translateY(-50%);
+    }
+
+    .clear-x svg {
+      display: block;
+      width: 0.85rem;
+      height: 0.85rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .clear-x:hover:not(:disabled) {
+      background: rgba(127, 127, 127, 0.16);
+      color: var(--text);
     }
 
     .instruction:focus,
@@ -618,6 +677,18 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       color: var(--accent-text);
       border-color: rgba(var(--accent-rgb), 0.45);
       background: rgba(var(--accent-rgb), 0.12);
+    }
+
+    .search-btn {
+      border-color: transparent;
+      background: var(--accent);
+      color: white;
+    }
+
+    .search-btn:hover:not(:disabled) {
+      color: white;
+      border-color: transparent;
+      filter: brightness(1.06);
     }
 
     .filter-backdrop {
@@ -899,8 +970,17 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
 
     .filter-row {
       display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    .filter-chips {
+      display: flex;
+      flex: 1;
       flex-wrap: wrap;
       gap: 0.4rem;
+      min-width: 0;
     }
 
     .filter-chip {
@@ -1047,22 +1127,16 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       stroke-linejoin: round;
     }
 
-    .foot {
-      align-items: center;
-      justify-content: flex-end;
-      gap: 0.35rem;
-      padding: 0.85rem 1.15rem 1.15rem;
-      border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-    }
-
     .discover-btn {
+      flex: none;
+      height: 2.4rem;
       border: 0;
       border-radius: 999px;
       background: var(--accent);
       color: white;
       font-size: 0.88rem;
       font-weight: 700;
-      padding: 0.65rem 1.25rem;
+      padding: 0 1.1rem;
     }
 
     .discover-btn:hover:not(:disabled) {
@@ -1149,9 +1223,6 @@ export class DiscoverModal implements OnInit {
   readonly metaCount = computed(
     () => this.valueCount('definition') + this.valueCount('example') + this.valueCount('form'),
   );
-  readonly newCount = computed(
-    () => this.results().filter((row) => !this.matchIds().has(row.title)).length,
-  );
   readonly visibleResults = computed(() => {
     const filter = this.resultFilter();
     return this.results().filter((row) => {
@@ -1161,13 +1232,6 @@ export class DiscoverModal implements OnInit {
       return true;
     });
   });
-  readonly continuing = computed(() => {
-    const id = this.activeId();
-    const search = this.searches().find((item) => item.id === id);
-    if (!search) return false;
-    return discoverQueryMatches(search, this.query());
-  });
-
   private job = 0;
 
   constructor() {
@@ -1337,10 +1401,34 @@ export class DiscoverModal implements OnInit {
       : 'All of these are already in the collection.';
   }
 
-  async discover(): Promise<void> {
+  canClear(): boolean {
+    return this.instruction().trim().length > 0 || this.results().length > 0 || this.metaCount() > 0;
+  }
+
+  clearSearch(): void {
+    if (this.busy() || this.adding()) return;
+    const id = this.activeId();
+    this.notice.set('');
+    this.error.set('');
+    if (id) this.searches.set(forgetDiscoverSearch(this.language(), id));
+    this.clearDraft();
+  }
+
+  submit(): void {
+    if (this.results().length) this.more();
+    else this.search();
+  }
+
+  search(): void {
     if (this.busy() || this.adding()) return;
     this.notice.set('');
-    await this.load();
+    void this.load(false);
+  }
+
+  more(): void {
+    if (this.busy() || this.adding() || !this.results().length || !this.activeId()) return;
+    this.notice.set('');
+    void this.load(true);
   }
 
   async addHit(row: DiscoverHit): Promise<void> {
@@ -1359,30 +1447,22 @@ export class DiscoverModal implements OnInit {
     }
   }
 
-  async addAllNew(): Promise<void> {
-    if (this.adding() || this.busy() || this.newCount() === 0) return;
-    const language = this.language().trim();
-    const rows = this.results().filter((row) => !this.collectedId(row.title));
-    if (!language || rows.length === 0) return;
-    this.adding.set(true);
-    this.error.set('');
-    try {
-      for (const row of rows) await saveDiscoveredElement(language, row);
-    } catch {
-      this.error.set('Could not add those elements.');
-    } finally {
-      this.added.emit();
-      this.adding.set(false);
-    }
-  }
-
-  private async load(): Promise<void> {
+  private async load(more: boolean): Promise<void> {
     const language = this.language().trim();
     if (!language || this.busy()) return;
-    const query = this.query();
-    const continuing = this.continuing();
+    const active = more ? this.searches().find((item) => item.id === this.activeId()) : undefined;
+    const query = active
+      ? {
+          instruction: active.instruction,
+          definition: active.definition,
+          example: active.example,
+          form: active.form,
+        }
+      : this.query();
+    const continuing = active !== undefined;
     const prior = continuing ? this.results() : [];
-    const activeId = continuing ? this.activeId() : null;
+    const activeId = active?.id ?? null;
+    const blocked = continuing ? prior : this.results();
     const job = ++this.job;
     this.busy.set(true);
     this.error.set('');
@@ -1400,10 +1480,10 @@ export class DiscoverModal implements OnInit {
           example: query.example,
           form: query.form,
         },
-        excludeTitles: this.excludeTitles(prior),
+        excludeTitles: this.excludeTitles(blocked),
       });
       if (job !== this.job) return;
-      const fresh = found.filter((item) => !prior.some((row) => sameTitle(row.title, item.title)));
+      const fresh = found.filter((item) => !blocked.some((row) => sameTitle(row.title, item.title)));
       if (!fresh.length) {
         this.notice.set(prior.length ? 'Nothing new in that batch.' : 'Nothing new to add.');
         return;
@@ -1419,8 +1499,8 @@ export class DiscoverModal implements OnInit {
       };
       this.notice.set('');
       this.searches.set(rememberDiscoverSearch(language, search));
-      const saved = this.searches().find((item) => item.id === search.id) ?? search;
-      this.apply(saved, continuing);
+      const stored = this.searches().find((item) => item.id === search.id) ?? search;
+      this.apply(stored, continuing);
     } catch {
       if (job !== this.job) return;
       this.error.set('Could not discover elements.');

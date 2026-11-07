@@ -56,6 +56,20 @@ export function rememberDiscoverSearch(language: string, search: DiscoverSearch)
   return searches;
 }
 
+/** Drop one saved search and return that language's remaining list. */
+export function forgetDiscoverSearch(language: string, id: string): DiscoverSearch[] {
+  const code = language.trim().toLowerCase();
+  const searchId = id.trim();
+  if (!code || !searchId) return readDiscoverSearches(language);
+  const all = readAll();
+  const current = all[code] ?? [];
+  const searches = current.filter((item) => item.id !== searchId);
+  if (searches.length) all[code] = searches;
+  else delete all[code];
+  writeAll(all);
+  return searches;
+}
+
 export function discoverQueryMatches(search: DiscoverQuery, query: DiscoverQuery): boolean {
   return (
     search.instruction.trim() === query.instruction.trim() &&
