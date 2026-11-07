@@ -4,6 +4,7 @@ import {
   ElementRef,
   HostListener,
   afterNextRender,
+  computed,
   effect,
   inject,
   input,
@@ -13,6 +14,7 @@ import {
 } from '@angular/core';
 import {
   assignEquivalent,
+  definitionEligibleForGames,
   definitionSelfMentionWarningFor,
   deleteElement,
   displayTitle,
@@ -22,6 +24,7 @@ import {
   formTexts,
   highlightDefinitionPassage,
   isValidForm,
+  languageDisplayName,
   parsePassage,
   saveElement,
   type DefinitionHighlightMatch,
@@ -45,10 +48,24 @@ import {
   generateExamples,
   generateForms,
   generateRelatedWords,
+  gradeDefinition,
   sentenceUsesForm,
+  translateTexts,
   verbalizeDefinition,
   type RelatedWord,
 } from 'ai';
+import {
+  DEFINITION_MAX,
+  EQUIVALENT_MAX,
+  RECALL_MAX,
+  emptyPlayRound,
+  graphemes,
+  maskedSentence,
+  matchesElement,
+  nextLetterCount,
+  textNamesElement,
+  type PlayRound,
+} from './play-session';
 import { Reveal } from './reveal';
 import { metadataChipColor, type MetadataColorPlace } from './metadata-colors';
 import { ModeIcon } from './mode-icon';
@@ -551,7 +568,7 @@ function writeExampleSuggestions(
       class="backdrop"
       role="dialog"
       aria-modal="true"
-      [attr.aria-label]="shownTitle()"
+      [attr.aria-label]="dialogLabel()"
       (click)="onBackdrop($event)"
     >
       <div class="panel">
@@ -571,7 +588,14 @@ function writeExampleSuggestions(
                 </svg>
               </button>
             }
-            @if (titleEdit()) {
+            @if (titleConcealed()) {
+              <div class="title-main">
+                <h2 class="concealed" aria-hidden="true">
+                  <span class="cue-shown">{{ revealedPrefix() }}</span
+                  ><span class="cue-rest">{{ hiddenSuffix() }}</span>
+                </h2>
+              </div>
+            } @else if (titleEdit()) {
               <form class="title-edit" (submit)="saveTitle($event)">
                 <input
                   #titleField
@@ -597,18 +621,20 @@ function writeExampleSuggestions(
             } @else {
               <div class="title-main">
                 <h2>{{ shownTitle() }}</h2>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Edit title"
-                  title="Edit title"
-                  [disabled]="aiBusy()"
-                  (click)="openTitle()"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                  </svg>
-                </button>
+                @if (!playing()) {
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Edit title"
+                    title="Edit title"
+                    [disabled]="aiBusy()"
+                    (click)="openTitle()"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                    </svg>
+                  </button>
+                }
               </div>
             }
             <button
@@ -624,6 +650,37 @@ function writeExampleSuggestions(
           @if (titleError()) {
             <p class="error">{{ titleError() }}</p>
           }
+          @if (titleConcealed()) {
+            @if (canRevealLetter()) {
+              <button type="button" class="cue" [disabled]="busy()" (click)="revealLetter()">
+                Reveal a letter
+              </button>
+            }
+            <span class="sr" aria-live="polite">{{ revealedPrefix() }}</span>
+            <label class="field-label" for="play-recall">Title</label>
+            <div class="play-guess">
+              <input
+                id="play-recall"
+                type="text"
+                autocomplete="off"
+                spellcheck="false"
+                [value]="round().recall"
+                [attr.maxlength]="recallMax"
+                [disabled]="busy()"
+                placeholder="Write any form"
+                (input)="onRecall($event)"
+                (keydown.enter)="submitRecall($event)"
+              />
+              <button
+                type="button"
+                class="btn btn-secondary"
+                [disabled]="busy() || !round().recall.trim()"
+                (click)="submitRecall()"
+              >
+                Submit
+              </button>
+            </div>
+          }
           @if (headerEquivalents(); as equivalents) {
             @if (equivalents.length) {
               <p class="equivalents">
@@ -631,7 +688,11 @@ function writeExampleSuggestions(
                   @if ($index > 0) {
                     <span class="sep" aria-hidden="true">·</span>
                   }
-                  <app-reveal [text]="text" />
+                  @if (sieving()) {
+                    <span>{{ text }}</span>
+                  } @else {
+                    <app-reveal [text]="text" />
+                  }
                 }
               </p>
             }
@@ -643,7 +704,7 @@ function writeExampleSuggestions(
               [attr.aria-label]="'Comfort ' + element().comfort"
               [attr.title]="'Comfort ' + element().comfort"
               [attr.aria-expanded]="comfortOpen()"
-              [disabled]="busy()"
+              [disabled]="busy() || playing()"
               [style.color]="comfortColor(element().comfort)"
               (click)="comfortOpen.set(true)"
             >
@@ -655,12 +716,12 @@ function writeExampleSuggestions(
               [attr.aria-label]="modeLabel(element().mode)"
               [attr.title]="modeLabel(element().mode)"
               [attr.aria-expanded]="modeOpen()"
-              [disabled]="busy()"
+              [disabled]="busy() || playing()"
               (click)="modeOpen.set(true)"
             >
               <app-mode-icon [mode]="element().mode" />
             </button>
-            @if (canHear(shownTitle())) {
+            @if (canHear(shownTitle()) && !titleConcealed()) {
               <button
                 type="button"
                 class="icon-btn"
@@ -683,39 +744,41 @@ function writeExampleSuggestions(
                 }
               </button>
             }
-            <button
-              type="button"
-              class="icon-btn"
-              aria-label="Translations"
-              title="Translations"
-              [disabled]="busy()"
-              (click)="openTranslations()"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m5 8 6 6" />
-                <path d="m4 14 6-6 2-3" />
-                <path d="M2 5h12" />
-                <path d="M7 2h1" />
-                <path d="m22 22-5-10-5 10" />
-                <path d="M14 18h6" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="icon-btn danger"
-              aria-label="Delete element"
-              title="Delete"
-              [disabled]="busy()"
-              (click)="askDeleteElement()"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 6h18" />
-                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                <path d="M10 11v6" />
-                <path d="M14 11v6" />
-              </svg>
-            </button>
+            @if (!playing()) {
+              <button
+                type="button"
+                class="icon-btn"
+                aria-label="Translations"
+                title="Translations"
+                [disabled]="busy()"
+                (click)="openTranslations()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m5 8 6 6" />
+                  <path d="m4 14 6-6 2-3" />
+                  <path d="M2 5h12" />
+                  <path d="M7 2h1" />
+                  <path d="m22 22-5-10-5 10" />
+                  <path d="M14 18h6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-btn danger"
+                aria-label="Delete element"
+                title="Delete"
+                [disabled]="busy()"
+                (click)="askDeleteElement()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
+                </svg>
+              </button>
+            }
           </div>
         </header>
         <div class="body">
@@ -730,21 +793,23 @@ function writeExampleSuggestions(
               </svg>
               Definitions
             </h3>
-            <div class="header-actions">
-              <button
-                type="button"
-                class="icon-btn"
-                aria-label="Add a definition"
-                title="Add a definition"
-                [disabled]="aiBusy()"
-                (click)="openAddDefinition()"
-              >
-                <svg viewBox="0 0 24 24">
-                  <path d="M5 12h14" />
-                  <path d="M12 5v14" />
-                </svg>
-              </button>
-            </div>
+            @if (!playing()) {
+              <div class="header-actions">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Add a definition"
+                  title="Add a definition"
+                  [disabled]="aiBusy()"
+                  (click)="openAddDefinition()"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M5 12h14" />
+                    <path d="M12 5v14" />
+                  </svg>
+                </button>
+              </div>
+            }
           </div>
           @if (collision(); as matches) {
             <div class="collision" role="menu" aria-label="Matching elements">
@@ -765,7 +830,7 @@ function writeExampleSuggestions(
                   <div class="sense-main">
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
-                      @if (definitionIsNew(definition.text)) {
+                      @if (definitionIsNew(definition.text) && !playing()) {
                         <button
                           type="button"
                           class="new-definition"
@@ -776,12 +841,19 @@ function writeExampleSuggestions(
                         </button>
                       }
                       @if (passage.text) {
-                        <p class="passage sense-selectable" [attr.data-definition-index]="index">
+                        <p
+                          class="passage sense-selectable"
+                          [class.play-blur]="definitionConcealed(index)"
+                          [attr.aria-hidden]="definitionConcealed(index) ? true : null"
+                          [attr.data-definition-index]="index"
+                        >
                           @for (part of highlightPassage(passage.text); track $index) {
                             @if (part.matches.length > 1) {
                               <button
                                 type="button"
                                 class="linguagem-highlighted"
+                                [class.play-blur]="concealText(part.text)"
+                                [attr.aria-hidden]="concealText(part.text) ? true : null"
                                 [textContent]="part.text"
                                 (click)="showCollision($event, part.matches)"
                               ></button>
@@ -789,16 +861,24 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 class="linguagem-highlighted"
+                                [class.play-blur]="concealText(part.text)"
+                                [attr.aria-hidden]="concealText(part.text) ? true : null"
                                 [textContent]="part.text"
                                 (click)="visitHighlight(part.matches[0].elementId)"
                               ></button>
                             } @else if (part.current) {
                               <span
                                 class="linguagem-highlighted linguagem-highlighted--current"
+                                [class.play-blur]="concealText(part.text)"
+                                [attr.aria-hidden]="concealText(part.text) ? true : null"
                                 [textContent]="part.text"
                               ></span>
                             } @else {
-                              <span [textContent]="part.text"></span>
+                              <span
+                                [class.play-blur]="concealText(part.text)"
+                                [attr.aria-hidden]="concealText(part.text) ? true : null"
+                                [textContent]="part.text"
+                              ></span>
                             }
                           }
                         </p>
@@ -806,7 +886,72 @@ function writeExampleSuggestions(
                       @if (definitionWarning(definition.text); as warning) {
                         <p class="warning" role="status">{{ warning }}</p>
                       }
-                      @if (passage.translations.length) {
+                      @if (drilling() && !definitionWarning(definition.text)) {
+                        <div class="play-prompt">
+                          @if (!gradeAt(index)) {
+                            @if (supportAvailable()) {
+                              <div
+                                class="lang"
+                                role="group"
+                                [attr.aria-label]="'Language for sense ' + (index + 1)"
+                              >
+                                <button
+                                  type="button"
+                                  [class.on]="answerLanguage(index) === 'original'"
+                                  [attr.aria-pressed]="answerLanguage(index) === 'original'"
+                                  [disabled]="askingGrade() === index"
+                                  (click)="setDefinitionLanguage(index, 'original')"
+                                >
+                                  {{ originalLanguageName() }}
+                                </button>
+                                <button
+                                  type="button"
+                                  [class.on]="answerLanguage(index) === 'english'"
+                                  [attr.aria-pressed]="answerLanguage(index) === 'english'"
+                                  [disabled]="askingGrade() === index"
+                                  (click)="setDefinitionLanguage(index, 'english')"
+                                >
+                                  English
+                                </button>
+                              </div>
+                            }
+                            <label class="field-label" [attr.for]="'play-definition-' + index">
+                              Definition
+                            </label>
+                            <textarea
+                              [id]="'play-definition-' + index"
+                              rows="3"
+                              [value]="definitionDraftAt(index)"
+                              [attr.maxlength]="definitionMax"
+                              [disabled]="askingGrade() === index"
+                              placeholder="Write the definition"
+                              (input)="onDefinitionDraft(index, $event)"
+                            ></textarea>
+                            <button
+                              type="button"
+                              class="btn btn-secondary"
+                              [disabled]="aiBusy() || !definitionDraftAt(index).trim()"
+                              [attr.aria-busy]="askingGrade() === index ? true : null"
+                              (click)="evaluateDefinition(index)"
+                            >
+                              Evaluate
+                            </button>
+                          } @else {
+                            @if (definitionTranslationAt(index); as translated) {
+                              <p class="field-label">Translation</p>
+                              <p>{{ translated }}</p>
+                            }
+                            <p class="field-label">Your definition</p>
+                            <p>{{ definitionDraftAt(index) }}</p>
+                            @if (gradeAt(index); as grade) {
+                              <p class="field-label">Score</p>
+                              <p class="score">{{ grade.score }}</p>
+                              <p>{{ grade.explanation }}</p>
+                            }
+                          }
+                        </div>
+                      }
+                      @if (passage.translations.length && !definitionConcealed(index)) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
                             <li>
@@ -820,7 +965,7 @@ function writeExampleSuggestions(
                       @if (equivalent || meta.length) {
                         <ul class="sense-meta">
                           @if (equivalent) {
-                            <li class="sense-equivalent">
+                            <li class="sense-equivalent" [class.guessing]="sieving()">
                               <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <path d="m5 8 6 6" />
                                 <path d="m4 14 6-6 2-3" />
@@ -829,7 +974,37 @@ function writeExampleSuggestions(
                                 <path d="m22 22-5-10-5 10" />
                                 <path d="M14 18h6" />
                               </svg>
-                              <app-reveal [text]="equivalent" />
+                              @if (sieving() && !equivalentSubmitted(index)) {
+                                <label class="sr" [attr.for]="'play-equivalent-' + index">
+                                  Equivalent
+                                </label>
+                                <span class="play-guess">
+                                  <input
+                                    [id]="'play-equivalent-' + index"
+                                    type="text"
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                    [value]="equivalentDraftAt(index)"
+                                    [attr.maxlength]="equivalentMax"
+                                    placeholder="Write the equivalent"
+                                    (input)="onEquivalentDraft(index, $event)"
+                                    (keydown.enter)="submitEquivalent(index, $event)"
+                                  />
+                                  <button
+                                    type="button"
+                                    class="btn btn-secondary"
+                                    [disabled]="!equivalentDraftAt(index).trim()"
+                                    (click)="submitEquivalent(index)"
+                                  >
+                                    Submit
+                                  </button>
+                                </span>
+                              } @else if (sieving()) {
+                                <span>{{ equivalentDraftAt(index) }}</span>
+                                <span class="play-answer">{{ equivalent }}</span>
+                              } @else {
+                                <app-reveal [text]="equivalent" />
+                              }
                             </li>
                           }
                           @for (entry of meta; track entry.key) {
@@ -876,7 +1051,7 @@ function writeExampleSuggestions(
                         </button>
                       </span>
                     } @else {
-                      @if (element().definitions.length > 1) {
+                      @if (!playing() && element().definitions.length > 1) {
                         <span class="item-actions-move">
                           <button
                             type="button"
@@ -905,7 +1080,7 @@ function writeExampleSuggestions(
                         </span>
                       }
                       <span class="item-actions-main">
-                        @if (canHear(definition.text)) {
+                        @if (canHear(definition.text) && !definitionConcealed(index)) {
                           <button
                             type="button"
                             class="icon-btn"
@@ -921,7 +1096,7 @@ function writeExampleSuggestions(
                                 ? 'Stop speaking'
                                 : 'Hear definition'
                             "
-                            (click)="hear('definition:' + index, definition.text)"
+                            (click)="hear('definition:' + index, spokenPassage(definition.text))"
                           >
                             @if (speaking() === 'definition:' + index) {
                               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -936,25 +1111,27 @@ function writeExampleSuggestions(
                             }
                           </button>
                         }
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          [attr.aria-label]="
-                            definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                          "
-                          [attr.title]="
-                            definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                          "
-                          [disabled]="aiBusy()"
-                          (click)="openDefinition(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                          </svg>
-                          @if (!definition.equivalentId) {
-                            <span class="notify" aria-hidden="true"></span>
-                          }
-                        </button>
+                        @if (!playing()) {
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            [attr.aria-label]="
+                              definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                            "
+                            [attr.title]="
+                              definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                            "
+                            [disabled]="aiBusy()"
+                            (click)="openDefinition(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            </svg>
+                            @if (!definition.equivalentId) {
+                              <span class="notify" aria-hidden="true"></span>
+                            }
+                          </button>
+                        }
                       </span>
                     }
                   </div>
@@ -972,21 +1149,23 @@ function writeExampleSuggestions(
                         </svg>
                         Examples
                       </h3>
-                      <div class="header-actions">
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Add an example"
-                          title="Add an example"
-                          [disabled]="aiBusy()"
-                          (click)="openAddExample(index)"
-                        >
-                          <svg viewBox="0 0 24 24">
-                            <path d="M5 12h14" />
-                            <path d="M12 5v14" />
-                          </svg>
-                        </button>
-                      </div>
+                      @if (!playing()) {
+                        <div class="header-actions">
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Add an example"
+                            title="Add an example"
+                            [disabled]="aiBusy()"
+                            (click)="openAddExample(index)"
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <path d="M5 12h14" />
+                              <path d="M12 5v14" />
+                            </svg>
+                          </button>
+                        </div>
+                      }
                     </div>
                     @if (definition.examples.length) {
                       <ul class="examples">
@@ -1009,6 +1188,8 @@ function writeExampleSuggestions(
                                       <button
                                         type="button"
                                         class="linguagem-highlighted"
+                                        [class.play-blur]="concealText(part.text)"
+                                        [attr.aria-hidden]="concealText(part.text) ? true : null"
                                         [textContent]="part.text"
                                         (click)="showCollision($event, part.matches)"
                                       ></button>
@@ -1016,16 +1197,24 @@ function writeExampleSuggestions(
                                       <button
                                         type="button"
                                         class="linguagem-highlighted"
+                                        [class.play-blur]="concealText(part.text)"
+                                        [attr.aria-hidden]="concealText(part.text) ? true : null"
                                         [textContent]="part.text"
                                         (click)="visitHighlight(part.matches[0].elementId)"
                                       ></button>
                                     } @else if (part.current) {
                                       <span
                                         class="linguagem-highlighted linguagem-highlighted--current"
+                                        [class.play-blur]="concealText(part.text)"
+                                        [attr.aria-hidden]="concealText(part.text) ? true : null"
                                         [textContent]="part.text"
                                       ></span>
                                     } @else {
-                                      <span [textContent]="part.text"></span>
+                                      <span
+                                        [class.play-blur]="concealText(part.text)"
+                                        [attr.aria-hidden]="concealText(part.text) ? true : null"
+                                        [textContent]="part.text"
+                                      ></span>
                                     }
                                   }
                                 </p>
@@ -1107,7 +1296,10 @@ function writeExampleSuggestions(
                                           : 'Hear example'
                                       "
                                       (click)="
-                                        hear('example:' + index + ':' + exampleIndex, example.text)
+                                        hear(
+                                          'example:' + index + ':' + exampleIndex,
+                                          spokenPassage(example.text)
+                                        )
                                       "
                                     >
                                       @if (speaking() === 'example:' + index + ':' + exampleIndex) {
@@ -1130,18 +1322,22 @@ function writeExampleSuggestions(
                                       }
                                     </button>
                                   }
-                                  <button
-                                    type="button"
-                                    class="icon-btn"
-                                    aria-label="Edit example"
-                                    title="Edit example"
-                                    [disabled]="aiBusy()"
-                                    (click)="openExample(index, exampleIndex)"
-                                  >
-                                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                                    </svg>
-                                  </button>
+                                  @if (!playing()) {
+                                    <button
+                                      type="button"
+                                      class="icon-btn"
+                                      aria-label="Edit example"
+                                      title="Edit example"
+                                      [disabled]="aiBusy()"
+                                      (click)="openExample(index, exampleIndex)"
+                                    >
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path
+                                          d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
+                                        />
+                                      </svg>
+                                    </button>
+                                  }
                                 </span>
                               }
                             </div>
@@ -1153,6 +1349,7 @@ function writeExampleSuggestions(
                     }
                   </section>
 
+                  @if (!titleConcealed()) {
                   <section class="group">
                     <div class="section-heading">
                       <button
@@ -1178,46 +1375,52 @@ function writeExampleSuggestions(
                           <path d="m6 9 6 6 6-6" />
                         </svg>
                       </button>
-                      <div class="header-actions">
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Add a form"
-                          title="Add a form"
-                          [disabled]="aiBusy()"
-                          (click)="openAddForm(index)"
-                        >
-                          <svg viewBox="0 0 24 24">
-                            <path d="M5 12h14" />
-                            <path d="M12 5v14" />
-                          </svg>
-                        </button>
-                      </div>
+                      @if (!playing()) {
+                        <div class="header-actions">
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Add a form"
+                            title="Add a form"
+                            [disabled]="aiBusy()"
+                            (click)="openAddForm(index)"
+                          >
+                            <svg viewBox="0 0 24 24">
+                              <path d="M5 12h14" />
+                              <path d="M12 5v14" />
+                            </svg>
+                          </button>
+                        </div>
+                      }
                     </div>
                     @if (formsOpen(index)) {
                       @if (definition.forms.length) {
                         <ul class="forms">
                           @for (form of definition.forms; track form.text) {
                             <li>
-                              <div class="form-chip">
-                                <button
-                                  type="button"
-                                  [disabled]="busy()"
-                                  [attr.aria-label]="'Edit form ' + form.text"
-                                  (click)="openExistingForm(index, form.text)"
-                                >
-                                  {{ form.text }}
-                                </button>
-                                <button
-                                  type="button"
-                                  class="tag-remove"
-                                  [disabled]="busy()"
-                                  [attr.aria-label]="'Remove form ' + form.text"
-                                  (click)="removeForm(index, form.text)"
-                                >
-                                  ×
-                                </button>
-                              </div>
+                              @if (playing()) {
+                                <span class="form-chip readonly">{{ form.text }}</span>
+                              } @else {
+                                <div class="form-chip">
+                                  <button
+                                    type="button"
+                                    [disabled]="busy()"
+                                    [attr.aria-label]="'Edit form ' + form.text"
+                                    (click)="openExistingForm(index, form.text)"
+                                  >
+                                    {{ form.text }}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="tag-remove"
+                                    [disabled]="busy()"
+                                    [attr.aria-label]="'Remove form ' + form.text"
+                                    (click)="removeForm(index, form.text)"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              }
                             </li>
                           }
                         </ul>
@@ -1226,6 +1429,7 @@ function writeExampleSuggestions(
                       }
                     }
                   </section>
+                  }
                 </li>
               }
             </ol>
@@ -3609,12 +3813,149 @@ function writeExampleSuggestions(
     .btn-danger:hover:not(:disabled) {
       background: color-mix(in srgb, var(--danger) 12%, transparent);
     }
+
+    h2.concealed {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .cue-rest,
+    .play-blur {
+      filter: blur(0.55em);
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .cue {
+      align-self: flex-start;
+      margin: -0.35rem 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--accent-text);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .cue:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .play-guess {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .play-guess input {
+      flex: 1;
+      min-width: 0;
+      width: auto;
+    }
+
+    .play-prompt {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.45rem;
+    }
+
+    .play-prompt .btn {
+      align-self: flex-start;
+    }
+
+    .lang {
+      display: inline-flex;
+      align-self: flex-start;
+      padding: 0.15rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-2);
+    }
+
+    .lang button {
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 650;
+      padding: 0.35rem 0.7rem;
+      cursor: pointer;
+    }
+
+    .lang button.on {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .lang button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .score {
+      font-size: 1.35rem;
+      font-weight: 750;
+      letter-spacing: -0.03em;
+    }
+
+    .sense-meta li.sense-equivalent.guessing {
+      height: auto;
+      width: 100%;
+      white-space: normal;
+      flex-wrap: wrap;
+      padding: 0.35rem 0.45rem;
+    }
+
+    .sense-equivalent .play-guess {
+      flex: 1;
+      min-width: 12rem;
+    }
+
+    .sense-equivalent .play-guess input {
+      height: 1.9rem;
+      padding: 0.2rem 0.55rem;
+      font-size: 0.8125rem;
+    }
+
+    .sense-equivalent .play-guess .btn {
+      padding: 0.25rem 0.7rem;
+      font-size: 0.78rem;
+    }
+
+    .play-answer {
+      font-weight: 750;
+    }
+
+    .form-chip.readonly {
+      padding: 0.2rem 0.55rem;
+    }
   `,
 })
 export class ElementModal {
   readonly element = input.required<StoredElement>();
   readonly collection = input<StoredElement[]>([]);
   readonly canGoBack = input(false);
+  /** Play uses this card. The element's mode decides which field is typed. */
+  readonly playing = input(false);
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
   readonly deleted = output<void>();
@@ -3623,6 +3964,20 @@ export class ElementModal {
   readonly addSelection = output<string>();
   readonly addPrepared = output<PreparedElement>();
 
+  readonly equivalentMax = EQUIVALENT_MAX;
+  readonly recallMax = RECALL_MAX;
+  readonly definitionMax = DEFINITION_MAX;
+  readonly supportAvailable = computed(
+    () => this.element().language.trim().toLowerCase() !== 'en',
+  );
+  readonly originalLanguageName = computed(
+    () => languageDisplayName(this.element().language) || this.element().language,
+  );
+  readonly round = signal<PlayRound>(emptyPlayRound());
+  readonly askingGrade = signal<number | null>(null);
+  private readonly rounds = new Map<string, PlayRound>();
+  private gradeJob = 0;
+  private alive = true;
   readonly formMaxLength = FORM_MAX_LENGTH;
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
@@ -3707,7 +4062,10 @@ export class ElementModal {
   private readonly titleField = viewChild<ElementRef<HTMLInputElement>>('titleField');
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => stopSpeaking());
+    inject(DestroyRef).onDestroy(() => {
+      this.alive = false;
+      stopSpeaking();
+    });
     effect(() => {
       const id = this.element().id;
       if (id === this.trackedElementId) return;
@@ -3741,6 +4099,8 @@ export class ElementModal {
       this.addingDefinitions.set(null);
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
+      this.askingGrade.set(null);
+      this.loadRound(id);
       this.dismissTranslations();
       this.engineerDrafts.clear();
       this.definitionEngineerDrafts = readRelatedDrafts(id);
@@ -3850,7 +4210,7 @@ export class ElementModal {
   }
 
   openTitle(): void {
-    if (this.aiBusy() || this.titleEdit()) return;
+    if (this.playing() || this.aiBusy() || this.titleEdit()) return;
     this.titleError.set('');
     this.titleDraft.set(this.element().title);
     this.titleEdit.set(true);
@@ -3918,11 +4278,15 @@ export class ElementModal {
   }
 
   headerEquivalents(): string[] {
-    return this.element().equivalents.map((item) => item.text);
+    const element = this.element();
+    if (!this.sieving()) return element.equivalents.map((item) => item.text);
+    return element.equivalents
+      .filter((item) => this.equivalentSolved(item.id))
+      .map((item) => item.text);
   }
 
   openTranslations(): void {
-    if (this.busy()) return;
+    if (this.playing() || this.busy()) return;
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -4114,12 +4478,13 @@ export class ElementModal {
       this.askingForms() !== null ||
       this.askingExamples() !== null ||
       this.askingRelated() !== null ||
-      this.askingWording() !== null
+      this.askingWording() !== null ||
+      this.askingGrade() !== null
     );
   }
 
   openAddDefinition(): void {
-    if (this.aiBusy()) return;
+    if (this.playing() || this.aiBusy()) return;
     this.error.set('');
     this.definitionExample.set('');
     this.editor.set(null);
@@ -4136,7 +4501,7 @@ export class ElementModal {
   }
 
   openAddExample(index: number): void {
-    if (this.aiBusy() || !this.element().definitions[index]) return;
+    if (this.playing() || this.aiBusy() || !this.element().definitions[index]) return;
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -4151,7 +4516,7 @@ export class ElementModal {
   }
 
   openAddForm(index: number): void {
-    if (this.aiBusy() || !this.element().definitions[index]) return;
+    if (this.playing() || this.aiBusy() || !this.element().definitions[index]) return;
     this.error.set('');
     this.editor.set(null);
     this.formEdit.set(null);
@@ -4568,7 +4933,7 @@ export class ElementModal {
   }
 
   async moveDefinition(index: number, delta: -1 | 1): Promise<void> {
-    if (this.aiBusy()) return;
+    if (this.playing() || this.aiBusy()) return;
     const target = index + delta;
     const definitions = this.copyDefinitions();
     const current = definitions[index];
@@ -4581,6 +4946,7 @@ export class ElementModal {
   }
 
   openDefinition(index: number | null): void {
+    if (this.playing()) return;
     const definition = index == null ? null : this.element().definitions[index];
     if (index != null && !definition) return;
     this.formEdit.set(null);
@@ -4606,6 +4972,7 @@ export class ElementModal {
   }
 
   openExample(definitionIndex: number, exampleIndex: number | null): void {
+    if (this.playing()) return;
     const definition = this.element().definitions[definitionIndex];
     if (!definition) return;
     const example = exampleIndex == null ? null : definition.examples[exampleIndex];
@@ -5011,7 +5378,7 @@ export class ElementModal {
   }
 
   openExistingForm(definitionIndex: number, text: string): void {
-    if (this.busy()) return;
+    if (this.playing() || this.busy()) return;
     const form = this.element().definitions[definitionIndex]?.forms.find(
       (item) => item.text === text,
     );
@@ -5423,7 +5790,7 @@ export class ElementModal {
   }
 
   async removeForm(definitionIndex: number, form: string): Promise<void> {
-    if (this.busy()) return;
+    if (this.playing() || this.busy()) return;
     const definitions = this.copyDefinitions();
     const definition = definitions[definitionIndex];
     if (!definition) return;
@@ -5442,7 +5809,7 @@ export class ElementModal {
   }
 
   askDeleteElement(): void {
-    if (this.busy()) return;
+    if (this.playing() || this.busy()) return;
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -5780,6 +6147,248 @@ export class ElementModal {
 
   private focusDraft(): void {
     setTimeout(() => this.draftField()?.nativeElement.focus());
+  }
+
+  sieving(): boolean {
+    return this.playing() && this.element().mode === 1;
+  }
+
+  pickaxing(): boolean {
+    return this.playing() && this.element().mode === 2;
+  }
+
+  drilling(): boolean {
+    return this.playing() && this.element().mode === 3;
+  }
+
+  titleConcealed(): boolean {
+    return this.pickaxing() && !this.round().recalled;
+  }
+
+  dialogLabel(): string {
+    if (this.titleConcealed()) return this.modeLabel(2);
+    return this.shownTitle();
+  }
+
+  revealedPrefix(): string {
+    return graphemes(this.shownTitle()).slice(0, this.round().revealedCount).join('');
+  }
+
+  hiddenSuffix(): string {
+    return graphemes(this.shownTitle()).slice(this.round().revealedCount).join('');
+  }
+
+  canRevealLetter(): boolean {
+    const chars = graphemes(this.shownTitle());
+    return nextLetterCount(chars, this.round().revealedCount) > this.round().revealedCount;
+  }
+
+  revealLetter(): void {
+    if (!this.titleConcealed() || this.busy() || !this.canRevealLetter()) return;
+    const chars = graphemes(this.shownTitle());
+    this.writeRound({
+      ...this.round(),
+      revealedCount: nextLetterCount(chars, this.round().revealedCount),
+    });
+  }
+
+  onRecall(event: Event): void {
+    if (this.round().recalled) return;
+    const recall = (event.target as HTMLInputElement).value.slice(0, RECALL_MAX);
+    this.writeRound({ ...this.round(), recall });
+  }
+
+  submitRecall(event?: Event): void {
+    event?.preventDefault();
+    const round = this.round();
+    if (!this.pickaxing() || round.recalled || this.busy() || !round.recall.trim()) return;
+    if (!matchesElement(round.recall, this.element())) return;
+    this.writeRound({ ...round, recalled: true });
+  }
+
+  spokenPassage(text: string): string {
+    if (!this.titleConcealed()) return text;
+    return maskedSentence(parsePassage(text).text, this.element());
+  }
+
+  concealText(text: string): boolean {
+    return this.titleConcealed() && textNamesElement(text, this.element());
+  }
+
+  equivalentDraftAt(index: number): string {
+    return this.round().equivalentDrafts[index] ?? '';
+  }
+
+  equivalentSubmitted(index: number): boolean {
+    return this.round().equivalentSubmitted[index] === true;
+  }
+
+  onEquivalentDraft(index: number, event: Event): void {
+    if (this.equivalentSubmitted(index)) return;
+    const value = (event.target as HTMLInputElement).value.slice(0, EQUIVALENT_MAX);
+    const equivalentDrafts = this.round().equivalentDrafts.slice();
+    while (equivalentDrafts.length <= index) equivalentDrafts.push('');
+    equivalentDrafts[index] = value;
+    this.writeRound({ ...this.round(), equivalentDrafts });
+  }
+
+  submitEquivalent(index: number, event?: Event): void {
+    event?.preventDefault();
+    if (!this.sieving() || this.equivalentSubmitted(index) || !this.equivalentDraftAt(index).trim()) {
+      return;
+    }
+    const equivalentSubmitted = this.round().equivalentSubmitted.slice();
+    while (equivalentSubmitted.length <= index) equivalentSubmitted.push(false);
+    equivalentSubmitted[index] = true;
+    this.writeRound({ ...this.round(), equivalentSubmitted });
+  }
+
+  definitionDraftAt(index: number): string {
+    return this.round().definitionDrafts[index] ?? '';
+  }
+
+  answerLanguage(index: number): 'original' | 'english' {
+    if (!this.supportAvailable()) return 'original';
+    return this.round().definitionLanguages[index] ?? 'original';
+  }
+
+  gradeAt(index: number): PlayRound['grades'][number] {
+    return this.round().grades[index] ?? null;
+  }
+
+  definitionTranslationAt(index: number): string {
+    return this.round().definitionTranslations[index] ?? '';
+  }
+
+  definitionConcealed(index: number): boolean {
+    if (!this.drilling() || this.gradeAt(index)) return false;
+    const text = this.element().definitions[index]?.text ?? '';
+    return definitionEligibleForGames(text, this.element());
+  }
+
+  onDefinitionDraft(index: number, event: Event): void {
+    const value = (event.target as HTMLTextAreaElement).value.slice(0, DEFINITION_MAX);
+    const definitionDrafts = this.round().definitionDrafts.slice();
+    while (definitionDrafts.length <= index) definitionDrafts.push('');
+    definitionDrafts[index] = value;
+    const grades = this.round().grades.slice();
+    const definitionTranslations = this.round().definitionTranslations.slice();
+    if (grades[index] != null || definitionTranslations[index]) {
+      grades[index] = null;
+      definitionTranslations[index] = '';
+    }
+    this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
+  }
+
+  setDefinitionLanguage(index: number, language: 'original' | 'english'): void {
+    if (!this.supportAvailable() || this.askingGrade() === index) return;
+    if (this.answerLanguage(index) === language) return;
+    const definitionLanguages = this.round().definitionLanguages.slice();
+    while (definitionLanguages.length <= index) definitionLanguages.push('original');
+    definitionLanguages[index] = language;
+    const grades = this.round().grades.slice();
+    const definitionTranslations = this.round().definitionTranslations.slice();
+    grades[index] = null;
+    definitionTranslations[index] = '';
+    this.writeRound({
+      ...this.round(),
+      definitionLanguages,
+      grades,
+      definitionTranslations,
+    });
+  }
+
+  async evaluateDefinition(index: number): Promise<void> {
+    if (this.aiBusy() || this.gradeAt(index) || !this.definitionDraftAt(index).trim()) return;
+    const element = this.element();
+    const definition = element.definitions[index];
+    const gloss = parsePassage(definition?.text ?? '').text.trim();
+    if (!definition || !gloss || !definitionEligibleForGames(definition.text, element)) return;
+    const answer = this.definitionDraftAt(index).trim();
+    const language = this.answerLanguage(index);
+    const inEnglish = language === 'english';
+    const job = ++this.gradeJob;
+    this.askingGrade.set(index);
+    this.error.set('');
+    try {
+      let judged = answer;
+      if (inEnglish) {
+        try {
+          const translated = await translateTexts({
+            texts: [answer],
+            sourceLang: 'en',
+            targetLang: element.language,
+          });
+          judged = translated[0]?.trim() ?? '';
+        } catch {
+          if (this.alive && job === this.gradeJob && this.element().id === element.id) {
+            this.error.set('Could not translate that definition.');
+          }
+          return;
+        }
+        if (!this.alive || job !== this.gradeJob || this.element().id !== element.id) return;
+        if (
+          this.definitionDraftAt(index).trim() !== answer ||
+          this.answerLanguage(index) !== language ||
+          !judged
+        ) {
+          if (!judged && this.definitionDraftAt(index).trim() === answer) {
+            this.error.set('Could not translate that definition.');
+          }
+          return;
+        }
+      }
+      const grade = await gradeDefinition({
+        language: element.language,
+        lemma: element.title,
+        gloss,
+        answer: judged,
+      });
+      if (!this.alive || job !== this.gradeJob || this.element().id !== element.id) return;
+      if (this.definitionDraftAt(index).trim() !== answer || this.answerLanguage(index) !== language) {
+        return;
+      }
+      const grades = this.round().grades.slice();
+      while (grades.length <= index) grades.push(null);
+      grades[index] = grade;
+      const definitionTranslations = this.round().definitionTranslations.slice();
+      while (definitionTranslations.length <= index) definitionTranslations.push('');
+      if (inEnglish) definitionTranslations[index] = judged;
+      this.writeRound({ ...this.round(), grades, definitionTranslations });
+    } catch {
+      if (this.alive && job === this.gradeJob && this.element().id === element.id) {
+        this.error.set('Could not evaluate that definition.');
+      }
+    } finally {
+      if (this.alive && job === this.gradeJob) this.askingGrade.set(null);
+    }
+  }
+
+  private equivalentSolved(id: string): boolean {
+    let linked = false;
+    const definitions = this.element().definitions;
+    for (let index = 0; index < definitions.length; index += 1) {
+      if (definitions[index]?.equivalentId !== id) continue;
+      linked = true;
+      if (!this.equivalentSubmitted(index)) return false;
+    }
+    return linked;
+  }
+
+  private loadRound(id: string): void {
+    const existing = this.rounds.get(id);
+    if (existing) {
+      this.round.set(existing);
+      return;
+    }
+    const fresh = emptyPlayRound();
+    this.rounds.set(id, fresh);
+    this.round.set(fresh);
+  }
+
+  private writeRound(next: PlayRound): void {
+    this.rounds.set(this.element().id, next);
+    this.round.set(next);
   }
 }
 

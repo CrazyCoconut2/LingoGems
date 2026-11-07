@@ -10,9 +10,6 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
-import { ExtractGame } from '../elements/extract-game';
-import { PolishGame } from '../elements/polish-game';
-import { RefineGame } from '../elements/refine-game';
 import { ModeIcon } from '../elements/mode-icon';
 import {
   metadataChipColor,
@@ -102,9 +99,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
   imports: [
     RouterLink,
     ElementModal,
-    ExtractGame,
-    PolishGame,
-    RefineGame,
     ModeIcon,
     LanguageAiSettings,
     DiscoverModal,
@@ -875,47 +869,12 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
         </div>
       }
 
-      @if (extractElement(); as element) {
-        <app-extract-game
-          [element]="element"
-          [collection]="elements()"
-          [covered]="opened() !== null"
-          (closed)="extractId.set('')"
-          (visit)="visitElement($event)"
-          (addSelection)="addFromSelection($event)"
-          (addPrepared)="addPrepared($event)"
-        />
-      }
-
-      @if (refineElement(); as element) {
-        <app-refine-game
-          [element]="element"
-          [collection]="elements()"
-          [covered]="opened() !== null"
-          (closed)="refineId.set('')"
-          (visit)="visitElement($event)"
-          (addSelection)="addFromSelection($event)"
-          (addPrepared)="addPrepared($event)"
-        />
-      }
-
-      @if (polishElement(); as element) {
-        <app-polish-game
-          [element]="element"
-          [collection]="elements()"
-          [covered]="opened() !== null"
-          (closed)="polishId.set('')"
-          (visit)="visitElement($event)"
-          (addSelection)="addFromSelection($event)"
-          (addPrepared)="addPrepared($event)"
-        />
-      }
-
       @if (opened(); as element) {
         <app-element-modal
           [element]="element"
           [collection]="elements()"
           [canGoBack]="canGoBack()"
+          [playing]="playing() && element.id === playId()"
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
           (deleted)="onElementDeleted()"
@@ -2081,30 +2040,7 @@ export class LanguagePage {
   readonly filtersOpen = signal(false);
   readonly aiSettingsOpen = signal(false);
   readonly playing = signal(false);
-  readonly extractId = signal('');
-  readonly extractElement = computed(() => {
-    const id = this.extractId();
-    if (!this.playing() || !id) return null;
-    const element = this.elements().find((item) => item.id === id);
-    if (!element || element.mode !== 1 || element.definitions.length === 0) return null;
-    return element;
-  });
-  readonly refineId = signal('');
-  readonly refineElement = computed(() => {
-    const id = this.refineId();
-    if (!this.playing() || !id) return null;
-    const element = this.elements().find((item) => item.id === id);
-    if (!element || element.mode !== 2 || element.definitions.length === 0) return null;
-    return element;
-  });
-  readonly polishId = signal('');
-  readonly polishElement = computed(() => {
-    const id = this.polishId();
-    if (!this.playing() || !id) return null;
-    const element = this.elements().find((item) => item.id === id);
-    if (!element || element.mode !== 3 || element.definitions.length === 0) return null;
-    return element;
-  });
+  readonly playId = signal('');
   readonly playOrder = signal<readonly string[]>([]);
   readonly dismissed = signal<ReadonlySet<string>>(new Set());
   readonly expanded = signal<FilterSection | null>('translations');
@@ -2307,6 +2243,7 @@ export class LanguagePage {
 
   closeElement(): void {
     if (!this.elementId()) return;
+    this.playId.set('');
     this.trail.set([]);
     this.writeElement(null, false);
   }
@@ -2411,18 +2348,8 @@ export class LanguagePage {
       element.definitions.some((definition) =>
         definitionEligibleForGames(definition.text, element),
       );
-    if (element?.mode === 1 && eligible) {
-      this.extractId.set(id);
-      return;
-    }
-    if (element?.mode === 2 && eligible) {
-      this.refineId.set(id);
-      return;
-    }
-    if (element?.mode === 3 && eligible) {
-      this.polishId.set(id);
-      return;
-    }
+    const playable = !!element && eligible && element.definitions.length > 0;
+    this.playId.set(playable ? id : '');
     this.openElement(id);
   }
 
@@ -2439,9 +2366,7 @@ export class LanguagePage {
       this.playing.set(false);
       this.playOrder.set([]);
       this.dismissed.set(new Set());
-      this.extractId.set('');
-      this.refineId.set('');
-      this.polishId.set('');
+      this.playId.set('');
       return;
     }
     this.commitSearch();
@@ -2724,9 +2649,7 @@ export class LanguagePage {
     this.playing.set(false);
     this.playOrder.set([]);
     this.dismissed.set(new Set());
-    this.extractId.set('');
-    this.refineId.set('');
-    this.polishId.set('');
+    this.playId.set('');
     const params = this.route.snapshot.queryParamMap;
     const restored = (params.get('q') ?? '').slice(0, ELEMENT_SEARCH_MAX_LENGTH);
     this.query.set(restored);
