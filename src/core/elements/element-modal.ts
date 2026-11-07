@@ -3291,15 +3291,11 @@ function writeExampleSuggestions(
     .sense-meta li.colored,
     .pills li.colored {
       gap: 0.4rem;
-      border-radius: 999px;
       background: color-mix(in srgb, var(--meta-color) 30%, var(--surface-2));
       color: var(--meta-color);
     }
 
     .sense-meta li.colored {
-      height: auto;
-      min-height: 1.7rem;
-      padding: 0.28rem 0.65rem;
       border-color: color-mix(in srgb, var(--meta-color) 62%, transparent);
     }
 
