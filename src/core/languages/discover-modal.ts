@@ -265,7 +265,9 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                                         <span class="sense-meta-key">{{
                                           metaLabel(entry.key)
                                         }}</span>
-                                        {{ metaLabel(entry.value) }}
+                                        <span class="sense-meta-value">{{
+                                          metaLabel(entry.value)
+                                        }}</span>
                                       </li>
                                     }
                                   </ul>
@@ -1098,14 +1100,28 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     }
 
     .sense-meta li.colored {
-      background: color-mix(in srgb, var(--meta-color) 18%, transparent);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--meta-color) 45%, transparent);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: color-mix(in srgb, var(--meta-color) 30%, var(--surface-2));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--meta-color) 62%, transparent);
+      color: var(--meta-color);
     }
 
     .sense-meta-key {
       margin-right: 0.25rem;
       color: var(--text-muted);
       font-weight: 700;
+    }
+
+    .sense-meta li.colored .sense-meta-key {
+      margin-right: 0;
+      color: var(--meta-color);
+    }
+
+    .sense-meta li.colored .sense-meta-value {
+      color: var(--text);
+      font-weight: 650;
     }
 
     .tile-add,

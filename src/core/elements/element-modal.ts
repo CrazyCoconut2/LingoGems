@@ -1017,7 +1017,7 @@ function writeExampleSuggestions(
                             @let color = metaColor('definitions', entry.key, entry.value);
                             <li [class.colored]="color" [style.--meta-color]="color">
                               <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                              {{ label(entry.value) }}
+                              <span class="sense-meta-value">{{ label(entry.value) }}</span>
                             </li>
                           }
                         </ul>
@@ -1319,7 +1319,12 @@ function writeExampleSuggestions(
                                     @for (entry of meta; track entry.key) {
                                       @let color = metaColor('examples', entry.key, entry.value);
                                       <li [class.colored]="color" [style.--meta-color]="color">
-                                        <span>{{ entry.key }}: {{ entry.value }}</span>
+                                        @if (color) {
+                                          <span class="sense-meta-key">{{ entry.key }}</span>
+                                          <span class="sense-meta-value">{{ entry.value }}</span>
+                                        } @else {
+                                          <span>{{ entry.key }}: {{ entry.value }}</span>
+                                        }
                                       </li>
                                     }
                                   </ul>
@@ -1894,7 +1899,12 @@ function writeExampleSuggestions(
                               [attr.aria-label]="'Edit metadata ' + entry.key"
                               (click)="openMetadata(entry.key)"
                             >
-                              {{ entry.key }}: {{ entry.value }}
+                              @if (color) {
+                                <span class="sense-meta-key">{{ entry.key }}</span>
+                                <span class="sense-meta-value">{{ entry.value }}</span>
+                              } @else {
+                                {{ entry.key }}: {{ entry.value }}
+                              }
                             </button>
                             <button
                               type="button"
@@ -2290,7 +2300,12 @@ function writeExampleSuggestions(
                               [attr.aria-label]="'Edit metadata ' + entry.key"
                               (click)="openFormFeature(entry.key)"
                             >
-                              {{ entry.key }}: {{ entry.value }}
+                              @if (color) {
+                                <span class="sense-meta-key">{{ entry.key }}</span>
+                                <span class="sense-meta-value">{{ entry.value }}</span>
+                              } @else {
+                                {{ entry.key }}: {{ entry.value }}
+                              }
                             </button>
                             <button
                               type="button"
@@ -2643,11 +2658,6 @@ function writeExampleSuggestions(
     .title-main h2 {
       flex: 0 1 auto;
       color: var(--text);
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-color: var(--text);
-      text-decoration-thickness: 1px;
-      text-underline-offset: 0.18em;
     }
 
     .comfort-btn {
@@ -3278,8 +3288,31 @@ function writeExampleSuggestions(
       stroke-linejoin: round;
     }
 
+    .sense-meta li.colored,
+    .pills li.colored {
+      gap: 0.4rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--meta-color) 30%, var(--surface-2));
+      color: var(--meta-color);
+    }
+
     .sense-meta li.colored {
-      border-color: var(--meta-color);
+      height: auto;
+      min-height: 1.7rem;
+      padding: 0.28rem 0.65rem;
+      border-color: color-mix(in srgb, var(--meta-color) 62%, transparent);
+    }
+
+    .sense-meta li.colored .sense-meta-key,
+    .pills li.colored .sense-meta-key {
+      margin-right: 0;
+      color: var(--meta-color);
+    }
+
+    .sense-meta li.colored .sense-meta-value,
+    .pills li.colored .sense-meta-value {
+      color: var(--text);
+      font-weight: 650;
     }
 
     .sense-main {
@@ -3387,7 +3420,14 @@ function writeExampleSuggestions(
     }
 
     .pills li.colored {
-      box-shadow: inset 0 0 0 1px var(--meta-color);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--meta-color) 62%, transparent);
+    }
+
+    .pills li.colored > button:first-child,
+    .pills li.colored > span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
     }
 
     .form-chip button,
