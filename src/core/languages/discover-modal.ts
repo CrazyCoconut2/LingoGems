@@ -201,82 +201,86 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                   }
                 </div>
               </div>
-              @if (visibleResults().length) {
-                <div class="card-list">
-                  @for (row of visibleResults(); track row.title) {
-                    <article class="card" [class.collected]="!!collectedId(row.title)">
-                      <div class="card-head">
-                        @if (collectedId(row.title); as id) {
-                          <button
-                            type="button"
-                            class="card-title"
-                            [attr.aria-label]="'Open ' + label(row.title)"
-                            (click)="open.emit(id)"
-                          >
-                            {{ label(row.title) }}
-                          </button>
-                          <span class="tile-mark" aria-hidden="true">
-                            <svg viewBox="0 0 24 24">
-                              <path d="M20 6 9 17l-5-5" />
-                            </svg>
-                          </span>
-                        } @else {
-                          <span class="card-title">{{ label(row.title) }}</span>
-                          <button
-                            type="button"
-                            class="tile-add"
-                            aria-label="Add"
-                            title="Add"
-                            [disabled]="adding()"
-                            (click)="addHit(row)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M5 12h14" />
-                              <path d="M12 5v14" />
-                            </svg>
-                          </button>
-                        }
-                      </div>
-                      <ol class="senses">
-                        @for (sense of row.senses; track $index) {
-                          <li>
-                            @let passage = sensePassage(sense);
-                            @if (passage.text) {
-                              <p class="sense-text">{{ passage.text }}</p>
-                            }
-                            @if (passage.translations.length) {
-                              <ul class="sense-translations">
-                                @for (translation of passage.translations; track $index) {
-                                  <li>
-                                    <app-reveal [text]="translation.text" />
-                                  </li>
-                                }
-                              </ul>
-                            }
-                            @if (senseMeta(sense); as meta) {
-                              @if (meta.length) {
-                                <ul class="sense-meta">
-                                  @for (entry of meta; track entry.key) {
-                                    <li
-                                      [class.colored]="entry.color"
-                                      [style.--meta-color]="entry.color"
-                                    >
-                                      <span class="sense-meta-key">{{ metaLabel(entry.key) }}</span>
-                                      {{ metaLabel(entry.value) }}
+              <div class="card-scroll">
+                @if (visibleResults().length) {
+                  <div class="card-list">
+                    @for (row of visibleResults(); track row.title) {
+                      <article class="card" [class.collected]="!!collectedId(row.title)">
+                        <div class="card-head">
+                          @if (collectedId(row.title); as id) {
+                            <button
+                              type="button"
+                              class="card-title"
+                              [attr.aria-label]="'Open ' + label(row.title)"
+                              (click)="open.emit(id)"
+                            >
+                              {{ label(row.title) }}
+                            </button>
+                            <span class="tile-mark" aria-hidden="true">
+                              <svg viewBox="0 0 24 24">
+                                <path d="M20 6 9 17l-5-5" />
+                              </svg>
+                            </span>
+                          } @else {
+                            <span class="card-title">{{ label(row.title) }}</span>
+                            <button
+                              type="button"
+                              class="tile-add"
+                              aria-label="Add"
+                              title="Add"
+                              [disabled]="adding()"
+                              (click)="addHit(row)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M5 12h14" />
+                                <path d="M12 5v14" />
+                              </svg>
+                            </button>
+                          }
+                        </div>
+                        <ol class="senses">
+                          @for (sense of row.senses; track $index) {
+                            <li>
+                              @let passage = sensePassage(sense);
+                              @if (passage.text) {
+                                <p class="sense-text">{{ passage.text }}</p>
+                              }
+                              @if (passage.translations.length) {
+                                <ul class="sense-translations">
+                                  @for (translation of passage.translations; track $index) {
+                                    <li>
+                                      <app-reveal [text]="translation.text" />
                                     </li>
                                   }
                                 </ul>
                               }
-                            }
-                          </li>
-                        }
-                      </ol>
-                    </article>
-                  }
-                </div>
-              } @else {
-                <p class="notice">{{ emptyFilterMessage() }}</p>
-              }
+                              @if (senseMeta(sense); as meta) {
+                                @if (meta.length) {
+                                  <ul class="sense-meta">
+                                    @for (entry of meta; track entry.key) {
+                                      <li
+                                        [class.colored]="entry.color"
+                                        [style.--meta-color]="entry.color"
+                                      >
+                                        <span class="sense-meta-key">{{
+                                          metaLabel(entry.key)
+                                        }}</span>
+                                        {{ metaLabel(entry.value) }}
+                                      </li>
+                                    }
+                                  </ul>
+                                }
+                              }
+                            </li>
+                          }
+                        </ol>
+                      </article>
+                    }
+                  </div>
+                } @else {
+                  <p class="notice">{{ emptyFilterMessage() }}</p>
+                }
+              </div>
             }
           </div>
         </div>
@@ -554,7 +558,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       flex-direction: column;
       gap: 0.55rem;
       min-height: 0;
-      overflow: auto;
+      overflow: hidden;
     }
 
     .query {
@@ -970,9 +974,16 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
 
     .filter-row {
       display: flex;
+      flex-shrink: 0;
       align-items: center;
       flex-wrap: wrap;
       gap: 0.6rem;
+    }
+
+    .card-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
     }
 
     .filter-chips {
@@ -1402,7 +1413,9 @@ export class DiscoverModal implements OnInit {
   }
 
   canClear(): boolean {
-    return this.instruction().trim().length > 0 || this.results().length > 0 || this.metaCount() > 0;
+    return (
+      this.instruction().trim().length > 0 || this.results().length > 0 || this.metaCount() > 0
+    );
   }
 
   clearSearch(): void {
@@ -1483,7 +1496,9 @@ export class DiscoverModal implements OnInit {
         excludeTitles: this.excludeTitles(blocked),
       });
       if (job !== this.job) return;
-      const fresh = found.filter((item) => !blocked.some((row) => sameTitle(row.title, item.title)));
+      const fresh = found.filter(
+        (item) => !blocked.some((row) => sameTitle(row.title, item.title)),
+      );
       if (!fresh.length) {
         this.notice.set(prior.length ? 'Nothing new in that batch.' : 'Nothing new to add.');
         return;
