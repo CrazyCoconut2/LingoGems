@@ -5349,7 +5349,7 @@ export class ElementModal {
         language: element.language,
         title: element.title,
         gloss,
-        partOfSpeech: definition.metadata['part of speech'],
+        metadata: definition.metadata,
         existingExamples: definition.examples.map((example) => parsePassage(example.text).text),
         forms: required ? [] : definition.forms.map((form) => form.text),
         exampleWords: [],

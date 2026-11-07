@@ -41,6 +41,7 @@ export function examplesSystemPrompt(fields: readonly AiMetadataField[], extra =
     '- When requiredForm is absent, the sentence MUST include the lemma, or an exact form listed in forms, naturally',
     '- When requiredForm is present, the sentence MUST contain that exact form. Do not use the lemma or a different inflection instead',
     '- Match the given gloss. Do not invent another sense',
+    '- metadata, when present, is that sense\'s metadata. The sentence must agree with it',
     '- Write the sentence so the meaning of the lemma is obvious from the rest of the sentence. A learner who knows the other words should be able to tell what the lemma means immediately',
     '- exampleWords, when present, are words the learner chose to include. Use as many as fit naturally. Do not pull in other collection words. The array order is not an order to use in the sentence',
     "- exampleInstruction, when present, is the learner's note about the subject or the wording. Follow it. It does not override the other rules",
@@ -61,7 +62,7 @@ export type GenerateExamplesInput = {
   language: string;
   title: string;
   gloss: string;
-  partOfSpeech?: string;
+  metadata?: ElementMetadata;
   existingExamples: readonly string[];
   forms: readonly string[];
   exampleWords: readonly string[];
@@ -80,14 +81,14 @@ export function buildExamplesUserMessage(input: GenerateExamplesInput): string {
   const forms = requiredForm ? [] : uniqueTexts(input.forms);
   const words = exampleWords(title, input.exampleWords);
   const instruction = (input.exampleInstruction ?? '').trim().slice(0, MAX_EXAMPLE_INSTRUCTION);
-  const pos = input.partOfSpeech?.trim() ?? '';
+  const metadata = senseMetadata(input.metadata);
   return JSON.stringify({
     language,
     writeFieldsIn,
     ...(translateFieldsIn ? { translateFieldsIn } : {}),
     lemma: title,
     gloss: input.gloss.trim(),
-    ...(pos ? { pos } : {}),
+    ...(Object.keys(metadata).length ? { metadata } : {}),
     existingExamples: uniqueTexts(input.existingExamples),
     exampleCount: 1,
     ...(words.length ? { exampleWords: words } : {}),
@@ -173,6 +174,17 @@ export async function generateExamples(
   } catch (err) {
     throw attachAiPrompt(err, input);
   }
+}
+
+function senseMetadata(metadata: ElementMetadata | undefined): ElementMetadata {
+  const next: ElementMetadata = {};
+  for (const [rawKey, rawValue] of Object.entries(metadata ?? {})) {
+    const key = rawKey.trim();
+    const value = typeof rawValue === 'string' ? rawValue.trim() : '';
+    if (!key || !value) continue;
+    next[key] = value;
+  }
+  return next;
 }
 
 function plainText(value: unknown): string {

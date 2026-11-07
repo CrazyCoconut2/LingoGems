@@ -309,26 +309,22 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
         <ul class="elements">
           @for (element of shown(); track element.id) {
             <li>
-              <div
+              <button
+                type="button"
                 class="element"
                 [class.playing]="playing()"
                 [style.--highlight-color]="highlightColor(element)"
-                (click)="playCard(element.id)"
+                (click)="openCard(element.id)"
               >
                 <div class="element-body">
                   @if (playing()) {
-                    <button
-                      type="button"
-                      class="play-mark"
-                      aria-label="Open card"
-                      (click)="playCard(element.id, $event)"
-                    >
+                    <span class="play-mark">
                       <span class="play-icon" [attr.aria-label]="modeLabel(element.mode)">
                         <app-mode-icon [mode]="element.mode" />
                       </span>
-                    </button>
+                    </span>
                   } @else {
-                    <button type="button" class="element-open" (click)="openElement(element.id)">
+                    <span class="element-open">
                       <span class="title-line">
                         @if (needsDefinitionEdit(element)) {
                           <span
@@ -353,24 +349,14 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                           }
                         </span>
                       </span>
-                    </button>
+                    </span>
                     <div class="mode-stack">
-                      <button
-                        type="button"
-                        class="mode-icon"
-                        [attr.aria-label]="modeLabel(element.mode)"
-                        (click)="openElement(element.id)"
-                      >
+                      <span class="mode-icon" [attr.aria-label]="modeLabel(element.mode)">
                         <app-mode-icon [mode]="element.mode" />
-                      </button>
+                      </span>
                     </div>
                   }
-                  <button
-                    type="button"
-                    class="element-open"
-                    [attr.aria-label]="playing() ? 'Open card' : null"
-                    (click)="playing() ? playCard(element.id, $event) : openElement(element.id)"
-                  >
+                  <span class="element-open">
                     <span class="stats">
                       @if (element.equivalents.length) {
                         <span
@@ -412,7 +398,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                         </span>
                       }
                     </span>
-                  </button>
+                  </span>
                 </div>
                 <div
                   class="comfort-track"
@@ -423,7 +409,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     <span class="comfort-mark" [class.filled]="rate <= element.comfort"></span>
                   }
                 </div>
-              </div>
+              </button>
             </li>
           }
         </ul>
@@ -1268,6 +1254,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       color: inherit;
       font: inherit;
       text-align: left;
+      cursor: pointer;
     }
 
     .element-body {
@@ -1350,11 +1337,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       font-size: 1.05rem;
       font-weight: 650;
       letter-spacing: -0.02em;
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-color: var(--text);
-      text-decoration-thickness: 1px;
-      text-underline-offset: 0.18em;
     }
 
     .mode-stack {
@@ -1376,16 +1358,13 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       padding: 0;
       border: 0;
       background: transparent;
+      color: var(--text);
       cursor: pointer;
     }
 
     .mode-icon app-mode-icon {
       width: 100%;
       height: 100%;
-    }
-
-    .element.playing {
-      cursor: pointer;
     }
 
     .element.playing .element-body {
@@ -1412,6 +1391,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       place-items: center;
       width: 1.45rem;
       height: 1.45rem;
+      color: var(--text);
     }
 
     .play-icon app-mode-icon {
@@ -1438,7 +1418,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       display: inline-flex;
       align-items: center;
       gap: 0.28rem;
-      color: var(--text-muted);
+      color: var(--text);
       font-size: 0.75rem;
       font-weight: 650;
       font-variant-numeric: tabular-nums;
@@ -1451,6 +1431,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       height: 0.85rem;
       flex: none;
       fill: none;
+      color: var(--text);
       stroke: currentColor;
       stroke-width: 2;
       stroke-linecap: round;
@@ -2175,6 +2156,14 @@ export class LanguagePage {
     if (!id) return;
     this.trail.set([id]);
     this.writeElement(id, false);
+  }
+
+  openCard(id: string): void {
+    if (this.playing()) {
+      this.playCard(id);
+      return;
+    }
+    this.openElement(id);
   }
 
   visitElement(id: string): void {
