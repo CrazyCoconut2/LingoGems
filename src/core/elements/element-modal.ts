@@ -647,15 +647,28 @@ function writeExampleSuggestions(
                 </button>
               </div>
             }
-            <button
-              #closeButton
-              type="button"
-              class="close"
-              aria-label="Close"
-              (click)="closed.emit()"
-            >
-              ×
-            </button>
+            <div class="title-end">
+              <button
+                type="button"
+                class="mode-btn"
+                [attr.aria-label]="modeLabel(element().mode)"
+                [attr.title]="modeLabel(element().mode)"
+                [attr.aria-expanded]="modeOpen()"
+                [disabled]="busy() || playing()"
+                (click)="modeOpen.set(true)"
+              >
+                <app-mode-icon [mode]="element().mode" />
+              </button>
+              <button
+                #closeButton
+                type="button"
+                class="close"
+                aria-label="Close"
+                (click)="closed.emit()"
+              >
+                ×
+              </button>
+            </div>
           </div>
           @if (titleError()) {
             <p class="error">{{ titleError() }}</p>
@@ -721,17 +734,6 @@ function writeExampleSuggestions(
               (click)="comfortOpen.set(true)"
             >
               {{ element().comfort }}
-            </button>
-            <button
-              type="button"
-              class="mode-btn"
-              [attr.aria-label]="modeLabel(element().mode)"
-              [attr.title]="modeLabel(element().mode)"
-              [attr.aria-expanded]="modeOpen()"
-              [disabled]="busy() || playing()"
-              (click)="modeOpen.set(true)"
-            >
-              <app-mode-icon [mode]="element().mode" />
             </button>
             @if (canHear(shownTitle())) {
               <button
@@ -2637,6 +2639,25 @@ function writeExampleSuggestions(
     .title-main {
       flex: 1;
       min-width: 0;
+    }
+
+    .title-end {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex: none;
+    }
+
+    .title-end .mode-btn {
+      width: 2rem;
+      height: 2rem;
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+    }
+
+    .title-end .mode-btn app-mode-icon {
+      width: 1.5rem;
+      height: 1.5rem;
     }
 
     .title-main {
