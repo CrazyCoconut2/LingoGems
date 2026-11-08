@@ -1,4 +1,4 @@
-import type { ElementMetadata } from 'collection';
+import { isLearnableLanguage, type ElementMetadata } from 'collection';
 
 export const MAX_METADATA_FIELDS = 12;
 export const MAX_METADATA_FIELD_KEY = 40;
@@ -39,6 +39,7 @@ type StoredLanguageSettings = {
   exampleTranslations?: false;
   definitionExtraFields?: true;
   exampleExtraFields?: true;
+  translationLanguage?: string;
 };
 
 type LanguageSettingsMap = Record<string, StoredLanguageSettings>;
@@ -168,6 +169,21 @@ export function writeDefinitionExtraFields(language: string, enabled: boolean): 
   updateLanguage(language, (entry) => {
     if (enabled) entry.definitionExtraFields = true;
     else delete entry.definitionExtraFields;
+  });
+}
+
+/** The language translations are written in. Missing or invalid values are English. */
+export function readStoredTranslationLanguage(language: string): string {
+  const stored = readEntry(language)?.translationLanguage;
+  return typeof stored === 'string' && isLearnableLanguage(stored) ? stored : 'en';
+}
+
+/** Saves the translation language for one learning language. English clears it. */
+export function writeStoredTranslationLanguage(language: string, value: unknown): void {
+  const target = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  updateLanguage(language, (entry) => {
+    if (!isLearnableLanguage(target) || target === 'en') delete entry.translationLanguage;
+    else entry.translationLanguage = target;
   });
 }
 
@@ -351,6 +367,7 @@ function readMap(): LanguageSettingsMap {
         exampleTranslations?: unknown;
         definitionExtraFields?: unknown;
         exampleExtraFields?: unknown;
+        translationLanguage?: unknown;
       };
       const entry: StoredLanguageSettings = {};
       if (Array.isArray(record.definitions)) entry.definitions = readFieldList(record.definitions);
@@ -359,6 +376,9 @@ function readMap(): LanguageSettingsMap {
       if (record.exampleTranslations === false) entry.exampleTranslations = false;
       if (record.definitionExtraFields === true) entry.definitionExtraFields = true;
       if (record.exampleExtraFields === true) entry.exampleExtraFields = true;
+      if (typeof record.translationLanguage === 'string' && isLearnableLanguage(record.translationLanguage)) {
+        entry.translationLanguage = record.translationLanguage.trim().toLowerCase();
+      }
       map[language] = entry;
     }
     return map;
@@ -378,6 +398,9 @@ function writeMap(map: LanguageSettingsMap): void {
     if (entry.exampleTranslations === false) next.exampleTranslations = false;
     if (entry.definitionExtraFields === true) next.definitionExtraFields = true;
     if (entry.exampleExtraFields === true) next.exampleExtraFields = true;
+    if (entry.translationLanguage && isLearnableLanguage(entry.translationLanguage) && entry.translationLanguage !== 'en') {
+      next.translationLanguage = entry.translationLanguage;
+    }
     stored[code] = next;
   }
   if (!Object.keys(stored).length) localStorage.removeItem(LANGUAGE_SETTINGS_KEY);

@@ -10,6 +10,7 @@ import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
 import {
   readGenerateDefinitionTranslations,
+  readTranslationLanguage,
   translationLanguage,
 } from './translation-settings';
 import type { CompleteJsonInput } from './types';
@@ -68,10 +69,10 @@ Rules:
 - Do not add citations or bracket tags such as [en:…]
 - Keep the phrase at most ${MAX_DEFINITION_WORDING} characters
 - Spelling MUST be correct
-translateFieldsIn, when present, is English. Then the phrase MUST include "english", a faithful English translation of the phrase, with its first letter capitalized. When translateFieldsIn is absent, omit "english".
+translateFieldsIn, when present, names the translation language. Then the phrase MUST include "translation", a faithful translation of the phrase in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".
 Return JSON only with this shape:
 {"phrases":[${PHRASE_SHAPE}]}
-When translateFieldsIn is present, add "english":"<phrase in English>" on the phrase.`;
+When translateFieldsIn is present, add "translation":"<phrase in translateFieldsIn>" on the phrase.`;
 
 export type RelatedWord = {
   text: string;
@@ -175,11 +176,20 @@ export function parseGeneratedDefinitionPhrase(
     const phrase = item as Record<string, unknown>;
     const sentence = parsePassage(plainText(phrase['text'])).text.replace(/\s+/g, ' ').trim();
     if (!sentence || sentence.length > MAX_DEFINITION_WORDING) continue;
-    const english =
-      language === 'en' || !readGenerateDefinitionTranslations(language)
+    const translated =
+      translationLanguage(language, readGenerateDefinitionTranslations(language)) === ''
         ? ''
-        : parsePassage(plainText(phrase['english'])).text.slice(0, MAX_DEFINITION_WORDING);
-    return [{ text: english ? embedTranslation(sentence, 'en', english) : sentence }];
+        : parsePassage(plainText(phrase['translation'] ?? phrase['english'])).text.slice(
+            0,
+            MAX_DEFINITION_WORDING,
+          );
+    return [
+      {
+        text: translated
+          ? embedTranslation(sentence, readTranslationLanguage(language), translated)
+          : sentence,
+      },
+    ];
   }
   return [];
 }

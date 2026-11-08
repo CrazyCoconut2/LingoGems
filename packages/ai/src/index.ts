@@ -29,9 +29,11 @@ export {
 export {
   readGenerateDefinitionTranslations,
   readGenerateExampleTranslations,
+  readTranslationLanguage,
   translationLanguage,
   writeGenerateDefinitionTranslations,
   writeGenerateExampleTranslations,
+  writeTranslationLanguage,
 } from './translation-settings';
 
 export {

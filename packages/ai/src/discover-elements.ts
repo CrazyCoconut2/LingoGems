@@ -155,10 +155,10 @@ function discoverSystemPrompt(language: string): string {
     '- Return at most count elements',
     '- Omit a title you cannot define',
     ...metadataRuleLines('definition', fields, extra),
-    'translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
+    'translateFieldsIn, when present, names the translation language. Then each sense MUST include "translation", a faithful gloss in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
     'Return JSON only with this shape:',
     `{"elements":[{"title":"<citation form>","senses":[${sense}]}]}`,
-    'When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.',
+    'When translateFieldsIn is present, add "translation":"<gloss in translateFieldsIn>" on each sense.',
   ]
     .filter((line) => line !== '')
     .join('\n');

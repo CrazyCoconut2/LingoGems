@@ -2,6 +2,7 @@ import { languageDisplayName } from 'collection';
 import { completeJson, runWithKeyFallback } from './complete';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
+import { readTranslationLanguage } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
 export const TRANSLATE_SYSTEM_PROMPT = `You translate each input string into targetLang.
@@ -50,7 +51,7 @@ export const EQUIVALENT_SYSTEM_PROMPT = `You give one translation of a headword 
 JSON keys stay in English.
 Return the headword's equivalent in targetLang for this sense only: a word or short phrase a dictionary would list as the translation of the lemma.
 Use the definition to choose the sense. Do not translate the definition sentence itself.
-When english is present, it is the English gloss of that definition.
+When translation is present, it is a gloss of that definition in the translation language. Use it to choose the sense.
 Capitalize the first letter.
 Spelling in targetLang MUST be correct.
 JSON only: {"translation":"<equivalent>"}`;
@@ -68,7 +69,7 @@ export type GenerateEquivalentInput = {
 export function buildEquivalentUserMessage(input: GenerateEquivalentInput): string {
   const sourceRaw = String(input.sourceLang || '').trim();
   const sourceLang = sourceRaw ? languageDisplayName(sourceRaw) || sourceRaw : '';
-  const targetRaw = String(input.targetLang || 'en').trim() || 'en';
+  const targetRaw = String(input.targetLang || readTranslationLanguage(sourceRaw)).trim() || 'en';
   const targetLang = languageDisplayName(targetRaw) || targetRaw;
   const english = String(input.english || '').trim();
   return JSON.stringify({
@@ -76,7 +77,7 @@ export function buildEquivalentUserMessage(input: GenerateEquivalentInput): stri
     ...(sourceLang ? { sourceLang } : {}),
     targetLang,
     definition: String(input.definition || '').trim(),
-    ...(english ? { english } : {}),
+    ...(english ? { translation: english } : {}),
   });
 }
 

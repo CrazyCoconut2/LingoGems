@@ -22,6 +22,7 @@ import {
 import { readStoredAiCredentials } from './storage';
 import {
   readGenerateDefinitionTranslations,
+  readTranslationLanguage,
   translationLanguage,
 } from './translation-settings';
 import type { CompleteJsonInput } from './types';
@@ -56,10 +57,10 @@ export function definitionsSystemPrompt(fields: readonly AiMetadataField[], extr
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in every gloss and English gloss',
     ...metadataRuleLines('definition', fields, extra),
-    'translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
+    'translateFieldsIn, when present, names the translation language. Then each sense MUST include "translation", a faithful gloss in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
     'Return JSON only with this shape:',
     `{"senses":[${definitionSenseShape(fields, extra)}]}`,
-    'When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.',
+    'When translateFieldsIn is present, add "translation":"<gloss in translateFieldsIn>" on each sense.',
   ]);
 }
 
@@ -83,10 +84,10 @@ export function elementFromSelectionSystemPrompt(
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in the lemma, every gloss, and every English gloss',
     ...metadataRuleLines('definition', fields, extra),
-    'translateFieldsIn, when present, is English. Then each sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
+    'translateFieldsIn, when present, names the translation language. Then each sense MUST include "translation", a faithful gloss in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
     'Return JSON only with this shape:',
     `{"lemma":"<root lemma>","senses":[${definitionSenseShape(fields, extra)}]}`,
-    'When translateFieldsIn is present, add "english":"<gloss in English>" on each sense.',
+    'When translateFieldsIn is present, add "translation":"<gloss in translateFieldsIn>" on each sense.',
   ]);
 }
 
@@ -110,10 +111,10 @@ export function definitionFromExampleSystemPrompt(
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in the gloss and the English gloss',
     ...metadataRuleLines('definition', fields, extra),
-    'translateFieldsIn, when present, is English. Then the sense MUST include "english", a faithful English gloss of that sense, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
+    'translateFieldsIn, when present, names the translation language. Then the sense MUST include "translation", a faithful gloss in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
     'Return JSON only with this shape:',
     `{"senses":[${definitionSenseShape(fields, extra)}]}`,
-    'When translateFieldsIn is present, add "english":"<gloss in English>" on the sense.',
+    'When translateFieldsIn is present, add "translation":"<gloss in translateFieldsIn>" on the sense.',
   ]);
 }
 
@@ -203,12 +204,9 @@ export function parseGeneratedDefinitions(
     const gloss = glossText(sense['gloss'] ?? sense['glosses']);
     if (!gloss || taken.has(gloss.toLowerCase())) continue;
     taken.add(gloss.toLowerCase());
-    const english =
-      language === 'en' || !readGenerateDefinitionTranslations(language)
-        ? ''
-        : plainText(sense['english']).slice(0, META_VALUE_MAX_LENGTH);
+    const english = takenTranslation(language, sense['translation'] ?? sense['english']);
     definitions.push({
-      text: english ? embedTranslation(gloss, 'en', english) : gloss,
+      text: english ? embedTranslation(gloss, readTranslationLanguage(language), english) : gloss,
       metadata: pickMetadata(
         sense['metadata'],
         metadataFieldKeys(readDefinitionMetadataFields(language)),
@@ -376,10 +374,10 @@ export async function generateDefinitions(
 function describedDefinitions(
   language: string,
   definitions: ReadonlyArray<{ text: string; metadata: ElementMetadata }>,
-): Array<{ gloss: string; english?: string; metadata?: ElementMetadata }> {
+): Array<{ gloss: string; translation?: string; metadata?: ElementMetadata }> {
   const described: Array<{
     gloss: string;
-    english?: string;
+    translation?: string;
     metadata?: ElementMetadata;
   }> = [];
   const seen = new Set<string>();
@@ -389,7 +387,9 @@ function describedDefinitions(
     const key = gloss.toLowerCase();
     if (!gloss || seen.has(key)) continue;
     seen.add(key);
-    const english = passage.translations.find((item) => item.language === 'en')?.text.trim();
+    const english = passage.translations
+      .find((item) => item.language === readTranslationLanguage(language))
+      ?.text.trim();
     const metadata = pickMetadata(
       definition.metadata,
       metadataFieldKeys(readDefinitionMetadataFields(language)),
@@ -397,7 +397,7 @@ function describedDefinitions(
     );
     described.push({
       gloss,
-      ...(english ? { english } : {}),
+      ...(english ? { translation: english } : {}),
       ...(Object.keys(metadata).length ? { metadata } : {}),
     });
   }
@@ -411,6 +411,11 @@ function glossText(value: unknown): string {
 
 function plainText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function takenTranslation(language: string, raw: unknown): string {
+  if (!translationLanguage(language, readGenerateDefinitionTranslations(language))) return '';
+  return plainText(raw).slice(0, META_VALUE_MAX_LENGTH);
 }
 
 export function buildFormsUserMessage(input: GenerateFormsInput): string {

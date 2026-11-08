@@ -17,7 +17,11 @@ import {
   type AiMetadataField,
 } from './metadata-fields';
 import { readStoredAiCredentials } from './storage';
-import { readGenerateExampleTranslations, translationLanguage } from './translation-settings';
+import {
+  readGenerateExampleTranslations,
+  readTranslationLanguage,
+  translationLanguage,
+} from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
 export const MAX_EXAMPLE_LENGTH = 500;
@@ -45,15 +49,15 @@ export function examplesSystemPrompt(fields: readonly AiMetadataField[], extra =
     '- Write the sentence so the meaning of the lemma is obvious from the rest of the sentence. A learner who knows the other words should be able to tell what the lemma means immediately',
     '- exampleWords, when present, are words the learner chose to include. Use as many as fit naturally. Do not pull in other collection words. The array order is not an order to use in the sentence',
     "- exampleInstruction, when present, is the learner's note about the subject or the wording. Follow it. It does not override the other rules",
-    '- Do not add citations or bracket tags such as [en:…]',
+    '- Do not add citations or bracket tags such as [en: …]',
     '- Do not repeat existingExamples',
     `- Keep the sentence at most ${MAX_EXAMPLE_LENGTH} characters`,
     '- Spelling MUST be correct',
     ...metadataRuleLines('example', fields, extra),
-    'translateFieldsIn, when present, is English. Then the example MUST include "english", a faithful English translation of the sentence, with its first letter capitalized. When translateFieldsIn is absent, omit "english".',
+    'translateFieldsIn, when present, names the translation language. Then the example MUST include "translation", a faithful translation of the sentence in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
     'Return JSON only with this shape:',
     `{"examples":[${exampleSentenceShape(fields, extra)}]}`,
-    'When translateFieldsIn is present, add "english":"<sentence in English>" on the example.',
+    'When translateFieldsIn is present, add "translation":"<sentence in translateFieldsIn>" on the example.',
   );
   return lines.join('\n');
 }
@@ -127,13 +131,18 @@ export function parseGeneratedExamples(
     const sentence = parsePassage(plainText(example['text'])).text.replace(/\s+/g, ' ').trim();
     const key = sentence.toLowerCase();
     if (!sentence || sentence.length > MAX_EXAMPLE_LENGTH || taken.has(key)) continue;
-    const english =
-      language === 'en' || !readGenerateExampleTranslations(language)
+    const translated =
+      translationLanguage(language, readGenerateExampleTranslations(language)) === ''
         ? ''
-        : parsePassage(plainText(example['english'])).text.slice(0, MAX_EXAMPLE_LENGTH);
+        : parsePassage(plainText(example['translation'] ?? example['english'])).text.slice(
+            0,
+            MAX_EXAMPLE_LENGTH,
+          );
     return [
       {
-        text: english ? embedTranslation(sentence, 'en', english) : sentence,
+        text: translated
+          ? embedTranslation(sentence, readTranslationLanguage(language), translated)
+          : sentence,
         metadata: pickMetadata(
           example['metadata'],
           metadataFieldKeys(readExampleMetadataFields(language)),

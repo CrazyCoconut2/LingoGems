@@ -49,6 +49,7 @@ import {
   generateExamples,
   generateForms,
   generateRelatedWords,
+  readTranslationLanguage,
   gradeDefinition,
   gradeEquivalent,
   sentenceUsesForm,
@@ -395,16 +396,22 @@ function joinPhrase(current: string, addition: string): string {
   return `${left} ${right}`;
 }
 
-function definitionFromDraft(current: string, gloss: string, english: string): string {
+function definitionFromDraft(
+  current: string,
+  gloss: string,
+  english: string,
+  language: string,
+): string {
   const parsed = parsePassage(current);
+  const target = readTranslationLanguage(language);
   const languages = new Set(parsed.translations.map((item) => item.language));
   const nextEnglish = english.replace(/\s+/g, ' ').trim();
-  if (nextEnglish) languages.add('en');
-  else languages.delete('en');
+  if (nextEnglish) languages.add(target);
+  else languages.delete(target);
   let text = gloss.replace(/\s+/g, ' ').trim();
   for (const language of [...languages].sort()) {
     const value =
-      language === 'en'
+      language === target
         ? nextEnglish
         : (parsed.translations.find((item) => item.language === language)?.text ?? '');
     if (value) text = embedTranslation(text, language, value);
@@ -1514,7 +1521,7 @@ function writeExampleSuggestions(
                   #translationField
                   id="title-translation"
                   [value]="titleTranslationDraft()"
-                  placeholder="English"
+                  [attr.placeholder]="translationLanguageName()"
                   autocomplete="off"
                   [disabled]="busy()"
                   (input)="titleTranslationDraft.set(inputValue($event))"
@@ -1704,7 +1711,7 @@ function writeExampleSuggestions(
                   rows="2"
                   [value]="translationDraft()"
                   (input)="setTranslationDraft(inputValue($event))"
-                  placeholder="English"
+                  [attr.placeholder]="translationLanguageName()"
                 ></textarea>
               }
               @if (sheetError()) {
@@ -1718,7 +1725,7 @@ function writeExampleSuggestions(
                     } @else {
                       <label for="definition-equivalent">Equivalent</label>
                     }
-                    @if (element().language !== 'en') {
+                    @if (supportAvailable()) {
                       <button
                         type="button"
                         class="icon-btn"
@@ -2072,14 +2079,16 @@ function writeExampleSuggestions(
                 @if (definitionWarning(engineerGloss()); as warning) {
                   <p class="warning" role="status">{{ warning }}</p>
                 }
-                @if (element().language !== 'en') {
-                  <label class="field-label" for="engineer-english">English</label>
+                @if (supportAvailable()) {
+                  <label class="field-label" for="engineer-english">{{
+                    translationLanguageName()
+                  }}</label>
                   <textarea
                     id="engineer-english"
                     rows="2"
                     [value]="engineerEnglish()"
                     [disabled]="definitionSheetBusy()"
-                    aria-label="English"
+                    [attr.aria-label]="translationLanguageName()"
                     (input)="onEngineerEnglish($event)"
                   ></textarea>
                 }
@@ -2612,7 +2621,7 @@ function writeExampleSuggestions(
                       [disabled]="askingGrade() === prompt"
                       (click)="setDefinitionLanguage(prompt, 'english')"
                     >
-                      English
+                      {{ translationLanguageName() }}
                     </button>
                   </div>
                 }
@@ -4474,7 +4483,9 @@ export class ElementModal {
   readonly recallMax = RECALL_MAX;
   readonly definitionMax = DEFINITION_MAX;
   readonly supportAvailable = computed(
-    () => this.element().language.trim().toLowerCase() !== 'en',
+    () =>
+      this.element().language.trim().toLowerCase() !==
+      readTranslationLanguage(this.element().language),
   );
   readonly originalLanguageName = computed(
     () => languageDisplayName(this.element().language) || this.element().language,
@@ -4897,9 +4908,13 @@ export class ElementModal {
     return !this.equivalentIdDraft() && !this.equivalentDraft().trim();
   }
 
+  translationLanguageName(): string {
+    return languageDisplayName(readTranslationLanguage(this.element().language));
+  }
+
   canAskEquivalent(): boolean {
     return (
-      this.element().language !== 'en' &&
+      this.supportAvailable() &&
       this.textDraft().trim().length > 0 &&
       !this.translating() &&
       !this.askingEquivalent() &&
@@ -4911,7 +4926,9 @@ export class ElementModal {
     if (!this.canAskEquivalent()) return;
     const element = this.element();
     const definition = this.textDraft().trim();
-    const english = this.sheetTranslations().find((item) => item.language === 'en')?.text ?? '';
+    const english =
+      this.sheetTranslations().find((item) => item.language === readTranslationLanguage(element.language))
+        ?.text ?? '';
     const ticket = ++this.equivalentTicket;
     this.askingEquivalent.set(true);
     this.sheetError.set('');
@@ -5519,7 +5536,9 @@ export class ElementModal {
     this.engineerEnglish.set(
       editing
         ? this.translationDraft()
-        : (passage.translations.find((item) => item.language === 'en')?.text ?? ''),
+        : (passage.translations.find((item) => item.language === readTranslationLanguage(this.element().language))
+            ?.text ??
+          ''),
     );
     const known = new Set(draft.words.map((word) => word.text.toLowerCase()));
     this.definitionEngineer.set({
@@ -5565,8 +5584,8 @@ export class ElementModal {
     const target = definitions[engineer.definitionIndex];
     if (!target) return false;
     const oldSense = senseKey(target.text);
-    const english = element.language === 'en' ? '' : this.engineerEnglish();
-    const nextText = definitionFromDraft(target.text, gloss, english);
+    const english = this.supportAvailable() ? this.engineerEnglish() : '';
+    const nextText = definitionFromDraft(target.text, gloss, english, element.language);
     if (nextText === target.text) return true;
     const nextSense = senseKey(nextText);
     target.text = nextText;
@@ -5681,8 +5700,11 @@ export class ElementModal {
       if (!showing) return;
       if (sense && senseKey(this.element().definitions[index]?.text ?? '') !== sense) return;
       this.engineerGloss.set(joinPhrase(this.engineerGloss(), extra.text));
-      if (element.language !== 'en') {
-        const english = extra.translations.find((item) => item.language === 'en')?.text ?? '';
+      if (this.supportAvailable()) {
+        const english =
+          extra.translations.find((item) => item.language === readTranslationLanguage(element.language))
+            ?.text ??
+          '';
         if (english) this.engineerEnglish.set(joinPhrase(this.engineerEnglish(), english));
       }
       await this.commitEngineeredDefinition();
@@ -6082,23 +6104,29 @@ export class ElementModal {
   };
 
   showTranslationField(): boolean {
-    return this.element().language !== 'en' || this.sheetTranslations().length > 0;
+    return this.supportAvailable() || this.sheetTranslations().length > 0;
   }
 
   translationDraft(): string {
-    return this.sheetTranslations().find((item) => item.language === 'en')?.text ?? '';
+    return (
+      this.sheetTranslations().find(
+        (item) => item.language === readTranslationLanguage(this.element().language),
+      )?.text ??
+      ''
+    );
   }
 
   setTranslationDraft(value: string): void {
-    const rest = this.sheetTranslations().filter((item) => item.language !== 'en');
+    const target = readTranslationLanguage(this.element().language);
+    const rest = this.sheetTranslations().filter((item) => item.language !== target);
     const text = value.replace(/]/g, '');
-    this.sheetTranslations.set(text.trim() ? [...rest, { language: 'en', text }] : rest);
+    this.sheetTranslations.set(text.trim() ? [...rest, { language: target, text }] : rest);
   }
 
   canTranslate(): boolean {
     const draft = this.textDraft().trim();
     return (
-      this.element().language !== 'en' &&
+      this.supportAvailable() &&
       draft.length > 0 &&
       this.sheetTranslations().length === 0 &&
       parsePassage(draft).translations.length === 0 &&
@@ -6118,7 +6146,9 @@ export class ElementModal {
     try {
       const translated = await translatePhrase(text, source);
       if (ticket !== this.translateTicket) return;
-      this.sheetTranslations.set([{ language: 'en', text: translated }]);
+      this.sheetTranslations.set([
+        { language: readTranslationLanguage(source), text: translated },
+      ]);
     } catch {
       if (ticket !== this.translateTicket) return;
       this.sheetError.set('Could not translate this.');
@@ -6573,11 +6603,15 @@ export class ElementModal {
   }
 
   /**
-   * The equivalent game ends once every equivalent has been answered and the
-   * comparison sheet for that last answer has been closed.
+   * Play locks the element until the current game is finished and its result
+   * sheet is closed. Done then returns the element to normal editing.
    */
   inPlay(): boolean {
-    return this.playing() && (!this.equivalentGameDone() || this.equivalentPromptOpen());
+    if (!this.playing()) return false;
+    if (this.equivalentPromptOpen() || this.definitionPromptOpen()) return true;
+    if (this.element().mode === 1) return !this.equivalentGameDone();
+    if (this.element().mode === 3) return !this.definitionGameDone();
+    return true;
   }
 
   equivalentGameDone(): boolean {
@@ -6589,6 +6623,20 @@ export class ElementModal {
       if (!definition || !this.equivalentText(definition)) continue;
       prompted += 1;
       if (!this.equivalentSubmitted(index)) return false;
+    }
+    return prompted > 0;
+  }
+
+  /** Every prompted definition has been graded. The result sheet is separate. */
+  definitionGameDone(): boolean {
+    if (this.element().mode !== 3) return false;
+    const definitions = this.element().definitions;
+    let prompted = 0;
+    for (let index = 0; index < definitions.length; index += 1) {
+      const definition = definitions[index];
+      if (!definition || !definitionEligibleForGames(definition.text, this.element())) continue;
+      prompted += 1;
+      if (!this.gradeAt(index)) return false;
     }
     return prompted > 0;
   }
@@ -6890,7 +6938,7 @@ export class ElementModal {
         try {
           const translated = await translateTexts({
             texts: [answer],
-            sourceLang: 'en',
+            sourceLang: readTranslationLanguage(element.language),
             targetLang: element.language,
           });
           judged = translated[0]?.trim() ?? '';

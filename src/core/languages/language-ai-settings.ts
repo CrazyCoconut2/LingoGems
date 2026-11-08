@@ -11,6 +11,8 @@ import {
   readExampleMetadataFields,
   readGenerateDefinitionTranslations,
   readGenerateExampleTranslations,
+  readTranslationLanguage,
+  writeTranslationLanguage,
   readStoredAiCredentials,
   recommendMetadataFields,
   resetDefinitionMetadataFields,
@@ -23,6 +25,7 @@ import {
   writeGenerateExampleTranslations,
   type AiMetadataField,
 } from 'ai';
+import { LEARNABLE_LANGUAGES, languageDisplayName } from 'collection';
 
 @Component({
   selector: 'app-language-ai-settings',
@@ -48,6 +51,20 @@ import {
           </button>
         </header>
         <div class="sheet-body">
+          <label class="translation-language">
+            Translation language
+            <select
+              aria-label="Translation language"
+              [value]="translationLanguage()"
+              (change)="setTranslationLanguage($event)"
+            >
+              @for (code of languages; track code) {
+                <option [value]="code" [selected]="code === translationLanguage()">
+                  {{ languageLabel(code) }}
+                </option>
+              }
+            </select>
+          </label>
           <section class="metadata" aria-label="Definition metadata">
             <div class="section-head">
               <div class="copy">
@@ -72,7 +89,7 @@ import {
                 [checked]="generateDefinitionTranslations()"
                 (change)="setGenerateDefinitionTranslations($event)"
               />
-              Generate with an English translation
+              Generate with a translation
             </label>
             <label class="translation-toggle">
               <input
@@ -184,7 +201,7 @@ import {
                 [checked]="generateExampleTranslations()"
                 (change)="setGenerateExampleTranslations($event)"
               />
-              Generate with an English translation
+              Generate with a translation
             </label>
             <label class="translation-toggle">
               <input
@@ -420,6 +437,24 @@ import {
       cursor: not-allowed;
     }
 
+    label.translation-language {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 650;
+    }
+
+    select {
+      padding: 0.75rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+    }
+
     label.translation-toggle {
       display: flex;
       flex-direction: row;
@@ -530,6 +565,9 @@ import {
   `,
 })
 export class LanguageAiSettings {
+  readonly languages = LEARNABLE_LANGUAGES;
+  readonly languageLabel = languageDisplayName;
+  readonly translationLanguage = signal('en');
   readonly language = input.required<string>();
   readonly languageName = input('');
   readonly closed = output<void>();
@@ -556,6 +594,7 @@ export class LanguageAiSettings {
       const language = this.language();
       this.definitionFields.set(readDefinitionMetadataFields(language));
       this.exampleFields.set(readExampleMetadataFields(language));
+      this.translationLanguage.set(readTranslationLanguage(language));
       this.generateDefinitionTranslations.set(readGenerateDefinitionTranslations(language));
       this.generateExampleTranslations.set(readGenerateExampleTranslations(language));
       this.definitionExtraFields.set(readDefinitionExtraFields(language));
@@ -577,6 +616,12 @@ export class LanguageAiSettings {
 
   exampleFieldsChanged(): boolean {
     return fieldsDiffer(this.exampleFields(), DEFAULT_EXAMPLE_METADATA_FIELDS);
+  }
+
+  setTranslationLanguage(event: Event): void {
+    const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
+    writeTranslationLanguage(this.language(), value);
+    this.translationLanguage.set(readTranslationLanguage(this.language()));
   }
 
   setGenerateDefinitionTranslations(event: Event): void {
