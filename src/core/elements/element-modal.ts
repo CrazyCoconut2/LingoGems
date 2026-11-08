@@ -2828,50 +2828,36 @@ function writeExampleSuggestions(
     .title-end .mode-btn.play-focus,
     .title-end .mode-btn.play-focus:disabled {
       opacity: 1;
-      color: #39f6ff;
-      border-color: rgba(57, 246, 255, 0.8);
-      background: rgba(57, 246, 255, 0.16);
-      box-shadow: 0 0 8px rgba(57, 246, 255, 0.28);
+      color: #f5c451;
+      border-color: rgba(245, 196, 81, 0.78);
+      background: rgba(245, 196, 81, 0.14);
+      box-shadow: 0 0 12px rgba(245, 176, 48, 0.22);
       cursor: default;
-      animation: equivalent-scintillate 2.8s ease-in-out infinite;
     }
 
-    @keyframes equivalent-scintillate {
+    .title-end .mode-btn.play-focus app-mode-icon,
+    .guess-open.needs-click svg {
+      animation: icon-scintillate 1s linear infinite;
+    }
+
+    @keyframes icon-scintillate {
       0%,
-      34%,
+      62%,
       100% {
-        color: #39f6ff;
-        border-color: rgba(57, 246, 255, 0.8);
-        background-color: rgba(57, 246, 255, 0.16);
-        box-shadow: 0 0 8px rgba(57, 246, 255, 0.28);
+        color: #f5c451;
+        filter: none;
       }
 
-      7% {
-        color: #ffffff;
-        border-color: #ffffff;
-        background-color: rgba(185, 252, 255, 0.5);
-        box-shadow: 0 0 18px 3px rgba(140, 249, 255, 0.9);
-      }
-
-      14% {
-        color: #18e7ff;
-        border-color: rgba(57, 246, 255, 0.75);
-        background-color: rgba(57, 246, 255, 0.14);
-        box-shadow: 0 0 4px rgba(57, 246, 255, 0.25);
-      }
-
-      22% {
-        color: #f4feff;
-        border-color: rgba(220, 253, 255, 0.95);
-        background-color: rgba(57, 246, 255, 0.36);
-        box-shadow: 0 0 14px 2px rgba(57, 246, 255, 0.7);
+      74%,
+      86% {
+        color: #fff;
+        filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px #ffd978);
       }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .title-end .mode-btn.play-focus,
-      .title-end .mode-btn.play-focus:disabled,
-      .guess-open.needs-click {
+      .title-end .mode-btn.play-focus app-mode-icon,
+      .guess-open.needs-click svg {
         animation: none;
       }
     }
@@ -3548,15 +3534,14 @@ function writeExampleSuggestions(
     }
 
     .guess-open.needs-click {
-      color: #39f6ff;
-      border-color: rgba(57, 246, 255, 0.8);
-      background: rgba(57, 246, 255, 0.16);
-      box-shadow: 0 0 8px rgba(57, 246, 255, 0.28);
-      animation: equivalent-scintillate 2.8s ease-in-out infinite;
+      color: #f5c451;
+      border-color: rgba(245, 196, 81, 0.78);
+      background: rgba(245, 196, 81, 0.14);
+      box-shadow: 0 0 10px rgba(245, 176, 48, 0.2);
     }
 
     .guess-open.needs-click:hover {
-      background: rgba(57, 246, 255, 0.3);
+      background: rgba(245, 196, 81, 0.24);
     }
 
     .equivalent-prompt {

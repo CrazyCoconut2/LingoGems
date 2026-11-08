@@ -1,6 +1,6 @@
 {
   "name": "lingogem",
-  "version": "1.0.263",
+  "version": "1.0.266",
   "workspaces": [
     "packages/*"
   ],
