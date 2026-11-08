@@ -1186,6 +1186,22 @@ function writeExampleSuggestions(
                             <span class="notify" aria-hidden="true"></span>
                           }
                         </button>
+                        <button
+                          type="button"
+                          class="icon-btn danger"
+                          aria-label="Delete definition"
+                          title="Delete definition"
+                          [disabled]="playing() || aiBusy()"
+                          (click)="askDeleteDefinition(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                            <path d="M10 11v6" />
+                            <path d="M14 11v6" />
+                          </svg>
+                        </button>
                       </span>
                     }
                   </div>
@@ -1408,6 +1424,22 @@ function writeExampleSuggestions(
                                       <path
                                         d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
                                       />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="icon-btn danger"
+                                    aria-label="Delete example"
+                                    title="Delete example"
+                                    [disabled]="playing() || aiBusy()"
+                                    (click)="askDeleteExample(index, exampleIndex)"
+                                  >
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                      <path d="M3 6h18" />
+                                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                      <path d="M10 11v6" />
+                                      <path d="M14 11v6" />
                                     </svg>
                                   </button>
                                 </span>
@@ -1911,16 +1943,6 @@ function writeExampleSuggestions(
                 >
                   Save
                 </button>
-                @if (canDeleteEditor(current)) {
-                  <button
-                    type="button"
-                    class="btn btn-danger"
-                    [disabled]="busy()"
-                    (click)="askDelete()"
-                  >
-                    {{ current.kind === 'definition' ? 'Delete definition' : 'Delete example' }}
-                  </button>
-                }
               </div>
             </section>
           </div>
@@ -5982,25 +6004,14 @@ export class ElementModal {
     this.confirm.set({ kind: 'element' });
   }
 
-  canDeleteEditor(editor: Editor): boolean {
-    if (editor.kind === 'definition') return editor.index != null;
-    return editor.exampleIndex != null;
+  askDeleteDefinition(index: number): void {
+    if (this.playing() || this.aiBusy() || this.busy()) return;
+    this.confirm.set({ kind: 'definition', index });
   }
 
-  askDelete(): void {
-    const editor = this.editor();
-    if (!editor || this.busy() || !this.canDeleteEditor(editor)) return;
-    if (editor.kind === 'definition' && editor.index != null) {
-      this.confirm.set({ kind: 'definition', index: editor.index });
-      return;
-    }
-    if (editor.kind === 'example' && editor.exampleIndex != null) {
-      this.confirm.set({
-        kind: 'example',
-        definitionIndex: editor.definitionIndex,
-        exampleIndex: editor.exampleIndex,
-      });
-    }
+  askDeleteExample(definitionIndex: number, exampleIndex: number): void {
+    if (this.playing() || this.aiBusy() || this.busy()) return;
+    this.confirm.set({ kind: 'example', definitionIndex, exampleIndex });
   }
 
   async confirmDelete(): Promise<void> {
