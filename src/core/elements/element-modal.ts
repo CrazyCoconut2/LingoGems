@@ -970,6 +970,7 @@ function writeExampleSuggestions(
                                 <button
                                   type="button"
                                   class="guess-open"
+                                  [class.needs-click]="!equivalentSubmitted(index)"
                                   [attr.aria-label]="
                                     equivalentSubmitted(index)
                                       ? 'See your equivalent'
@@ -2827,10 +2828,52 @@ function writeExampleSuggestions(
     .title-end .mode-btn.play-focus,
     .title-end .mode-btn.play-focus:disabled {
       opacity: 1;
-      color: var(--accent);
-      border-color: rgba(var(--accent-rgb), 0.75);
-      background: rgba(var(--accent-rgb), 0.16);
+      color: #39f6ff;
+      border-color: rgba(57, 246, 255, 0.8);
+      background: rgba(57, 246, 255, 0.16);
+      box-shadow: 0 0 8px rgba(57, 246, 255, 0.28);
       cursor: default;
+      animation: equivalent-scintillate 2.8s ease-in-out infinite;
+    }
+
+    @keyframes equivalent-scintillate {
+      0%,
+      34%,
+      100% {
+        color: #39f6ff;
+        border-color: rgba(57, 246, 255, 0.8);
+        background-color: rgba(57, 246, 255, 0.16);
+        box-shadow: 0 0 8px rgba(57, 246, 255, 0.28);
+      }
+
+      7% {
+        color: #ffffff;
+        border-color: #ffffff;
+        background-color: rgba(185, 252, 255, 0.5);
+        box-shadow: 0 0 18px 3px rgba(140, 249, 255, 0.9);
+      }
+
+      14% {
+        color: #18e7ff;
+        border-color: rgba(57, 246, 255, 0.75);
+        background-color: rgba(57, 246, 255, 0.14);
+        box-shadow: 0 0 4px rgba(57, 246, 255, 0.25);
+      }
+
+      22% {
+        color: #f4feff;
+        border-color: rgba(220, 253, 255, 0.95);
+        background-color: rgba(57, 246, 255, 0.36);
+        box-shadow: 0 0 14px 2px rgba(57, 246, 255, 0.7);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .title-end .mode-btn.play-focus,
+      .title-end .mode-btn.play-focus:disabled,
+      .guess-open.needs-click {
+        animation: none;
+      }
     }
 
     .title-main {
@@ -3471,7 +3514,7 @@ function writeExampleSuggestions(
       color: var(--text);
     }
 
-    .sense-meta li.sense-equivalent.play-focus svg {
+    .sense-meta li.sense-equivalent.play-focus .guess-open:not(.needs-click) svg {
       color: var(--accent);
     }
 
@@ -3502,6 +3545,18 @@ function writeExampleSuggestions(
 
     .guess-open:hover {
       background: rgba(var(--accent-rgb), 0.28);
+    }
+
+    .guess-open.needs-click {
+      color: #39f6ff;
+      border-color: rgba(57, 246, 255, 0.8);
+      background: rgba(57, 246, 255, 0.16);
+      box-shadow: 0 0 8px rgba(57, 246, 255, 0.28);
+      animation: equivalent-scintillate 2.8s ease-in-out infinite;
+    }
+
+    .guess-open.needs-click:hover {
+      background: rgba(57, 246, 255, 0.3);
     }
 
     .equivalent-prompt {
