@@ -874,38 +874,7 @@ function writeExampleSuggestions(
                           New
                         </button>
                       }
-                      @if (drilling() && gradeAt(index); as grade) {
-                        <div class="compare">
-                          <div class="compare-side">
-                            <p class="field-label">Your answer</p>
-                            <p>{{ definitionDraftAt(index) }}</p>
-                            @if (definitionTranslationAt(index); as translated) {
-                              <p class="field-label">Translation</p>
-                              <p>{{ translated }}</p>
-                            }
-                          </div>
-                          <div class="compare-side">
-                            <p class="field-label">Definition</p>
-                            <ng-container [ngTemplateOutlet]="definitionPassage" />
-                            @if (passage.translations.length) {
-                              <ul class="equivalents">
-                                @for (translation of passage.translations; track $index) {
-                                  <li>
-                                    <app-reveal [text]="translation.text" [locked]="inPlay()" />
-                                  </li>
-                                }
-                              </ul>
-                            }
-                          </div>
-                          <div class="compare-score">
-                            <p class="field-label">Score</p>
-                            <p class="score">{{ grade.score }}</p>
-                            <p>{{ grade.explanation }}</p>
-                          </div>
-                        </div>
-                      } @else {
-                        <ng-container [ngTemplateOutlet]="definitionPassage" />
-                      }
+                      <ng-container [ngTemplateOutlet]="definitionPassage" />
                       <ng-template #definitionPassage>
                         @if (passage.text) {
                         @if (drilling() && definitionConcealed(index)) {
@@ -2583,6 +2552,47 @@ function writeExampleSuggestions(
                     </svg>
                   </button>
                 </div>
+                @if (gradeAt(prompt); as grade) {
+                  <div class="compare">
+                    <div class="compare-side">
+                      <p class="field-label">Your answer</p>
+                      <p>{{ definitionDraftAt(prompt) }}</p>
+                      @if (definitionTranslationAt(prompt); as translated) {
+                        <p class="field-label">Translation</p>
+                        <p>{{ translated }}</p>
+                      }
+                    </div>
+                    <div class="compare-side">
+                      <p class="field-label">Definition</p>
+                      <p class="passage">{{ parsePassage(definition.text).text }}</p>
+                      @if (parsePassage(definition.text).translations; as translations) {
+                        @if (translations.length) {
+                          <ul class="equivalents">
+                            @for (translation of translations; track $index) {
+                              <li>
+                                <app-reveal [text]="translation.text" [locked]="true" />
+                              </li>
+                            }
+                          </ul>
+                        }
+                      }
+                    </div>
+                    <div class="compare-score">
+                      <p class="field-label">Score</p>
+                      <p class="score">{{ grade.score }}</p>
+                      <p>{{ grade.explanation }}</p>
+                    </div>
+                  </div>
+                  <div class="sheet-actions">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      (click)="definitionPrompt.set(-1)"
+                    >
+                      Done
+                    </button>
+                  </div>
+                } @else {
                 @if (supportAvailable()) {
                   <div class="lang" role="group" aria-label="Language">
                     <button
@@ -2640,6 +2650,7 @@ function writeExampleSuggestions(
                     Cancel
                   </button>
                 </div>
+                }
               </section>
             </div>
           }
@@ -6812,7 +6823,8 @@ export class ElementModal {
   }
 
   definitionConcealed(index: number): boolean {
-    if (!this.drilling() || this.gradeAt(index)) return false;
+    if (!this.drilling()) return false;
+    if (this.gradeAt(index) && this.definitionPrompt() !== index) return false;
     const text = this.element().definitions[index]?.text ?? '';
     return definitionEligibleForGames(text, this.element());
   }
@@ -6923,7 +6935,6 @@ export class ElementModal {
       while (definitionTranslations.length <= index) definitionTranslations.push('');
       if (inEnglish) definitionTranslations[index] = judged;
       this.writeRound({ ...this.round(), grades, definitionTranslations });
-      if (this.definitionPrompt() === index) this.definitionPrompt.set(-1);
     } catch {
       if (this.alive && job === this.gradeJob && this.element().id === element.id) {
         this.error.set('Could not evaluate that definition.');
