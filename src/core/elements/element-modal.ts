@@ -951,29 +951,6 @@ function writeExampleSuggestions(
                       </ng-template>
                       @let equivalent = equivalentText(definition);
                       @let meta = entries(definition.metadata);
-                      @let equivalentCompared = sieving() && !!equivalent && equivalentSubmitted(index);
-                      @if (equivalentCompared) {
-                        <div class="compare">
-                          <div class="compare-side">
-                            <p class="field-label">You wrote</p>
-                            <p>{{ equivalentDraftAt(index) }}</p>
-                          </div>
-                          <div class="compare-side">
-                            <p class="field-label">Equivalent</p>
-                            <p class="equivalent-result">
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m5 8 6 6" />
-                                <path d="m4 14 6-6 2-3" />
-                                <path d="M2 5h12" />
-                                <path d="M7 2h1" />
-                                <path d="m22 22-5-10-5 10" />
-                                <path d="M14 18h6" />
-                              </svg>
-                              <span>{{ equivalent }}</span>
-                            </p>
-                          </div>
-                        </div>
-                      }
                       @if (passage.translations.length && !definitionConcealed(index) && !gradeAt(index)) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
@@ -983,16 +960,24 @@ function writeExampleSuggestions(
                           }
                         </ul>
                       }
-                      @if ((equivalent && !equivalentCompared) || meta.length) {
+                      @if (equivalent || meta.length) {
                         <ul class="sense-meta">
-                          @if (equivalent && !equivalentCompared) {
+                          @if (equivalent) {
                             <li class="sense-equivalent" [class.play-focus]="sieving()">
                               @if (sieving()) {
                                 <button
                                   type="button"
                                   class="guess-open"
-                                  aria-label="Write the equivalent"
-                                  title="Write the equivalent"
+                                  [attr.aria-label]="
+                                    equivalentSubmitted(index)
+                                      ? 'See your equivalent'
+                                      : 'Write the equivalent'
+                                  "
+                                  [attr.title]="
+                                    equivalentSubmitted(index)
+                                      ? 'See your equivalent'
+                                      : 'Write the equivalent'
+                                  "
                                   (click)="openEquivalentPrompt(index)"
                                 >
                                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1003,9 +988,12 @@ function writeExampleSuggestions(
                                     <path d="m22 22-5-10-5 10" />
                                     <path d="M14 18h6" />
                                   </svg>
-                                  <span class="guess-answer play-blur" aria-hidden="true">{{
-                                    equivalent
-                                  }}</span>
+                                  <span
+                                    class="guess-answer"
+                                    [class.play-blur]="!equivalentSubmitted(index)"
+                                    [attr.aria-hidden]="equivalentSubmitted(index) ? null : true"
+                                    >{{ equivalent }}</span
+                                  >
                                 </button>
                               } @else {
                                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2402,7 +2390,7 @@ function writeExampleSuggestions(
           @let prompt = equivalentPrompt();
           @if (element().definitions[prompt]; as definition) {
           @let answer = equivalentText(definition);
-          @if (answer && !equivalentSubmitted(prompt)) {
+          @if (answer) {
             <div class="sheet-backdrop" (click)="closeEquivalentPrompt($event)">
               <section
                 class="sheet"
@@ -2425,49 +2413,81 @@ function writeExampleSuggestions(
                     </svg>
                   </button>
                 </div>
-                <p class="equivalent-prompt">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m5 8 6 6" />
-                    <path d="m4 14 6-6 2-3" />
-                    <path d="M2 5h12" />
-                    <path d="M7 2h1" />
-                    <path d="m22 22-5-10-5 10" />
-                    <path d="M14 18h6" />
-                  </svg>
-                  <span class="play-blur" aria-hidden="true">{{ answer }}</span>
-                </p>
-                <label class="field-label" [attr.for]="'play-equivalent-' + prompt">
-                  Write the equivalent
-                </label>
-                <input
-                  #equivalentField
-                  [id]="'play-equivalent-' + prompt"
-                  type="text"
-                  autocomplete="off"
-                  spellcheck="false"
-                  [value]="equivalentDraftAt(prompt)"
-                  [attr.maxlength]="equivalentMax"
-                  placeholder="Write the equivalent"
-                  (input)="onEquivalentDraft(prompt, $event)"
-                  (keydown.enter)="submitEquivalent(prompt, $event)"
-                />
-                <div class="sheet-actions">
-                  <button
-                    type="button"
-                    class="btn btn-primary"
-                    [disabled]="!equivalentDraftAt(prompt).trim()"
-                    (click)="submitEquivalent(prompt)"
-                  >
-                    Submit
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    (click)="equivalentPrompt.set(-1)"
-                  >
-                    Cancel
-                  </button>
-                </div>
+                @if (equivalentSubmitted(prompt)) {
+                  <div class="compare">
+                    <div class="compare-side">
+                      <p class="field-label">You wrote</p>
+                      <p>{{ equivalentDraftAt(prompt) }}</p>
+                    </div>
+                    <div class="compare-side">
+                      <p class="field-label">Equivalent</p>
+                      <p class="equivalent-result">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m5 8 6 6" />
+                          <path d="m4 14 6-6 2-3" />
+                          <path d="M2 5h12" />
+                          <path d="M7 2h1" />
+                          <path d="m22 22-5-10-5 10" />
+                          <path d="M14 18h6" />
+                        </svg>
+                        <span>{{ answer }}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div class="sheet-actions">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      (click)="equivalentPrompt.set(-1)"
+                    >
+                      Done
+                    </button>
+                  </div>
+                } @else {
+                  <p class="equivalent-prompt">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m5 8 6 6" />
+                      <path d="m4 14 6-6 2-3" />
+                      <path d="M2 5h12" />
+                      <path d="M7 2h1" />
+                      <path d="m22 22-5-10-5 10" />
+                      <path d="M14 18h6" />
+                    </svg>
+                    <span class="play-blur" aria-hidden="true">{{ answer }}</span>
+                  </p>
+                  <label class="field-label" [attr.for]="'play-equivalent-' + prompt">
+                    Write the equivalent
+                  </label>
+                  <input
+                    #equivalentField
+                    [id]="'play-equivalent-' + prompt"
+                    type="text"
+                    autocomplete="off"
+                    spellcheck="false"
+                    [value]="equivalentDraftAt(prompt)"
+                    [attr.maxlength]="equivalentMax"
+                    placeholder="Write the equivalent"
+                    (input)="onEquivalentDraft(prompt, $event)"
+                    (keydown.enter)="submitEquivalent(prompt, $event)"
+                  />
+                  <div class="sheet-actions">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      [disabled]="!equivalentDraftAt(prompt).trim()"
+                      (click)="submitEquivalent(prompt)"
+                    >
+                      Submit
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      (click)="equivalentPrompt.set(-1)"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                }
               </section>
             </div>
           }
@@ -6366,9 +6386,9 @@ export class ElementModal {
   }
 
   openEquivalentPrompt(index: number): void {
-    if (!this.sieving() || this.equivalentSubmitted(index)) return;
+    if (!this.sieving()) return;
     this.equivalentPrompt.set(index);
-    setTimeout(() => this.focusEquivalentField());
+    if (!this.equivalentSubmitted(index)) setTimeout(() => this.focusEquivalentField());
   }
 
   private focusEquivalentField(): void {
@@ -6411,7 +6431,6 @@ export class ElementModal {
     while (equivalentSubmitted.length <= index) equivalentSubmitted.push(false);
     equivalentSubmitted[index] = true;
     this.writeRound({ ...this.round(), equivalentSubmitted });
-    this.equivalentPrompt.set(-1);
   }
 
   definitionDraftAt(index: number): string {
