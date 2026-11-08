@@ -2564,13 +2564,14 @@ function writeExampleSuggestions(
                     </div>
                     <div class="compare-side">
                       <p class="field-label">Definition</p>
-                      <p class="passage">{{ parsePassage(definition.text).text }}</p>
-                      @if (parsePassage(definition.text).translations; as translations) {
+                      @let gloss = parsePassage(definition.text);
+                      <p class="passage">{{ label(gloss.text) }}</p>
+                      @if (gloss.translations; as translations) {
                         @if (translations.length) {
                           <ul class="equivalents">
                             @for (translation of translations; track $index) {
                               <li>
-                                <app-reveal [text]="translation.text" [locked]="true" />
+                                <app-reveal [text]="translation.text" />
                               </li>
                             }
                           </ul>
