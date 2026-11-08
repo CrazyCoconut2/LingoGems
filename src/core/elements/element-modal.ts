@@ -2442,12 +2442,36 @@ function writeExampleSuggestions(
                   @let gloss = parsePassage(definition.text).text;
                   @let verdict = equivalentVerdictAt(prompt);
                   @let grade = equivalentGradeAt(prompt);
-                  @if (gloss) {
+                  @let gaveUp = !equivalentDraftAt(prompt).trim();
+                  @if (gloss && !gaveUp) {
                     <div class="equivalent-gloss">
                       <p class="field-label">Definition</p>
                       <p>{{ gloss }}</p>
                     </div>
                   }
+                  @if (gaveUp) {
+                    <p class="field-label">You gave up</p>
+                    <p class="equivalent-result">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m5 8 6 6" />
+                        <path d="m4 14 6-6 2-3" />
+                        <path d="M2 5h12" />
+                        <path d="M7 2h1" />
+                        <path d="m22 22-5-10-5 10" />
+                        <path d="M14 18h6" />
+                      </svg>
+                      <span>{{ answer }}</span>
+                    </p>
+                    <div class="sheet-actions">
+                      <button
+                        type="button"
+                        class="btn btn-primary"
+                        (click)="equivalentPrompt.set(-1)"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  } @else {
                   <div class="compare">
                     <div class="compare-side">
                       <p class="field-label">You wrote</p>
@@ -2516,6 +2540,7 @@ function writeExampleSuggestions(
                       Done
                     </button>
                   </div>
+                  }
                 } @else {
                   <p class="equivalent-prompt">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2551,6 +2576,13 @@ function writeExampleSuggestions(
                       (click)="submitEquivalent(prompt)"
                     >
                       Submit
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      (click)="giveUpEquivalent(prompt)"
+                    >
+                      Give up
                     </button>
                     <button
                       type="button"
@@ -6589,6 +6621,27 @@ export class ElementModal {
     equivalentSubmitted[index] = true;
     this.equivalentGradeError.set('');
     this.writeRound({ ...this.round(), equivalentSubmitted });
+  }
+
+  /** Concede this equivalent. The answer is shown and the attempt counts as a miss. */
+  giveUpEquivalent(index: number): void {
+    if (!this.sieving() || this.equivalentSubmitted(index)) return;
+    const equivalentDrafts = this.round().equivalentDrafts.slice();
+    while (equivalentDrafts.length <= index) equivalentDrafts.push('');
+    equivalentDrafts[index] = '';
+    const equivalentSubmitted = this.round().equivalentSubmitted.slice();
+    while (equivalentSubmitted.length <= index) equivalentSubmitted.push(false);
+    equivalentSubmitted[index] = true;
+    const equivalentVerdicts = this.round().equivalentVerdicts.slice();
+    while (equivalentVerdicts.length <= index) equivalentVerdicts.push(null);
+    equivalentVerdicts[index] = 'miss';
+    this.equivalentGradeError.set('');
+    this.writeRound({
+      ...this.round(),
+      equivalentDrafts,
+      equivalentSubmitted,
+      equivalentVerdicts,
+    });
   }
 
   equivalentVerdictAt(index: number): EquivalentVerdict | null {
