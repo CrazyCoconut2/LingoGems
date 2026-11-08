@@ -85,7 +85,7 @@ const AI_PROVIDERS: ProviderOption[] = [
       <section class="palettes" aria-label="Comfort colors">
         <div class="copy">
           <h2>Comfort colors</h2>
-          <p>Each element is colored by its comfort rate, from 1 to 10.</p>
+          <p>Each score icon is colored by its comfort rate, from 1 to 10.</p>
         </div>
         <div class="comfort-colors">
           @for (rate of comfortRates; track rate) {

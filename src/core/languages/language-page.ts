@@ -11,6 +11,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
 import { ModeIcon } from '../elements/mode-icon';
+import { ScoreGauge } from '../elements/score-gauge';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { DiscoverModal } from './discover-modal';
@@ -94,6 +95,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     RouterLink,
     ElementModal,
     ModeIcon,
+    ScoreGauge,
     LanguageAiSettings,
     DiscoverModal,
   ],
@@ -290,11 +292,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                   <span class="bone bone-mode"></span>
                   <span class="bone bone-stats"></span>
                 </div>
-                <div class="comfort-track">
-                  @for (rate of comfortRates; track rate) {
-                    <span class="comfort-mark"></span>
-                  }
-                </div>
               </div>
             </li>
           }
@@ -307,7 +304,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 type="button"
                 class="element"
                 [class.playing]="playing()"
-                [style.--highlight-color]="highlightColor(element)"
+                [style.--score-color]="comfortColor(element.comfort)"
                 (click)="openCard(element.id)"
               >
                 <div class="element-body">
@@ -391,17 +388,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                           }
                         </span>
                       }
+                      <app-score-gauge [score]="element.comfort" />
                     </span>
                   </span>
-                </div>
-                <div
-                  class="comfort-track"
-                  role="img"
-                  [attr.aria-label]="'Comfort ' + element.comfort + ' of 10'"
-                >
-                  @for (rate of comfortRates; track rate) {
-                    <span class="comfort-mark" [class.filled]="rate <= element.comfort"></span>
-                  }
                 </div>
               </button>
             </li>
@@ -1210,14 +1199,11 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       justify-content: flex-start;
       gap: 0.55rem;
       min-height: 0;
-      padding: 0.6rem 0 0;
+      padding: 0.7rem 0;
       overflow: hidden;
-      border: 1px solid color-mix(in srgb, var(--highlight-color, var(--accent)) 55%, var(--border));
-      border-bottom: 0;
-      border-left: 3px solid
-        color-mix(in srgb, var(--highlight-color, var(--accent)) 78%, var(--surface));
+      border: 1px solid color-mix(in srgb, var(--score-color, var(--border)) 42%, var(--border));
       border-radius: var(--radius);
-      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 22%, var(--surface));
+      background: color-mix(in srgb, var(--score-color, transparent) 12%, var(--surface));
       color: inherit;
       font: inherit;
       text-align: left;
@@ -1234,24 +1220,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       padding: 0 1rem;
     }
 
-    .comfort-track {
-      display: flex;
-      gap: 0.12rem;
-      width: 100%;
-    }
-
-    .comfort-mark {
-      flex: 1;
-      height: 0.28rem;
-      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 55%, var(--border));
-    }
-
-    .comfort-mark.filled {
-      background: var(--highlight-color, var(--accent));
-    }
-
     .element:hover {
-      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 30%, var(--surface));
+      background: color-mix(in srgb, var(--score-color, transparent) 18%, var(--surface));
     }
 
     .element-open {
@@ -1407,7 +1377,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
     .skeleton {
       border-color: color-mix(in srgb, var(--text) 7%, transparent);
-      border-left-color: color-mix(in srgb, var(--text) 7%, transparent);
       background: color-mix(in srgb, var(--surface) 88%, transparent);
       pointer-events: none;
     }
@@ -1445,10 +1414,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       width: 5.5rem;
       height: 0.85rem;
       align-self: center;
-    }
-
-    .skeleton .comfort-mark {
-      background: color-mix(in srgb, var(--text) 12%, transparent);
     }
 
     .empty {
@@ -2219,10 +2184,6 @@ export class LanguagePage {
       queryParamsHandling: 'merge',
       replaceUrl: replace,
     });
-  }
-
-  highlightColor(element: StoredElement): string {
-    return comfortColor(element.comfort);
   }
 
   highlight(text: string): ElementSearchPart[] {

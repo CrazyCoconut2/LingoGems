@@ -72,7 +72,8 @@ import {
 import { Reveal } from './reveal';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { ModeIcon } from './mode-icon';
-import { COMFORT_RATES, comfortColor } from './comfort-palette';
+import { comfortColor } from './comfort-palette';
+import { ScoreGauge } from './score-gauge';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
@@ -565,7 +566,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [NgTemplateOutlet, Reveal, ModeIcon],
+  imports: [NgTemplateOutlet, Reveal, ModeIcon, ScoreGauge],
   template: `
     <div
       class="backdrop"
@@ -733,10 +734,9 @@ function writeExampleSuggestions(
               [attr.title]="'Comfort ' + element().comfort"
               [attr.aria-expanded]="comfortOpen()"
               [disabled]="busy() || inPlay()"
-              [style.color]="comfortColor(element().comfort)"
               (click)="comfortOpen.set(true)"
             >
-              {{ element().comfort }}
+              <app-score-gauge [score]="element().comfort" aria-hidden="true" />
             </button>
             @if (canHear(shownTitle())) {
               <button
@@ -2680,28 +2680,31 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <div class="mode-editor">
-                <div class="mode-current">
-                  <span class="comfort-figure" [style.color]="comfortColor(element().comfort)">
-                    {{ element().comfort }}
-                  </span>
-                </div>
-                <div class="comfort-rates" role="group" aria-label="Comfort">
-                  @for (rate of comfortRates; track rate) {
-                    <button
-                      type="button"
-                      class="comfort-rate"
-                      [class.current]="element().comfort === rate"
-                      [disabled]="busy()"
-                      [style.--rate-color]="comfortColor(rate)"
-                      [attr.aria-label]="'Comfort ' + rate"
-                      [attr.aria-pressed]="element().comfort === rate"
-                      (click)="setComfort(rate)"
-                    >
-                      {{ rate }}
-                    </button>
-                  }
-                </div>
+              <div class="comfort-stepper" role="group" aria-label="Comfort">
+                <button
+                  type="button"
+                  class="comfort-step"
+                  aria-label="Lower comfort"
+                  [disabled]="busy() || element().comfort <= 1"
+                  (click)="setComfort(element().comfort - 1)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12h14" />
+                  </svg>
+                </button>
+                <app-score-gauge [score]="element().comfort" size="md" />
+                <button
+                  type="button"
+                  class="comfort-step"
+                  aria-label="Raise comfort"
+                  [disabled]="busy() || element().comfort >= 10"
+                  (click)="setComfort(element().comfort + 1)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12h14" />
+                    <path d="M12 5v14" />
+                  </svg>
+                </button>
               </div>
             </section>
           </div>
@@ -3009,16 +3012,13 @@ function writeExampleSuggestions(
       align-items: center;
       justify-content: center;
       flex: none;
-      min-width: 1.8rem;
+      width: 2.15rem;
       height: 1.8rem;
       border: 0;
-      padding: 0 0.2rem;
+      padding: 0;
       border-radius: 0.4rem;
       background: transparent;
-      font: inherit;
-      font-size: 1rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
+      color: inherit;
       cursor: pointer;
     }
 
@@ -3031,50 +3031,45 @@ function writeExampleSuggestions(
       cursor: not-allowed;
     }
 
-    .comfort-figure {
-      font-size: 3.5rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
-    .comfort-rates {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 0.45rem;
+    .comfort-stepper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.1rem;
       width: 100%;
     }
 
-    .comfort-rate {
-      display: grid;
-      place-items: center;
-      min-width: 0;
-      height: 2.45rem;
-      margin: 0;
-      padding: 0;
-      border: 1px solid var(--rate-color, var(--border));
-      border-radius: 12px;
+    .comfort-step {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      width: 2.4rem;
+      height: 2.4rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
       background: transparent;
-      color: var(--rate-color, var(--text));
-      font: inherit;
-      font-size: 0.95rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
+      color: var(--text);
       cursor: pointer;
     }
 
-    .comfort-rate:hover:not(:disabled):not(.current) {
-      background: color-mix(in srgb, var(--rate-color, var(--text)) 18%, transparent);
+    .comfort-step svg {
+      display: block;
+      width: 1.05rem;
+      height: 1.05rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
-    .comfort-rate.current {
-      background: var(--rate-color, var(--text));
-      color: var(--bg);
-      cursor: default;
+    .comfort-step:hover:not(:disabled) {
+      background: rgba(139, 144, 165, 0.16);
     }
 
-    .comfort-rate:disabled {
-      opacity: 0.45;
+    .comfort-step:disabled {
+      opacity: 0.35;
       cursor: default;
     }
 
@@ -4498,8 +4493,6 @@ export class ElementModal {
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
   readonly modeLabel = elementModeLabel;
-  readonly comfortColor = comfortColor;
-  readonly comfortRates = COMFORT_RATES;
   readonly modes: readonly ElementMode[] = [1, 2, 3];
   readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
