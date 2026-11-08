@@ -653,7 +653,7 @@ function writeExampleSuggestions(
               <button
                 type="button"
                 class="mode-btn"
-                [class.play-focus]="sieving()"
+                [class.play-focus]="sieving() || definitionCue()"
                 [attr.aria-label]="modeLabel(element().mode)"
                 [attr.title]="modeLabel(element().mode)"
                 [attr.aria-expanded]="modeOpen()"
@@ -908,10 +908,18 @@ function writeExampleSuggestions(
                       }
                       <ng-template #definitionPassage>
                         @if (passage.text) {
+                        @if (drilling() && definitionConcealed(index)) {
+                          <button
+                            type="button"
+                            class="definition-cue"
+                            aria-label="Write the definition"
+                            (click)="openDefinitionPrompt(index)"
+                          >
+                            <span class="definition-cue-text" aria-hidden="true">{{ passage.text }}</span>
+                          </button>
+                        } @else {
                         <p
                           class="passage sense-selectable"
-                          [class.play-blur]="definitionConcealed(index)"
-                          [attr.aria-hidden]="definitionConcealed(index) ? true : null"
                           [attr.data-definition-index]="index"
                         >
                           @for (part of highlightPassage(passage.text); track $index) {
@@ -949,6 +957,7 @@ function writeExampleSuggestions(
                             }
                           }
                         </p>
+                        }
                         }
                       </ng-template>
                       @let equivalent = equivalentText(definition);
@@ -1022,57 +1031,6 @@ function writeExampleSuggestions(
                       }
                       @if (definitionWarning(definition.text); as warning) {
                         <p class="warning" role="status">{{ warning }}</p>
-                      }
-                      @if (drilling() && !definitionWarning(definition.text) && !gradeAt(index)) {
-                        <div class="play-prompt">
-                            @if (supportAvailable()) {
-                              <div
-                                class="lang"
-                                role="group"
-                                [attr.aria-label]="'Language for sense ' + (index + 1)"
-                              >
-                                <button
-                                  type="button"
-                                  [class.on]="answerLanguage(index) === 'original'"
-                                  [attr.aria-pressed]="answerLanguage(index) === 'original'"
-                                  [disabled]="askingGrade() === index"
-                                  (click)="setDefinitionLanguage(index, 'original')"
-                                >
-                                  {{ originalLanguageName() }}
-                                </button>
-                                <button
-                                  type="button"
-                                  [class.on]="answerLanguage(index) === 'english'"
-                                  [attr.aria-pressed]="answerLanguage(index) === 'english'"
-                                  [disabled]="askingGrade() === index"
-                                  (click)="setDefinitionLanguage(index, 'english')"
-                                >
-                                  English
-                                </button>
-                              </div>
-                            }
-                            <label class="field-label" [attr.for]="'play-definition-' + index">
-                              Definition
-                            </label>
-                            <textarea
-                              [id]="'play-definition-' + index"
-                              rows="3"
-                              [value]="definitionDraftAt(index)"
-                              [attr.maxlength]="definitionMax"
-                              [disabled]="askingGrade() === index"
-                              placeholder="Write the definition"
-                              (input)="onDefinitionDraft(index, $event)"
-                            ></textarea>
-                            <button
-                              type="button"
-                              class="btn btn-secondary"
-                              [disabled]="aiBusy() || !definitionDraftAt(index).trim()"
-                              [attr.aria-busy]="askingGrade() === index ? true : null"
-                              (click)="evaluateDefinition(index)"
-                            >
-                              Evaluate
-                            </button>
-                        </div>
                       }
                     </div>
                   </div>
@@ -1228,7 +1186,7 @@ function writeExampleSuggestions(
                           class="icon-btn"
                           aria-label="Generate an example"
                           title="Generate an example"
-                          [disabled]="(inPlay() && !sieving()) || aiBusy()"
+                          [disabled]="(inPlay() && !sieving() && !drilling()) || aiBusy()"
                           [attr.aria-busy]="askingExamples() === index ? true : null"
                           (click)="generateExample(index)"
                         >
@@ -2599,6 +2557,94 @@ function writeExampleSuggestions(
           }
         }
 
+        @if (definitionPromptOpen()) {
+          @let prompt = definitionPrompt();
+          @if (element().definitions[prompt]; as definition) {
+            <div class="sheet-backdrop" (click)="closeDefinitionPrompt($event)">
+              <section
+                class="sheet"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Definition"
+                (click)="$event.stopPropagation()"
+              >
+                <div class="sheet-head">
+                  <h3>Definition</h3>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Close"
+                    [disabled]="askingGrade() === prompt"
+                    (click)="definitionPrompt.set(-1)"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
+                </div>
+                @if (supportAvailable()) {
+                  <div class="lang" role="group" aria-label="Language">
+                    <button
+                      type="button"
+                      [class.on]="answerLanguage(prompt) === 'original'"
+                      [attr.aria-pressed]="answerLanguage(prompt) === 'original'"
+                      [disabled]="askingGrade() === prompt"
+                      (click)="setDefinitionLanguage(prompt, 'original')"
+                    >
+                      {{ originalLanguageName() }}
+                    </button>
+                    <button
+                      type="button"
+                      [class.on]="answerLanguage(prompt) === 'english'"
+                      [attr.aria-pressed]="answerLanguage(prompt) === 'english'"
+                      [disabled]="askingGrade() === prompt"
+                      (click)="setDefinitionLanguage(prompt, 'english')"
+                    >
+                      English
+                    </button>
+                  </div>
+                }
+                <label class="field-label" [attr.for]="'play-definition-' + prompt">
+                  Definition
+                </label>
+                <textarea
+                  #definitionField
+                  [id]="'play-definition-' + prompt"
+                  rows="4"
+                  [value]="definitionDraftAt(prompt)"
+                  [attr.maxlength]="definitionMax"
+                  [disabled]="askingGrade() === prompt"
+                  placeholder="Write the definition"
+                  (input)="onDefinitionDraft(prompt, $event)"
+                ></textarea>
+                @if (error()) {
+                  <p class="error">{{ error() }}</p>
+                }
+                <div class="sheet-actions">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    [disabled]="aiBusy() || !definitionDraftAt(prompt).trim()"
+                    [attr.aria-busy]="askingGrade() === prompt ? true : null"
+                    (click)="evaluateDefinition(prompt)"
+                  >
+                    Evaluate
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    [disabled]="askingGrade() === prompt"
+                    (click)="definitionPrompt.set(-1)"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </section>
+            </div>
+          }
+        }
+
         @if (comfortOpen()) {
           <div class="sheet-backdrop" (click)="closeComfort($event)">
             <section
@@ -2872,6 +2918,47 @@ function writeExampleSuggestions(
       animation: icon-scintillate 1s linear infinite;
     }
 
+    .definition-cue-text {
+      animation: blur-scintillate 1s linear infinite;
+    }
+
+    .definition-cue {
+      display: block;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      line-height: inherit;
+      text-align: start;
+      cursor: pointer;
+    }
+
+    .definition-cue-text {
+      color: #f5c451;
+      white-space: pre-wrap;
+      filter: blur(0.55em);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    @keyframes blur-scintillate {
+      0%,
+      62%,
+      100% {
+        color: #f5c451;
+        filter: blur(0.55em);
+      }
+
+      74%,
+      86% {
+        color: #fff;
+        filter: blur(0.55em) drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px #ffd978);
+      }
+    }
+
     @keyframes icon-scintillate {
       0%,
       62%,
@@ -2889,7 +2976,8 @@ function writeExampleSuggestions(
 
     @media (prefers-reduced-motion: reduce) {
       .title-end .mode-btn.play-focus app-mode-icon,
-      .guess-open.needs-click svg {
+      .guess-open.needs-click svg,
+      .definition-cue-text {
         animation: none;
       }
     }
@@ -4389,6 +4477,7 @@ export class ElementModal {
   readonly askingEquivalentGrade = signal<number | null>(null);
   readonly equivalentGradeError = signal('');
   readonly equivalentPrompt = signal(-1);
+  readonly definitionPrompt = signal(-1);
   private readonly rounds = new Map<string, PlayRound>();
   private gradeJob = 0;
   private equivalentGradeJob = 0;
@@ -4474,6 +4563,7 @@ export class ElementModal {
   private readonly translationField = viewChild<ElementRef<HTMLInputElement>>('translationField');
   private readonly titleField = viewChild<ElementRef<HTMLInputElement>>('titleField');
   private readonly equivalentField = viewChild<ElementRef<HTMLInputElement>>('equivalentField');
+  private readonly definitionField = viewChild<ElementRef<HTMLTextAreaElement>>('definitionField');
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
@@ -4504,6 +4594,7 @@ export class ElementModal {
       this.exampleEngineer.set(null);
       this.definitionEngineer.set(null);
       this.equivalentPrompt.set(-1);
+      this.definitionPrompt.set(-1);
       this.addDefinitionOpen.set(false);
       this.expandedForms.set(new Set());
       this.modeOpen.set(false);
@@ -4553,6 +4644,11 @@ export class ElementModal {
   onEscape(): void {
     if (this.equivalentPromptOpen()) {
       this.equivalentPrompt.set(-1);
+      return;
+    }
+    if (this.definitionPromptOpen()) {
+      if (this.askingGrade() !== null) return;
+      this.definitionPrompt.set(-1);
       return;
     }
     if (this.titleEdit()) {
@@ -4909,7 +5005,7 @@ export class ElementModal {
   }
 
   generateExample(index: number): void {
-    if ((this.inPlay() && !this.sieving()) || this.aiBusy() || !this.element().definitions[index]) return;
+    if ((this.inPlay() && !this.sieving() && !this.drilling()) || this.aiBusy() || !this.element().definitions[index]) return;
     this.dismissTranslations();
     this.openExampleEngineer(index);
   }
@@ -6504,6 +6600,12 @@ export class ElementModal {
     return this.inPlay() && this.element().mode === 3;
   }
 
+  /** A definition is still hidden, so the mode icon points at that click. */
+  definitionCue(): boolean {
+    if (!this.drilling()) return false;
+    return this.element().definitions.some((_, index) => this.definitionConcealed(index));
+  }
+
   /** Header translations stay blurred until every prompted definition has been compared. */
   headerTranslationsLocked(): boolean {
     if (!this.drilling()) return false;
@@ -6715,6 +6817,23 @@ export class ElementModal {
     return definitionEligibleForGames(text, this.element());
   }
 
+  definitionPromptOpen(): boolean {
+    return this.definitionPrompt() >= 0;
+  }
+
+  openDefinitionPrompt(index: number): void {
+    if (!this.definitionConcealed(index)) return;
+    this.error.set('');
+    this.definitionPrompt.set(index);
+    setTimeout(() => this.definitionField()?.nativeElement.focus());
+  }
+
+  closeDefinitionPrompt(event?: MouseEvent): void {
+    if (event && event.target !== event.currentTarget) return;
+    if (this.askingGrade() !== null) return;
+    this.definitionPrompt.set(-1);
+  }
+
   onDefinitionDraft(index: number, event: Event): void {
     const value = (event.target as HTMLTextAreaElement).value.slice(0, DEFINITION_MAX);
     const definitionDrafts = this.round().definitionDrafts.slice();
@@ -6804,6 +6923,7 @@ export class ElementModal {
       while (definitionTranslations.length <= index) definitionTranslations.push('');
       if (inEnglish) definitionTranslations[index] = judged;
       this.writeRound({ ...this.round(), grades, definitionTranslations });
+      if (this.definitionPrompt() === index) this.definitionPrompt.set(-1);
     } catch {
       if (this.alive && job === this.gradeJob && this.element().id === element.id) {
         this.error.set('Could not evaluate that definition.');
