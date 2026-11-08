@@ -13,13 +13,15 @@ import {
   selector: 'app-reveal',
   template: `{{ text() }}`,
   host: {
-    '[class.shown]': 'shown()',
+    '[class.shown]': 'shown() && !locked()',
+    '[class.locked]': 'locked()',
     '(click)': 'reveal($event)',
     '(keydown.enter)': 'reveal($event)',
     '(keydown.space)': 'reveal($event)',
-    '[attr.role]': 'shown() || nested() ? null : "button"',
-    '[attr.tabindex]': 'shown() || nested() ? null : 0',
-    '[attr.aria-label]': 'shown() || nested() ? null : "Show translation"',
+    '[attr.role]': 'shown() || nested() || locked() ? null : "button"',
+    '[attr.tabindex]': 'shown() || nested() || locked() ? null : 0',
+    '[attr.aria-label]': 'shown() || nested() || locked() ? null : "Show translation"',
+    '[attr.aria-hidden]': 'locked() ? true : null',
   },
   styles: `
     :host {
@@ -36,10 +38,17 @@ import {
       cursor: inherit;
       user-select: text;
     }
+
+    :host(.locked) {
+      pointer-events: none;
+      cursor: default;
+    }
   `,
 })
 export class Reveal {
   readonly text = input.required<string>();
+  /** Stays blurred and ignores clicks, such as during a game. */
+  readonly locked = input(false);
   readonly shown = signal(false);
   /** Inside a button or link, so this stays a plain label instead of a second control. */
   readonly nested = signal(false);
@@ -56,7 +65,7 @@ export class Reveal {
   }
 
   reveal(event: Event): void {
-    if (this.shown()) return;
+    if (this.shown() || this.locked()) return;
     event.preventDefault();
     event.stopPropagation();
     this.shown.set(true);

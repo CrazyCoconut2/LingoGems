@@ -891,7 +891,7 @@ function writeExampleSuggestions(
                               <ul class="equivalents">
                                 @for (translation of passage.translations; track $index) {
                                   <li>
-                                    <app-reveal [text]="translation.text" />
+                                    <app-reveal [text]="translation.text" [locked]="inPlay()" />
                                   </li>
                                 }
                               </ul>
@@ -957,7 +957,7 @@ function writeExampleSuggestions(
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
                             <li>
-                              <app-reveal [text]="translation.text" />
+                              <app-reveal [text]="translation.text" [locked]="inPlay()" />
                             </li>
                           }
                         </ul>
@@ -1007,7 +1007,7 @@ function writeExampleSuggestions(
                                   <path d="m22 22-5-10-5 10" />
                                   <path d="M14 18h6" />
                                 </svg>
-                                <app-reveal [text]="equivalent" />
+                                <app-reveal [text]="equivalent" [locked]="inPlay()" />
                               }
                             </li>
                           }
@@ -1313,7 +1313,7 @@ function writeExampleSuggestions(
                                 <ul class="equivalents">
                                   @for (translation of passage.translations; track $index) {
                                     <li>
-                                      <app-reveal [text]="translation.text" />
+                                      <app-reveal [text]="translation.text" [locked]="inPlay()" />
                                     </li>
                                   }
                                 </ul>
