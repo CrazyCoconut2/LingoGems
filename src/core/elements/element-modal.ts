@@ -651,6 +651,7 @@ function writeExampleSuggestions(
               <button
                 type="button"
                 class="mode-btn"
+                [class.play-focus]="sieving()"
                 [attr.aria-label]="modeLabel(element().mode)"
                 [attr.title]="modeLabel(element().mode)"
                 [attr.aria-expanded]="modeOpen()"
@@ -985,7 +986,7 @@ function writeExampleSuggestions(
                       @if ((equivalent && !equivalentCompared) || meta.length) {
                         <ul class="sense-meta">
                           @if (equivalent && !equivalentCompared) {
-                            <li class="sense-equivalent" [class.guessing]="sieving()">
+                            <li class="sense-equivalent" [class.play-focus]="sieving()">
                               <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <path d="m5 8 6 6" />
                                 <path d="m4 14 6-6 2-3" />
@@ -995,30 +996,9 @@ function writeExampleSuggestions(
                                 <path d="M14 18h6" />
                               </svg>
                               @if (sieving()) {
-                                <label class="sr" [attr.for]="'play-equivalent-' + index">
-                                  Equivalent
-                                </label>
-                                <span class="play-guess">
-                                  <input
-                                    [id]="'play-equivalent-' + index"
-                                    type="text"
-                                    autocomplete="off"
-                                    spellcheck="false"
-                                    [value]="equivalentDraftAt(index)"
-                                    [attr.maxlength]="equivalentMax"
-                                    placeholder="Write the equivalent"
-                                    (input)="onEquivalentDraft(index, $event)"
-                                    (keydown.enter)="submitEquivalent(index, $event)"
-                                  />
-                                  <button
-                                    type="button"
-                                    class="btn btn-secondary"
-                                    [disabled]="!equivalentDraftAt(index).trim()"
-                                    (click)="submitEquivalent(index)"
-                                  >
-                                    Submit
-                                  </button>
-                                </span>
+                                <span class="guess-answer play-blur" aria-hidden="true">{{
+                                  equivalent
+                                }}</span>
                               } @else {
                                 <app-reveal [text]="equivalent" />
                               }
@@ -1032,6 +1012,30 @@ function writeExampleSuggestions(
                             </li>
                           }
                         </ul>
+                      }
+                      @if (sieving() && equivalent && !equivalentSubmitted(index)) {
+                        <div class="play-guess">
+                          <label class="sr" [attr.for]="'play-equivalent-' + index">Equivalent</label>
+                          <input
+                            [id]="'play-equivalent-' + index"
+                            type="text"
+                            autocomplete="off"
+                            spellcheck="false"
+                            [value]="equivalentDraftAt(index)"
+                            [attr.maxlength]="equivalentMax"
+                            placeholder="Write the equivalent"
+                            (input)="onEquivalentDraft(index, $event)"
+                            (keydown.enter)="submitEquivalent(index, $event)"
+                          />
+                          <button
+                            type="button"
+                            class="btn btn-secondary"
+                            [disabled]="!equivalentDraftAt(index).trim()"
+                            (click)="submitEquivalent(index)"
+                          >
+                            Submit
+                          </button>
+                        </div>
                       }
                       @if (definitionWarning(definition.text); as warning) {
                         <p class="warning" role="status">{{ warning }}</p>
@@ -1225,7 +1229,7 @@ function writeExampleSuggestions(
                           class="icon-btn"
                           aria-label="Generate an example"
                           title="Generate an example"
-                          [disabled]="playing() || aiBusy()"
+                          [disabled]="(playing() && !sieving()) || aiBusy()"
                           [attr.aria-busy]="askingExamples() === index ? true : null"
                           (click)="generateExample(index)"
                         >
@@ -2660,6 +2664,15 @@ function writeExampleSuggestions(
       height: 1.5rem;
     }
 
+    .title-end .mode-btn.play-focus,
+    .title-end .mode-btn.play-focus:disabled {
+      opacity: 1;
+      color: var(--accent);
+      border-color: rgba(var(--accent-rgb), 0.75);
+      background: rgba(var(--accent-rgb), 0.16);
+      cursor: default;
+    }
+
     .title-main {
       display: flex;
       align-items: center;
@@ -3293,8 +3306,13 @@ function writeExampleSuggestions(
       font-weight: 650;
     }
 
-    .sense-meta li.sense-equivalent app-reveal {
+    .sense-meta li.sense-equivalent app-reveal,
+    .sense-meta li.sense-equivalent .guess-answer {
       color: var(--text);
+    }
+
+    .sense-meta li.sense-equivalent.play-focus svg {
+      color: var(--accent);
     }
 
     .sense-equivalent svg {
@@ -4006,30 +4024,6 @@ function writeExampleSuggestions(
       letter-spacing: -0.03em;
     }
 
-    .sense-meta li.sense-equivalent.guessing {
-      height: auto;
-      width: 100%;
-      white-space: normal;
-      flex-wrap: wrap;
-      padding: 0.35rem 0.45rem;
-    }
-
-    .sense-equivalent .play-guess {
-      flex: 1;
-      min-width: 12rem;
-    }
-
-    .sense-equivalent .play-guess input {
-      height: 1.9rem;
-      padding: 0.2rem 0.55rem;
-      font-size: 0.8125rem;
-    }
-
-    .sense-equivalent .play-guess .btn {
-      padding: 0.25rem 0.7rem;
-      font-size: 0.78rem;
-    }
-
     .equivalent-result {
       display: inline-flex;
       align-items: center;
@@ -4589,7 +4583,7 @@ export class ElementModal {
   }
 
   generateExample(index: number): void {
-    if (this.playing() || this.aiBusy() || !this.element().definitions[index]) return;
+    if ((this.playing() && !this.sieving()) || this.aiBusy() || !this.element().definitions[index]) return;
     this.dismissTranslations();
     this.openExampleEngineer(index);
   }
