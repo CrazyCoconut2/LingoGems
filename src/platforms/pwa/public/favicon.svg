@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0b0d1e"/>
+  <defs>
+    <linearGradient id="gem" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f7f6ff"/>
+      <stop offset="0.3" stop-color="#b7b2ff"/>
+      <stop offset="0.64" stop-color="#6c63ff"/>
+      <stop offset="1" stop-color="#2c2774"/>
+    </linearGradient>
+  </defs>
+  <polygon points="32,8 51.3,15.7 56,30.1 32,56 8,30.1 12.7,15.7" fill="url(#gem)"/>
+  <polygon points="20.6,16.6 43.4,16.6 38.4,26.2 25.6,26.2" fill="#ffffff" opacity="0.72"/>
+</svg>

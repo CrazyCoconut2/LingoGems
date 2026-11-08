@@ -94,6 +94,8 @@ export {
   type ElementSort,
 } from './elements/browse';
 
+export { requestPersistentStorage, storageIsPersistent } from './persistent-storage';
+
 export {
   collectMetadataIndexes,
   emptyMetadataIndexes,

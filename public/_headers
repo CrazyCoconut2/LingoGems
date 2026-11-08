@@ -7,3 +7,14 @@
 /index.html
   Cache-Control: no-cache, no-store, must-revalidate
   CDN-Cache-Control: no-store
+
+/ngsw-worker.js
+  Cache-Control: no-cache
+  CDN-Cache-Control: no-store
+
+/ngsw.json
+  Cache-Control: no-cache
+  CDN-Cache-Control: no-store
+
+/manifest.webmanifest
+  Cache-Control: no-cache

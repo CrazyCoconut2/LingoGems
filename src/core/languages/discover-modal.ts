@@ -29,7 +29,7 @@ import {
   readStoredAiCredentials,
   type DiscoveredElement,
 } from 'ai';
-import { metadataChipColor } from '../elements/metadata-colors';
+import { readFieldColor } from '../elements/metadata-colors';
 import { Reveal } from '../elements/reveal';
 import {
   readDiscoverSearches,
@@ -1427,7 +1427,7 @@ export class DiscoverModal implements OnInit {
     return Object.entries(sense.metadata).map(([key, value]) => ({
       key,
       value,
-      color: metadataChipColor(this.language(), 'definitions', key, value),
+      color: readFieldColor(this.language(), 'definitions', key),
     }));
   }
 

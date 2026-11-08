@@ -68,7 +68,7 @@ import {
   type PlayRound,
 } from './play-session';
 import { Reveal } from './reveal';
-import { metadataChipColor, type MetadataColorPlace } from './metadata-colors';
+import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { ModeIcon } from './mode-icon';
 import { COMFORT_RATES, comfortColor } from './comfort-palette';
 import { translatePhrase } from '../translate/translate';
@@ -1009,7 +1009,7 @@ function writeExampleSuggestions(
                             </li>
                           }
                           @for (entry of meta; track entry.key) {
-                            @let color = metaColor('definitions', entry.key, entry.value);
+                            @let color = metaColor('definitions', entry.key);
                             <li [class.colored]="color" [style.--meta-color]="color">
                               <span class="sense-meta-key">{{ label(entry.key) }}</span>
                               <span class="sense-meta-value">{{ label(entry.value) }}</span>
@@ -1303,7 +1303,7 @@ function writeExampleSuggestions(
                                 @if (meta.length) {
                                   <ul class="pills">
                                     @for (entry of meta; track entry.key) {
-                                      @let color = metaColor('examples', entry.key, entry.value);
+                                      @let color = metaColor('examples', entry.key);
                                       <li [class.colored]="color" [style.--meta-color]="color">
                                         <span>
                                           <span class="sense-meta-key">{{ entry.key }}</span>
@@ -1875,7 +1875,7 @@ function writeExampleSuggestions(
                     <ul class="pills">
                       @for (entry of meta; track entry.key) {
                         @if (metaEdit()?.previousKey !== entry.key) {
-                          @let color = sheetMetaColor(current.kind, entry.key, entry.value);
+                          @let color = sheetMetaColor(current.kind, entry.key);
                           <li [class.colored]="color" [style.--meta-color]="color">
                             <button
                               type="button"
@@ -2272,7 +2272,7 @@ function writeExampleSuggestions(
                     <ul class="pills">
                       @for (entry of features; track entry.key) {
                         @if (formFeatureEdit()?.previousKey !== entry.key) {
-                          @let color = metaColor('forms', entry.key, entry.value);
+                          @let color = metaColor('forms', entry.key);
                           <li [class.colored]="color" [style.--meta-color]="color">
                             <button
                               type="button"
@@ -4678,12 +4678,12 @@ export class ElementModal {
     return Object.entries(metadata).map(([key, value]) => ({ key, value }));
   }
 
-  metaColor(place: MetadataColorPlace, key: string, value: string): string | null {
-    return metadataChipColor(this.element().language, place, key, value);
+  metaColor(place: MetadataColorPlace, key: string): string | null {
+    return readFieldColor(this.element().language, place, key);
   }
 
-  sheetMetaColor(kind: Editor['kind'], key: string, value: string): string | null {
-    return this.metaColor(kind === 'definition' ? 'definitions' : 'examples', key, value);
+  sheetMetaColor(kind: Editor['kind'], key: string): string | null {
+    return this.metaColor(kind === 'definition' ? 'definitions' : 'examples', key);
   }
 
   /** First letter of a metadata label, leaving the rest of the wording alone. */

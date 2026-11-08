@@ -58,6 +58,10 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "**/*",
+                "input": "src/platforms/pwa/public"
               }
             ],
             "styles": [
@@ -78,7 +82,8 @@
                   "maximumError": "24kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "serviceWorker": "src/platforms/pwa/ngsw-config.json"
             },
             "development": {
               "optimization": false,

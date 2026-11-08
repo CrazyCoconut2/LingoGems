@@ -16,6 +16,7 @@ import {
   writeComfortColor,
   type ComfortRate,
 } from '../elements/comfort-palette';
+import { storageKept as storageKeptState } from '../storage/keep-storage';
 
 type ProviderOption = {
   id: AiProviderId;
@@ -108,6 +109,19 @@ const AI_PROVIDERS: ProviderOption[] = [
           >
             Reset colors
           </button>
+        </div>
+      </section>
+
+      <section class="storage" aria-label="Device storage">
+        <div class="copy">
+          <h2>On this device</h2>
+          @if (storageKept() === true) {
+            <p>Languages and keys stay on this device.</p>
+          } @else if (storageKept() === false) {
+            <p>Languages and keys are in temporary storage until this browser locks them.</p>
+          } @else {
+            <p>Checking whether this browser will keep your languages and keys.</p>
+          }
         </div>
       </section>
     </main>
@@ -226,7 +240,8 @@ const AI_PROVIDERS: ProviderOption[] = [
       font-size: 0.875rem;
     }
 
-    .palettes {
+    .palettes,
+    .storage {
       display: flex;
       flex-direction: column;
       gap: 0.9rem;
@@ -255,6 +270,7 @@ const AI_PROVIDERS: ProviderOption[] = [
 })
 export class Settings {
   private readonly location = inject(Location);
+  readonly storageKept = storageKeptState;
   private readonly router = inject(Router);
   private readonly stored = readStoredAiCredentials().keys[0];
 

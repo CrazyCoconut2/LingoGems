@@ -1,3 +1,5 @@
+import { requestPersistentStorage } from './persistent-storage';
+
 const DB_NAME = 'lingogem';
 const DB_VERSION = 2;
 
@@ -8,6 +10,7 @@ let database: Promise<IDBDatabase> | null = null;
 
 export function openDatabase(): Promise<IDBDatabase> {
   if (database) return database;
+  void requestPersistentStorage();
   database = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {

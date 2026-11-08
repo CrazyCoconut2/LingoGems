@@ -4,10 +4,67 @@
     <meta charset="utf-8" />
     <title>LingoGems</title>
     <base href="/" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, interactive-widget=resizes-content"
+    />
+    <meta name="description" content="Collect languages and keep them on this device." />
+    <meta name="theme-color" content="#0b0d1e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LingoGems" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #0b0d1e;
+        color: #9aa3c2;
+      }
+
+      #lg-boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0b0d1e;
+      }
+
+      #lg-boot-splash img {
+        width: 7.5rem;
+        height: 7.5rem;
+        animation: lg-boot-pulse 1.4s ease-in-out infinite;
+      }
+
+      @keyframes lg-boot-pulse {
+        0%,
+        100% {
+          opacity: 0.35;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #lg-boot-splash img {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="lg-boot-splash" role="status" aria-live="polite" aria-label="Loading LingoGems">
+      <img src="icons/icon-192x192.png" alt="" aria-hidden="true" />
+    </div>
     <app-root></app-root>
+    <noscript>Please enable JavaScript to continue using this application.</noscript>
   </body>
 </html>
