@@ -638,7 +638,7 @@ function writeExampleSuggestions(
                   class="icon-btn"
                   aria-label="Edit title"
                   title="Edit title"
-                  [disabled]="playing() || aiBusy()"
+                  [disabled]="inPlay() || aiBusy()"
                   (click)="openTitle()"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -655,7 +655,7 @@ function writeExampleSuggestions(
                 [attr.aria-label]="modeLabel(element().mode)"
                 [attr.title]="modeLabel(element().mode)"
                 [attr.aria-expanded]="modeOpen()"
-                [disabled]="busy() || playing()"
+                [disabled]="busy() || inPlay()"
                 (click)="modeOpen.set(true)"
               >
                 <app-mode-icon [mode]="element().mode" />
@@ -714,7 +714,7 @@ function writeExampleSuggestions(
                   }
                   @if (headerTranslationsLocked()) {
                     <span class="locked-translation">{{ text }}</span>
-                  } @else if (playing()) {
+                  } @else if (inPlay()) {
                     <span>{{ text }}</span>
                   } @else {
                     <app-reveal [text]="text" />
@@ -730,7 +730,7 @@ function writeExampleSuggestions(
               [attr.aria-label]="'Comfort ' + element().comfort"
               [attr.title]="'Comfort ' + element().comfort"
               [attr.aria-expanded]="comfortOpen()"
-              [disabled]="busy() || playing()"
+              [disabled]="busy() || inPlay()"
               [style.color]="comfortColor(element().comfort)"
               (click)="comfortOpen.set(true)"
             >
@@ -765,7 +765,7 @@ function writeExampleSuggestions(
               class="icon-btn"
               aria-label="Translations"
               title="Translations"
-              [disabled]="playing() || busy()"
+              [disabled]="inPlay() || busy()"
               (click)="openTranslations()"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -782,7 +782,7 @@ function writeExampleSuggestions(
               class="icon-btn danger"
               aria-label="Delete element"
               title="Delete"
-              [disabled]="playing() || busy()"
+              [disabled]="inPlay() || busy()"
               (click)="askDeleteElement()"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -813,7 +813,7 @@ function writeExampleSuggestions(
                 class="icon-btn"
                 aria-label="Generate definitions"
                 title="Generate definitions"
-                [disabled]="playing() || aiBusy()"
+                [disabled]="inPlay() || aiBusy()"
                 [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
                 (click)="openAddDefinition()"
               >
@@ -832,7 +832,7 @@ function writeExampleSuggestions(
                 class="icon-btn"
                 aria-label="Add a definition"
                 title="Add a definition"
-                [disabled]="playing() || aiBusy()"
+                [disabled]="inPlay() || aiBusy()"
                 (click)="addDefinitionManually()"
               >
                 <svg viewBox="0 0 24 24">
@@ -866,7 +866,7 @@ function writeExampleSuggestions(
                           type="button"
                           class="new-definition"
                           aria-label="Dismiss new definition"
-                          [disabled]="playing()"
+                          [disabled]="inPlay()"
                           (click)="dismissNew(definition.text)"
                         >
                           New
@@ -1113,7 +1113,7 @@ function writeExampleSuggestions(
                             class="icon-btn"
                             aria-label="Move definition up"
                             title="Move definition up"
-                            [disabled]="playing() || aiBusy() || index === 0"
+                            [disabled]="inPlay() || aiBusy() || index === 0"
                             (click)="moveDefinition(index, -1)"
                           >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1125,7 +1125,7 @@ function writeExampleSuggestions(
                             class="icon-btn"
                             aria-label="Move definition down"
                             title="Move definition down"
-                            [disabled]="playing() || aiBusy() || index === element().definitions.length - 1"
+                            [disabled]="inPlay() || aiBusy() || index === element().definitions.length - 1"
                             (click)="moveDefinition(index, 1)"
                           >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1176,7 +1176,7 @@ function writeExampleSuggestions(
                           [attr.title]="
                             definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
                           "
-                          [disabled]="playing() || aiBusy()"
+                          [disabled]="inPlay() || aiBusy()"
                           (click)="openDefinition(index)"
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1191,7 +1191,7 @@ function writeExampleSuggestions(
                           class="icon-btn danger"
                           aria-label="Delete definition"
                           title="Delete definition"
-                          [disabled]="playing() || aiBusy()"
+                          [disabled]="inPlay() || aiBusy()"
                           (click)="askDeleteDefinition(index)"
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1225,7 +1225,7 @@ function writeExampleSuggestions(
                           class="icon-btn"
                           aria-label="Generate an example"
                           title="Generate an example"
-                          [disabled]="(playing() && !sieving()) || aiBusy()"
+                          [disabled]="(inPlay() && !sieving()) || aiBusy()"
                           [attr.aria-busy]="askingExamples() === index ? true : null"
                           (click)="generateExample(index)"
                         >
@@ -1244,7 +1244,7 @@ function writeExampleSuggestions(
                           class="icon-btn"
                           aria-label="Add an example"
                           title="Add an example"
-                          [disabled]="playing() || aiBusy()"
+                          [disabled]="inPlay() || aiBusy()"
                           (click)="addExampleManually(index)"
                         >
                           <svg viewBox="0 0 24 24">
@@ -1417,7 +1417,7 @@ function writeExampleSuggestions(
                                     class="icon-btn"
                                     aria-label="Edit example"
                                     title="Edit example"
-                                    [disabled]="playing() || aiBusy()"
+                                    [disabled]="inPlay() || aiBusy()"
                                     (click)="openExample(index, exampleIndex)"
                                   >
                                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1431,7 +1431,7 @@ function writeExampleSuggestions(
                                     class="icon-btn danger"
                                     aria-label="Delete example"
                                     title="Delete example"
-                                    [disabled]="playing() || aiBusy()"
+                                    [disabled]="inPlay() || aiBusy()"
                                     (click)="askDeleteExample(index, exampleIndex)"
                                   >
                                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1485,7 +1485,7 @@ function writeExampleSuggestions(
                           class="icon-btn"
                           aria-label="Generate forms"
                           title="Generate forms"
-                          [disabled]="playing() || aiBusy()"
+                          [disabled]="inPlay() || aiBusy()"
                           [attr.aria-busy]="askingForms() === index ? true : null"
                           (click)="generateForms(index)"
                         >
@@ -1504,7 +1504,7 @@ function writeExampleSuggestions(
                           class="icon-btn"
                           aria-label="Add a form"
                           title="Add a form"
-                          [disabled]="playing() || aiBusy()"
+                          [disabled]="inPlay() || aiBusy()"
                           (click)="addFormManually(index)"
                         >
                           <svg viewBox="0 0 24 24">
@@ -1522,7 +1522,7 @@ function writeExampleSuggestions(
                               <div class="form-chip">
                                 <button
                                   type="button"
-                                  [disabled]="playing() || busy()"
+                                  [disabled]="inPlay() || busy()"
                                   [attr.aria-label]="'Edit form ' + form.text"
                                   (click)="openExistingForm(index, form.text)"
                                 >
@@ -1531,7 +1531,7 @@ function writeExampleSuggestions(
                                 <button
                                   type="button"
                                   class="tag-remove"
-                                  [disabled]="playing() || busy()"
+                                  [disabled]="inPlay() || busy()"
                                   [attr.aria-label]="'Remove form ' + form.text"
                                   (click)="removeForm(index, form.text)"
                                 >
@@ -4466,7 +4466,7 @@ export class ElementModal {
   }
 
   openTitle(): void {
-    if (this.playing() || this.aiBusy() || this.titleEdit()) return;
+    if (this.inPlay() || this.aiBusy() || this.titleEdit()) return;
     this.titleError.set('');
     this.titleDraft.set(this.element().title);
     this.titleEdit.set(true);
@@ -4542,7 +4542,7 @@ export class ElementModal {
   }
 
   openTranslations(): void {
-    if (this.playing() || this.busy()) return;
+    if (this.inPlay() || this.busy()) return;
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -4738,7 +4738,7 @@ export class ElementModal {
   }
 
   openAddDefinition(): void {
-    if (this.playing() || this.aiBusy()) return;
+    if (this.inPlay() || this.aiBusy()) return;
     this.error.set('');
     this.definitionExample.set('');
     this.editor.set(null);
@@ -4753,13 +4753,13 @@ export class ElementModal {
   }
 
   generateExample(index: number): void {
-    if ((this.playing() && !this.sieving()) || this.aiBusy() || !this.element().definitions[index]) return;
+    if ((this.inPlay() && !this.sieving()) || this.aiBusy() || !this.element().definitions[index]) return;
     this.dismissTranslations();
     this.openExampleEngineer(index);
   }
 
   generateForms(index: number): void {
-    if (this.playing() || this.aiBusy() || !this.element().definitions[index]) return;
+    if (this.inPlay() || this.aiBusy() || !this.element().definitions[index]) return;
     this.showForms(index);
     void this.askForms(index);
   }
@@ -4794,13 +4794,13 @@ export class ElementModal {
   }
 
   addFormManually(index: number): void {
-    if (this.playing() || this.aiBusy() || !this.element().definitions[index]) return;
+    if (this.inPlay() || this.aiBusy() || !this.element().definitions[index]) return;
     this.showForms(index);
     this.openForm(index);
   }
 
   addExampleManually(index: number): void {
-    if (this.playing() || this.aiBusy()) return;
+    if (this.inPlay() || this.aiBusy()) return;
     this.openExample(index, null);
   }
 
@@ -4811,7 +4811,7 @@ export class ElementModal {
   }
 
   addDefinitionManually(): void {
-    if (this.playing() || this.asking()) return;
+    if (this.inPlay() || this.asking()) return;
     this.addDefinitionOpen.set(false);
     this.openDefinition(null);
   }
@@ -5129,7 +5129,7 @@ export class ElementModal {
   }
 
   async moveDefinition(index: number, delta: -1 | 1): Promise<void> {
-    if (this.playing() || this.aiBusy()) return;
+    if (this.inPlay() || this.aiBusy()) return;
     const target = index + delta;
     const definitions = this.copyDefinitions();
     const current = definitions[index];
@@ -5142,7 +5142,7 @@ export class ElementModal {
   }
 
   openDefinition(index: number | null): void {
-    if (this.playing()) return;
+    if (this.inPlay()) return;
     const definition = index == null ? null : this.element().definitions[index];
     if (index != null && !definition) return;
     this.formEdit.set(null);
@@ -5166,7 +5166,7 @@ export class ElementModal {
   }
 
   openExample(definitionIndex: number, exampleIndex: number | null): void {
-    if (this.playing()) return;
+    if (this.inPlay()) return;
     const definition = this.element().definitions[definitionIndex];
     if (!definition) return;
     const example = exampleIndex == null ? null : definition.examples[exampleIndex];
@@ -5566,7 +5566,7 @@ export class ElementModal {
   }
 
   openExistingForm(definitionIndex: number, text: string): void {
-    if (this.playing() || this.busy()) return;
+    if (this.inPlay() || this.busy()) return;
     const form = this.element().definitions[definitionIndex]?.forms.find(
       (item) => item.text === text,
     );
@@ -5977,7 +5977,7 @@ export class ElementModal {
   }
 
   async removeForm(definitionIndex: number, form: string): Promise<void> {
-    if (this.playing() || this.busy()) return;
+    if (this.inPlay() || this.busy()) return;
     const definitions = this.copyDefinitions();
     const definition = definitions[definitionIndex];
     if (!definition) return;
@@ -5996,7 +5996,7 @@ export class ElementModal {
   }
 
   askDeleteElement(): void {
-    if (this.playing() || this.busy()) return;
+    if (this.inPlay() || this.busy()) return;
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -6005,12 +6005,12 @@ export class ElementModal {
   }
 
   askDeleteDefinition(index: number): void {
-    if (this.playing() || this.aiBusy() || this.busy()) return;
+    if (this.inPlay() || this.aiBusy() || this.busy()) return;
     this.confirm.set({ kind: 'definition', index });
   }
 
   askDeleteExample(definitionIndex: number, exampleIndex: number): void {
-    if (this.playing() || this.aiBusy() || this.busy()) return;
+    if (this.inPlay() || this.aiBusy() || this.busy()) return;
     this.confirm.set({ kind: 'example', definitionIndex, exampleIndex });
   }
 
@@ -6315,16 +6315,37 @@ export class ElementModal {
     setTimeout(() => this.draftField()?.nativeElement.focus());
   }
 
+  /**
+   * The equivalent game ends once every equivalent has been answered and the
+   * comparison sheet for that last answer has been closed.
+   */
+  inPlay(): boolean {
+    return this.playing() && (!this.equivalentGameDone() || this.equivalentPromptOpen());
+  }
+
+  equivalentGameDone(): boolean {
+    if (this.element().mode !== 1) return false;
+    const definitions = this.element().definitions;
+    let prompted = 0;
+    for (let index = 0; index < definitions.length; index += 1) {
+      const definition = definitions[index];
+      if (!definition || !this.equivalentText(definition)) continue;
+      prompted += 1;
+      if (!this.equivalentSubmitted(index)) return false;
+    }
+    return prompted > 0;
+  }
+
   sieving(): boolean {
-    return this.playing() && this.element().mode === 1;
+    return this.inPlay() && this.element().mode === 1;
   }
 
   pickaxing(): boolean {
-    return this.playing() && this.element().mode === 2;
+    return this.inPlay() && this.element().mode === 2;
   }
 
   drilling(): boolean {
-    return this.playing() && this.element().mode === 3;
+    return this.inPlay() && this.element().mode === 3;
   }
 
   /** Header translations stay blurred until every prompted definition has been compared. */
