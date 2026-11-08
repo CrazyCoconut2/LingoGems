@@ -987,19 +987,35 @@ function writeExampleSuggestions(
                         <ul class="sense-meta">
                           @if (equivalent && !equivalentCompared) {
                             <li class="sense-equivalent" [class.play-focus]="sieving()">
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m5 8 6 6" />
-                                <path d="m4 14 6-6 2-3" />
-                                <path d="M2 5h12" />
-                                <path d="M7 2h1" />
-                                <path d="m22 22-5-10-5 10" />
-                                <path d="M14 18h6" />
-                              </svg>
                               @if (sieving()) {
-                                <span class="guess-answer play-blur" aria-hidden="true">{{
-                                  equivalent
-                                }}</span>
+                                <button
+                                  type="button"
+                                  class="guess-open"
+                                  aria-label="Write the equivalent"
+                                  title="Write the equivalent"
+                                  (click)="openEquivalentPrompt(index)"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="m5 8 6 6" />
+                                    <path d="m4 14 6-6 2-3" />
+                                    <path d="M2 5h12" />
+                                    <path d="M7 2h1" />
+                                    <path d="m22 22-5-10-5 10" />
+                                    <path d="M14 18h6" />
+                                  </svg>
+                                  <span class="guess-answer play-blur" aria-hidden="true">{{
+                                    equivalent
+                                  }}</span>
+                                </button>
                               } @else {
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="m5 8 6 6" />
+                                  <path d="m4 14 6-6 2-3" />
+                                  <path d="M2 5h12" />
+                                  <path d="M7 2h1" />
+                                  <path d="m22 22-5-10-5 10" />
+                                  <path d="M14 18h6" />
+                                </svg>
                                 <app-reveal [text]="equivalent" />
                               }
                             </li>
@@ -1012,30 +1028,6 @@ function writeExampleSuggestions(
                             </li>
                           }
                         </ul>
-                      }
-                      @if (sieving() && equivalent && !equivalentSubmitted(index)) {
-                        <div class="play-guess">
-                          <label class="sr" [attr.for]="'play-equivalent-' + index">Equivalent</label>
-                          <input
-                            [id]="'play-equivalent-' + index"
-                            type="text"
-                            autocomplete="off"
-                            spellcheck="false"
-                            [value]="equivalentDraftAt(index)"
-                            [attr.maxlength]="equivalentMax"
-                            placeholder="Write the equivalent"
-                            (input)="onEquivalentDraft(index, $event)"
-                            (keydown.enter)="submitEquivalent(index, $event)"
-                          />
-                          <button
-                            type="button"
-                            class="btn btn-secondary"
-                            [disabled]="!equivalentDraftAt(index).trim()"
-                            (click)="submitEquivalent(index)"
-                          >
-                            Submit
-                          </button>
-                        </div>
                       }
                       @if (definitionWarning(definition.text); as warning) {
                         <p class="warning" role="status">{{ warning }}</p>
@@ -2406,6 +2398,82 @@ function writeExampleSuggestions(
           </div>
         }
 
+        @if (equivalentPromptOpen()) {
+          @let prompt = equivalentPrompt();
+          @if (element().definitions[prompt]; as definition) {
+          @let answer = equivalentText(definition);
+          @if (answer && !equivalentSubmitted(prompt)) {
+            <div class="sheet-backdrop" (click)="closeEquivalentPrompt($event)">
+              <section
+                class="sheet"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Equivalent"
+                (click)="$event.stopPropagation()"
+              >
+                <div class="sheet-head">
+                  <h3>Equivalent</h3>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Close"
+                    (click)="equivalentPrompt.set(-1)"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <p class="equivalent-prompt">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m5 8 6 6" />
+                    <path d="m4 14 6-6 2-3" />
+                    <path d="M2 5h12" />
+                    <path d="M7 2h1" />
+                    <path d="m22 22-5-10-5 10" />
+                    <path d="M14 18h6" />
+                  </svg>
+                  <span class="play-blur" aria-hidden="true">{{ answer }}</span>
+                </p>
+                <label class="field-label" [attr.for]="'play-equivalent-' + prompt">
+                  Write the equivalent
+                </label>
+                <input
+                  #equivalentField
+                  [id]="'play-equivalent-' + prompt"
+                  type="text"
+                  autocomplete="off"
+                  spellcheck="false"
+                  [value]="equivalentDraftAt(prompt)"
+                  [attr.maxlength]="equivalentMax"
+                  placeholder="Write the equivalent"
+                  (input)="onEquivalentDraft(prompt, $event)"
+                  (keydown.enter)="submitEquivalent(prompt, $event)"
+                />
+                <div class="sheet-actions">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    [disabled]="!equivalentDraftAt(prompt).trim()"
+                    (click)="submitEquivalent(prompt)"
+                  >
+                    Submit
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    (click)="equivalentPrompt.set(-1)"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </section>
+            </div>
+          }
+          }
+        }
+
         @if (comfortOpen()) {
           <div class="sheet-backdrop" (click)="closeComfort($event)">
             <section
@@ -3315,6 +3383,59 @@ function writeExampleSuggestions(
       color: var(--accent);
     }
 
+    .sense-meta li.sense-equivalent:has(.guess-open) {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      height: auto;
+    }
+
+    .guess-open {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      height: 1.7rem;
+      margin: 0;
+      padding: 0 0.5rem;
+      border: 1px solid var(--accent);
+      border-radius: 0.35rem;
+      background: rgba(var(--accent-rgb), 0.16);
+      color: var(--accent);
+      font: inherit;
+      font-size: 0.72rem;
+      font-weight: 650;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .guess-open:hover {
+      background: rgba(var(--accent-rgb), 0.28);
+    }
+
+    .equivalent-prompt {
+      display: inline-flex;
+      align-items: center;
+      align-self: flex-start;
+      gap: 0.35rem;
+      color: var(--accent);
+      font-weight: 650;
+    }
+
+    .equivalent-prompt svg {
+      width: 1.05rem;
+      height: 1.05rem;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .equivalent-prompt .play-blur {
+      color: var(--text);
+    }
+
     .sense-equivalent svg {
       width: 0.95rem;
       height: 0.95rem;
@@ -4073,6 +4194,7 @@ export class ElementModal {
   );
   readonly round = signal<PlayRound>(emptyPlayRound());
   readonly askingGrade = signal<number | null>(null);
+  readonly equivalentPrompt = signal(-1);
   private readonly rounds = new Map<string, PlayRound>();
   private gradeJob = 0;
   private alive = true;
@@ -4156,6 +4278,7 @@ export class ElementModal {
   private readonly metaKeyField = viewChild<ElementRef<HTMLInputElement>>('metaKeyField');
   private readonly translationField = viewChild<ElementRef<HTMLInputElement>>('translationField');
   private readonly titleField = viewChild<ElementRef<HTMLInputElement>>('titleField');
+  private readonly equivalentField = viewChild<ElementRef<HTMLInputElement>>('equivalentField');
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
@@ -4185,6 +4308,7 @@ export class ElementModal {
       this.askingWording.set(null);
       this.exampleEngineer.set(null);
       this.definitionEngineer.set(null);
+      this.equivalentPrompt.set(-1);
       this.addDefinitionOpen.set(false);
       this.expandedForms.set(new Set());
       this.modeOpen.set(false);
@@ -4230,6 +4354,10 @@ export class ElementModal {
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
+    if (this.equivalentPromptOpen()) {
+      this.equivalentPrompt.set(-1);
+      return;
+    }
     if (this.titleEdit()) {
       if (!this.busy()) this.cancelTitle();
       return;
@@ -6233,6 +6361,30 @@ export class ElementModal {
     return this.titleConcealed() && textNamesElement(text, this.element());
   }
 
+  equivalentPromptOpen(): boolean {
+    return this.equivalentPrompt() >= 0;
+  }
+
+  openEquivalentPrompt(index: number): void {
+    if (!this.sieving() || this.equivalentSubmitted(index)) return;
+    this.equivalentPrompt.set(index);
+    setTimeout(() => this.focusEquivalentField());
+  }
+
+  private focusEquivalentField(): void {
+    const field = this.equivalentField()?.nativeElement;
+    if (field) {
+      field.focus();
+      return;
+    }
+    setTimeout(() => this.equivalentField()?.nativeElement.focus());
+  }
+
+  closeEquivalentPrompt(event?: MouseEvent): void {
+    if (event && event.target !== event.currentTarget) return;
+    this.equivalentPrompt.set(-1);
+  }
+
   equivalentDraftAt(index: number): string {
     return this.round().equivalentDrafts[index] ?? '';
   }
@@ -6259,6 +6411,7 @@ export class ElementModal {
     while (equivalentSubmitted.length <= index) equivalentSubmitted.push(false);
     equivalentSubmitted[index] = true;
     this.writeRound({ ...this.round(), equivalentSubmitted });
+    this.equivalentPrompt.set(-1);
   }
 
   definitionDraftAt(index: number): string {
