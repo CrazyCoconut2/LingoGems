@@ -1,5 +1,5 @@
 import { formMatchesTerm, surfaceSpans, type StoredElement } from 'collection';
-import type { GradedDefinition } from 'ai';
+import type { GradedDefinition, GradedEquivalent } from 'ai';
 
 export const EQUIVALENT_MAX = 200;
 export const RECALL_MAX = 200;
@@ -7,9 +7,14 @@ export const DEFINITION_MAX = 500;
 
 export type AnswerLanguage = 'original' | 'english';
 
+/** The learner's own call on an equivalent they just wrote. */
+export type EquivalentVerdict = 'got' | 'miss';
+
 export type PlayRound = {
   equivalentDrafts: string[];
   equivalentSubmitted: boolean[];
+  equivalentVerdicts: Array<EquivalentVerdict | null>;
+  equivalentGrades: Array<GradedEquivalent | null>;
   recall: string;
   recalled: boolean;
   revealedCount: number;
@@ -23,6 +28,8 @@ export function emptyPlayRound(): PlayRound {
   return {
     equivalentDrafts: [],
     equivalentSubmitted: [],
+    equivalentVerdicts: [],
+    equivalentGrades: [],
     recall: '',
     recalled: false,
     revealedCount: 0,

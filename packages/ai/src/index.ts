@@ -141,6 +141,15 @@ export {
 } from './grade-definition';
 
 export {
+  GRADE_EQUIVALENT_SYSTEM_PROMPT,
+  buildGradeEquivalentUserMessage,
+  gradeEquivalent,
+  parseGradedEquivalent,
+  type GradeEquivalentInput,
+  type GradedEquivalent,
+} from './grade-equivalent';
+
+export {
   DEFINITION_PHRASE_SYSTEM_PROMPT,
   DEFINITION_RELATIONS,
   MAX_DEFINITION_INSTRUCTION,

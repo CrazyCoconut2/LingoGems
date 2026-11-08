@@ -50,6 +50,7 @@ import {
   generateForms,
   generateRelatedWords,
   gradeDefinition,
+  gradeEquivalent,
   sentenceUsesForm,
   translateTexts,
   verbalizeDefinition,
@@ -65,6 +66,7 @@ import {
   matchesElement,
   nextLetterCount,
   textNamesElement,
+  type EquivalentVerdict,
   type PlayRound,
 } from './play-session';
 import { Reveal } from './reveal';
@@ -2436,6 +2438,15 @@ function writeExampleSuggestions(
                   </button>
                 </div>
                 @if (equivalentSubmitted(prompt)) {
+                  @let gloss = parsePassage(definition.text).text;
+                  @let verdict = equivalentVerdictAt(prompt);
+                  @let grade = equivalentGradeAt(prompt);
+                  @if (gloss) {
+                    <div class="equivalent-gloss">
+                      <p class="field-label">Definition</p>
+                      <p>{{ gloss }}</p>
+                    </div>
+                  }
                   <div class="compare">
                     <div class="compare-side">
                       <p class="field-label">You wrote</p>
@@ -2456,6 +2467,45 @@ function writeExampleSuggestions(
                       </p>
                     </div>
                   </div>
+                  <div class="verdict" role="group" aria-label="Your call">
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [class.on]="verdict === 'got'"
+                      [attr.aria-pressed]="verdict === 'got'"
+                      (click)="markEquivalent(prompt, 'got')"
+                    >
+                      Got it
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary miss"
+                      [class.on]="verdict === 'miss'"
+                      [attr.aria-pressed]="verdict === 'miss'"
+                      (click)="markEquivalent(prompt, 'miss')"
+                    >
+                      Missed it
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [disabled]="aiBusy() || !!grade"
+                      [attr.aria-busy]="askingEquivalentGrade() === prompt ? true : null"
+                      (click)="judgeEquivalent(prompt)"
+                    >
+                      {{ askingEquivalentGrade() === prompt ? 'Asking…' : 'Ask AI' }}
+                    </button>
+                  </div>
+                  @if (grade) {
+                    <div class="compare-score">
+                      <p class="field-label">Score</p>
+                      <p class="score">{{ grade.score }}</p>
+                      <p>{{ grade.explanation }}</p>
+                    </div>
+                  }
+                  @if (equivalentGradeError()) {
+                    <p class="error">{{ equivalentGradeError() }}</p>
+                  }
                   <div class="sheet-actions">
                     <button
                       type="button"
@@ -4133,6 +4183,34 @@ function writeExampleSuggestions(
       gap: 0.25rem;
     }
 
+    .equivalent-gloss {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .equivalent-gloss p:last-child {
+      margin: 0;
+    }
+
+    .verdict {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .verdict .btn.on {
+      background: var(--accent);
+      color: white;
+      border-color: transparent;
+    }
+
+    .verdict .btn.miss.on {
+      background: color-mix(in srgb, var(--danger) 16%, var(--surface));
+      color: var(--danger);
+      border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+    }
+
     @media (max-width: 720px) {
       .compare {
         grid-template-columns: 1fr;
@@ -4236,9 +4314,12 @@ export class ElementModal {
   );
   readonly round = signal<PlayRound>(emptyPlayRound());
   readonly askingGrade = signal<number | null>(null);
+  readonly askingEquivalentGrade = signal<number | null>(null);
+  readonly equivalentGradeError = signal('');
   readonly equivalentPrompt = signal(-1);
   private readonly rounds = new Map<string, PlayRound>();
   private gradeJob = 0;
+  private equivalentGradeJob = 0;
   private alive = true;
   readonly formMaxLength = FORM_MAX_LENGTH;
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
@@ -4360,6 +4441,8 @@ export class ElementModal {
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
       this.askingGrade.set(null);
+      this.askingEquivalentGrade.set(null);
+      this.equivalentGradeError.set('');
       this.loadRound(id);
       this.dismissTranslations();
       this.engineerDrafts.clear();
@@ -4733,7 +4816,8 @@ export class ElementModal {
       this.askingExamples() !== null ||
       this.askingRelated() !== null ||
       this.askingWording() !== null ||
-      this.askingGrade() !== null
+      this.askingGrade() !== null ||
+      this.askingEquivalentGrade() !== null
     );
   }
 
@@ -6419,6 +6503,7 @@ export class ElementModal {
 
   openEquivalentPrompt(index: number): void {
     if (!this.sieving()) return;
+    this.equivalentGradeError.set('');
     this.equivalentPrompt.set(index);
     if (!this.equivalentSubmitted(index)) setTimeout(() => this.focusEquivalentField());
   }
@@ -6462,7 +6547,56 @@ export class ElementModal {
     const equivalentSubmitted = this.round().equivalentSubmitted.slice();
     while (equivalentSubmitted.length <= index) equivalentSubmitted.push(false);
     equivalentSubmitted[index] = true;
+    this.equivalentGradeError.set('');
     this.writeRound({ ...this.round(), equivalentSubmitted });
+  }
+
+  equivalentVerdictAt(index: number): EquivalentVerdict | null {
+    return this.round().equivalentVerdicts[index] ?? null;
+  }
+
+  equivalentGradeAt(index: number): PlayRound['equivalentGrades'][number] {
+    return this.round().equivalentGrades[index] ?? null;
+  }
+
+  markEquivalent(index: number, verdict: EquivalentVerdict): void {
+    if (!this.equivalentSubmitted(index)) return;
+    const equivalentVerdicts = this.round().equivalentVerdicts.slice();
+    while (equivalentVerdicts.length <= index) equivalentVerdicts.push(null);
+    equivalentVerdicts[index] = verdict;
+    this.writeRound({ ...this.round(), equivalentVerdicts });
+  }
+
+  async judgeEquivalent(index: number): Promise<void> {
+    if (this.aiBusy() || this.equivalentGradeAt(index) || !this.equivalentSubmitted(index)) return;
+    const element = this.element();
+    const definition = element.definitions[index];
+    const gloss = parsePassage(definition?.text ?? '').text.trim();
+    const answer = this.equivalentDraftAt(index).trim();
+    if (!definition || !gloss || !answer) return;
+    const job = ++this.equivalentGradeJob;
+    this.askingEquivalentGrade.set(index);
+    this.equivalentGradeError.set('');
+    try {
+      const grade = await gradeEquivalent({
+        language: element.language,
+        lemma: element.title,
+        definition: gloss,
+        answer,
+      });
+      if (!this.alive || job !== this.equivalentGradeJob || this.element().id !== element.id) return;
+      if (this.equivalentDraftAt(index).trim() !== answer) return;
+      const equivalentGrades = this.round().equivalentGrades.slice();
+      while (equivalentGrades.length <= index) equivalentGrades.push(null);
+      equivalentGrades[index] = grade;
+      this.writeRound({ ...this.round(), equivalentGrades });
+    } catch {
+      if (this.alive && job === this.equivalentGradeJob && this.element().id === element.id) {
+        this.equivalentGradeError.set('Could not judge that equivalent.');
+      }
+    } finally {
+      if (this.alive && job === this.equivalentGradeJob) this.askingEquivalentGrade.set(null);
+    }
   }
 
   definitionDraftAt(index: number): string {
