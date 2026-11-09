@@ -58,11 +58,24 @@
           animation: none;
         }
       }
+
+      #lg-version {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        margin: 0;
+        padding: 0.12rem 0.75rem calc(0.12rem + env(safe-area-inset-bottom));
+        color: #9499b3;
+        font: 0.68rem/1.2 system-ui, sans-serif;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
     <div id="lg-boot-splash" role="status" aria-live="polite" aria-label="Loading LingoGems">
       <img src="icons/icon-192x192.png" alt="" aria-hidden="true" />
+      <p id="lg-version">v1.0.292</p>
     </div>
     <app-root></app-root>
     <noscript>Please enable JavaScript to continue using this application.</noscript>

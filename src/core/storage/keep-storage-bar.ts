@@ -1,26 +1,13 @@
 import { Component, computed } from '@angular/core';
-import {
-  installApp,
-  installReady,
-  iosHomeScreen,
-  justInstalled,
-  keepStorageFromUser,
-  keepStorageMessage,
-  standaloneApp,
-  storageKept,
-} from './keep-storage';
+import { keepStorageFromUser, keepStorageMessage, storageKept } from './keep-storage';
 
 @Component({
   selector: 'app-keep-storage',
   template: `
-    @if (visible()) {
+    @if (kept() === false) {
       <div class="keep" role="status">
         <p>{{ message() }}</p>
-        @if (canInstall()) {
-          <button type="button" class="btn btn-primary" (click)="install()">Install</button>
-        } @else if (showKeep()) {
-          <button type="button" class="btn btn-primary" (click)="keep()">Keep data</button>
-        }
+        <button type="button" class="btn btn-primary" (click)="keep()">Keep data</button>
       </div>
     }
   `,
@@ -67,23 +54,7 @@ import {
 })
 export class KeepStorageBar {
   readonly kept = storageKept;
-  readonly canInstall = installReady;
-  readonly homeScreen = computed(() => iosHomeScreen() && !standaloneApp());
-  readonly visible = computed(
-    () => this.canInstall() || this.homeScreen() || this.kept() === false,
-  );
   readonly message = computed(keepStorageMessage);
-  readonly showKeep = computed(
-    () =>
-      this.kept() === false &&
-      !this.canInstall() &&
-      !this.homeScreen() &&
-      !(justInstalled() && !standaloneApp()),
-  );
-
-  install(): void {
-    void installApp();
-  }
 
   keep(): void {
     void keepStorageFromUser();
