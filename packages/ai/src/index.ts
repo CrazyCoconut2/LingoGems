@@ -138,6 +138,7 @@ export {
   buildPolishDefinitionUserMessage,
   parsePolishedDefinition,
   polishDefinition,
+  type PolishedDefinition,
   type PolishDefinitionInput,
   type PolishDefinitionTask,
 } from './polish-definition';

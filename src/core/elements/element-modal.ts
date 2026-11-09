@@ -2776,42 +2776,40 @@ function writeExampleSuggestions(
                   <label class="field-label" [attr.for]="'play-definition-' + prompt">
                     {{ supportAvailable() ? originalLanguageName() : 'Definition' }}
                   </label>
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Ask AI"
-                    [attr.aria-pressed]="definitionPolish()"
-                    [attr.aria-busy]="askingPolish() ? true : null"
-                    [disabled]="translating() || askingPolish()"
-                    (click)="definitionPolish.set(!definitionPolish())"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                @if (definitionPolish()) {
-                  <div class="sheet-actions">
+                  <span class="header-actions">
                     <button
                       type="button"
-                      class="btn btn-secondary"
+                      class="icon-btn"
+                      aria-label="Correct"
+                      title="Correct"
+                      [attr.aria-busy]="askingPolish() === 'correct' ? true : null"
                       [disabled]="!canPolishDefinition(prompt)"
                       (click)="polishWorkingDefinition(prompt, 'correct')"
                     >
-                      Correct
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m6 16 6-12 6 12" />
+                        <path d="M8 12h8" />
+                        <path d="m16 20 2 2 4-4" />
+                      </svg>
                     </button>
                     <button
                       type="button"
-                      class="btn btn-secondary"
+                      class="icon-btn"
+                      aria-label="Reformulate"
+                      title="Reformulate"
+                      [attr.aria-busy]="askingPolish() === 'reformulate' ? true : null"
                       [disabled]="!canPolishDefinition(prompt)"
                       (click)="polishWorkingDefinition(prompt, 'reformulate')"
                     >
-                      Reformulate
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 20h9" />
+                        <path
+                          d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"
+                        />
+                      </svg>
                     </button>
-                  </div>
-                }
+                  </span>
+                </div>
                 <textarea
                   #definitionField
                   [id]="'play-definition-' + prompt"
@@ -2823,6 +2821,12 @@ function writeExampleSuggestions(
                   (focus)="workDefinition('working')"
                   (input)="onDefinitionDraft(prompt, $event)"
                 ></textarea>
+                @if (definitionPolishNote(); as note) {
+                  <p class="field-label">
+                    {{ note.task === 'correct' ? 'Correction' : 'Reformulation' }}
+                  </p>
+                  <p class="hint">{{ note.explanation }}</p>
+                }
                 @if (error()) {
                   <p class="error">{{ error() }}</p>
                 }
@@ -5145,8 +5149,10 @@ export class ElementModal {
   private readonly supportField = viewChild<ElementRef<HTMLTextAreaElement>>('supportField');
   /** Which definition field is being written. The icon points at the other language. */
   readonly definitionSource = signal<'support' | 'working'>('support');
-  readonly definitionPolish = signal(false);
-  readonly askingPolish = signal(false);
+  readonly definitionPolishNote = signal<{ task: PolishDefinitionTask; explanation: string } | null>(
+    null,
+  );
+  readonly askingPolish = signal<PolishDefinitionTask | null>(null);
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
@@ -5191,8 +5197,8 @@ export class ElementModal {
       this.askingEquivalent.set(false);
       this.askingGrade.set(null);
       this.askingEquivalentGrade.set(null);
-      this.askingPolish.set(false);
-      this.definitionPolish.set(false);
+      this.askingPolish.set(null);
+      this.definitionPolishNote.set(null);
       this.equivalentGradeError.set('');
       this.loadRound(id);
       this.dismissTranslations();
@@ -5597,7 +5603,7 @@ export class ElementModal {
       this.askingWording() !== null ||
       this.askingGrade() !== null ||
       this.askingEquivalentGrade() !== null ||
-      this.askingPolish()
+      this.askingPolish() !== null
     );
   }
 
@@ -7688,7 +7694,7 @@ export class ElementModal {
     if (!this.definitionConcealed(index)) return;
     this.error.set('');
     this.definitionSource.set('support');
-    this.definitionPolish.set(false);
+    this.definitionPolishNote.set(null);
     this.definitionPrompt.set(index);
     setTimeout(() => (this.supportField() ?? this.definitionField())?.nativeElement.focus());
   }
@@ -7752,6 +7758,7 @@ export class ElementModal {
         grades[index] = null;
         definitionTranslations[index] = '';
         this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
+        this.definitionPolishNote.set(null);
       } else {
         const definitionSupportDrafts = this.round().definitionSupportDrafts?.slice() ?? [];
         while (definitionSupportDrafts.length <= index) definitionSupportDrafts.push('');
@@ -7769,7 +7776,9 @@ export class ElementModal {
 
   canPolishDefinition(index: number): boolean {
     return (
-      this.definitionDraftAt(index).trim().length > 0 && !this.translating() && !this.askingPolish()
+      this.definitionDraftAt(index).trim().length > 0 &&
+      !this.translating() &&
+      this.askingPolish() === null
     );
   }
 
@@ -7778,7 +7787,7 @@ export class ElementModal {
     if (!this.canPolishDefinition(index) || !this.definitionGame()) return;
     const element = this.element();
     const text = this.definitionDraftAt(index).trim();
-    this.askingPolish.set(true);
+    this.askingPolish.set(task);
     this.error.set('');
     try {
       const polished = await polishDefinition({ language: element.language, text, task });
@@ -7786,19 +7795,19 @@ export class ElementModal {
       if (this.definitionDraftAt(index).trim() !== text) return;
       const definitionDrafts = this.round().definitionDrafts.slice();
       while (definitionDrafts.length <= index) definitionDrafts.push('');
-      definitionDrafts[index] = polished.slice(0, DEFINITION_MAX);
+      definitionDrafts[index] = polished.text.slice(0, DEFINITION_MAX);
       const grades = this.round().grades.slice();
       const definitionTranslations = this.round().definitionTranslations.slice();
       grades[index] = null;
       definitionTranslations[index] = '';
       this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
-      this.definitionPolish.set(false);
+      this.definitionPolishNote.set({ task, explanation: polished.explanation });
     } catch {
       if (this.alive && this.element().id === element.id) {
         this.error.set('Could not rewrite this definition.');
       }
     } finally {
-      if (this.alive) this.askingPolish.set(false);
+      if (this.alive) this.askingPolish.set(null);
     }
   }
 
@@ -7850,6 +7859,7 @@ export class ElementModal {
     const definitionDrafts = this.round().definitionDrafts.slice();
     while (definitionDrafts.length <= index) definitionDrafts.push('');
     definitionDrafts[index] = value;
+    this.definitionPolishNote.set(null);
     const grades = this.round().grades.slice();
     const definitionTranslations = this.round().definitionTranslations.slice();
     if (grades[index] != null || definitionTranslations[index]) {

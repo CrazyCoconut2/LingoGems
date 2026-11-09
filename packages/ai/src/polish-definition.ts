@@ -7,14 +7,14 @@ import type { CompleteJsonInput } from './types';
 export const POLISH_DEFINITION_SYSTEM_PROMPT = `You rewrite one learner definition.
 JSON keys stay in English.
 text is in the language named by writeFieldsIn.
-Reply with text in that same language. Do not translate it.
+text and explanation MUST be in that same language. Do not translate text.
 task is correct or reformulate.
-- correct fixes spelling and grammar and keeps the wording
-- reformulate says the same thing more naturally
+- correct fixes spelling and grammar and keeps the wording. explanation names each error in the original, such as spelling, grammar, agreement, or accents. If there were none, say it was already correct.
+- reformulate says the same thing more naturally and keeps the meaning. explanation says what changed and why. If the original was correct but uncommon, say that.
 Do not add facts that were not in text.
-JSON only: {"text":"<rewritten definition>"}`;
+JSON only: {"text":"<rewritten definition>","explanation":"<what changed>"}`;
 
-const POLISH_MAX_TOKENS = 512;
+const POLISH_MAX_TOKENS = 1024;
 
 export type PolishDefinitionTask = 'correct' | 'reformulate';
 
@@ -22,6 +22,11 @@ export type PolishDefinitionInput = {
   language: string;
   text: string;
   task: PolishDefinitionTask;
+};
+
+export type PolishedDefinition = {
+  text: string;
+  explanation: string;
 };
 
 export function buildPolishDefinitionUserMessage(input: PolishDefinitionInput): string {
@@ -33,7 +38,7 @@ export function buildPolishDefinitionUserMessage(input: PolishDefinitionInput): 
   });
 }
 
-export function parsePolishedDefinition(parsed: unknown): string | null {
+export function parsePolishedDefinition(parsed: unknown): PolishedDefinition | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
@@ -41,11 +46,15 @@ export function parsePolishedDefinition(parsed: unknown): string | null {
   const text = String(source?.['text'] ?? '')
     .replace(/\s+/g, ' ')
     .trim();
-  return text || null;
+  const explanation = String(source?.['explanation'] ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text || !explanation) return null;
+  return { text, explanation };
 }
 
 /** Correct a definition, or say it more naturally, in its own language. */
-export async function polishDefinition(request: PolishDefinitionInput): Promise<string> {
+export async function polishDefinition(request: PolishDefinitionInput): Promise<PolishedDefinition> {
   const language = String(request.language || '')
     .trim()
     .toLowerCase();
