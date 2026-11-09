@@ -1,4 +1,4 @@
-import { languageDisplayName } from 'collection';
+import { TRANSLATION_GEM_MAX, languageDisplayName } from 'collection';
 import { completeJson, runWithKeyFallback } from './complete';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
@@ -7,14 +7,14 @@ import type { CompleteJsonInput } from './types';
 export const GRADE_DEFINITION_SYSTEM_PROMPT = `You compare a learner's definition to the stored dictionary gloss for one sense.
 JSON keys stay in English.
 The answer and the gloss are both in the language named by writeFieldsIn.
-Score closeness of meaning from 0 to 100. Judge meaning, not wording.
-- 100 means the same sense, with acceptable wording
+Score gems from 0 to ${TRANSLATION_GEM_MAX}. Judge meaning, not wording.
+- ${TRANSLATION_GEM_MAX} means the same sense, with acceptable wording
 - Partial credit means the right sense with missing or extra detail
 - 0 means a different sense, or unrelated
 Spelling mistakes do not sink a correct meaning.
 explanation MUST be in the language named by writeFieldsIn. Do not write it in English unless writeFieldsIn is English.
 explanation says why the score is what it is. Do not quote the stored gloss in full.
-JSON only: {"score":<0-100>,"explanation":"<text>"}`;
+JSON only: {"score":<0-${TRANSLATION_GEM_MAX}>,"explanation":"<text>"}`;
 
 const GRADE_MAX_TOKENS = 1024;
 
@@ -61,7 +61,7 @@ export function parseGradedDefinition(parsed: unknown): GradedDefinition | null 
     .trim();
   if (!explanation) return null;
   return {
-    score: Math.min(100, Math.max(0, Math.round(score))),
+    score: Math.min(TRANSLATION_GEM_MAX, Math.max(0, Math.round(score))),
     explanation,
   };
 }

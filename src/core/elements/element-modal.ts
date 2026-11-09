@@ -1087,12 +1087,12 @@ function writeExampleSuggestions(
                         </span>
                       }
                       <span class="item-actions-main">
-                        @if (translationGain(definition); as gain) {
+                        @if (exerciseGain(definition); as gain) {
                           <button
                             type="button"
                             class="gem-gain"
-                            data-game="translation"
-                            [attr.aria-label]="'Show exercises, ' + gain.gems + ' translation gems'"
+                            [attr.data-game]="gain.game"
+                            [attr.aria-label]="'Show exercises, ' + gain.gems + ' gems'"
                             title="Exercises"
                             (click)="openExerciseLog(index)"
                           >
@@ -2636,6 +2636,7 @@ function writeExampleSuggestions(
                       </button>
                     </div>
                   } @else {
+                  @let reward = definitionRewardAt(prompt);
                   <div class="compare">
                     <div class="compare-side">
                       <p class="field-label">Definition</p>
@@ -2662,21 +2663,47 @@ function writeExampleSuggestions(
                       }
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    [disabled]="aiBusy() || !!gradeAt(prompt)"
-                    [attr.aria-busy]="askingGrade() === prompt ? true : null"
-                    (click)="evaluateDefinition(prompt)"
-                  >
-                    {{ askingGrade() === prompt ? 'Asking…' : 'Ask AI' }}
-                  </button>
-                  @if (gradeAt(prompt); as grade) {
-                    <div class="compare-score">
-                      <p class="field-label">Score</p>
-                      <p class="score">{{ grade.score }}</p>
-                      <p>{{ grade.explanation }}</p>
-                    </div>
+                  <p class="field-label">Gems</p>
+                  <div class="gem-pick" data-game="definition" role="group" aria-label="Gems">
+                    @for (gems of gemScores; track gems) {
+                      @if (gems > 0) {
+                        <button
+                          type="button"
+                          class="gem-pick-stone"
+                          [class.on]="(reward?.gems ?? -1) >= gems"
+                          [attr.aria-pressed]="reward?.gems === gems"
+                          [attr.aria-label]="gems + ' gems'"
+                          [disabled]="aiBusy()"
+                          (click)="awardDefinition(prompt, gems)"
+                        >
+                          <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                        </button>
+                      }
+                    }
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [class.on]="reward?.gems === 0"
+                      [attr.aria-pressed]="reward?.gems === 0"
+                      [disabled]="aiBusy()"
+                      (click)="awardDefinition(prompt, 0)"
+                    >
+                      None
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [disabled]="aiBusy() || reward?.by === 'ai'"
+                      [attr.aria-busy]="askingGrade() === prompt ? true : null"
+                      (click)="evaluateDefinition(prompt)"
+                    >
+                      {{ askingGrade() === prompt ? 'Asking…' : 'Ask AI' }}
+                    </button>
+                  </div>
+                  @if (reward; as scored) {
+                    @if (scored.by === 'ai' && scored.explanation) {
+                      <p>{{ scored.explanation }}</p>
+                    }
                   }
                   @if (error()) {
                     <p class="error">{{ error() }}</p>
@@ -2937,15 +2964,19 @@ function writeExampleSuggestions(
                         type="button"
                         class="btn btn-secondary add-choice log-row"
                         [attr.aria-label]="
-                          modeLabel(1) + ', ' + entry.gems + ' gems, ' + exerciseWhen(entry.at)
+                          modeLabel(entry.game === 'definition' ? 3 : 1) +
+                          ', ' +
+                          entry.gems +
+                          ' gems, ' +
+                          exerciseWhen(entry.at)
                         "
                         (click)="exerciseEntry.set($index)"
                       >
                         <span
-                          >{{ modeLabel(1) }} ·
+                          >{{ modeLabel(entry.game === 'definition' ? 3 : 1) }} ·
                           <span class="hint">{{ exerciseWhen(entry.at) }}</span></span
                         >
-                        <span class="gem-pick" data-game="translation" aria-hidden="true">
+                        <span class="gem-pick" [attr.data-game]="entry.game" aria-hidden="true">
                           @for (gems of gemScores; track gems) {
                             @if (gems > 0) {
                               <span class="gem-pick-stone" [class.on]="entry.gems >= gems">
@@ -2963,7 +2994,7 @@ function writeExampleSuggestions(
                     @let passage = parsePassage(definition.text);
                     @let gloss = passage.text;
                     @let equivalent = equivalentText(definition);
-                    @if (gloss && entry.answer) {
+                    @if (gloss && entry.answer && entry.game !== 'definition') {
                       <div class="equivalent-gloss">
                         <p class="field-label">Definition</p>
                         <p>{{ shownDefinition(gloss) }}</p>
@@ -2980,7 +3011,18 @@ function writeExampleSuggestions(
                     }
                     @if (!entry.answer) {
                       <p class="field-label">You gave up</p>
-                      @if (equivalent) {
+                      @if (entry.game === 'definition') {
+                        <p class="passage">{{ shownDefinition(gloss) }}</p>
+                        @if (passage.translations.length) {
+                          <ul class="equivalents">
+                            @for (translation of passage.translations; track $index) {
+                              <li>
+                                <app-reveal [text]="translation.text" />
+                              </li>
+                            }
+                          </ul>
+                        }
+                      } @else if (equivalent) {
                         <p class="equivalent-result">
                           <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="m5 8 6 6" />
@@ -2996,18 +3038,32 @@ function writeExampleSuggestions(
                     } @else {
                       <div class="compare">
                         <div class="compare-side">
-                          <p class="field-label">Equivalent</p>
-                          <p class="equivalent-result">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
-                            <span>{{ equivalent }}</span>
-                          </p>
+                          @if (entry.game === 'definition') {
+                            <p class="field-label">Definition</p>
+                            <p class="passage">{{ shownDefinition(gloss) }}</p>
+                            @if (passage.translations.length) {
+                              <ul class="equivalents">
+                                @for (translation of passage.translations; track $index) {
+                                  <li>
+                                    <app-reveal [text]="translation.text" />
+                                  </li>
+                                }
+                              </ul>
+                            }
+                          } @else {
+                            <p class="field-label">Equivalent</p>
+                            <p class="equivalent-result">
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m5 8 6 6" />
+                                <path d="m4 14 6-6 2-3" />
+                                <path d="M2 5h12" />
+                                <path d="M7 2h1" />
+                                <path d="m22 22-5-10-5 10" />
+                                <path d="M14 18h6" />
+                              </svg>
+                              <span>{{ equivalent }}</span>
+                            </p>
+                          }
                         </div>
                         <div class="compare-side yours">
                           <p class="field-label">You wrote</p>
@@ -3016,7 +3072,7 @@ function writeExampleSuggestions(
                       </div>
                     }
                     <p class="field-label">Gems</p>
-                    <div class="gem-pick" data-game="translation">
+                    <div class="gem-pick" [attr.data-game]="entry.game">
                       @for (gems of gemScores; track gems) {
                         @if (gems > 0) {
                           <span class="gem-pick-stone" [class.on]="entry.gems >= gems">
@@ -4752,9 +4808,12 @@ function writeExampleSuggestions(
       gap: 0.35rem;
     }
 
-    .gem-pick[data-game='translation'],
-    .gem-gain[data-game='translation'] {
+    [data-game='translation'] {
       --exercise-gem: #f05a62;
+    }
+
+    [data-game='definition'] {
+      --exercise-gem: #48c850;
     }
 
     .gem-gain {
@@ -6450,7 +6509,7 @@ export class ElementModal {
       return `Write the equivalent for each definition. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI.`;
     }
     if (mode === 2) return 'Write the title, or any form of it.';
-    return 'Write each hidden definition and submit it, then ask the AI for the score. Or give up to see it.';
+    return `Write each hidden definition and submit it. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI. Or give up to see it.`;
   }
 
   /** Stop this round and show the card. */
@@ -6897,7 +6956,7 @@ export class ElementModal {
     }
     this.adjustExerciseRound(definitionIndex, logIndex);
     this.confirm.set(null);
-    if (!next.log.some((item) => item.game === 'translation')) {
+    if (!next.log.length) {
       this.closeExerciseLog();
       return;
     }
@@ -6906,11 +6965,18 @@ export class ElementModal {
 
   /** Keep the open attempt pointed at the same log entry after one is removed. */
   private adjustExerciseRound(definitionIndex: number, removedIndex: number): void {
-    const current = this.round().equivalentLogIndexes[definitionIndex];
-    if (typeof current !== 'number' || current < removedIndex) return;
-    const equivalentLogIndexes = this.round().equivalentLogIndexes.slice();
-    equivalentLogIndexes[definitionIndex] = current === removedIndex ? null : current - 1;
-    this.writeRound({ ...this.round(), equivalentLogIndexes });
+    const shift = (indexes: Array<number | null>): Array<number | null> => {
+      const next = indexes.slice();
+      const current = next[definitionIndex];
+      if (typeof current !== 'number' || current < removedIndex) return next;
+      next[definitionIndex] = current === removedIndex ? null : current - 1;
+      return next;
+    };
+    this.writeRound({
+      ...this.round(),
+      equivalentLogIndexes: shift(this.round().equivalentLogIndexes),
+      definitionLogIndexes: shift(this.round().definitionLogIndexes ?? []),
+    });
   }
 
   private async removeElement(): Promise<void> {
@@ -7177,7 +7243,7 @@ export class ElementModal {
       const definition = definitions[index];
       if (!definition || !definitionEligibleForGames(definition.text, this.element())) continue;
       prompted += 1;
-      if (!this.gradeAt(index)) return false;
+      if (!this.definitionRewardAt(index)) return false;
     }
     return prompted > 0;
   }
@@ -7354,15 +7420,17 @@ export class ElementModal {
     return this.round().equivalentRewards[index] ?? null;
   }
 
-  /** Latest translation score on this definition, including a gain of 0. */
-  translationGain(definition: ElementDefinition): { gems: number } | null {
+  /** Latest score on this definition, including a gain of 0. */
+  exerciseGain(
+    definition: ElementDefinition,
+  ): { gems: number; game: DefinitionLogEntry['game'] } | null {
     const latest = this.exerciseHistory(definition)[0];
-    return latest ? { gems: latest.gems } : null;
+    return latest ? { gems: latest.gems, game: latest.game } : null;
   }
 
   /** Newest exercise first. */
   exerciseHistory(definition: ElementDefinition): DefinitionLogEntry[] {
-    return definition.log.filter((entry) => entry.game === 'translation').slice().reverse();
+    return definition.log.slice().reverse();
   }
 
   exerciseWhen(at: number): string {
@@ -7514,7 +7582,7 @@ export class ElementModal {
 
   definitionConcealed(index: number): boolean {
     if (!this.definitionGame()) return false;
-    if (this.gradeAt(index) && this.definitionPrompt() !== index) return false;
+    if (this.definitionRewardAt(index) && this.definitionPrompt() !== index) return false;
     const text = this.element().definitions[index]?.text ?? '';
     return definitionEligibleForGames(text, this.element());
   }
@@ -7542,9 +7610,17 @@ export class ElementModal {
     return this.round().definitionSubmitted[index] === true;
   }
 
-  /** A written answer is in, and the AI has not scored it yet. */
+  /** A written answer is in, and it has not been scored yet. */
   definitionAwaitingScore(index: number): boolean {
-    return this.definitionSubmitted(index) && !this.gradeAt(index);
+    return this.definitionSubmitted(index) && !this.definitionRewardAt(index);
+  }
+
+  definitionRewardAt(index: number): EquivalentReward | null {
+    return this.round().definitionRewards?.[index] ?? null;
+  }
+
+  private definitionGaveUp(index: number): boolean {
+    return this.definitionSubmitted(index) && !this.definitionDraftAt(index).trim();
   }
 
   submitDefinition(index: number): void {
@@ -7589,49 +7665,57 @@ export class ElementModal {
     });
   }
 
-  /** Concede this definition. The gloss is shown and the turn counts as done. */
-  giveUpDefinition(index: number): void {
-    if (
-      !this.definitionGame() ||
-      this.aiBusy() ||
-      this.gradeAt(index) ||
-      this.definitionSubmitted(index)
-    ) {
-      return;
-    }
+  /** Concede this definition. The gloss is shown and the attempt earns no gems. */
+  async giveUpDefinition(index: number): Promise<void> {
+    if (!this.definitionGame() || this.aiBusy() || this.definitionSubmitted(index)) return;
     const definition = this.element().definitions[index];
     if (!definition || !definitionEligibleForGames(definition.text, this.element())) return;
-    const grades = this.round().grades.slice();
-    while (grades.length <= index) grades.push(null);
-    grades[index] = { score: 0, explanation: '' };
+    this.error.set('');
+    const logIndex = await this.recordDefinitionReward(index, { gems: 0, by: 'user', answer: '' });
+    if (!this.alive) return;
+    if (logIndex == null) {
+      this.error.set('Could not save this score.');
+      return;
+    }
     const definitionDrafts = this.round().definitionDrafts.slice();
     while (definitionDrafts.length <= index) definitionDrafts.push('');
     definitionDrafts[index] = '';
     const definitionTranslations = this.round().definitionTranslations.slice();
     while (definitionTranslations.length <= index) definitionTranslations.push('');
     definitionTranslations[index] = '';
-    const definitionSubmitted = this.round().definitionSubmitted.slice();
+    const definitionSubmitted = this.round().definitionSubmitted?.slice() ?? [];
     while (definitionSubmitted.length <= index) definitionSubmitted.push(false);
     definitionSubmitted[index] = true;
-    this.error.set('');
     this.writeRound({
       ...this.round(),
-      grades,
       definitionDrafts,
       definitionTranslations,
       definitionSubmitted,
     });
+    this.writeDefinitionReward(index, { gems: 0, by: 'user', explanation: '' }, logIndex);
+  }
+
+  async awardDefinition(index: number, gems: number): Promise<void> {
+    if (!this.definitionGame() || this.aiBusy() || !this.definitionSubmitted(index)) return;
+    if (this.definitionGaveUp(index) || gems < 0 || gems > TRANSLATION_GEM_MAX) return;
+    const current = this.definitionRewardAt(index);
+    if (current?.by === 'user' && current.gems === gems) return;
+    const answer = this.definitionDraftAt(index).trim();
+    if (!answer) return;
+    this.error.set('');
+    const logIndex = await this.recordDefinitionReward(index, { gems, by: 'user', answer });
+    if (!this.alive) return;
+    if (logIndex == null) {
+      this.error.set('Could not save this score.');
+      return;
+    }
+    if (this.definitionDraftAt(index).trim() !== answer) return;
+    this.writeDefinitionReward(index, { gems, by: 'user', explanation: '' }, logIndex);
   }
 
   async evaluateDefinition(index: number): Promise<void> {
-    if (
-      this.aiBusy() ||
-      this.gradeAt(index) ||
-      !this.definitionSubmitted(index) ||
-      !this.definitionDraftAt(index).trim()
-    ) {
-      return;
-    }
+    if (this.aiBusy() || !this.definitionSubmitted(index) || this.definitionGaveUp(index)) return;
+    if (this.definitionRewardAt(index)?.by === 'ai' || !this.definitionDraftAt(index).trim()) return;
     const element = this.element();
     const definition = element.definitions[index];
     const gloss = parsePassage(definition?.text ?? '').text.trim();
@@ -7680,13 +7764,29 @@ export class ElementModal {
       if (this.definitionDraftAt(index).trim() !== answer || this.answerLanguage(index) !== language) {
         return;
       }
-      const grades = this.round().grades.slice();
-      while (grades.length <= index) grades.push(null);
-      grades[index] = grade;
+      const logIndex = await this.recordDefinitionReward(index, {
+        gems: grade.score,
+        by: 'ai',
+        answer,
+        explanation: grade.explanation,
+      });
+      if (!this.alive || job !== this.gradeJob || this.element().id !== element.id) return;
+      if (this.definitionDraftAt(index).trim() !== answer || this.answerLanguage(index) !== language) {
+        return;
+      }
+      if (logIndex == null) {
+        this.error.set('Could not save this score.');
+        return;
+      }
       const definitionTranslations = this.round().definitionTranslations.slice();
       while (definitionTranslations.length <= index) definitionTranslations.push('');
       if (inEnglish) definitionTranslations[index] = judged;
-      this.writeRound({ ...this.round(), grades, definitionTranslations });
+      this.writeRound({ ...this.round(), definitionTranslations });
+      this.writeDefinitionReward(
+        index,
+        { gems: grade.score, by: 'ai', explanation: grade.explanation },
+        logIndex,
+      );
     } catch {
       if (this.alive && job === this.gradeJob && this.element().id === element.id) {
         this.error.set('Could not evaluate that definition.');
@@ -7694,6 +7794,47 @@ export class ElementModal {
     } finally {
       if (this.alive && job === this.gradeJob) this.askingGrade.set(null);
     }
+  }
+
+  private writeDefinitionReward(index: number, reward: EquivalentReward, logIndex: number): void {
+    const definitionRewards = this.round().definitionRewards?.slice() ?? [];
+    while (definitionRewards.length <= index) definitionRewards.push(null);
+    definitionRewards[index] = reward;
+    const definitionLogIndexes = this.round().definitionLogIndexes?.slice() ?? [];
+    while (definitionLogIndexes.length <= index) definitionLogIndexes.push(null);
+    definitionLogIndexes[index] = logIndex;
+    this.writeRound({ ...this.round(), definitionRewards, definitionLogIndexes });
+  }
+
+  /** Append this attempt, or replace it when the learner changes the score. */
+  private async recordDefinitionReward(
+    index: number,
+    entry: { gems: number; by: DefinitionLogEntry['by']; answer: string; explanation?: string },
+  ): Promise<number | null> {
+    const elementId = this.element().id;
+    const definitions = this.copyDefinitions();
+    const definition = definitions[index];
+    if (!definition) return null;
+    const log = definition.log.map((item) => ({ ...item }));
+    const stored: DefinitionLogEntry = {
+      game: 'definition',
+      gems: entry.gems,
+      by: entry.by,
+      at: Date.now(),
+      answer: entry.answer,
+    };
+    if (entry.explanation) stored.explanation = entry.explanation;
+    let logIndex = this.round().definitionLogIndexes?.[index];
+    if (typeof logIndex !== 'number' || logIndex < 0 || logIndex >= log.length) {
+      log.push(stored);
+      logIndex = log.length - 1;
+    } else {
+      log[logIndex] = stored;
+    }
+    definitions[index] = { ...definition, log };
+    const saved = await this.persist(definitions, this.element().equivalents);
+    if (!this.alive || !saved || this.element().id !== elementId) return null;
+    return logIndex;
   }
 
   private equivalentSolved(id: string): boolean {

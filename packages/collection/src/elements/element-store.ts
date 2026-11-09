@@ -33,7 +33,7 @@ export type DefinitionLogBy = 'user' | 'ai';
 
 /** One scored answer in a game, kept on the definition it belongs to. */
 export type DefinitionLogEntry = {
-  game: 'translation';
+  game: 'translation' | 'definition';
   gems: number;
   by: DefinitionLogBy;
   at: number;
@@ -375,7 +375,7 @@ function normalizeLog(value: unknown): DefinitionLogEntry[] {
 function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   if (!raw || typeof raw !== 'object') return null;
   const source = raw as Partial<DefinitionLogEntry>;
-  if (source.game !== 'translation') return null;
+  if (source.game !== 'translation' && source.game !== 'definition') return null;
   const gems = Math.round(Number(source.gems));
   if (!Number.isInteger(gems) || gems < 0 || gems > TRANSLATION_GEM_MAX) return null;
   if (source.by !== 'user' && source.by !== 'ai') return null;
@@ -384,7 +384,7 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   const explanation =
     typeof source.explanation === 'string' ? source.explanation.replace(/\s+/g, ' ').trim() : '';
   const entry: DefinitionLogEntry = {
-    game: 'translation',
+    game: source.game,
     gems,
     by: source.by,
     at: source.at,
