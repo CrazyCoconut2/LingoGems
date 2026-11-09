@@ -3345,7 +3345,7 @@ function writeExampleSuggestions(
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) + 4px);
       background: var(--surface);
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
     }
 
     header,

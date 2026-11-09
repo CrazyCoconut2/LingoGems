@@ -22,7 +22,7 @@ import { KeepStorageBar } from './storage/keep-storage-bar';
       right: 0;
       bottom: 0;
       left: 0;
-      z-index: 60;
+      z-index: 20;
       margin: 0;
       padding: 0.12rem 0.75rem calc(0.12rem + env(safe-area-inset-bottom));
       background: color-mix(in srgb, var(--bg) 92%, transparent);

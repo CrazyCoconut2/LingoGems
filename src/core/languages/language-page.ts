@@ -1477,7 +1477,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       background:
         radial-gradient(120% 80% at 0% 0%, rgba(var(--accent-rgb), 0.12), transparent 55%),
         var(--surface);
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
     }
 
     .filter-header,
