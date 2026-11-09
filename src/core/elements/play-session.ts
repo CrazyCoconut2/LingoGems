@@ -22,6 +22,8 @@ export type PlayRound = {
   definitionLanguages: AnswerLanguage[];
   grades: Array<GradedDefinition | null>;
   definitionTranslations: string[];
+  /** The learner stopped this round. The card is shown again. */
+  givenUp: boolean;
 };
 
 export function emptyPlayRound(): PlayRound {
@@ -37,6 +39,7 @@ export function emptyPlayRound(): PlayRound {
     definitionLanguages: [],
     grades: [],
     definitionTranslations: [],
+    givenUp: false,
   };
 }
 

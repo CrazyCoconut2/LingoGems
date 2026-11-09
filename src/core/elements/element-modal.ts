@@ -664,11 +664,11 @@ function writeExampleSuggestions(
                 type="button"
                 class="mode-btn"
                 [class.play-focus]="sieving() || definitionCue()"
-                [attr.aria-label]="mode ? modeLabel(mode) : 'Set mode'"
-                [attr.title]="mode ? modeLabel(mode) : 'Set mode'"
-                [attr.aria-expanded]="modeOpen()"
-                [disabled]="busy() || inPlay()"
-                (click)="modeOpen.set(true)"
+                [attr.aria-label]="inPlay() ? 'What to do' : mode ? modeLabel(mode) : 'Set mode'"
+                [attr.title]="inPlay() ? 'What to do' : mode ? modeLabel(mode) : 'Set mode'"
+                [attr.aria-expanded]="inPlay() ? helpOpen() : modeOpen()"
+                [disabled]="busy()"
+                (click)="openMode()"
               >
                 @if (mode) {
                   <app-mode-icon [mode]="mode" />
@@ -2819,6 +2819,41 @@ function writeExampleSuggestions(
           </div>
         }
 
+        @if (helpOpen()) {
+          @if (element().mode; as mode) {
+            <div class="sheet-backdrop" (click)="closeHelp($event)">
+              <section
+                class="sheet"
+                role="dialog"
+                aria-modal="true"
+                aria-label="What to do"
+                (click)="$event.stopPropagation()"
+              >
+                <div class="sheet-head">
+                  <h3>{{ modeLabel(mode) }}</h3>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Close"
+                    (click)="helpOpen.set(false)"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <p class="hint">{{ playHelp(mode) }}</p>
+                <div class="sheet-actions">
+                  <button type="button" class="btn btn-secondary" (click)="giveUpGame()">
+                    Give up
+                  </button>
+                </div>
+              </section>
+            </div>
+          }
+        }
+
         @if (confirm(); as pending) {
           <div class="sheet-backdrop" (click)="closeSheet($event)">
             <section
@@ -2998,7 +3033,7 @@ function writeExampleSuggestions(
       border-color: rgba(var(--scintilla-rgb), 0.78);
       background: rgba(var(--scintilla-rgb), 0.14);
       box-shadow: 0 0 12px rgba(var(--scintilla-rgb), 0.28);
-      cursor: default;
+      cursor: pointer;
     }
 
     .title-end .mode-btn.play-focus app-mode-icon {
@@ -4653,6 +4688,7 @@ export class ElementModal {
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
   readonly modeOpen = signal(false);
+  readonly helpOpen = signal(false);
   readonly comfortOpen = signal(false);
   readonly engineerGloss = signal('');
   readonly engineerEnglish = signal('');
@@ -4712,6 +4748,7 @@ export class ElementModal {
       this.addDefinitionOpen.set(false);
       this.expandedForms.set(new Set());
       this.modeOpen.set(false);
+      this.helpOpen.set(false);
       this.comfortOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
@@ -4771,6 +4808,10 @@ export class ElementModal {
     }
     if (this.comfortOpen()) {
       if (!this.busy()) this.comfortOpen.set(false);
+      return;
+    }
+    if (this.helpOpen()) {
+      this.helpOpen.set(false);
       return;
     }
     if (this.modeOpen()) {
@@ -6079,6 +6120,35 @@ export class ElementModal {
     this.modeOpen.set(false);
   }
 
+  openMode(): void {
+    if (this.busy()) return;
+    if (this.inPlay()) {
+      this.helpOpen.set(true);
+      return;
+    }
+    this.modeOpen.set(true);
+  }
+
+  closeHelp(event: MouseEvent): void {
+    if (event.target !== event.currentTarget) return;
+    this.helpOpen.set(false);
+  }
+
+  playHelp(mode: ElementMode): string {
+    if (mode === 1) return 'Write the equivalent for each definition.';
+    if (mode === 2) return 'Write the title, or any form of it.';
+    return 'Write each hidden definition.';
+  }
+
+  /** Stop this round and show the card. */
+  giveUpGame(): void {
+    if (!this.inPlay()) return;
+    this.equivalentPrompt.set(-1);
+    this.definitionPrompt.set(-1);
+    this.helpOpen.set(false);
+    this.writeRound({ ...this.round(), givenUp: true });
+  }
+
   translationReady(): boolean {
     return elementReadyForTranslation(this.element());
   }
@@ -6711,6 +6781,7 @@ export class ElementModal {
    */
   inPlay(): boolean {
     if (!this.playing()) return false;
+    if (this.round().givenUp) return false;
     if (this.equivalentPromptOpen() || this.definitionPromptOpen()) return true;
     if (this.element().mode === 1) return !this.equivalentGameDone();
     if (this.element().mode === 3) return !this.definitionGameDone();
