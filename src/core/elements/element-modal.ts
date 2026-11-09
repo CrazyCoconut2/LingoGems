@@ -583,7 +583,7 @@ function writeExampleSuggestions(
       [attr.aria-label]="dialogLabel()"
       (click)="onBackdrop($event)"
     >
-      <div class="panel">
+      <div class="panel" [attr.data-mode]="element().mode">
         <header>
           <div class="title-row">
             @if (canGoBack()) {
@@ -2757,12 +2757,6 @@ function writeExampleSuggestions(
               </div>
               <div class="mode-editor">
                 @let mode = element().mode;
-                @if (mode) {
-                  <div class="mode-current">
-                    <app-mode-icon [mode]="mode" />
-                    <span>{{ modeLabel(mode) }}</span>
-                  </div>
-                }
                 <div
                   class="mode-sequence"
                   role="group"
@@ -2979,18 +2973,36 @@ function writeExampleSuggestions(
       stroke-linejoin: round;
     }
 
+    .panel[data-mode='1'] {
+      --scintilla: #f05a62;
+      --scintilla-rgb: 240, 90, 98;
+      --scintilla-hot: #ffb4b6;
+    }
+
+    .panel[data-mode='2'] {
+      --scintilla: #f09440;
+      --scintilla-rgb: 240, 148, 64;
+      --scintilla-hot: #ffd0a6;
+    }
+
+    .panel[data-mode='3'] {
+      --scintilla: #48c850;
+      --scintilla-rgb: 72, 200, 80;
+      --scintilla-hot: #b8f5bc;
+    }
+
     .title-end .mode-btn.play-focus,
     .title-end .mode-btn.play-focus:disabled {
       opacity: 1;
-      color: #f5c451;
-      border-color: rgba(245, 196, 81, 0.78);
-      background: rgba(245, 196, 81, 0.14);
-      box-shadow: 0 0 12px rgba(245, 176, 48, 0.22);
+      color: var(--scintilla);
+      border-color: rgba(var(--scintilla-rgb), 0.78);
+      background: rgba(var(--scintilla-rgb), 0.14);
+      box-shadow: 0 0 12px rgba(var(--scintilla-rgb), 0.28);
       cursor: default;
     }
 
     .title-end .mode-btn.play-focus app-mode-icon {
-      filter: drop-shadow(0 0 3px rgba(245, 196, 81, 0.55));
+      filter: drop-shadow(0 0 3px rgba(var(--scintilla-rgb), 0.55));
       animation: gem-scintillate 1s linear infinite;
     }
 
@@ -3017,7 +3029,7 @@ function writeExampleSuggestions(
     }
 
     .definition-cue-text {
-      color: #f5c451;
+      color: var(--scintilla);
       white-space: pre-wrap;
       filter: blur(0.55em);
       user-select: none;
@@ -3028,14 +3040,14 @@ function writeExampleSuggestions(
       0%,
       62%,
       100% {
-        color: #f5c451;
+        color: var(--scintilla);
         filter: blur(0.55em);
       }
 
       74%,
       86% {
         color: #fff;
-        filter: blur(0.55em) drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px #ffd978);
+        filter: blur(0.55em) drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px var(--scintilla-hot));
       }
     }
 
@@ -3043,12 +3055,12 @@ function writeExampleSuggestions(
       0%,
       62%,
       100% {
-        filter: drop-shadow(0 0 3px rgba(245, 196, 81, 0.55));
+        filter: drop-shadow(0 0 3px rgba(var(--scintilla-rgb), 0.55));
       }
 
       74%,
       86% {
-        filter: brightness(1.6) drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px #ffd978);
+        filter: brightness(1.6) drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px var(--scintilla-hot));
       }
     }
 
@@ -3056,14 +3068,14 @@ function writeExampleSuggestions(
       0%,
       62%,
       100% {
-        color: #f5c451;
+        color: var(--scintilla);
         filter: none;
       }
 
       74%,
       86% {
         color: #fff;
-        filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px #ffd978);
+        filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px var(--scintilla-hot));
       }
     }
 
@@ -3189,21 +3201,6 @@ function writeExampleSuggestions(
       flex-direction: column;
       align-items: center;
       gap: 0.95rem;
-    }
-
-    .mode-current {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.35rem;
-      color: var(--text);
-      font-size: 1.05rem;
-      font-weight: 750;
-    }
-
-    .mode-current app-mode-icon {
-      width: 2.6rem;
-      height: 2.6rem;
     }
 
     .mode-sequence {
@@ -3771,14 +3768,14 @@ function writeExampleSuggestions(
     }
 
     .guess-open.needs-click {
-      color: #f5c451;
-      border-color: rgba(245, 196, 81, 0.78);
-      background: rgba(245, 196, 81, 0.14);
-      box-shadow: 0 0 10px rgba(245, 176, 48, 0.2);
+      color: var(--scintilla);
+      border-color: rgba(var(--scintilla-rgb), 0.78);
+      background: rgba(var(--scintilla-rgb), 0.14);
+      box-shadow: 0 0 10px rgba(var(--scintilla-rgb), 0.28);
     }
 
     .guess-open.needs-click:hover {
-      background: rgba(245, 196, 81, 0.24);
+      background: rgba(var(--scintilla-rgb), 0.24);
     }
 
     .equivalent-prompt {
