@@ -140,7 +140,8 @@ function writeMetadata(
 type ConfirmDelete =
   | { kind: 'element' }
   | { kind: 'definition'; index: number }
-  | { kind: 'example'; definitionIndex: number; exampleIndex: number };
+  | { kind: 'example'; definitionIndex: number; exampleIndex: number }
+  | { kind: 'exercise'; definitionIndex: number; historyIndex: number };
 
 type StoredSuggestion = {
   text: string;
@@ -1087,14 +1088,17 @@ function writeExampleSuggestions(
                       }
                       <span class="item-actions-main">
                         @if (translationGain(definition); as gain) {
-                          <span
+                          <button
+                            type="button"
                             class="gem-gain"
                             data-game="translation"
-                            [attr.aria-label]="gain.gems + ' translation gems'"
+                            [attr.aria-label]="'Show exercises, ' + gain.gems + ' translation gems'"
+                            title="Exercises"
+                            (click)="openExerciseLog(index)"
                           >
                             <span class="gem gem-gain-stone" aria-hidden="true"></span>
                             <span class="gem-gain-count">x{{ gain.gems }}</span>
-                          </span>
+                          </button>
                         }
                         @if (canHear(definition.text)) {
                           <button
@@ -2847,6 +2851,142 @@ function writeExampleSuggestions(
           </div>
         }
 
+        @if (exerciseLog() >= 0) {
+          @let index = exerciseLog();
+          @if (element().definitions[index]; as definition) {
+            <div class="sheet-backdrop" (click)="closeExerciseLog($event)">
+              <section
+                class="sheet"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Exercises"
+                (click)="$event.stopPropagation()"
+              >
+                <div class="sheet-head">
+                  <h3>Exercises</h3>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Close"
+                    (click)="closeExerciseLog()"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
+                </div>
+                @if (exerciseEntry() < 0) {
+                  <div class="add-choices">
+                    @for (entry of exerciseHistory(definition); track $index) {
+                      <button
+                        type="button"
+                        class="btn btn-secondary add-choice log-row"
+                        [attr.aria-label]="
+                          modeLabel(1) + ', ' + entry.gems + ' gems, ' + exerciseWhen(entry.at)
+                        "
+                        (click)="exerciseEntry.set($index)"
+                      >
+                        <span
+                          >{{ modeLabel(1) }} ·
+                          <span class="hint">{{ exerciseWhen(entry.at) }}</span></span
+                        >
+                        <span class="gem-gain" data-game="translation">
+                          <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                          <span class="gem-gain-count">x{{ entry.gems }}</span>
+                        </span>
+                      </button>
+                    }
+                  </div>
+                } @else {
+                  @let entry = exerciseHistory(definition)[exerciseEntry()];
+                  @if (entry) {
+                    @let gloss = parsePassage(definition.text).text;
+                    @let equivalent = equivalentText(definition);
+                    @if (gloss && entry.answer) {
+                      <div class="equivalent-gloss">
+                        <p class="field-label">Definition</p>
+                        <p>{{ shownDefinition(gloss) }}</p>
+                      </div>
+                    }
+                    @if (!entry.answer) {
+                      <p class="field-label">You gave up</p>
+                      @if (equivalent) {
+                        <p class="equivalent-result">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
+                          <span>{{ equivalent }}</span>
+                        </p>
+                      }
+                    } @else {
+                      <div class="compare">
+                        <div class="compare-side">
+                          <p class="field-label">You wrote</p>
+                          <p>{{ entry.answer }}</p>
+                        </div>
+                        <div class="compare-side">
+                          <p class="field-label">Equivalent</p>
+                          <p class="equivalent-result">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
+                            </svg>
+                            <span>{{ equivalent }}</span>
+                          </p>
+                        </div>
+                      </div>
+                    }
+                    <p class="field-label">Gems</p>
+                    <div class="gem-pick" data-game="translation">
+                      @for (gems of gemScores; track gems) {
+                        @if (gems > 0) {
+                          <span class="gem-pick-stone" [class.on]="entry.gems >= gems">
+                            <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                          </span>
+                        }
+                      }
+                    </div>
+                    @if (entry.explanation) {
+                      <p>{{ entry.explanation }}</p>
+                    }
+                    <p class="hint">
+                      {{ entry.by === 'ai' ? 'AI' : 'You' }} · {{ exerciseWhen(entry.at) }}
+                    </p>
+                    <div class="sheet-actions">
+                      <button
+                        type="button"
+                        class="btn btn-secondary"
+                        [disabled]="busy()"
+                        (click)="exerciseEntry.set(-1)"
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-danger"
+                        [disabled]="busy()"
+                        (click)="askDeleteExercise(index, exerciseEntry())"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  }
+                }
+              </section>
+            </div>
+          }
+        }
+
         @if (helpOpen()) {
           @if (element().mode; as mode) {
             <div class="sheet-backdrop" (click)="closeHelp($event)">
@@ -4547,6 +4687,20 @@ function writeExampleSuggestions(
       flex: none;
     }
 
+    button.gem-gain {
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button.log-row {
+      justify-content: space-between;
+      text-align: start;
+    }
+
     .gem-gain-count {
       color: var(--exercise-gem);
       font-size: 0.85rem;
@@ -4759,6 +4913,8 @@ export class ElementModal {
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
   readonly modeOpen = signal(false);
   readonly helpOpen = signal(false);
+  readonly exerciseLog = signal(-1);
+  readonly exerciseEntry = signal(-1);
   readonly comfortOpen = signal(false);
   readonly engineerGloss = signal('');
   readonly engineerEnglish = signal('');
@@ -4819,6 +4975,8 @@ export class ElementModal {
       this.expandedForms.set(new Set());
       this.modeOpen.set(false);
       this.helpOpen.set(false);
+      this.exerciseLog.set(-1);
+      this.exerciseEntry.set(-1);
       this.comfortOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
@@ -4878,6 +5036,15 @@ export class ElementModal {
     }
     if (this.comfortOpen()) {
       if (!this.busy()) this.comfortOpen.set(false);
+      return;
+    }
+    if (this.confirm()?.kind === 'exercise') {
+      if (!this.busy()) this.confirm.set(null);
+      return;
+    }
+    if (this.exerciseLog() >= 0) {
+      if (this.exerciseEntry() >= 0) this.exerciseEntry.set(-1);
+      else this.exerciseLog.set(-1);
       return;
     }
     if (this.helpOpen()) {
@@ -6532,6 +6699,7 @@ export class ElementModal {
   confirmTitle(pending: ConfirmDelete): string {
     if (pending.kind === 'element') return 'Delete this element?';
     if (pending.kind === 'definition') return 'Delete this definition?';
+    if (pending.kind === 'exercise') return 'Delete this exercise?';
     return 'Delete this example?';
   }
 
@@ -6554,11 +6722,22 @@ export class ElementModal {
     this.confirm.set({ kind: 'example', definitionIndex, exampleIndex });
   }
 
+  askDeleteExercise(definitionIndex: number, historyIndex: number): void {
+    if (this.busy() || historyIndex < 0) return;
+    const entry = this.exerciseHistory(this.element().definitions[definitionIndex])[historyIndex];
+    if (!entry) return;
+    this.confirm.set({ kind: 'exercise', definitionIndex, historyIndex });
+  }
+
   async confirmDelete(): Promise<void> {
     const pending = this.confirm();
     if (!pending || this.busy()) return;
     if (pending.kind === 'element') {
       await this.removeElement();
+      return;
+    }
+    if (pending.kind === 'exercise') {
+      await this.removeExercise(pending.definitionIndex, pending.historyIndex);
       return;
     }
     const definitions = this.copyDefinitions();
@@ -6625,6 +6804,45 @@ export class ElementModal {
     else if (editor.exampleIndex != null && editor.exampleIndex > exampleIndex) {
       this.editor.set({ ...editor, exampleIndex: editor.exampleIndex - 1 });
     }
+  }
+
+  private async removeExercise(definitionIndex: number, historyIndex: number): Promise<void> {
+    const elementId = this.element().id;
+    const definition = this.element().definitions[definitionIndex];
+    const entry = definition ? this.exerciseHistory(definition)[historyIndex] : undefined;
+    const logIndex = definition && entry ? definition.log.indexOf(entry) : -1;
+    if (!definition || logIndex < 0) {
+      this.confirm.set(null);
+      return;
+    }
+    const definitions = this.copyDefinitions();
+    const next = definitions[definitionIndex];
+    if (!next) {
+      this.confirm.set(null);
+      return;
+    }
+    next.log = next.log.filter((_, index) => index !== logIndex);
+    if (!(await this.persist(definitions, this.element().equivalents))) return;
+    if (!this.alive || this.element().id !== elementId) {
+      this.confirm.set(null);
+      return;
+    }
+    this.adjustExerciseRound(definitionIndex, logIndex);
+    this.confirm.set(null);
+    if (!next.log.some((item) => item.game === 'translation')) {
+      this.closeExerciseLog();
+      return;
+    }
+    this.exerciseEntry.set(-1);
+  }
+
+  /** Keep the open attempt pointed at the same log entry after one is removed. */
+  private adjustExerciseRound(definitionIndex: number, removedIndex: number): void {
+    const current = this.round().equivalentLogIndexes[definitionIndex];
+    if (typeof current !== 'number' || current < removedIndex) return;
+    const equivalentLogIndexes = this.round().equivalentLogIndexes.slice();
+    equivalentLogIndexes[definitionIndex] = current === removedIndex ? null : current - 1;
+    this.writeRound({ ...this.round(), equivalentLogIndexes });
   }
 
   private async removeElement(): Promise<void> {
@@ -7070,11 +7288,34 @@ export class ElementModal {
 
   /** Latest translation score on this definition, including a gain of 0. */
   translationGain(definition: ElementDefinition): { gems: number } | null {
-    for (let index = definition.log.length - 1; index >= 0; index -= 1) {
-      const entry = definition.log[index];
-      if (entry?.game === 'translation') return { gems: entry.gems };
-    }
-    return null;
+    const latest = this.exerciseHistory(definition)[0];
+    return latest ? { gems: latest.gems } : null;
+  }
+
+  /** Newest exercise first. */
+  exerciseHistory(definition: ElementDefinition): DefinitionLogEntry[] {
+    return definition.log.filter((entry) => entry.game === 'translation').slice().reverse();
+  }
+
+  exerciseWhen(at: number): string {
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(at);
+  }
+
+  openExerciseLog(index: number): void {
+    if (!this.element().definitions[index]) return;
+    this.exerciseEntry.set(-1);
+    this.exerciseLog.set(index);
+  }
+
+  closeExerciseLog(event?: MouseEvent): void {
+    if (event && event.target !== event.currentTarget) return;
+    this.exerciseEntry.set(-1);
+    this.exerciseLog.set(-1);
   }
 
   private equivalentGaveUp(index: number): boolean {
