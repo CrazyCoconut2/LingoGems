@@ -1888,6 +1888,16 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     @media (max-width: 720px) {
+      .elements {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       .filter-backdrop {
         align-items: flex-end;
         padding: 0.65rem;
