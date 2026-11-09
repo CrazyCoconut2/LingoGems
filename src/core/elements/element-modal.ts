@@ -1087,7 +1087,7 @@ function writeExampleSuggestions(
                         </span>
                       }
                       <span class="item-actions-main">
-                        @if (exerciseTotals(definition); as totals) {
+                        @if (!inPlay() && exerciseTotals(definition); as totals) {
                           <button
                             type="button"
                             class="gem-gain"
@@ -2724,29 +2724,54 @@ function writeExampleSuggestions(
                   }
                 } @else {
                 @if (supportAvailable()) {
-                  <div class="lang" role="group" aria-label="Language">
-                    <button
-                      type="button"
-                      [class.on]="answerLanguage(prompt) === 'original'"
-                      [attr.aria-pressed]="answerLanguage(prompt) === 'original'"
-                      [disabled]="askingGrade() === prompt"
-                      (click)="setDefinitionLanguage(prompt, 'original')"
-                    >
-                      {{ originalLanguageName() }}
-                    </button>
-                    <button
-                      type="button"
-                      [class.on]="answerLanguage(prompt) === 'english'"
-                      [attr.aria-pressed]="answerLanguage(prompt) === 'english'"
-                      [disabled]="askingGrade() === prompt"
-                      (click)="setDefinitionLanguage(prompt, 'english')"
-                    >
-                      {{ translationLanguageName() }}
-                    </button>
-                  </div>
+                  <label class="field-label" [attr.for]="'play-definition-support-' + prompt">
+                    {{ translationLanguageName() }}
+                  </label>
+                  <textarea
+                    #supportField
+                    [id]="'play-definition-support-' + prompt"
+                    rows="3"
+                    [value]="definitionSupportDraftAt(prompt)"
+                    [attr.maxlength]="definitionMax"
+                    [disabled]="askingGrade() === prompt || translating()"
+                    placeholder="Write the definition"
+                    (focus)="workDefinition('support')"
+                    (input)="onDefinitionSupportDraft(prompt, $event)"
+                  ></textarea>
+                  <button
+                    type="button"
+                    class="icon-btn way"
+                    [disabled]="!canTranslateDefinition(prompt)"
+                    [attr.aria-busy]="translating() ? true : null"
+                    [attr.aria-label]="
+                      'Translate into ' +
+                      (definitionSource() === 'support'
+                        ? originalLanguageName()
+                        : translationLanguageName())
+                    "
+                    (click)="translateDefinition(prompt)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m5 8 6 6" />
+                      <path d="m4 14 6-6 2-3" />
+                      <path d="M2 5h12" />
+                      <path d="M7 2h1" />
+                      <path d="m22 22-5-10-5 10" />
+                      <path d="M14 18h6" />
+                    </svg>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      @if (definitionSource() === 'support') {
+                        <path d="M12 5v14" />
+                        <path d="m19 12-7 7-7-7" />
+                      } @else {
+                        <path d="M12 19V5" />
+                        <path d="m5 12 7-7 7 7" />
+                      }
+                    </svg>
+                  </button>
                 }
                 <label class="field-label" [attr.for]="'play-definition-' + prompt">
-                  Definition
+                  {{ supportAvailable() ? originalLanguageName() : 'Definition' }}
                 </label>
                 <textarea
                   #definitionField
@@ -2754,8 +2779,9 @@ function writeExampleSuggestions(
                   rows="4"
                   [value]="definitionDraftAt(prompt)"
                   [attr.maxlength]="definitionMax"
-                  [disabled]="askingGrade() === prompt"
+                  [disabled]="askingGrade() === prompt || translating()"
                   placeholder="Write the definition"
+                  (focus)="workDefinition('working')"
                   (input)="onDefinitionDraft(prompt, $event)"
                 ></textarea>
                 @if (error()) {
@@ -2765,7 +2791,7 @@ function writeExampleSuggestions(
                   <button
                     type="button"
                     class="btn btn-primary"
-                    [disabled]="aiBusy() || !definitionDraftAt(prompt).trim()"
+                    [disabled]="aiBusy() || translating() || !definitionDraftAt(prompt).trim()"
                     (click)="submitDefinition(prompt)"
                   >
                     Submit
@@ -2935,7 +2961,7 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (exerciseLog() >= 0) {
+        @if (!inPlay() && exerciseLog() >= 0) {
           @let index = exerciseLog();
           @if (element().definitions[index]; as definition) {
             <div class="sheet-backdrop" (click)="closeExerciseLog($event)">
@@ -3802,6 +3828,12 @@ function writeExampleSuggestions(
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .way {
+      align-self: center;
+      width: auto;
+      gap: 0.1rem;
     }
 
     .icon-btn svg .solid {
@@ -5071,6 +5103,9 @@ export class ElementModal {
   private readonly titleField = viewChild<ElementRef<HTMLInputElement>>('titleField');
   private readonly equivalentField = viewChild<ElementRef<HTMLInputElement>>('equivalentField');
   private readonly definitionField = viewChild<ElementRef<HTMLTextAreaElement>>('definitionField');
+  private readonly supportField = viewChild<ElementRef<HTMLTextAreaElement>>('supportField');
+  /** Which definition field is being written. The icon points at the other language. */
+  readonly definitionSource = signal<'support' | 'working'>('support');
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
@@ -7457,7 +7492,7 @@ export class ElementModal {
   }
 
   openExerciseLog(index: number): void {
-    if (!this.element().definitions[index]) return;
+    if (this.inPlay() || !this.element().definitions[index]) return;
     this.exerciseEntry.set(-1);
     this.exerciseLog.set(index);
   }
@@ -7608,8 +7643,91 @@ export class ElementModal {
   openDefinitionPrompt(index: number): void {
     if (!this.definitionConcealed(index)) return;
     this.error.set('');
+    this.definitionSource.set('support');
     this.definitionPrompt.set(index);
-    setTimeout(() => this.definitionField()?.nativeElement.focus());
+    setTimeout(() => (this.supportField() ?? this.definitionField())?.nativeElement.focus());
+  }
+
+  workDefinition(source: 'support' | 'working'): void {
+    this.definitionSource.set(source);
+  }
+
+  definitionSupportDraftAt(index: number): string {
+    return this.round().definitionSupportDrafts?.[index] ?? '';
+  }
+
+  canTranslateDefinition(index: number): boolean {
+    if (
+      !this.supportAvailable() ||
+      this.translating() ||
+      this.aiBusy() ||
+      this.askingGrade() === index
+    ) {
+      return false;
+    }
+    const text =
+      this.definitionSource() === 'support'
+        ? this.definitionSupportDraftAt(index)
+        : this.definitionDraftAt(index);
+    return text.trim().length > 0;
+  }
+
+  /** Translate the field being written into the other one, replacing what is there. */
+  async translateDefinition(index: number): Promise<void> {
+    if (!this.canTranslateDefinition(index)) return;
+    const towardWorking = this.definitionSource() === 'support';
+    const sourceText = (
+      towardWorking ? this.definitionSupportDraftAt(index) : this.definitionDraftAt(index)
+    ).trim();
+    const element = this.element();
+    const support = readTranslationLanguage(element.language);
+    const ticket = this.translateTicket;
+    this.translating.set(true);
+    this.error.set('');
+    try {
+      const [translated] = await translateTexts({
+        texts: [sourceText],
+        sourceLang: towardWorking ? support : element.language,
+        targetLang: towardWorking ? element.language : support,
+      });
+      const result = String(translated ?? '')
+        .trim()
+        .slice(0, DEFINITION_MAX);
+      if (!this.alive || ticket !== this.translateTicket || this.element().id !== element.id) return;
+      if (!result) {
+        this.error.set('Could not translate this.');
+        return;
+      }
+      if (towardWorking) {
+        const definitionDrafts = this.round().definitionDrafts.slice();
+        while (definitionDrafts.length <= index) definitionDrafts.push('');
+        definitionDrafts[index] = result;
+        const grades = this.round().grades.slice();
+        const definitionTranslations = this.round().definitionTranslations.slice();
+        grades[index] = null;
+        definitionTranslations[index] = '';
+        this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
+      } else {
+        const definitionSupportDrafts = this.round().definitionSupportDrafts?.slice() ?? [];
+        while (definitionSupportDrafts.length <= index) definitionSupportDrafts.push('');
+        definitionSupportDrafts[index] = result;
+        this.writeRound({ ...this.round(), definitionSupportDrafts });
+      }
+    } catch {
+      if (this.alive && ticket === this.translateTicket && this.element().id === element.id) {
+        this.error.set('Could not translate this.');
+      }
+    } finally {
+      if (ticket === this.translateTicket) this.translating.set(false);
+    }
+  }
+
+  onDefinitionSupportDraft(index: number, event: Event): void {
+    const value = (event.target as HTMLTextAreaElement).value.slice(0, DEFINITION_MAX);
+    const definitionSupportDrafts = this.round().definitionSupportDrafts?.slice() ?? [];
+    while (definitionSupportDrafts.length <= index) definitionSupportDrafts.push('');
+    definitionSupportDrafts[index] = value;
+    this.writeRound({ ...this.round(), definitionSupportDrafts });
   }
 
   closeDefinitionPrompt(event?: MouseEvent): void {
@@ -7735,49 +7853,18 @@ export class ElementModal {
     const gloss = parsePassage(definition?.text ?? '').text.trim();
     if (!definition || !gloss || !definitionEligibleForGames(definition.text, element)) return;
     const answer = this.definitionDraftAt(index).trim();
-    const language = this.answerLanguage(index);
-    const inEnglish = language === 'english';
     const job = ++this.gradeJob;
     this.askingGrade.set(index);
     this.error.set('');
     try {
-      let judged = answer;
-      if (inEnglish) {
-        try {
-          const translated = await translateTexts({
-            texts: [answer],
-            sourceLang: readTranslationLanguage(element.language),
-            targetLang: element.language,
-          });
-          judged = translated[0]?.trim() ?? '';
-        } catch {
-          if (this.alive && job === this.gradeJob && this.element().id === element.id) {
-            this.error.set('Could not translate that definition.');
-          }
-          return;
-        }
-        if (!this.alive || job !== this.gradeJob || this.element().id !== element.id) return;
-        if (
-          this.definitionDraftAt(index).trim() !== answer ||
-          this.answerLanguage(index) !== language ||
-          !judged
-        ) {
-          if (!judged && this.definitionDraftAt(index).trim() === answer) {
-            this.error.set('Could not translate that definition.');
-          }
-          return;
-        }
-      }
       const grade = await gradeDefinition({
         language: element.language,
         lemma: element.title,
         gloss,
-        answer: judged,
+        answer,
       });
       if (!this.alive || job !== this.gradeJob || this.element().id !== element.id) return;
-      if (this.definitionDraftAt(index).trim() !== answer || this.answerLanguage(index) !== language) {
-        return;
-      }
+      if (this.definitionDraftAt(index).trim() !== answer) return;
       const logIndex = await this.recordDefinitionReward(index, {
         gems: grade.score,
         by: 'ai',
@@ -7785,17 +7872,11 @@ export class ElementModal {
         explanation: grade.explanation,
       });
       if (!this.alive || job !== this.gradeJob || this.element().id !== element.id) return;
-      if (this.definitionDraftAt(index).trim() !== answer || this.answerLanguage(index) !== language) {
-        return;
-      }
+      if (this.definitionDraftAt(index).trim() !== answer) return;
       if (logIndex == null) {
         this.error.set('Could not save this score.');
         return;
       }
-      const definitionTranslations = this.round().definitionTranslations.slice();
-      while (definitionTranslations.length <= index) definitionTranslations.push('');
-      if (inEnglish) definitionTranslations[index] = judged;
-      this.writeRound({ ...this.round(), definitionTranslations });
       this.writeDefinitionReward(
         index,
         { gems: grade.score, by: 'ai', explanation: grade.explanation },

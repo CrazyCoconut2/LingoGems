@@ -29,6 +29,8 @@ export type PlayRound = {
   recalled: boolean;
   revealedCount: number;
   definitionDrafts: string[];
+  /** Support-language wording written beside the working-language answer. */
+  definitionSupportDrafts: string[];
   definitionSubmitted: boolean[];
   definitionRewards: Array<EquivalentReward | null>;
   /** Index of this definition attempt inside the definition log. Null until it is saved. */
@@ -50,6 +52,7 @@ export function emptyPlayRound(): PlayRound {
     recalled: false,
     revealedCount: 0,
     definitionDrafts: [],
+    definitionSupportDrafts: [],
     definitionSubmitted: [],
     definitionRewards: [],
     definitionLogIndexes: [],
