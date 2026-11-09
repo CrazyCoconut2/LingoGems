@@ -1087,17 +1087,20 @@ function writeExampleSuggestions(
                         </span>
                       }
                       <span class="item-actions-main">
-                        @if (exerciseGain(definition); as gain) {
+                        @if (exerciseTotals(definition); as totals) {
                           <button
                             type="button"
                             class="gem-gain"
-                            [attr.data-game]="gain.game"
-                            [attr.aria-label]="'Show exercises, ' + gain.gems + ' gems'"
+                            [attr.aria-label]="exerciseTotalsLabel(totals)"
                             title="Exercises"
                             (click)="openExerciseLog(index)"
                           >
-                            <span class="gem gem-gain-stone" aria-hidden="true"></span>
-                            <span class="gem-gain-count">x{{ gain.gems }}</span>
+                            @for (total of totals; track total.game) {
+                              <span class="gem-gain" [attr.data-game]="total.game">
+                                <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                                <span class="gem-gain-count">x{{ total.gems }}</span>
+                              </span>
+                            }
                           </button>
                         }
                         @if (canHear(definition.text)) {
@@ -7420,12 +7423,23 @@ export class ElementModal {
     return this.round().equivalentRewards[index] ?? null;
   }
 
-  /** Latest score on this definition, including a gain of 0. */
-  exerciseGain(
+  /** Sum of gems for each exercise color. Colors with nothing earned are left out. */
+  exerciseTotals(
     definition: ElementDefinition,
-  ): { gems: number; game: DefinitionLogEntry['game'] } | null {
-    const latest = this.exerciseHistory(definition)[0];
-    return latest ? { gems: latest.gems, game: latest.game } : null;
+  ): { game: DefinitionLogEntry['game']; gems: number }[] | null {
+    const sums = new Map<DefinitionLogEntry['game'], number>();
+    for (const entry of definition.log) {
+      sums.set(entry.game, (sums.get(entry.game) ?? 0) + entry.gems);
+    }
+    const totals = (['translation', 'definition'] as const)
+      .map((game) => ({ game, gems: sums.get(game) ?? 0 }))
+      .filter((total) => total.gems > 0);
+    return totals.length ? totals : null;
+  }
+
+  exerciseTotalsLabel(totals: { game: DefinitionLogEntry['game']; gems: number }[]): string {
+    const detail = totals.map((total) => `${total.gems} ${total.game} gems`).join(', ');
+    return `Show exercises, ${detail}`;
   }
 
   /** Newest exercise first. */
