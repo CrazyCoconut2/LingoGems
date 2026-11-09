@@ -25,6 +25,7 @@ export {
   parsePassage,
   formTexts,
   elementModeLabel,
+  elementReadyForTranslation,
   saveElement,
   type ElementDefinition,
   type ElementForm,

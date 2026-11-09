@@ -122,7 +122,8 @@ export function parseElementMode(raw: string | null): ElementMode[] {
 
 /** Keep an element in one of the chosen modes. An empty list keeps every element. */
 export function elementMatchesMode(element: StoredElement, modes: readonly ElementMode[]): boolean {
-  return modes.length === 0 || modes.includes(element.mode);
+  if (modes.length === 0) return true;
+  return element.mode !== null && modes.includes(element.mode);
 }
 
 /** Comfort rates from 1 to 10, one or a comma-separated list. Anything else is dropped. */

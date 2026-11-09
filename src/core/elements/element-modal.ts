@@ -21,6 +21,7 @@ import {
   displayTitle,
   embedTranslation,
   elementModeLabel,
+  elementReadyForTranslation,
   type ElementMode,
   formTexts,
   highlightDefinitionPassage,
@@ -658,17 +659,26 @@ function writeExampleSuggestions(
               </div>
             }
             <div class="title-end">
+              @let mode = element().mode;
               <button
                 type="button"
                 class="mode-btn"
                 [class.play-focus]="sieving() || definitionCue()"
-                [attr.aria-label]="modeLabel(element().mode)"
-                [attr.title]="modeLabel(element().mode)"
+                [attr.aria-label]="mode ? modeLabel(mode) : 'Set mode'"
+                [attr.title]="mode ? modeLabel(mode) : 'Set mode'"
                 [attr.aria-expanded]="modeOpen()"
                 [disabled]="busy() || inPlay()"
                 (click)="modeOpen.set(true)"
               >
-                <app-mode-icon [mode]="element().mode" />
+                @if (mode) {
+                  <app-mode-icon [mode]="mode" />
+                } @else {
+                  <svg class="empty-stone" viewBox="0 0 100 100" aria-hidden="true">
+                    <polygon
+                      points="32.4,7.5 67.6,7.5 92.5,32.4 92.5,67.6 67.6,92.5 32.4,92.5 7.5,67.6 7.5,32.4"
+                    />
+                  </svg>
+                }
               </button>
               <button
                 #closeButton
@@ -2747,10 +2757,12 @@ function writeExampleSuggestions(
               </div>
               <div class="mode-editor">
                 @let mode = element().mode;
-                <div class="mode-current">
-                  <app-mode-icon [mode]="mode" />
-                  <span>{{ modeLabel(mode) }}</span>
-                </div>
+                @if (mode) {
+                  <div class="mode-current">
+                    <app-mode-icon [mode]="mode" />
+                    <span>{{ modeLabel(mode) }}</span>
+                  </div>
+                }
                 <div
                   class="mode-sequence"
                   role="group"
@@ -2765,15 +2777,29 @@ function writeExampleSuggestions(
                       </span>
                     }
                     @if (step === mode) {
-                      <div class="mode-step current" aria-current="step">
+                      <button
+                        type="button"
+                        class="mode-step current"
+                        aria-current="step"
+                        aria-pressed="true"
+                        [attr.aria-label]="'Turn off ' + modeLabel(step)"
+                        [disabled]="busy()"
+                        title="No game"
+                        (click)="showMode(null)"
+                      >
                         <app-mode-icon [mode]="step" />
                         <span>{{ modeLabel(step) }}</span>
-                      </div>
+                      </button>
                     } @else {
                       <button
                         type="button"
                         class="mode-step"
-                        [disabled]="busy()"
+                        [disabled]="busy() || (step === 1 && !translationReady())"
+                        [attr.title]="
+                          step === 1 && !translationReady()
+                            ? 'Every definition needs an equivalent'
+                            : modeLabel(step)
+                        "
                         (click)="showMode(step)"
                       >
                         <app-mode-icon [mode]="step" />
@@ -2782,6 +2808,18 @@ function writeExampleSuggestions(
                     }
                   }
                 </div>
+                @if (mode) {
+                  <button
+                    type="button"
+                    class="mode-clear"
+                    [disabled]="busy()"
+                    (click)="showMode(null)"
+                  >
+                    No game
+                  </button>
+                } @else {
+                  <div class="mode-clear current" aria-current="true">No game</div>
+                }
               </div>
             </section>
           </div>
@@ -2923,9 +2961,22 @@ function writeExampleSuggestions(
       border-radius: 999px;
     }
 
-    .title-end .mode-btn app-mode-icon {
+    .title-end .mode-btn app-mode-icon,
+    .title-end .mode-btn .empty-stone {
       width: 1.7rem;
       height: 1.7rem;
+    }
+
+    .empty-stone {
+      display: block;
+      color: var(--text-muted);
+    }
+
+    .empty-stone polygon {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 4.5;
+      stroke-linejoin: round;
     }
 
     .title-end .mode-btn.play-focus,
@@ -3184,6 +3235,32 @@ function writeExampleSuggestions(
     .mode-step.current {
       border-color: color-mix(in srgb, var(--text) 45%, transparent);
       background: color-mix(in srgb, var(--text) 8%, transparent);
+    }
+
+    .mode-clear {
+      width: 100%;
+      margin: 0;
+      padding: 0.55rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .mode-clear.current {
+      border-color: color-mix(in srgb, var(--text) 45%, transparent);
+      background: color-mix(in srgb, var(--text) 8%, transparent);
+      text-align: center;
+      cursor: default;
+    }
+
+    .mode-clear:disabled {
+      opacity: 0.45;
       cursor: default;
     }
 
@@ -6005,8 +6082,13 @@ export class ElementModal {
     this.modeOpen.set(false);
   }
 
-  async showMode(mode: ElementMode): Promise<void> {
+  translationReady(): boolean {
+    return elementReadyForTranslation(this.element());
+  }
+
+  async showMode(mode: ElementMode | null): Promise<void> {
     if (this.busy() || this.element().mode === mode) return;
+    if (mode === 1 && !this.translationReady()) return;
     await this.saveAppearance({ mode });
   }
 

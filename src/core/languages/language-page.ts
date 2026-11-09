@@ -309,11 +309,13 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
               >
                 <div class="element-body">
                   @if (playing()) {
-                    <span class="play-mark">
-                      <span class="play-icon" [attr.aria-label]="modeLabel(element.mode)">
-                        <app-mode-icon [mode]="element.mode" />
+                    @if (element.mode; as mode) {
+                      <span class="play-mark">
+                        <span class="play-icon" [attr.aria-label]="modeLabel(mode)">
+                          <app-mode-icon [mode]="mode" />
+                        </span>
                       </span>
-                    </span>
+                    }
                   } @else {
                     <span class="element-open">
                       <span class="title-line">
@@ -341,11 +343,13 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                         </span>
                       </span>
                     </span>
-                    <div class="mode-stack">
-                      <span class="mode-icon" [attr.aria-label]="modeLabel(element.mode)">
-                        <app-mode-icon [mode]="element.mode" />
-                      </span>
-                    </div>
+                    @if (element.mode; as mode) {
+                      <div class="mode-stack">
+                        <span class="mode-icon" [attr.aria-label]="modeLabel(mode)">
+                          <app-mode-icon [mode]="mode" />
+                        </span>
+                      </div>
+                    }
                   }
                   <span class="element-open">
                     <span class="stats">
@@ -2006,7 +2010,9 @@ export class LanguagePage {
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
   });
   readonly playable = computed(() =>
-    this.visible().filter((element) => !elementHasInvalidDefinition(element)),
+    this.visible().filter(
+      (element) => element.mode !== null && !elementHasInvalidDefinition(element),
+    ),
   );
   readonly shown = computed(() => {
     const visible = this.visible();
@@ -2273,7 +2279,8 @@ export class LanguagePage {
       element.definitions.some((definition) =>
         definitionEligibleForGames(definition.text, element),
       );
-    const playable = !!element && eligible && element.definitions.length > 0;
+    const playable =
+      !!element && element.mode !== null && eligible && element.definitions.length > 0;
     this.playId.set(playable ? id : '');
     this.openElement(id);
   }

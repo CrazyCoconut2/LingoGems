@@ -49,7 +49,17 @@ const ELEMENT_MODE_LABELS: Record<ElementMode, string> = {
 };
 
 export function elementModeLabel(mode: ElementMode): string {
-  return ELEMENT_MODE_LABELS[normalizeElementMode(mode)];
+  return ELEMENT_MODE_LABELS[mode];
+}
+
+/** Translation can be set when every definition has an equivalent. */
+export function elementReadyForTranslation(element: {
+  definitions: readonly { equivalentId: string | null }[];
+}): boolean {
+  return (
+    element.definitions.length > 0 &&
+    element.definitions.every((definition) => !!definition.equivalentId)
+  );
 }
 
 const MIN_COMFORT = 1;
@@ -63,7 +73,8 @@ export type StoredElement = {
   definitions: ElementDefinition[];
   /** Custom underline style. Null is solid. */
   highlightStyle: HighlightStyle | null;
-  mode: ElementMode;
+  /** Unset until the user chooses a mode. */
+  mode: ElementMode | null;
   /** How comfortable this element feels, from 1 to 10. Missing values are 1. */
   comfort: number;
   /** Distinct metadata values across this element's definitions. */
@@ -145,7 +156,7 @@ export async function addElement(language: string, title: string): Promise<Store
     equivalents: [],
     definitions: [],
     highlightStyle: null,
-    mode: 1,
+    mode: null,
     comfort: MIN_COMFORT,
     ...emptyMetadataIndexes(),
     createdAt: Date.now(),
@@ -178,7 +189,7 @@ export async function saveElement(
     equivalents: content.equivalents,
     definitions: content.definitions,
     ...appearanceOf(element),
-    mode: normalizeElementMode(element?.mode),
+    mode: storedMode(element?.mode, content.definitions),
     comfort: normalizeComfort(element?.comfort),
     ...indexes,
     createdAt:
@@ -223,7 +234,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     equivalents: content.equivalents,
     definitions: content.definitions,
     ...appearanceOf(source),
-    mode: normalizeElementMode(source.mode),
+    mode: storedMode(source.mode, content.definitions),
     comfort: normalizeComfort(source.comfort),
     ...collectMetadataIndexes(content.definitions),
     createdAt:
@@ -239,10 +250,21 @@ function appearanceOf(source: Partial<StoredElement> | null | undefined): {
   };
 }
 
-/** Missing or unknown values are Translation. */
-export function normalizeElementMode(value: unknown): ElementMode {
+/** Missing or unknown values are unset. */
+export function normalizeElementMode(value: unknown): ElementMode | null {
   const mode = Math.round(Number(value));
-  return mode === 2 || mode === 3 ? mode : 1;
+  if (mode === 1 || mode === 2 || mode === 3) return mode;
+  return null;
+}
+
+/** Translation is kept only when every definition has an equivalent. */
+function storedMode(
+  value: unknown,
+  definitions: readonly { equivalentId: string | null }[],
+): ElementMode | null {
+  const mode = normalizeElementMode(value);
+  if (mode === 1 && !elementReadyForTranslation({ definitions })) return null;
+  return mode;
 }
 
 /** Missing or out-of-range values are 1. */
