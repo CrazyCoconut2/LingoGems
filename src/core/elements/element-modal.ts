@@ -901,7 +901,9 @@ function writeExampleSuggestions(
                             aria-label="Write the definition"
                             (click)="openDefinitionPrompt(index)"
                           >
-                            <span class="definition-cue-text" aria-hidden="true">{{ passage.text }}</span>
+                            <span class="definition-cue-text" aria-hidden="true">{{
+                              shownDefinition(passage.text)
+                            }}</span>
                           </button>
                         } @else {
                         <p
@@ -2393,7 +2395,7 @@ function writeExampleSuggestions(
                   @if (gloss && !gaveUp) {
                     <div class="equivalent-gloss">
                       <p class="field-label">Definition</p>
-                      <p>{{ gloss }}</p>
+                      <p>{{ shownDefinition(gloss) }}</p>
                     </div>
                   }
                   @if (gaveUp) {
@@ -2585,7 +2587,7 @@ function writeExampleSuggestions(
                     <div class="compare-side">
                       <p class="field-label">Definition</p>
                       @let gloss = parsePassage(definition.text);
-                      <p class="passage">{{ label(gloss.text) }}</p>
+                      <p class="passage">{{ shownDefinition(gloss.text) }}</p>
                       @if (gloss.translations; as translations) {
                         @if (translations.length) {
                           <ul class="equivalents">
@@ -4937,6 +4939,11 @@ export class ElementModal {
 
   shownTitle(title = this.element().title): string {
     return displayTitle(title, this.element().language);
+  }
+
+  /** First letter of a definition, for display. The stored text is unchanged. */
+  shownDefinition(text: string): string {
+    return displayTitle(text, this.element().language);
   }
 
   headerEquivalents(): string[] {
