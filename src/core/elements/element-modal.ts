@@ -2405,13 +2405,21 @@ function writeExampleSuggestions(
                   </button>
                 </div>
                 @if (equivalentSubmitted(prompt)) {
-                  @let gloss = parsePassage(definition.text).text;
+                  @let passage = parsePassage(definition.text);
+                  @let gloss = passage.text;
                   @let reward = equivalentRewardAt(prompt);
                   @let gaveUp = !equivalentDraftAt(prompt).trim();
                   @if (gloss && !gaveUp) {
                     <div class="equivalent-gloss">
                       <p class="field-label">Definition</p>
                       <p>{{ shownDefinition(gloss) }}</p>
+                      @if (passage.translations.length) {
+                        <ul class="equivalents">
+                          @for (translation of passage.translations; track $index) {
+                            <li>{{ translation.text }}</li>
+                          }
+                        </ul>
+                      }
                     </div>
                   }
                   @if (gaveUp) {
@@ -2891,9 +2899,14 @@ function writeExampleSuggestions(
                           >{{ modeLabel(1) }} ·
                           <span class="hint">{{ exerciseWhen(entry.at) }}</span></span
                         >
-                        <span class="gem-gain" data-game="translation">
-                          <span class="gem gem-gain-stone" aria-hidden="true"></span>
-                          <span class="gem-gain-count">x{{ entry.gems }}</span>
+                        <span class="gem-pick" data-game="translation" aria-hidden="true">
+                          @for (gems of gemScores; track gems) {
+                            @if (gems > 0) {
+                              <span class="gem-pick-stone" [class.on]="entry.gems >= gems">
+                                <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                              </span>
+                            }
+                          }
                         </span>
                       </button>
                     }
@@ -2901,12 +2914,20 @@ function writeExampleSuggestions(
                 } @else {
                   @let entry = exerciseHistory(definition)[exerciseEntry()];
                   @if (entry) {
-                    @let gloss = parsePassage(definition.text).text;
+                    @let passage = parsePassage(definition.text);
+                    @let gloss = passage.text;
                     @let equivalent = equivalentText(definition);
                     @if (gloss && entry.answer) {
                       <div class="equivalent-gloss">
                         <p class="field-label">Definition</p>
                         <p>{{ shownDefinition(gloss) }}</p>
+                        @if (passage.translations.length) {
+                          <ul class="equivalents">
+                            @for (translation of passage.translations; track $index) {
+                              <li>{{ translation.text }}</li>
+                            }
+                          </ul>
+                        }
                       </div>
                     }
                     @if (!entry.answer) {
