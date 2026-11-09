@@ -55,6 +55,8 @@ import {
   readTranslationLanguage,
   gradeDefinition,
   gradeEquivalent,
+  polishDefinition,
+  type PolishDefinitionTask,
   sentenceUsesForm,
   translateTexts,
   verbalizeDefinition,
@@ -2770,16 +2772,53 @@ function writeExampleSuggestions(
                     </svg>
                   </button>
                 }
-                <label class="field-label" [attr.for]="'play-definition-' + prompt">
-                  {{ supportAvailable() ? originalLanguageName() : 'Definition' }}
-                </label>
+                <div class="field-heading">
+                  <label class="field-label" [attr.for]="'play-definition-' + prompt">
+                    {{ supportAvailable() ? originalLanguageName() : 'Definition' }}
+                  </label>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Ask AI"
+                    [attr.aria-pressed]="definitionPolish()"
+                    [attr.aria-busy]="askingPolish() ? true : null"
+                    [disabled]="translating() || askingPolish()"
+                    (click)="definitionPolish.set(!definitionPolish())"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                @if (definitionPolish()) {
+                  <div class="sheet-actions">
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [disabled]="!canPolishDefinition(prompt)"
+                      (click)="polishWorkingDefinition(prompt, 'correct')"
+                    >
+                      Correct
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [disabled]="!canPolishDefinition(prompt)"
+                      (click)="polishWorkingDefinition(prompt, 'reformulate')"
+                    >
+                      Reformulate
+                    </button>
+                  </div>
+                }
                 <textarea
                   #definitionField
                   [id]="'play-definition-' + prompt"
                   rows="4"
                   [value]="definitionDraftAt(prompt)"
                   [attr.maxlength]="definitionMax"
-                  [disabled]="askingGrade() === prompt || translating()"
+                  [disabled]="askingGrade() === prompt || translating() || askingPolish()"
                   placeholder="Write the definition"
                   (focus)="workDefinition('working')"
                   (input)="onDefinitionDraft(prompt, $event)"
@@ -5106,6 +5145,8 @@ export class ElementModal {
   private readonly supportField = viewChild<ElementRef<HTMLTextAreaElement>>('supportField');
   /** Which definition field is being written. The icon points at the other language. */
   readonly definitionSource = signal<'support' | 'working'>('support');
+  readonly definitionPolish = signal(false);
+  readonly askingPolish = signal(false);
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
@@ -5150,6 +5191,8 @@ export class ElementModal {
       this.askingEquivalent.set(false);
       this.askingGrade.set(null);
       this.askingEquivalentGrade.set(null);
+      this.askingPolish.set(false);
+      this.definitionPolish.set(false);
       this.equivalentGradeError.set('');
       this.loadRound(id);
       this.dismissTranslations();
@@ -5553,7 +5596,8 @@ export class ElementModal {
       this.askingRelated() !== null ||
       this.askingWording() !== null ||
       this.askingGrade() !== null ||
-      this.askingEquivalentGrade() !== null
+      this.askingEquivalentGrade() !== null ||
+      this.askingPolish()
     );
   }
 
@@ -7644,6 +7688,7 @@ export class ElementModal {
     if (!this.definitionConcealed(index)) return;
     this.error.set('');
     this.definitionSource.set('support');
+    this.definitionPolish.set(false);
     this.definitionPrompt.set(index);
     setTimeout(() => (this.supportField() ?? this.definitionField())?.nativeElement.focus());
   }
@@ -7719,6 +7764,41 @@ export class ElementModal {
       }
     } finally {
       if (ticket === this.translateTicket) this.translating.set(false);
+    }
+  }
+
+  canPolishDefinition(index: number): boolean {
+    return (
+      this.definitionDraftAt(index).trim().length > 0 && !this.translating() && !this.askingPolish()
+    );
+  }
+
+  /** Replace the working-language draft with a correction or a more natural wording. */
+  async polishWorkingDefinition(index: number, task: PolishDefinitionTask): Promise<void> {
+    if (!this.canPolishDefinition(index) || !this.definitionGame()) return;
+    const element = this.element();
+    const text = this.definitionDraftAt(index).trim();
+    this.askingPolish.set(true);
+    this.error.set('');
+    try {
+      const polished = await polishDefinition({ language: element.language, text, task });
+      if (!this.alive || this.element().id !== element.id) return;
+      if (this.definitionDraftAt(index).trim() !== text) return;
+      const definitionDrafts = this.round().definitionDrafts.slice();
+      while (definitionDrafts.length <= index) definitionDrafts.push('');
+      definitionDrafts[index] = polished.slice(0, DEFINITION_MAX);
+      const grades = this.round().grades.slice();
+      const definitionTranslations = this.round().definitionTranslations.slice();
+      grades[index] = null;
+      definitionTranslations[index] = '';
+      this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
+      this.definitionPolish.set(false);
+    } catch {
+      if (this.alive && this.element().id === element.id) {
+        this.error.set('Could not rewrite this definition.');
+      }
+    } finally {
+      if (this.alive) this.askingPolish.set(false);
     }
   }
 

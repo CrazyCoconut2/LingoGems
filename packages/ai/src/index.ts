@@ -134,6 +134,15 @@ export {
 } from './examples';
 
 export {
+  POLISH_DEFINITION_SYSTEM_PROMPT,
+  buildPolishDefinitionUserMessage,
+  parsePolishedDefinition,
+  polishDefinition,
+  type PolishDefinitionInput,
+  type PolishDefinitionTask,
+} from './polish-definition';
+
+export {
   GRADE_DEFINITION_SYSTEM_PROMPT,
   buildGradeDefinitionUserMessage,
   gradeDefinition,
