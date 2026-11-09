@@ -1407,6 +1407,7 @@ function writeExampleSuggestions(
                           <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
                         </svg>
                         Forms
+                        <span class="fold-count">{{ definition.forms.length }}</span>
                         <svg
                           class="fold-chevron"
                           viewBox="0 0 24 24"
@@ -3526,6 +3527,12 @@ function writeExampleSuggestions(
     button.forms-fold {
       flex: 1;
       justify-content: flex-start;
+    }
+
+    button.section-title .fold-count {
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0;
     }
 
     button.section-title .fold-chevron {
