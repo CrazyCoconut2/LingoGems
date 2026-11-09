@@ -2725,91 +2725,108 @@ function writeExampleSuggestions(
                   </div>
                   }
                 } @else {
-                @if (supportAvailable()) {
-                  <label class="field-label" [attr.for]="'play-definition-support-' + prompt">
-                    {{ translationLanguageName() }}
-                  </label>
+                <div class="field-heading">
+                  @if (supportAvailable()) {
+                    <div class="lang" role="tablist" aria-label="Definition language">
+                      <button
+                        type="button"
+                        role="tab"
+                        [class.on]="definitionSource() === 'support'"
+                        [attr.aria-selected]="definitionSource() === 'support'"
+                        [disabled]="translating() || askingPolish() !== null"
+                        (click)="workDefinition('support')"
+                      >
+                        {{ translationLanguageName() }}
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        [class.on]="definitionSource() === 'working'"
+                        [attr.aria-selected]="definitionSource() === 'working'"
+                        [disabled]="translating() || askingPolish() !== null"
+                        (click)="workDefinition('working')"
+                      >
+                        {{ originalLanguageName() }}
+                      </button>
+                    </div>
+                  } @else {
+                    <label class="field-label" [attr.for]="'play-definition-' + prompt">
+                      Definition
+                    </label>
+                  }
+                  <span class="header-actions">
+                    @if (supportAvailable()) {
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        [disabled]="!canTranslateDefinition(prompt)"
+                        [attr.aria-busy]="translating() ? true : null"
+                        [attr.aria-label]="
+                          'Translate into ' +
+                          (definitionSource() === 'support'
+                            ? originalLanguageName()
+                            : translationLanguageName())
+                        "
+                        (click)="translateDefinition(prompt)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m5 8 6 6" />
+                          <path d="m4 14 6-6 2-3" />
+                          <path d="M2 5h12" />
+                          <path d="M7 2h1" />
+                          <path d="m22 22-5-10-5 10" />
+                          <path d="M14 18h6" />
+                        </svg>
+                      </button>
+                    }
+                    @if (!supportAvailable() || definitionSource() === 'working') {
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Correct"
+                        title="Correct"
+                        [attr.aria-busy]="askingPolish() === 'correct' ? true : null"
+                        [disabled]="!canPolishDefinition(prompt)"
+                        (click)="polishWorkingDefinition(prompt, 'correct')"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m6 16 6-12 6 12" />
+                          <path d="M8 12h8" />
+                          <path d="m16 20 2 2 4-4" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Reformulate"
+                        title="Reformulate"
+                        [attr.aria-busy]="askingPolish() === 'reformulate' ? true : null"
+                        [disabled]="!canPolishDefinition(prompt)"
+                        (click)="polishWorkingDefinition(prompt, 'reformulate')"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M12 20h9" />
+                          <path
+                            d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"
+                          />
+                        </svg>
+                      </button>
+                    }
+                  </span>
+                </div>
+                @if (supportAvailable() && definitionSource() === 'support') {
                   <textarea
                     #supportField
                     [id]="'play-definition-support-' + prompt"
                     rows="2"
+                    [attr.aria-label]="translationLanguageName()"
                     [value]="definitionSupportDraftAt(prompt)"
                     [attr.maxlength]="definitionMax"
                     [disabled]="askingGrade() === prompt || translating()"
                     placeholder="Write the definition"
-                    (focus)="workDefinition('support')"
                     (input)="onDefinitionSupportDraft(prompt, $event)"
                   ></textarea>
-                  <button
-                    type="button"
-                    class="icon-btn way"
-                    [disabled]="!canTranslateDefinition(prompt)"
-                    [attr.aria-busy]="translating() ? true : null"
-                    [attr.aria-label]="
-                      'Translate into ' +
-                      (definitionSource() === 'support'
-                        ? originalLanguageName()
-                        : translationLanguageName())
-                    "
-                    (click)="translateDefinition(prompt)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m5 8 6 6" />
-                      <path d="m4 14 6-6 2-3" />
-                      <path d="M2 5h12" />
-                      <path d="M7 2h1" />
-                      <path d="m22 22-5-10-5 10" />
-                      <path d="M14 18h6" />
-                    </svg>
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      @if (definitionSource() === 'support') {
-                        <path d="M12 5v14" />
-                        <path d="m19 12-7 7-7-7" />
-                      } @else {
-                        <path d="M12 19V5" />
-                        <path d="m5 12 7-7 7 7" />
-                      }
-                    </svg>
-                  </button>
-                }
-                <div class="field-heading">
-                  <label class="field-label" [attr.for]="'play-definition-' + prompt">
-                    {{ supportAvailable() ? originalLanguageName() : 'Definition' }}
-                  </label>
-                  <span class="header-actions">
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Correct"
-                      title="Correct"
-                      [attr.aria-busy]="askingPolish() === 'correct' ? true : null"
-                      [disabled]="!canPolishDefinition(prompt)"
-                      (click)="polishWorkingDefinition(prompt, 'correct')"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m6 16 6-12 6 12" />
-                        <path d="M8 12h8" />
-                        <path d="m16 20 2 2 4-4" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Reformulate"
-                      title="Reformulate"
-                      [attr.aria-busy]="askingPolish() === 'reformulate' ? true : null"
-                      [disabled]="!canPolishDefinition(prompt)"
-                      (click)="polishWorkingDefinition(prompt, 'reformulate')"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 20h9" />
-                        <path
-                          d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"
-                        />
-                      </svg>
-                    </button>
-                  </span>
-                </div>
+                } @else {
                 @if (definitionPolishNote(); as note) {
                   <div class="compare-side">
                     <div class="field-heading">
@@ -2851,11 +2868,12 @@ function writeExampleSuggestions(
                   rows="2"
                   [value]="definitionDraftAt(prompt)"
                   [attr.maxlength]="definitionMax"
-                  [disabled]="askingGrade() === prompt || translating() || askingPolish()"
+                  [disabled]="askingGrade() === prompt || translating() || askingPolish() !== null"
+                  [attr.aria-label]="supportAvailable() ? originalLanguageName() : 'Definition'"
                   placeholder="Write the definition"
-                  (focus)="workDefinition('working')"
                   (input)="onDefinitionDraft(prompt, $event)"
                 ></textarea>
+                }
                 @if (error()) {
                   <p class="error">{{ error() }}</p>
                 }
@@ -3902,10 +3920,8 @@ function writeExampleSuggestions(
       stroke-linejoin: round;
     }
 
-    .way {
+    .field-heading .lang {
       align-self: center;
-      width: auto;
-      gap: 0.1rem;
     }
 
     .icon-btn svg .solid {
@@ -5176,7 +5192,7 @@ export class ElementModal {
   private readonly equivalentField = viewChild<ElementRef<HTMLInputElement>>('equivalentField');
   private readonly definitionField = viewChild<ElementRef<HTMLTextAreaElement>>('definitionField');
   private readonly supportField = viewChild<ElementRef<HTMLTextAreaElement>>('supportField');
-  /** Which definition field is being written. The icon points at the other language. */
+  /** Which definition tab is showing. */
   readonly definitionSource = signal<'support' | 'working'>('support');
   readonly definitionPolishNote = signal<
     { task: 'correct'; explanation: string } | { task: 'reformulate'; options: string[] } | null
@@ -7729,7 +7745,11 @@ export class ElementModal {
   }
 
   workDefinition(source: 'support' | 'working'): void {
+    if (!this.supportAvailable() || this.translating() || this.askingPolish() !== null) return;
     this.definitionSource.set(source);
+    setTimeout(() =>
+      (source === 'support' ? this.supportField() : this.definitionField())?.nativeElement.focus(),
+    );
   }
 
   definitionSupportDraftAt(index: number): string {
@@ -7752,7 +7772,7 @@ export class ElementModal {
     return text.trim().length > 0;
   }
 
-  /** Translate the field being written into the other one, replacing what is there. */
+  /** Translate the visible draft into the other language, then show that tab. */
   async translateDefinition(index: number): Promise<void> {
     if (!this.canTranslateDefinition(index)) return;
     const towardWorking = this.definitionSource() === 'support';
@@ -7788,11 +7808,15 @@ export class ElementModal {
         definitionTranslations[index] = '';
         this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
         this.definitionPolishNote.set(null);
+        this.definitionSource.set('working');
+        setTimeout(() => this.definitionField()?.nativeElement.focus());
       } else {
         const definitionSupportDrafts = this.round().definitionSupportDrafts?.slice() ?? [];
         while (definitionSupportDrafts.length <= index) definitionSupportDrafts.push('');
         definitionSupportDrafts[index] = result;
         this.writeRound({ ...this.round(), definitionSupportDrafts });
+        this.definitionSource.set('support');
+        setTimeout(() => this.supportField()?.nativeElement.focus());
       }
     } catch {
       if (this.alive && ticket === this.translateTicket && this.element().id === element.id) {
