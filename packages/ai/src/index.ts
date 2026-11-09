@@ -135,12 +135,15 @@ export {
 
 export {
   POLISH_DEFINITION_SYSTEM_PROMPT,
+  REFORMULATE_DEFINITION_SYSTEM_PROMPT,
   buildPolishDefinitionUserMessage,
   parsePolishedDefinition,
   polishDefinition,
   type PolishedDefinition,
   type PolishDefinitionInput,
+  type PolishDefinitionResult,
   type PolishDefinitionTask,
+  type ReformulatedDefinition,
 } from './polish-definition';
 
 export {

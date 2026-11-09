@@ -2810,6 +2810,41 @@ function writeExampleSuggestions(
                     </button>
                   </span>
                 </div>
+                @if (definitionPolishNote(); as note) {
+                  <div class="compare-side">
+                    <div class="field-heading">
+                      <p class="field-label">
+                        {{ note.task === 'correct' ? 'Correction' : 'Reformulation' }}
+                      </p>
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Dismiss"
+                        (click)="definitionPolishNote.set(null)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M18 6 6 18" />
+                          <path d="m6 6 12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    @if (note.task === 'correct') {
+                      <p class="hint">{{ note.explanation }}</p>
+                    } @else {
+                      <div class="add-choices">
+                        @for (option of note.options; track $index) {
+                          <button
+                            type="button"
+                            class="btn btn-secondary add-choice"
+                            (click)="useDefinitionProposition(prompt, option)"
+                          >
+                            {{ option }}
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
                 <textarea
                   #definitionField
                   [id]="'play-definition-' + prompt"
@@ -2821,12 +2856,6 @@ function writeExampleSuggestions(
                   (focus)="workDefinition('working')"
                   (input)="onDefinitionDraft(prompt, $event)"
                 ></textarea>
-                @if (definitionPolishNote(); as note) {
-                  <p class="field-label">
-                    {{ note.task === 'correct' ? 'Correction' : 'Reformulation' }}
-                  </p>
-                  <p class="hint">{{ note.explanation }}</p>
-                }
                 @if (error()) {
                   <p class="error">{{ error() }}</p>
                 }
@@ -5149,9 +5178,9 @@ export class ElementModal {
   private readonly supportField = viewChild<ElementRef<HTMLTextAreaElement>>('supportField');
   /** Which definition field is being written. The icon points at the other language. */
   readonly definitionSource = signal<'support' | 'working'>('support');
-  readonly definitionPolishNote = signal<{ task: PolishDefinitionTask; explanation: string } | null>(
-    null,
-  );
+  readonly definitionPolishNote = signal<
+    { task: 'correct'; explanation: string } | { task: 'reformulate'; options: string[] } | null
+  >(null);
   readonly askingPolish = signal<PolishDefinitionTask | null>(null);
 
   constructor() {
@@ -7782,7 +7811,7 @@ export class ElementModal {
     );
   }
 
-  /** Replace the working-language draft with a correction or a more natural wording. */
+  /** Correct the working-language draft, or propose three other wordings above it. */
   async polishWorkingDefinition(index: number, task: PolishDefinitionTask): Promise<void> {
     if (!this.canPolishDefinition(index) || !this.definitionGame()) return;
     const element = this.element();
@@ -7793,6 +7822,13 @@ export class ElementModal {
       const polished = await polishDefinition({ language: element.language, text, task });
       if (!this.alive || this.element().id !== element.id) return;
       if (this.definitionDraftAt(index).trim() !== text) return;
+      if (polished.task === 'reformulate') {
+        this.definitionPolishNote.set({
+          task: 'reformulate',
+          options: polished.options.map((option) => option.slice(0, DEFINITION_MAX)),
+        });
+        return;
+      }
       const definitionDrafts = this.round().definitionDrafts.slice();
       while (definitionDrafts.length <= index) definitionDrafts.push('');
       definitionDrafts[index] = polished.text.slice(0, DEFINITION_MAX);
@@ -7801,7 +7837,7 @@ export class ElementModal {
       grades[index] = null;
       definitionTranslations[index] = '';
       this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
-      this.definitionPolishNote.set({ task, explanation: polished.explanation });
+      this.definitionPolishNote.set({ task: 'correct', explanation: polished.explanation });
     } catch {
       if (this.alive && this.element().id === element.id) {
         this.error.set('Could not rewrite this definition.');
@@ -7809,6 +7845,19 @@ export class ElementModal {
     } finally {
       if (this.alive) this.askingPolish.set(null);
     }
+  }
+
+  /** Put a proposed wording into the working-language field. The list stays. */
+  useDefinitionProposition(index: number, option: string): void {
+    const value = option.slice(0, DEFINITION_MAX);
+    const definitionDrafts = this.round().definitionDrafts.slice();
+    while (definitionDrafts.length <= index) definitionDrafts.push('');
+    definitionDrafts[index] = value;
+    const grades = this.round().grades.slice();
+    const definitionTranslations = this.round().definitionTranslations.slice();
+    grades[index] = null;
+    definitionTranslations[index] = '';
+    this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
   }
 
   onDefinitionSupportDraft(index: number, event: Event): void {
