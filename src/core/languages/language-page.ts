@@ -387,15 +387,28 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       </span>
                     </span>
                   }
-                  @if (!playing()) {
-                    @if (element.mode; as mode) {
-                      <span class="marks">
+                  <span class="marks">
+                    @if (!playing()) {
+                      @if (element.mode; as mode) {
                         <span class="mode-icon" [attr.aria-label]="modeLabel(mode)">
                           <app-mode-icon [mode]="mode" />
                         </span>
-                      </span>
+                      }
                     }
-                  }
+                    <span class="card-gems">
+                      @for (total of gemTotals(element); track total.game) {
+                        <span
+                          class="card-gem"
+                          [class.quiet]="!total.gems"
+                          [attr.data-game]="total.game"
+                          [attr.aria-label]="gemsLabel(total.game, total.gems)"
+                        >
+                          <span class="gem" aria-hidden="true"></span>
+                          <span>{{ total.gems }}</span>
+                        </span>
+                      }
+                    </span>
+                  </span>
                 </div>
                 </div>
                 <div
@@ -1258,6 +1271,50 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       display: flex;
       align-items: center;
       gap: 0.45rem;
+      width: 100%;
+    }
+
+    .card-gems {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: auto;
+    }
+
+    .card-gem {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.16rem;
+      color: var(--exercise-gem);
+      font-size: 0.78rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .card-gem[data-game='translation'] {
+      --exercise-gem: #f05a62;
+    }
+
+    .card-gem[data-game='definition'] {
+      --exercise-gem: #48c850;
+    }
+
+    .card-gem .gem {
+      --gem-size: 0.72rem;
+      background: var(--exercise-gem);
+    }
+
+    .card-gem.quiet {
+      opacity: 0.4;
+    }
+
+    .element.playing .marks {
+      width: auto;
+    }
+
+    .element.playing .card-gems {
+      margin-left: 0;
     }
 
     .comfort-track {
@@ -2236,6 +2293,26 @@ export class LanguagePage {
 
   formCount(element: StoredElement): number {
     return element.definitions.reduce((total, definition) => total + definition.forms.length, 0);
+  }
+
+  gemTotals(element: StoredElement): { game: 'translation' | 'definition'; gems: number }[] {
+    let translation = 0;
+    let definition = 0;
+    for (const item of element.definitions) {
+      for (const entry of item.log) {
+        if (entry.game === 'translation') translation += entry.gems;
+        else definition += entry.gems;
+      }
+    }
+    return [
+      { game: 'translation', gems: translation },
+      { game: 'definition', gems: definition },
+    ];
+  }
+
+  gemsLabel(game: 'translation' | 'definition', count: number): string {
+    const amount = count === 1 ? '1 gem' : `${count} gems`;
+    return `${amount} from ${game}`;
   }
 
   formsLabel(count: number): string {

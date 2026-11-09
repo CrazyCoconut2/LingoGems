@@ -3335,8 +3335,8 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
-      width: min(100%, 42rem);
-      height: auto;
+      width: 90%;
+      height: min(90dvh, calc(100dvh - 2.5rem));
       max-height: calc(100dvh - 2.5rem);
       min-height: 0;
       overflow: hidden;
@@ -3598,11 +3598,6 @@ function writeExampleSuggestions(
       display: block;
       width: 1.05rem;
       height: 1.05rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     .comfort-step:hover:not(:disabled) {
@@ -3933,16 +3928,27 @@ function writeExampleSuggestions(
       color: var(--accent-text);
     }
 
-    .icon-btn svg {
-      display: block;
-      width: 1rem;
-      height: 1rem;
-      flex: none;
+    .comfort-step svg,
+    .icon-btn svg,
+    h3.section-title svg,
+    button.section-title svg,
+    .lookup-chip svg,
+    .equivalent-prompt svg,
+    .sense-equivalent svg,
+    .forms-toggle svg,
+    .equivalent-result svg {
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .icon-btn svg {
+      display: block;
+      width: 1rem;
+      height: 1rem;
+      flex: none;
     }
 
     .field-heading .lang {
@@ -4000,11 +4006,6 @@ function writeExampleSuggestions(
       display: block;
       width: 0.9rem;
       height: 0.9rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     .lookup-chip:disabled {
@@ -4049,11 +4050,6 @@ function writeExampleSuggestions(
       width: 1.15rem;
       height: 1.15rem;
       flex: none;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     button.section-title {
@@ -4267,11 +4263,6 @@ function writeExampleSuggestions(
       width: 1.05rem;
       height: 1.05rem;
       flex: none;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     .equivalent-prompt .play-blur {
@@ -4282,11 +4273,6 @@ function writeExampleSuggestions(
       width: 0.95rem;
       height: 0.95rem;
       flex: none;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     .sense-meta li.colored,
@@ -4813,11 +4799,6 @@ function writeExampleSuggestions(
       width: 1rem;
       height: 1rem;
       flex: none;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     .forms-toggle svg.open {
@@ -5017,6 +4998,19 @@ function writeExampleSuggestions(
     }
 
     @media (max-width: 720px) {
+      .backdrop {
+        align-items: flex-end;
+        padding: 0.65rem max(0.65rem, env(safe-area-inset-right))
+          max(0.65rem, env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-left));
+      }
+
+      .panel {
+        width: 100%;
+        height: min(92dvh, calc(100dvh - 1.3rem));
+        max-height: calc(100dvh - 1.3rem);
+        border-radius: 14px 14px 0 0;
+      }
+
       .compare {
         grid-template-columns: 1fr;
       }
@@ -5082,11 +5076,6 @@ function writeExampleSuggestions(
       width: 0.95rem;
       height: 0.95rem;
       flex: none;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     .form-chip.readonly {
