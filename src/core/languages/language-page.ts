@@ -1289,8 +1289,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .mode-icon {
       display: grid;
       place-items: center;
-      width: 1.45rem;
-      height: 1.45rem;
+      width: 2.15rem;
+      height: 2.15rem;
       margin: 0;
       padding: 0;
       border: 0;
@@ -1326,8 +1326,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .play-icon {
       display: grid;
       place-items: center;
-      width: 1.45rem;
-      height: 1.45rem;
+      width: 2.15rem;
+      height: 2.15rem;
       color: var(--text);
     }
 
@@ -1404,8 +1404,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .skeleton .bone-mode {
       grid-column: 2;
       grid-row: 1;
-      width: 1.45rem;
-      height: 1.45rem;
+      width: 2.15rem;
+      height: 2.15rem;
       border-radius: 0.4rem;
     }
 
@@ -1719,8 +1719,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .mode-choice app-mode-icon {
-      width: 2.35rem;
-      height: 2.35rem;
+      width: 2.55rem;
+      height: 2.55rem;
       flex: none;
     }
 

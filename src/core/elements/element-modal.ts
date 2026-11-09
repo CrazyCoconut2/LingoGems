@@ -2923,8 +2923,8 @@ function writeExampleSuggestions(
     }
 
     .title-end .mode-btn app-mode-icon {
-      width: 1.5rem;
-      height: 1.5rem;
+      width: 1.7rem;
+      height: 1.7rem;
     }
 
     .title-end .mode-btn.play-focus,
@@ -2937,7 +2937,11 @@ function writeExampleSuggestions(
       cursor: default;
     }
 
-    .title-end .mode-btn.play-focus app-mode-icon,
+    .title-end .mode-btn.play-focus app-mode-icon {
+      filter: drop-shadow(0 0 3px rgba(245, 196, 81, 0.55));
+      animation: gem-scintillate 1s linear infinite;
+    }
+
     .guess-open.needs-click svg {
       animation: icon-scintillate 1s linear infinite;
     }
@@ -2980,6 +2984,19 @@ function writeExampleSuggestions(
       86% {
         color: #fff;
         filter: blur(0.55em) drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px #ffd978);
+      }
+    }
+
+    @keyframes gem-scintillate {
+      0%,
+      62%,
+      100% {
+        filter: drop-shadow(0 0 3px rgba(245, 196, 81, 0.55));
+      }
+
+      74%,
+      86% {
+        filter: brightness(1.6) drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px #ffd978);
       }
     }
 
@@ -3107,8 +3124,8 @@ function writeExampleSuggestions(
     }
 
     .mode-btn app-mode-icon {
-      width: 1.25rem;
-      height: 1.25rem;
+      width: 1.5rem;
+      height: 1.5rem;
     }
 
     .mode-sheet {
@@ -3133,8 +3150,8 @@ function writeExampleSuggestions(
     }
 
     .mode-current app-mode-icon {
-      width: 2.4rem;
-      height: 2.4rem;
+      width: 2.6rem;
+      height: 2.6rem;
     }
 
     .mode-sequence {
@@ -3170,8 +3187,8 @@ function writeExampleSuggestions(
     }
 
     .mode-step app-mode-icon {
-      width: 1.35rem;
-      height: 1.35rem;
+      width: 1.7rem;
+      height: 1.7rem;
     }
 
     .mode-step:disabled {
