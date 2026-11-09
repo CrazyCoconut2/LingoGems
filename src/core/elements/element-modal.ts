@@ -953,7 +953,7 @@ function writeExampleSuggestions(
                       </ng-template>
                       @let equivalent = equivalentText(definition);
                       @let meta = entries(definition.metadata);
-                      @if (passage.translations.length && !definitionConcealed(index) && !gradeAt(index)) {
+                      @if (passage.translations.length) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
                             <li>
