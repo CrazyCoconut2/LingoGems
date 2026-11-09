@@ -2416,7 +2416,9 @@ function writeExampleSuggestions(
                       @if (passage.translations.length) {
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
-                            <li>{{ translation.text }}</li>
+                            <li>
+                              <app-reveal [text]="translation.text" />
+                            </li>
                           }
                         </ul>
                       }
@@ -2922,7 +2924,9 @@ function writeExampleSuggestions(
                         @if (passage.translations.length) {
                           <ul class="equivalents">
                             @for (translation of passage.translations; track $index) {
-                              <li>{{ translation.text }}</li>
+                              <li>
+                                <app-reveal [text]="translation.text" />
+                              </li>
                             }
                           </ul>
                         }
