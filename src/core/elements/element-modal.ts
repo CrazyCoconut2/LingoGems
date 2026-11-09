@@ -2613,6 +2613,29 @@ function writeExampleSuggestions(
                   </button>
                 </div>
                 @if (gradeAt(prompt); as grade) {
+                  @if (!definitionDraftAt(prompt).trim()) {
+                    <p class="field-label">You gave up</p>
+                    @let gloss = parsePassage(definition.text);
+                    <p class="passage">{{ shownDefinition(gloss.text) }}</p>
+                    @if (gloss.translations.length) {
+                      <ul class="equivalents">
+                        @for (translation of gloss.translations; track $index) {
+                          <li>
+                            <app-reveal [text]="translation.text" />
+                          </li>
+                        }
+                      </ul>
+                    }
+                    <div class="sheet-actions">
+                      <button
+                        type="button"
+                        class="btn btn-primary"
+                        (click)="definitionPrompt.set(-1)"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  } @else {
                   <div class="compare">
                     <div class="compare-side">
                       <p class="field-label">Definition</p>
@@ -2653,6 +2676,7 @@ function writeExampleSuggestions(
                       Done
                     </button>
                   </div>
+                  }
                 } @else {
                 @if (supportAvailable()) {
                   <div class="lang" role="group" aria-label="Language">
@@ -2701,6 +2725,14 @@ function writeExampleSuggestions(
                     (click)="evaluateDefinition(prompt)"
                   >
                     Evaluate
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    [disabled]="askingGrade() === prompt"
+                    (click)="giveUpDefinition(prompt)"
+                  >
+                    Give up
                   </button>
                   <button
                     type="button"
@@ -6405,7 +6437,7 @@ export class ElementModal {
       return `Write the equivalent for each definition. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI.`;
     }
     if (mode === 2) return 'Write the title, or any form of it.';
-    return 'Write each hidden definition.';
+    return 'Write each hidden definition, or give up to see it.';
   }
 
   /** Stop this round and show the card. */
@@ -7521,6 +7553,24 @@ export class ElementModal {
       grades,
       definitionTranslations,
     });
+  }
+
+  /** Concede this definition. The gloss is shown and the turn counts as done. */
+  giveUpDefinition(index: number): void {
+    if (!this.definitionGame() || this.aiBusy() || this.gradeAt(index)) return;
+    const definition = this.element().definitions[index];
+    if (!definition || !definitionEligibleForGames(definition.text, this.element())) return;
+    const grades = this.round().grades.slice();
+    while (grades.length <= index) grades.push(null);
+    grades[index] = { score: 0, explanation: '' };
+    const definitionDrafts = this.round().definitionDrafts.slice();
+    while (definitionDrafts.length <= index) definitionDrafts.push('');
+    definitionDrafts[index] = '';
+    const definitionTranslations = this.round().definitionTranslations.slice();
+    while (definitionTranslations.length <= index) definitionTranslations.push('');
+    definitionTranslations[index] = '';
+    this.error.set('');
+    this.writeRound({ ...this.round(), grades, definitionDrafts, definitionTranslations });
   }
 
   async evaluateDefinition(index: number): Promise<void> {
