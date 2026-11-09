@@ -91,14 +91,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
 @Component({
   selector: 'app-language-page',
-  imports: [
-    RouterLink,
-    ElementModal,
-    ModeIcon,
-    ScoreGauge,
-    LanguageAiSettings,
-    DiscoverModal,
-  ],
+  imports: [RouterLink, ElementModal, ModeIcon, ScoreGauge, LanguageAiSettings, DiscoverModal],
   template: `
     <main>
       <header>
@@ -2274,6 +2267,7 @@ export class LanguagePage {
             forms: searchForms(generated.lemma, selected),
             examples: [],
             metadata: { ...sense.metadata },
+            log: [],
           })),
         },
         true,

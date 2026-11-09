@@ -384,7 +384,9 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                           [value]="draft(section.id).value"
                           (input)="setDraft(section.id, 'value', $event)"
                         />
-                        <button type="submit" [disabled]="locked() || !canAdd(section.id)">Add</button>
+                        <button type="submit" [disabled]="locked() || !canAdd(section.id)">
+                          Add
+                        </button>
                       </form>
                     </div>
                   }
@@ -1653,6 +1655,7 @@ async function saveDiscoveredElement(language: string, hit: DiscoverHit): Promis
     forms: [],
     examples: [],
     metadata: { ...sense.metadata },
+    log: [],
   }));
   await saveElement({ ...created, definitions });
 }

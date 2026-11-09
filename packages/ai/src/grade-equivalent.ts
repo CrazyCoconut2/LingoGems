@@ -1,4 +1,4 @@
-import { languageDisplayName } from 'collection';
+import { TRANSLATION_GEM_MAX, languageDisplayName } from 'collection';
 import { completeJson, runWithKeyFallback } from './complete';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
@@ -9,14 +9,14 @@ JSON keys stay in English.
 answer is the learner's word or phrase. Read it in the language it is written in, which may differ from writeFieldsIn.
 definition is the sense, in the language named by writeFieldsIn.
 lemma is the headword of that sense, also in writeFieldsIn.
-Score from 0 to 100 how well answer applies to this definition.
-- 100 means answer names this sense
+Score gems from 0 to ${TRANSLATION_GEM_MAX} for how well answer applies to this definition.
+- ${TRANSLATION_GEM_MAX} means answer names this sense
 - Partial credit means a nearby sense, or the right sense with the wrong specificity
 - 0 means a different sense, or unrelated
 Spelling mistakes do not sink a correct meaning.
 explanation MUST be in the language named by writeFieldsIn. Do not write it in English unless writeFieldsIn is English.
 explanation says whether the written word applies to the definition and why the score is what it is. Do not quote the definition in full.
-JSON only: {"score":<0-100>,"explanation":"<text>"}`;
+JSON only: {"score":<0-${TRANSLATION_GEM_MAX}>,"explanation":"<text>"}`;
 
 const GRADE_MAX_TOKENS = 1024;
 
@@ -63,7 +63,7 @@ export function parseGradedEquivalent(parsed: unknown): GradedEquivalent | null 
     .trim();
   if (!explanation) return null;
   return {
-    score: Math.min(100, Math.max(0, Math.round(score))),
+    score: Math.min(TRANSLATION_GEM_MAX, Math.max(0, Math.round(score))),
     explanation,
   };
 }

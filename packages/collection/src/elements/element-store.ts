@@ -26,12 +26,28 @@ export type ElementForm = {
   metadata: ElementMetadata;
 };
 
+/** Highest gem score one translation answer can earn. */
+export const TRANSLATION_GEM_MAX = 5;
+
+export type DefinitionLogBy = 'user' | 'ai';
+
+/** One scored answer in a game, kept on the definition it belongs to. */
+export type DefinitionLogEntry = {
+  game: 'translation';
+  gems: number;
+  by: DefinitionLogBy;
+  at: number;
+  answer: string;
+  explanation?: string;
+};
+
 export type ElementDefinition = {
   text: string;
   equivalentId: string | null;
   forms: ElementForm[];
   examples: ElementExample[];
   metadata: ElementMetadata;
+  log: DefinitionLogEntry[];
 };
 
 /** The strings a form list is matched and highlighted with. */
@@ -321,6 +337,7 @@ function normalizeDefinitions(
       forms: normalizeForms(source.forms),
       examples: normalizeExamples(source.examples),
       metadata: normalizeMetadata(source.metadata),
+      log: normalizeLog(source.log),
     });
   }
   return definitions;
@@ -343,6 +360,38 @@ function resolveEquivalentId(
 
 function normalizePlainText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeLog(value: unknown): DefinitionLogEntry[] {
+  if (!Array.isArray(value)) return [];
+  const log: DefinitionLogEntry[] = [];
+  for (const raw of value) {
+    const entry = normalizeLogEntry(raw);
+    if (entry) log.push(entry);
+  }
+  return log;
+}
+
+function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const source = raw as Partial<DefinitionLogEntry>;
+  if (source.game !== 'translation') return null;
+  const gems = Math.round(Number(source.gems));
+  if (!Number.isInteger(gems) || gems < 0 || gems > TRANSLATION_GEM_MAX) return null;
+  if (source.by !== 'user' && source.by !== 'ai') return null;
+  if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
+  const answer = typeof source.answer === 'string' ? source.answer : '';
+  const explanation =
+    typeof source.explanation === 'string' ? source.explanation.replace(/\s+/g, ' ').trim() : '';
+  const entry: DefinitionLogEntry = {
+    game: 'translation',
+    gems,
+    by: source.by,
+    at: source.at,
+    answer,
+  };
+  if (explanation) entry.explanation = explanation;
+  return entry;
 }
 
 const TRANSLATION_MARKER = /\[([a-z]{2}):\s*([^\]]*)]/gi;

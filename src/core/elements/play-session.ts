@@ -1,5 +1,10 @@
-import { formMatchesTerm, surfaceSpans, type StoredElement } from 'collection';
-import type { GradedDefinition, GradedEquivalent } from 'ai';
+import {
+  formMatchesTerm,
+  surfaceSpans,
+  type DefinitionLogBy,
+  type StoredElement,
+} from 'collection';
+import type { GradedDefinition } from 'ai';
 
 export const EQUIVALENT_MAX = 200;
 export const RECALL_MAX = 200;
@@ -7,14 +12,19 @@ export const DEFINITION_MAX = 500;
 
 export type AnswerLanguage = 'original' | 'english';
 
-/** The learner's own call on an equivalent they just wrote. */
-export type EquivalentVerdict = 'got' | 'miss';
+/** Gems attributed to one equivalent answer in the current round. */
+export type EquivalentReward = {
+  gems: number;
+  by: DefinitionLogBy;
+  explanation: string;
+};
 
 export type PlayRound = {
   equivalentDrafts: string[];
   equivalentSubmitted: boolean[];
-  equivalentVerdicts: Array<EquivalentVerdict | null>;
-  equivalentGrades: Array<GradedEquivalent | null>;
+  equivalentRewards: Array<EquivalentReward | null>;
+  /** Index of this attempt inside the definition log. Null until it is saved. */
+  equivalentLogIndexes: Array<number | null>;
   recall: string;
   recalled: boolean;
   revealedCount: number;
@@ -30,8 +40,8 @@ export function emptyPlayRound(): PlayRound {
   return {
     equivalentDrafts: [],
     equivalentSubmitted: [],
-    equivalentVerdicts: [],
-    equivalentGrades: [],
+    equivalentRewards: [],
+    equivalentLogIndexes: [],
     recall: '',
     recalled: false,
     revealedCount: 0,
