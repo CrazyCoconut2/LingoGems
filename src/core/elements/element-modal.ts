@@ -2440,10 +2440,6 @@ function writeExampleSuggestions(
                   } @else {
                   <div class="compare">
                     <div class="compare-side">
-                      <p class="field-label">You wrote</p>
-                      <p>{{ equivalentDraftAt(prompt) }}</p>
-                    </div>
-                    <div class="compare-side">
                       <p class="field-label">Equivalent</p>
                       <p class="equivalent-result">
                         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2456,6 +2452,10 @@ function writeExampleSuggestions(
                         </svg>
                         <span>{{ answer }}</span>
                       </p>
+                    </div>
+                    <div class="compare-side yours">
+                      <p class="field-label">You wrote</p>
+                      <p>{{ equivalentDraftAt(prompt) }}</p>
                     </div>
                   </div>
                   <p class="field-label">Gems</p>
@@ -2607,14 +2607,6 @@ function writeExampleSuggestions(
                 @if (gradeAt(prompt); as grade) {
                   <div class="compare">
                     <div class="compare-side">
-                      <p class="field-label">Your answer</p>
-                      <p>{{ definitionDraftAt(prompt) }}</p>
-                      @if (definitionTranslationAt(prompt); as translated) {
-                        <p class="field-label">Translation</p>
-                        <p>{{ translated }}</p>
-                      }
-                    </div>
-                    <div class="compare-side">
                       <p class="field-label">Definition</p>
                       @let gloss = parsePassage(definition.text);
                       <p class="passage">{{ shownDefinition(gloss.text) }}</p>
@@ -2628,6 +2620,14 @@ function writeExampleSuggestions(
                             }
                           </ul>
                         }
+                      }
+                    </div>
+                    <div class="compare-side yours">
+                      <p class="field-label">Your answer</p>
+                      <p>{{ definitionDraftAt(prompt) }}</p>
+                      @if (definitionTranslationAt(prompt); as translated) {
+                        <p class="field-label">Translation</p>
+                        <p>{{ translated }}</p>
                       }
                     </div>
                     <div class="compare-score">
@@ -2927,10 +2927,6 @@ function writeExampleSuggestions(
                     } @else {
                       <div class="compare">
                         <div class="compare-side">
-                          <p class="field-label">You wrote</p>
-                          <p>{{ entry.answer }}</p>
-                        </div>
-                        <div class="compare-side">
                           <p class="field-label">Equivalent</p>
                           <p class="equivalent-result">
                             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2943,6 +2939,10 @@ function writeExampleSuggestions(
                             </svg>
                             <span>{{ equivalent }}</span>
                           </p>
+                        </div>
+                        <div class="compare-side yours">
+                          <p class="field-label">You wrote</p>
+                          <p>{{ entry.answer }}</p>
                         </div>
                       </div>
                     }
@@ -4651,6 +4651,11 @@ function writeExampleSuggestions(
       border: 1px solid var(--border);
       border-radius: var(--radius);
       background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
+    }
+
+    .yours {
+      background: #3a3e4a;
+      border-color: #5c6170;
     }
 
     .compare-score {
