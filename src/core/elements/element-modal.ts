@@ -2732,7 +2732,7 @@ function writeExampleSuggestions(
                   <textarea
                     #supportField
                     [id]="'play-definition-support-' + prompt"
-                    rows="3"
+                    rows="2"
                     [value]="definitionSupportDraftAt(prompt)"
                     [attr.maxlength]="definitionMax"
                     [disabled]="askingGrade() === prompt || translating()"
@@ -2815,7 +2815,7 @@ function writeExampleSuggestions(
                 <textarea
                   #definitionField
                   [id]="'play-definition-' + prompt"
-                  rows="4"
+                  rows="2"
                   [value]="definitionDraftAt(prompt)"
                   [attr.maxlength]="definitionMax"
                   [disabled]="askingGrade() === prompt || translating() || askingPolish()"
