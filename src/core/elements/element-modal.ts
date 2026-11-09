@@ -2782,7 +2782,7 @@ function writeExampleSuggestions(
                     @if (!supportAvailable() || definitionSource() === 'working') {
                       <button
                         type="button"
-                        class="icon-btn"
+                        class="icon-btn fix"
                         aria-label="Correct"
                         title="Correct"
                         [attr.aria-busy]="askingPolish() === 'correct' ? true : null"
@@ -2797,7 +2797,7 @@ function writeExampleSuggestions(
                       </button>
                       <button
                         type="button"
-                        class="icon-btn"
+                        class="icon-btn idea"
                         aria-label="Reformulate"
                         title="Reformulate"
                         [attr.aria-busy]="askingPolish() === 'reformulate' ? true : null"
@@ -2828,7 +2828,11 @@ function writeExampleSuggestions(
                   ></textarea>
                 } @else {
                 @if (definitionPolishNote(); as note) {
-                  <div class="compare-side">
+                  <div
+                    class="compare-side"
+                    [class.fix]="note.task === 'correct'"
+                    [class.idea]="note.task === 'reformulate'"
+                  >
                     <div class="field-heading">
                       <p class="field-label">
                         {{ note.task === 'correct' ? 'Correction' : 'Reformulation' }}
@@ -3480,7 +3484,6 @@ function writeExampleSuggestions(
       white-space: pre-wrap;
       filter: blur(0.55em);
       user-select: none;
-      -webkit-user-select: none;
     }
 
     @keyframes blur-scintillate {
@@ -3676,7 +3679,8 @@ function writeExampleSuggestions(
       cursor: pointer;
     }
 
-    .mode-step.current {
+    .mode-step.current,
+    .mode-clear.current {
       border-color: color-mix(in srgb, var(--text) 45%, transparent);
       background: color-mix(in srgb, var(--text) 8%, transparent);
     }
@@ -3697,9 +3701,6 @@ function writeExampleSuggestions(
     }
 
     .mode-clear.current {
-      border-color: color-mix(in srgb, var(--text) 45%, transparent);
-      background: color-mix(in srgb, var(--text) 8%, transparent);
-      text-align: center;
       cursor: default;
     }
 
@@ -3767,7 +3768,6 @@ function writeExampleSuggestions(
       filter: blur(0.55em);
       pointer-events: none;
       user-select: none;
-      -webkit-user-select: none;
     }
 
     .equivalent-choices {
@@ -3811,8 +3811,8 @@ function writeExampleSuggestions(
     .equivalent-block.missing {
       margin-inline: -0.55rem;
       padding: 0.55rem;
-      background: color-mix(in srgb, var(--danger) 12%, transparent);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 55%, transparent);
+      background: rgba(255, 92, 122, 0.12);
+      box-shadow: inset 0 0 0 1px rgba(255, 92, 122, 0.55);
     }
 
     h2,
@@ -3902,7 +3902,35 @@ function writeExampleSuggestions(
 
     .icon-btn.danger:hover:not(:disabled) {
       color: var(--danger);
-      background: color-mix(in srgb, var(--danger) 12%, transparent);
+      background: rgba(255, 92, 122, 0.12);
+    }
+
+    .icon-btn.fix,
+    .icon-btn.fix:hover:not(:disabled) {
+      color: var(--danger);
+    }
+
+    .icon-btn.idea,
+    .icon-btn.idea:hover:not(:disabled) {
+      color: var(--accent-text);
+    }
+
+    .compare-side.fix {
+      border-color: #944662;
+      background: #392237;
+    }
+
+    .compare-side.fix .field-label {
+      color: var(--danger);
+    }
+
+    .compare-side.idea {
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+    }
+
+    .compare-side.idea .field-label {
+      color: var(--accent-text);
     }
 
     .icon-btn svg {
@@ -3910,9 +3938,6 @@ function writeExampleSuggestions(
       width: 1rem;
       height: 1rem;
       flex: none;
-    }
-
-    .icon-btn svg {
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
@@ -4113,7 +4138,7 @@ function writeExampleSuggestions(
       align-self: flex-start;
       border: 0;
       border-radius: 999px;
-      background: color-mix(in srgb, var(--danger) 18%, transparent);
+      background: rgba(255, 92, 122, 0.18);
       color: var(--danger);
       padding: 0.15rem 0.5rem;
       font: inherit;
@@ -4125,7 +4150,7 @@ function writeExampleSuggestions(
     }
 
     .new-definition:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--danger) 28%, transparent);
+      background: rgba(255, 92, 122, 0.28);
     }
 
     .new-definition:disabled {
@@ -4821,16 +4846,15 @@ function writeExampleSuggestions(
     .btn-danger {
       background: transparent;
       color: var(--danger);
-      border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+      border: 1px solid rgba(255, 92, 122, 0.55);
     }
 
     .btn-danger:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--danger) 12%, transparent);
+      background: rgba(255, 92, 122, 0.12);
     }
 
     h2.concealed {
       user-select: none;
-      -webkit-user-select: none;
     }
 
     .cue-rest,
@@ -4838,7 +4862,6 @@ function writeExampleSuggestions(
       filter: blur(0.55em);
       pointer-events: none;
       user-select: none;
-      -webkit-user-select: none;
     }
 
     .cue {
