@@ -2603,8 +2603,8 @@ function writeExampleSuggestions(
                     type="button"
                     class="icon-btn"
                     aria-label="Close"
-                    [disabled]="askingGrade() === prompt"
-                    (click)="definitionPrompt.set(-1)"
+                    [disabled]="askingGrade() === prompt || definitionAwaitingScore(prompt)"
+                    (click)="closeDefinitionPrompt()"
                   >
                     <svg viewBox="0 0 24 24">
                       <path d="M18 6 6 18" />
@@ -2612,7 +2612,7 @@ function writeExampleSuggestions(
                     </svg>
                   </button>
                 </div>
-                @if (gradeAt(prompt); as grade) {
+                @if (definitionSubmitted(prompt)) {
                   @if (!definitionDraftAt(prompt).trim()) {
                     <p class="field-label">You gave up</p>
                     @let gloss = parsePassage(definition.text);
@@ -2661,17 +2661,32 @@ function writeExampleSuggestions(
                         <p>{{ translated }}</p>
                       }
                     </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    [disabled]="aiBusy() || !!gradeAt(prompt)"
+                    [attr.aria-busy]="askingGrade() === prompt ? true : null"
+                    (click)="evaluateDefinition(prompt)"
+                  >
+                    {{ askingGrade() === prompt ? 'Asking…' : 'Ask AI' }}
+                  </button>
+                  @if (gradeAt(prompt); as grade) {
                     <div class="compare-score">
                       <p class="field-label">Score</p>
                       <p class="score">{{ grade.score }}</p>
                       <p>{{ grade.explanation }}</p>
                     </div>
-                  </div>
+                  }
+                  @if (error()) {
+                    <p class="error">{{ error() }}</p>
+                  }
                   <div class="sheet-actions">
                     <button
                       type="button"
                       class="btn btn-primary"
-                      (click)="definitionPrompt.set(-1)"
+                      [disabled]="definitionAwaitingScore(prompt) || askingGrade() === prompt"
+                      (click)="closeDefinitionPrompt()"
                     >
                       Done
                     </button>
@@ -2721,10 +2736,9 @@ function writeExampleSuggestions(
                     type="button"
                     class="btn btn-primary"
                     [disabled]="aiBusy() || !definitionDraftAt(prompt).trim()"
-                    [attr.aria-busy]="askingGrade() === prompt ? true : null"
-                    (click)="evaluateDefinition(prompt)"
+                    (click)="submitDefinition(prompt)"
                   >
-                    Evaluate
+                    Submit
                   </button>
                   <button
                     type="button"
@@ -5081,8 +5095,7 @@ export class ElementModal {
       return;
     }
     if (this.definitionPromptOpen()) {
-      if (this.askingGrade() !== null) return;
-      this.definitionPrompt.set(-1);
+      this.closeDefinitionPrompt();
       return;
     }
     if (this.titleEdit()) {
@@ -6437,7 +6450,7 @@ export class ElementModal {
       return `Write the equivalent for each definition. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI.`;
     }
     if (mode === 2) return 'Write the title, or any form of it.';
-    return 'Write each hidden definition, or give up to see it.';
+    return 'Write each hidden definition and submit it, then ask the AI for the score. Or give up to see it.';
   }
 
   /** Stop this round and show the card. */
@@ -7519,8 +7532,29 @@ export class ElementModal {
 
   closeDefinitionPrompt(event?: MouseEvent): void {
     if (event && event.target !== event.currentTarget) return;
+    const index = this.definitionPrompt();
     if (this.askingGrade() !== null) return;
+    if (index >= 0 && this.definitionAwaitingScore(index)) return;
     this.definitionPrompt.set(-1);
+  }
+
+  definitionSubmitted(index: number): boolean {
+    return this.round().definitionSubmitted[index] === true;
+  }
+
+  /** A written answer is in, and the AI has not scored it yet. */
+  definitionAwaitingScore(index: number): boolean {
+    return this.definitionSubmitted(index) && !this.gradeAt(index);
+  }
+
+  submitDefinition(index: number): void {
+    if (!this.definitionGame() || this.aiBusy() || this.definitionSubmitted(index)) return;
+    if (!this.definitionDraftAt(index).trim()) return;
+    const definitionSubmitted = this.round().definitionSubmitted.slice();
+    while (definitionSubmitted.length <= index) definitionSubmitted.push(false);
+    definitionSubmitted[index] = true;
+    this.error.set('');
+    this.writeRound({ ...this.round(), definitionSubmitted });
   }
 
   onDefinitionDraft(index: number, event: Event): void {
@@ -7557,7 +7591,14 @@ export class ElementModal {
 
   /** Concede this definition. The gloss is shown and the turn counts as done. */
   giveUpDefinition(index: number): void {
-    if (!this.definitionGame() || this.aiBusy() || this.gradeAt(index)) return;
+    if (
+      !this.definitionGame() ||
+      this.aiBusy() ||
+      this.gradeAt(index) ||
+      this.definitionSubmitted(index)
+    ) {
+      return;
+    }
     const definition = this.element().definitions[index];
     if (!definition || !definitionEligibleForGames(definition.text, this.element())) return;
     const grades = this.round().grades.slice();
@@ -7569,12 +7610,28 @@ export class ElementModal {
     const definitionTranslations = this.round().definitionTranslations.slice();
     while (definitionTranslations.length <= index) definitionTranslations.push('');
     definitionTranslations[index] = '';
+    const definitionSubmitted = this.round().definitionSubmitted.slice();
+    while (definitionSubmitted.length <= index) definitionSubmitted.push(false);
+    definitionSubmitted[index] = true;
     this.error.set('');
-    this.writeRound({ ...this.round(), grades, definitionDrafts, definitionTranslations });
+    this.writeRound({
+      ...this.round(),
+      grades,
+      definitionDrafts,
+      definitionTranslations,
+      definitionSubmitted,
+    });
   }
 
   async evaluateDefinition(index: number): Promise<void> {
-    if (this.aiBusy() || this.gradeAt(index) || !this.definitionDraftAt(index).trim()) return;
+    if (
+      this.aiBusy() ||
+      this.gradeAt(index) ||
+      !this.definitionSubmitted(index) ||
+      !this.definitionDraftAt(index).trim()
+    ) {
+      return;
+    }
     const element = this.element();
     const definition = element.definitions[index];
     const gloss = parsePassage(definition?.text ?? '').text.trim();

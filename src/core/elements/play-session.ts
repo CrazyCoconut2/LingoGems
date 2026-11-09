@@ -29,6 +29,7 @@ export type PlayRound = {
   recalled: boolean;
   revealedCount: number;
   definitionDrafts: string[];
+  definitionSubmitted: boolean[];
   definitionLanguages: AnswerLanguage[];
   grades: Array<GradedDefinition | null>;
   definitionTranslations: string[];
@@ -46,6 +47,7 @@ export function emptyPlayRound(): PlayRound {
     recalled: false,
     revealedCount: 0,
     definitionDrafts: [],
+    definitionSubmitted: [],
     definitionLanguages: [],
     grades: [],
     definitionTranslations: [],
