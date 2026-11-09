@@ -2,6 +2,7 @@ import { Component, computed } from '@angular/core';
 import {
   installApp,
   installReady,
+  iosHomeScreen,
   justInstalled,
   keepStorageFromUser,
   keepStorageMessage,
@@ -12,7 +13,7 @@ import {
 @Component({
   selector: 'app-keep-storage',
   template: `
-    @if (kept() === false) {
+    @if (visible()) {
       <div class="keep" role="status">
         <p>{{ message() }}</p>
         @if (canInstall()) {
@@ -67,8 +68,18 @@ import {
 export class KeepStorageBar {
   readonly kept = storageKept;
   readonly canInstall = installReady;
+  readonly homeScreen = computed(() => iosHomeScreen() && !standaloneApp());
+  readonly visible = computed(
+    () => this.canInstall() || this.homeScreen() || this.kept() === false,
+  );
   readonly message = computed(keepStorageMessage);
-  readonly showKeep = computed(() => !installReady() && !(justInstalled() && !standaloneApp()));
+  readonly showKeep = computed(
+    () =>
+      this.kept() === false &&
+      !this.canInstall() &&
+      !this.homeScreen() &&
+      !(justInstalled() && !standaloneApp()),
+  );
 
   install(): void {
     void installApp();

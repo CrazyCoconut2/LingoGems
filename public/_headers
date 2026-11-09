@@ -1,4 +1,4 @@
-# App shell must never be served stale.
+# App shell and Angular SW metadata must never be served stale.
 # Hashed JS/CSS keep Cloudflare's default (revalidate with ETag).
 /
   Cache-Control: no-cache, no-store, must-revalidate
@@ -8,13 +8,18 @@
   Cache-Control: no-cache, no-store, must-revalidate
   CDN-Cache-Control: no-store
 
-/ngsw-worker.js
-  Cache-Control: no-cache
+/ngsw.json
+  Cache-Control: no-cache, no-store, must-revalidate
   CDN-Cache-Control: no-store
 
-/ngsw.json
-  Cache-Control: no-cache
+/ngsw-worker.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  CDN-Cache-Control: no-store
+
+/safety-worker.js
+  Cache-Control: no-cache, no-store, must-revalidate
   CDN-Cache-Control: no-store
 
 /manifest.webmanifest
-  Cache-Control: no-cache
+  Cache-Control: no-cache, no-store, must-revalidate
+  CDN-Cache-Control: no-store

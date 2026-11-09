@@ -113,7 +113,6 @@ function markKept(granted: boolean): void {
 }
 
 function onInstallPrompt(event: Event): void {
-  if (storageKept() === true) return;
   event.preventDefault();
   promptEvent = event as InstallPrompt;
   installReady.set(true);
