@@ -2469,19 +2469,7 @@ function writeExampleSuggestions(
                   <p class="field-label">Gems</p>
                   <div class="gem-pick" data-game="translation" role="group" aria-label="Gems">
                     @for (gems of gemScores; track gems) {
-                      @if (gems === 0) {
-                        <button
-                          type="button"
-                          class="btn btn-secondary gem-score"
-                          [class.on]="reward?.gems === 0"
-                          [attr.aria-pressed]="reward?.gems === 0"
-                          aria-label="0 gems"
-                          [disabled]="aiBusy()"
-                          (click)="awardEquivalent(prompt, 0)"
-                        >
-                          0
-                        </button>
-                      } @else {
+                      @if (gems > 0) {
                         <button
                           type="button"
                           class="gem-pick-stone"
@@ -2495,6 +2483,16 @@ function writeExampleSuggestions(
                         </button>
                       }
                     }
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [class.on]="reward?.gems === 0"
+                      [attr.aria-pressed]="reward?.gems === 0"
+                      [disabled]="aiBusy()"
+                      (click)="awardEquivalent(prompt, 0)"
+                    >
+                      None
+                    </button>
                     <button
                       type="button"
                       class="btn btn-secondary"
@@ -4757,14 +4755,9 @@ function writeExampleSuggestions(
       opacity: 1;
     }
 
-    .gem-pick .gem-score {
-      height: 1.7rem;
-      padding: 0 0.65rem;
-      font-size: 0.85rem;
-    }
-
-    .gem-pick .gem-score.on {
+    .gem-pick .btn.on {
       background: var(--exercise-gem);
+      border-color: var(--exercise-gem);
       color: white;
     }
 
