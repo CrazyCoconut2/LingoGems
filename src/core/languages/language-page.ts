@@ -392,6 +392,20 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                           }
                         </span>
                       }
+                      @if (formCount(element); as forms) {
+                        <span class="stat" [attr.aria-label]="formsLabel(forms)">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
+                            />
+                            <path d="m22 12.5-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5" />
+                            <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
+                          </svg>
+                          @if (forms > 1) {
+                            <span>x{{ forms }}</span>
+                          }
+                        </span>
+                      }
                       <app-score-gauge [score]="element.comfort" />
                     </span>
                   </span>
@@ -2198,6 +2212,14 @@ export class LanguagePage {
 
   definitionsLabel(count: number): string {
     return count === 1 ? '1 definition' : `${count} definitions`;
+  }
+
+  formCount(element: StoredElement): number {
+    return element.definitions.reduce((total, definition) => total + definition.forms.length, 0);
+  }
+
+  formsLabel(count: number): string {
+    return count === 1 ? '1 form' : `${count} forms`;
   }
 
   inputValue(event: Event): string {
