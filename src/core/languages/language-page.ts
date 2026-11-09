@@ -17,7 +17,6 @@ import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { DiscoverModal } from './discover-modal';
 import { LanguageAiSettings } from './language-ai-settings';
 import { generateElementFromSelection } from 'ai';
-import packageJson from '../../../package.json';
 import {
   addElement,
   compareElements,
@@ -847,7 +846,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           (addPrepared)="addPrepared($event)"
         />
       }
-      <p class="version">v{{ version }}</p>
     </main>
   `,
   styles: `
@@ -863,22 +861,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       flex-direction: column;
       gap: 0.85rem;
       padding: 1rem 1.25rem calc(1.85rem + env(safe-area-inset-bottom));
-    }
-
-    .version {
-      position: fixed;
-      right: 0;
-      bottom: 0;
-      left: 0;
-      z-index: 4;
-      margin: 0;
-      padding: 0.12rem 0.75rem calc(0.12rem + env(safe-area-inset-bottom));
-      background: color-mix(in srgb, var(--bg) 92%, transparent);
-      color: var(--text-muted);
-      font-size: 0.68rem;
-      line-height: 1.2;
-      text-align: center;
-      pointer-events: none;
     }
 
     header {
@@ -1929,7 +1911,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
   `,
 })
 export class LanguagePage {
-  readonly version = packageJson.version;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private loadId = 0;
