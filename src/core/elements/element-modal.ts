@@ -3102,6 +3102,7 @@ function writeExampleSuggestions(
                   <button
                     type="button"
                     class="mode-hero"
+                    [attr.data-mode]="step"
                     [class.current]="step === mode"
                     [attr.aria-pressed]="step === mode"
                     [disabled]="busy() || (step !== mode && step === 1 && !translationReady())"
@@ -3801,6 +3802,28 @@ function writeExampleSuggestions(
       border-color: color-mix(in srgb, var(--text) 45%, transparent);
       background: color-mix(in srgb, var(--text) 8%, transparent);
       cursor: default;
+    }
+
+    .mode-hero[data-mode='1'] {
+      --hero-gem: #f05a62;
+    }
+
+    .mode-hero[data-mode='2'] {
+      --hero-gem: #f09440;
+    }
+
+    .mode-hero[data-mode='3'] {
+      --hero-gem: #48c850;
+    }
+
+    .mode-hero[data-mode] {
+      border-color: color-mix(in srgb, var(--hero-gem) 48%, transparent);
+      background: color-mix(in srgb, var(--hero-gem) 12%, transparent);
+    }
+
+    .mode-hero[data-mode].current {
+      border-color: color-mix(in srgb, var(--hero-gem) 72%, transparent);
+      background: color-mix(in srgb, var(--hero-gem) 22%, transparent);
     }
 
     .mode-hero:disabled {
