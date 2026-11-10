@@ -1353,6 +1353,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .list-count {
       margin: -0.3rem 0 0;
       font-size: 0.78rem;
+      line-height: 1.15rem;
       color: var(--text-muted);
       font-variant-numeric: tabular-nums;
     }
@@ -1361,8 +1362,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 0.5rem;
+      gap: 0.75rem;
+      height: 1.15rem;
       margin: -0.3rem 0 0;
     }
 
@@ -1373,7 +1374,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .list-toolbar-actions {
       display: flex;
       align-items: center;
-      gap: 0.3rem;
+      gap: 0.7rem;
+      height: 1.15rem;
     }
 
     .list-action {
@@ -1383,11 +1385,25 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       width: 1.9rem;
       height: 1.9rem;
       flex-shrink: 0;
+      padding: 0;
       border: 0;
       border-radius: 999px;
       background: rgba(127, 127, 127, 0.1);
       color: var(--text-muted);
       cursor: pointer;
+      line-height: 1;
+    }
+
+    .list-toolbar .list-action {
+      width: 1.15rem;
+      height: 1.15rem;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .list-toolbar .list-action svg {
+      width: 1rem;
+      height: 1rem;
     }
 
     .list-action:hover:not(:disabled) {
@@ -1395,9 +1411,19 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       color: var(--text);
     }
 
+    .list-toolbar .list-action:hover:not(:disabled) {
+      background: transparent;
+      color: var(--text);
+    }
+
     .list-action.active {
       color: var(--text);
       background: rgba(var(--accent-rgb), 0.16);
+    }
+
+    .list-toolbar .list-action.active {
+      color: var(--accent-text);
+      background: transparent;
     }
 
     .list-action.danger {
