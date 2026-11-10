@@ -6,6 +6,7 @@ export const MAX_METADATA_FIELD_PROMPT = 400;
 const MAX_METADATA_VALUE_LENGTH = 100;
 
 const LANGUAGE_SETTINGS_KEY = 'lingogem.ai-language-settings.v1';
+const GLOBAL_SETTINGS_KEY = 'app';
 const LEGACY_METADATA_FIELDS_KEY = 'lingogem.ai-metadata-fields.v1';
 const LEGACY_TRANSLATIONS_KEY = 'lingogem.ai-generate-translations.v1';
 
@@ -322,20 +323,17 @@ function translationsFor(language: string): LegacyTranslations {
   return readLegacyTranslations();
 }
 
-function readEntry(language: string): StoredLanguageSettings | null {
-  const code = languageCode(language);
-  if (!code) return null;
+function readEntry(_language: string): StoredLanguageSettings | null {
   const map = readMap();
-  return Object.prototype.hasOwnProperty.call(map, code) ? map[code] : null;
+  return map[GLOBAL_SETTINGS_KEY] ?? null;
 }
 
-function updateLanguage(language: string, change: (entry: StoredLanguageSettings) => void): void {
-  const code = languageCode(language);
-  if (!code || typeof localStorage === 'undefined') return;
+function updateLanguage(_language: string, change: (entry: StoredLanguageSettings) => void): void {
+  if (typeof localStorage === 'undefined') return;
   const map = readMap();
-  if (!Object.prototype.hasOwnProperty.call(map, code)) map[code] = entryFromLegacy();
-  change(map[code]);
-  writeMap(map);
+  const entry = map[GLOBAL_SETTINGS_KEY] ?? entryFromLegacy();
+  change(entry);
+  writeMap({ [GLOBAL_SETTINGS_KEY]: entry });
 }
 
 function entryFromLegacy(): StoredLanguageSettings {
@@ -359,7 +357,15 @@ function readMap(): LanguageSettingsMap {
     const map: LanguageSettingsMap = {};
     for (const [code, value] of Object.entries(parsed)) {
       const language = languageCode(code);
-      if (!language || !value || typeof value !== 'object' || Array.isArray(value)) continue;
+      if (
+        !language ||
+        (language !== GLOBAL_SETTINGS_KEY && !isLearnableLanguage(language)) ||
+        !value ||
+        typeof value !== 'object' ||
+        Array.isArray(value)
+      ) {
+        continue;
+      }
       const record = value as {
         definitions?: unknown;
         examples?: unknown;
@@ -381,10 +387,54 @@ function readMap(): LanguageSettingsMap {
       }
       map[language] = entry;
     }
-    return map;
+    return collapseToGlobal(map);
   } catch {
     return {};
   }
+}
+
+function collapseToGlobal(map: LanguageSettingsMap): LanguageSettingsMap {
+  const languages = Object.entries(map).filter(([code]) => isLearnableLanguage(code));
+  if (!languages.length) return map[GLOBAL_SETTINGS_KEY] ? { [GLOBAL_SETTINGS_KEY]: map[GLOBAL_SETTINGS_KEY] } : {};
+  const merged = mergeSettings([
+    ...(map[GLOBAL_SETTINGS_KEY] ? [map[GLOBAL_SETTINGS_KEY]] : []),
+    ...languages.map(([, entry]) => entry),
+  ]);
+  const next = { [GLOBAL_SETTINGS_KEY]: merged };
+  writeMap(next);
+  return next;
+}
+
+function mergeSettings(entries: readonly StoredLanguageSettings[]): StoredLanguageSettings {
+  const merged: StoredLanguageSettings = {};
+  const definitions: AiMetadataField[] = [];
+  const examples: AiMetadataField[] = [];
+  let sawDefinitions = false;
+  let sawExamples = false;
+  for (const entry of entries) {
+    if (entry.definitions) {
+      sawDefinitions = true;
+      definitions.push(...entry.definitions);
+    }
+    if (entry.examples) {
+      sawExamples = true;
+      examples.push(...entry.examples);
+    }
+    if (entry.definitionExtraFields) merged.definitionExtraFields = true;
+    if (entry.exampleExtraFields) merged.exampleExtraFields = true;
+    if (!merged.translationLanguage && entry.translationLanguage && entry.translationLanguage !== 'en') {
+      merged.translationLanguage = entry.translationLanguage;
+    }
+  }
+  if (sawDefinitions) merged.definitions = normalizeMetadataFields(definitions);
+  if (sawExamples) merged.examples = normalizeMetadataFields(examples);
+  if (entries.length > 0 && entries.every((entry) => entry.definitionTranslations === false)) {
+    merged.definitionTranslations = false;
+  }
+  if (entries.length > 0 && entries.every((entry) => entry.exampleTranslations === false)) {
+    merged.exampleTranslations = false;
+  }
+  return merged;
 }
 
 function writeMap(map: LanguageSettingsMap): void {

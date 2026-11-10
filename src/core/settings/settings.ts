@@ -14,6 +14,7 @@ import {
   writeComfortColor,
   type ComfortRate,
 } from '../elements/comfort-palette';
+import { LanguageAiSettings } from '../languages/language-ai-settings';
 import { storageKept as storageKeptState } from '../storage/keep-storage';
 
 type ProviderOption = {
@@ -30,7 +31,7 @@ const AI_PROVIDERS: ProviderOption[] = [
 
 @Component({
   selector: 'app-settings',
-  imports: [FormsModule],
+  imports: [FormsModule, LanguageAiSettings],
   template: `
     <main>
       <header>
@@ -79,6 +80,8 @@ const AI_PROVIDERS: ProviderOption[] = [
           <button type="submit" class="btn btn-primary" [disabled]="!ready()">Save</button>
         </div>
       </form>
+
+      <app-language-ai-settings />
 
       <section class="palettes" aria-label="Comfort colors">
         <div class="copy">

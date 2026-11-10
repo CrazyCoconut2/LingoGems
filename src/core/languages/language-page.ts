@@ -13,7 +13,6 @@ import { ScoreGauge } from '../elements/score-gauge';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { DiscoverModal } from './discover-modal';
-import { LanguageAiSettings } from './language-ai-settings';
 import { readSelectedLanguage, writeSelectedLanguage } from './selected-language';
 import { Settings } from '../settings/settings';
 import { generateElementFromSelection } from 'ai';
@@ -88,11 +87,11 @@ const MOVE_SLOP_PX = 10;
 
 @Component({
   selector: 'app-language-page',
-  imports: [ElementModal, ModeIcon, ScoreGauge, LanguageAiSettings, DiscoverModal, Settings],
+  imports: [ElementModal, ModeIcon, ScoreGauge, DiscoverModal, Settings],
   template: `
     <main>
       <header>
-        <h1>{{ code() ? name() : 'LingoGems' }}</h1>
+        <h1>LingoGems</h1>
         <div class="header-actions">
           <button
             type="button"
@@ -106,26 +105,6 @@ const MOVE_SLOP_PX = 10;
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <polygon points="8 5 19 12 8 19 8 5" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="settings"
-            [disabled]="!code()"
-            aria-label="Definition and example settings"
-            title="Definition and example settings"
-            (click)="openAiSettings()"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 21v-7" />
-              <path d="M4 10V3" />
-              <path d="M12 21v-9" />
-              <path d="M12 8V3" />
-              <path d="M20 21v-5" />
-              <path d="M20 12V3" />
-              <path d="M2 14h4" />
-              <path d="M10 8h4" />
-              <path d="M18 16h4" />
             </svg>
           </button>
           <button
@@ -272,7 +251,12 @@ const MOVE_SLOP_PX = 10;
 
       @if (ready()) {
         <div class="list-toolbar">
-          <p class="list-count">{{ countLabel() }}</p>
+          <p class="list-count">
+            @if (code()) {
+              <span class="list-language">{{ name() }}</span>
+            }
+            <span>{{ countLabel() }}</span>
+          </p>
           @if (selecting()) {
             <div class="list-toolbar-actions">
               @if (selectedIds().size) {
@@ -483,14 +467,6 @@ const MOVE_SLOP_PX = 10;
         <p class="empty">{{ emptyMessage() }}</p>
       }
 
-      @if (aiSettingsOpen()) {
-        <app-language-ai-settings
-          [language]="code()"
-          [languageName]="name()"
-          (closed)="closeAiSettings()"
-        />
-      }
-
       @if (discoverOpen()) {
         <app-discover-modal
           [language]="code()"
@@ -539,7 +515,7 @@ const MOVE_SLOP_PX = 10;
                 <button
                   type="button"
                   class="link-btn"
-                  [disabled]="filterCount() === 0"
+                  [disabled]="optionalFilterCount() === 0"
                   (click)="clearFilters()"
                 >
                   Clear filters
@@ -569,20 +545,19 @@ const MOVE_SLOP_PX = 10;
                 @if (expanded() === 'language') {
                   <div class="section-body">
                     <p class="section-hint">Choose one language to continue.</p>
-                    <div class="language-choices" role="radiogroup" aria-label="Language">
-                      @for (option of languageOptions; track option) {
-                        <button
-                          type="button"
-                          class="language-choice"
-                          role="radio"
-                          [class.selected]="code() === option"
-                          [attr.aria-checked]="code() === option"
-                          (click)="chooseLanguage(option)"
-                        >
-                          {{ languageName(option) }}
-                        </button>
+                    <select
+                      class="language-select"
+                      aria-label="Language"
+                      [value]="code()"
+                      (change)="chooseLanguageValue($event)"
+                    >
+                      @if (!code()) {
+                        <option value="">Choose a language</option>
                       }
-                    </div>
+                      @for (option of languageOptions; track option) {
+                        <option [value]="option">{{ languageName(option) }}</option>
+                      }
+                    </select>
                   </div>
                 }
               </section>
@@ -1263,11 +1238,19 @@ const MOVE_SLOP_PX = 10;
     }
 
     .list-count {
+      display: flex;
+      align-items: baseline;
+      gap: 0.65rem;
       margin: -0.3rem 0 0;
       font-size: 0.78rem;
       line-height: 1.15rem;
       color: var(--text-muted);
       font-variant-numeric: tabular-nums;
+    }
+
+    .list-language {
+      color: var(--text);
+      font-weight: 650;
     }
 
     .list-toolbar {
@@ -2067,35 +2050,14 @@ const MOVE_SLOP_PX = 10;
       border-radius: 0.2rem;
     }
 
-    .language-choices {
-      display: flex;
-      flex-direction: column;
-      gap: 0.15rem;
-    }
-
-    .language-choice {
-      display: flex;
-      align-items: center;
+    .language-select {
       width: 100%;
-      border: 0;
-      border-radius: 0.65rem;
-      background: transparent;
+      padding: 0.75rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
       color: var(--text);
-      padding: 0.55rem 0.7rem;
       font: inherit;
-      font-size: 0.92rem;
-      font-weight: 650;
-      text-align: left;
-      cursor: pointer;
-    }
-
-    .language-choice:hover {
-      background: rgba(127, 127, 127, 0.1);
-    }
-
-    .language-choice.selected {
-      background: rgba(var(--accent-rgb), 0.16);
-      color: var(--accent-text);
     }
 
     .settings-layer {
@@ -2418,7 +2380,6 @@ export class LanguagePage {
   readonly sortOpen = signal(false);
   readonly filtersOpen = signal(false);
   readonly settingsOpen = signal(false);
-  readonly aiSettingsOpen = signal(false);
   readonly playing = signal(false);
   readonly playId = signal('');
   readonly playOrder = signal<readonly string[]>([]);
@@ -2432,7 +2393,7 @@ export class LanguagePage {
     if (!id) return null;
     return this.elements().find((element) => element.id === id) ?? null;
   });
-  readonly filterCount = computed(
+  readonly optionalFilterCount = computed(
     () =>
       this.modeFilter().length +
       this.comfortFilter().length +
@@ -2442,6 +2403,7 @@ export class LanguagePage {
       metadataFilterSize(this.exampleMetaFilter()) +
       metadataFilterSize(this.formMetaFilter()),
   );
+  readonly filterCount = computed(() => (this.code() ? 1 : 0) + this.optionalFilterCount());
   readonly sortActive = computed(() => {
     const sort = this.sort();
     return sort !== DEFAULT_ELEMENT_SORT && sort !== 'none';
@@ -2537,10 +2499,6 @@ export class LanguagePage {
   closeMenusOnEscape(): void {
     if (this.settingsOpen()) {
       this.closeSettings();
-      return;
-    }
-    if (this.aiSettingsOpen()) {
-      this.closeAiSettings();
       return;
     }
     if (this.discoverOpen()) {
@@ -3064,29 +3022,11 @@ export class LanguagePage {
     this.sort.set(this.sort() === sort ? 'none' : sort);
   }
 
-  openAiSettings(): void {
-    if (!this.code()) return;
-    this.sortOpen.set(false);
-    if (this.filtersOpen()) this.closeFilters();
-    if (this.discoverOpen()) this.closeDiscover();
-    if (this.settingsOpen()) this.closeSettings();
-    if (this.aiSettingsOpen()) return;
-    this.aiSettingsOpen.set(true);
-    this.lockScroll();
-  }
-
-  closeAiSettings(): void {
-    if (!this.aiSettingsOpen()) return;
-    this.aiSettingsOpen.set(false);
-    this.unlockScroll();
-  }
-
   openDiscover(event: Event): void {
     event.stopPropagation();
     if (this.playing() || !this.code()) return;
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
-    if (this.aiSettingsOpen()) this.closeAiSettings();
     if (this.settingsOpen()) this.closeSettings();
     if (this.discoverOpen()) return;
     this.discoverOpen.set(true);
@@ -3280,17 +3220,17 @@ export class LanguagePage {
     return languageDisplayName(code);
   }
 
-  chooseLanguage(code: LearnableLanguage): void {
-    if (code === this.code()) return;
-    writeSelectedLanguage(code);
-    void this.load(code);
+  chooseLanguageValue(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    if (!isLearnableLanguage(value) || value === this.code()) return;
+    writeSelectedLanguage(value);
+    void this.load(value);
   }
 
   openSettings(): void {
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.discoverOpen()) this.closeDiscover();
-    if (this.aiSettingsOpen()) this.closeAiSettings();
     if (this.settingsOpen()) return;
     this.settingsOpen.set(true);
     this.lockScroll();
@@ -3340,7 +3280,6 @@ export class LanguagePage {
     this.playId.set('');
     this.clearSelection();
     this.sortOpen.set(false);
-    if (this.aiSettingsOpen()) this.closeAiSettings();
     if (this.discoverOpen()) this.closeDiscover();
     this.elementId.set('');
     this.trail.set([]);
@@ -3375,7 +3314,7 @@ export class LanguagePage {
 
   private overlayOpen(): boolean {
     return (
-      this.filtersOpen() || this.settingsOpen() || this.aiSettingsOpen() || this.discoverOpen()
+      this.filtersOpen() || this.settingsOpen() || this.discoverOpen()
     );
   }
 

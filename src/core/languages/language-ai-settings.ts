@@ -1,4 +1,4 @@
-import { Component, effect, input, output, signal } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import {
   DEFAULT_DEFINITION_METADATA_FIELDS,
   DEFAULT_EXAMPLE_METADATA_FIELDS,
@@ -27,30 +27,12 @@ import {
 } from 'ai';
 import { LEARNABLE_LANGUAGES, languageDisplayName } from 'collection';
 
+const SETTINGS_SCOPE = 'app';
+
 @Component({
   selector: 'app-language-ai-settings',
   template: `
-    <div class="backdrop" (click)="onBackdrop($event)">
-      <section
-        class="panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Definition and example settings"
-        (click)="$event.stopPropagation()"
-      >
-        <header class="sheet-head">
-          <div>
-            <h2>{{ languageName() || 'Language' }}</h2>
-            <p>Definitions and examples for this language.</p>
-          </div>
-          <button type="button" class="icon-btn" aria-label="Close" (click)="closed.emit()">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
-          </button>
-        </header>
-        <div class="sheet-body">
+    <div class="sheet-body">
           <label class="translation-language">
             Translation language
             <select
@@ -288,13 +270,11 @@ import { LEARNABLE_LANGUAGES, languageDisplayName } from 'collection';
               </ul>
             }
           </section>
-        </div>
-      </section>
     </div>
   `,
   styles: `
     :host {
-      display: contents;
+      display: block;
     }
 
     .backdrop {
@@ -385,9 +365,6 @@ import { LEARNABLE_LANGUAGES, languageDisplayName } from 'collection';
       display: flex;
       flex-direction: column;
       gap: 1.5rem;
-      min-height: 0;
-      overflow: auto;
-      padding: 0.2rem 1.15rem 1.25rem;
     }
 
     .metadata {
@@ -568,9 +545,6 @@ export class LanguageAiSettings {
   readonly languages = LEARNABLE_LANGUAGES;
   readonly languageLabel = languageDisplayName;
   readonly translationLanguage = signal('en');
-  readonly language = input.required<string>();
-  readonly languageName = input('');
-  readonly closed = output<void>();
   readonly metadataKeyMax = MAX_METADATA_FIELD_KEY;
   readonly metadataPromptMax = MAX_METADATA_FIELD_PROMPT;
   readonly metadataFieldMax = MAX_METADATA_FIELDS;
@@ -590,24 +564,13 @@ export class LanguageAiSettings {
   private exampleRecommendJob = 0;
 
   constructor() {
-    effect(() => {
-      const language = this.language();
-      this.definitionFields.set(readDefinitionMetadataFields(language));
-      this.exampleFields.set(readExampleMetadataFields(language));
-      this.translationLanguage.set(readTranslationLanguage(language));
-      this.generateDefinitionTranslations.set(readGenerateDefinitionTranslations(language));
-      this.generateExampleTranslations.set(readGenerateExampleTranslations(language));
-      this.definitionExtraFields.set(readDefinitionExtraFields(language));
-      this.exampleExtraFields.set(readExampleExtraFields(language));
-      this.definitionSuggestions.set([]);
-      this.exampleSuggestions.set([]);
-      this.definitionRecommendError.set('');
-      this.exampleRecommendError.set('');
-    });
-  }
-
-  onBackdrop(event: MouseEvent): void {
-    if (event.target === event.currentTarget) this.closed.emit();
+    this.definitionFields.set(readDefinitionMetadataFields(SETTINGS_SCOPE));
+    this.exampleFields.set(readExampleMetadataFields(SETTINGS_SCOPE));
+    this.translationLanguage.set(readTranslationLanguage(SETTINGS_SCOPE));
+    this.generateDefinitionTranslations.set(readGenerateDefinitionTranslations(SETTINGS_SCOPE));
+    this.generateExampleTranslations.set(readGenerateExampleTranslations(SETTINGS_SCOPE));
+    this.definitionExtraFields.set(readDefinitionExtraFields(SETTINGS_SCOPE));
+    this.exampleExtraFields.set(readExampleExtraFields(SETTINGS_SCOPE));
   }
 
   definitionFieldsChanged(): boolean {
@@ -620,42 +583,42 @@ export class LanguageAiSettings {
 
   setTranslationLanguage(event: Event): void {
     const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
-    writeTranslationLanguage(this.language(), value);
-    this.translationLanguage.set(readTranslationLanguage(this.language()));
+    writeTranslationLanguage(SETTINGS_SCOPE, value);
+    this.translationLanguage.set(readTranslationLanguage(SETTINGS_SCOPE));
   }
 
   setGenerateDefinitionTranslations(event: Event): void {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
     this.generateDefinitionTranslations.set(enabled);
-    writeGenerateDefinitionTranslations(this.language(), enabled);
+    writeGenerateDefinitionTranslations(SETTINGS_SCOPE, enabled);
   }
 
   setGenerateExampleTranslations(event: Event): void {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
     this.generateExampleTranslations.set(enabled);
-    writeGenerateExampleTranslations(this.language(), enabled);
+    writeGenerateExampleTranslations(SETTINGS_SCOPE, enabled);
   }
 
   setDefinitionExtraFields(event: Event): void {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
     this.definitionExtraFields.set(enabled);
-    writeDefinitionExtraFields(this.language(), enabled);
+    writeDefinitionExtraFields(SETTINGS_SCOPE, enabled);
   }
 
   setExampleExtraFields(event: Event): void {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
     this.exampleExtraFields.set(enabled);
-    writeExampleExtraFields(this.language(), enabled);
+    writeExampleExtraFields(SETTINGS_SCOPE, enabled);
   }
 
   setDefinitionField(index: number, part: 'key' | 'prompt', value: string): void {
     this.definitionFields.update((fields) => replaceField(fields, index, part, value));
-    writeDefinitionMetadataFields(this.language(), this.definitionFields());
+    writeDefinitionMetadataFields(SETTINGS_SCOPE, this.definitionFields());
   }
 
   setExampleField(index: number, part: 'key' | 'prompt', value: string): void {
     this.exampleFields.update((fields) => replaceField(fields, index, part, value));
-    writeExampleMetadataFields(this.language(), this.exampleFields());
+    writeExampleMetadataFields(SETTINGS_SCOPE, this.exampleFields());
   }
 
   addDefinitionField(): void {
@@ -696,22 +659,22 @@ export class LanguageAiSettings {
 
   removeDefinitionField(index: number): void {
     this.definitionFields.update((fields) => fields.filter((_, item) => item !== index));
-    writeDefinitionMetadataFields(this.language(), this.definitionFields());
+    writeDefinitionMetadataFields(SETTINGS_SCOPE, this.definitionFields());
   }
 
   removeExampleField(index: number): void {
     this.exampleFields.update((fields) => fields.filter((_, item) => item !== index));
-    writeExampleMetadataFields(this.language(), this.exampleFields());
+    writeExampleMetadataFields(SETTINGS_SCOPE, this.exampleFields());
   }
 
   resetDefinitionFields(): void {
-    const language = this.language();
+    const language = SETTINGS_SCOPE;
     resetDefinitionMetadataFields(language);
     this.definitionFields.set(readDefinitionMetadataFields(language));
   }
 
   resetExampleFields(): void {
-    const language = this.language();
+    const language = SETTINGS_SCOPE;
     resetExampleMetadataFields(language);
     this.exampleFields.set(readExampleMetadataFields(language));
   }
@@ -750,8 +713,8 @@ export class LanguageAiSettings {
     const source = definitions ? this.definitionFields : this.exampleFields;
     if (!this.canAccept(source())) return;
     source.update((fields) => acceptField(fields, field));
-    if (definitions) writeDefinitionMetadataFields(this.language(), source());
-    else writeExampleMetadataFields(this.language(), source());
+    if (definitions) writeDefinitionMetadataFields(SETTINGS_SCOPE, source());
+    else writeExampleMetadataFields(SETTINGS_SCOPE, source());
     const suggestions = definitions ? this.definitionSuggestions : this.exampleSuggestions;
     suggestions.update((fields) =>
       fields.filter((item) => item.key.toLowerCase() !== field.key.toLowerCase()),
