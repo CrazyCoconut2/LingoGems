@@ -10,7 +10,7 @@ const RECOMMEND_MAX_TOKENS = 1024;
 const RECOMMEND_SYSTEM_PROMPT = `You recommend metadata fields for a learner's dictionary.
 JSON keys stay in English.
 Rules:
-- kind is definition or example
+- kind is definition, example, or form
 - Recommend fields that help a learner tell senses or examples apart
 - Do not repeat a key already listed in existing. Compare keys without regard to case
 - Return at most ${MAX_RECOMMENDED_FIELDS} fields
@@ -21,7 +21,7 @@ Return JSON only with this shape:
 {"fields":[{"key":"<label>","prompt":"<instruction or empty>"}]}`;
 
 export function buildRecommendMetadataUserMessage(
-  kind: 'definition' | 'example',
+  kind: 'definition' | 'example' | 'form',
   existing: readonly AiMetadataField[],
 ): string {
   return JSON.stringify({
@@ -66,7 +66,7 @@ export function parseRecommendedMetadataFields(
 
 /** Ask the saved model for metadata fields the learner does not already keep. */
 export async function recommendMetadataFields(
-  kind: 'definition' | 'example',
+  kind: 'definition' | 'example' | 'form',
   existing: readonly AiMetadataField[],
 ): Promise<AiMetadataField[]> {
   const input: CompleteJsonInput = {

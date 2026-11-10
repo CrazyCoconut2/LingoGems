@@ -37,6 +37,7 @@ export {
 export {
   DEFAULT_DEFINITION_METADATA_FIELDS,
   DEFAULT_EXAMPLE_METADATA_FIELDS,
+  DEFAULT_FORM_METADATA_FIELDS,
   MAX_METADATA_FIELD_KEY,
   MAX_METADATA_FIELD_PROMPT,
   MAX_METADATA_FIELDS,
@@ -45,12 +46,17 @@ export {
   readDefinitionMetadataFields,
   readExampleExtraFields,
   readExampleMetadataFields,
+  readFormExtraFields,
+  readFormMetadataFields,
   resetDefinitionMetadataFields,
   writeDefinitionExtraFields,
   writeExampleExtraFields,
   resetExampleMetadataFields,
+  resetFormMetadataFields,
   writeDefinitionMetadataFields,
   writeExampleMetadataFields,
+  writeFormExtraFields,
+  writeFormMetadataFields,
   type AiMetadataField,
 } from './metadata-fields';
 
@@ -97,7 +103,7 @@ export {
 } from './translate';
 
 export {
-  FORMS_SYSTEM_PROMPT,
+  formsSystemPrompt,
   definitionFromExampleSystemPrompt,
   definitionsSystemPrompt,
   elementFromSelectionSystemPrompt,

@@ -11,12 +11,15 @@ import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { MAX_EXAMPLE_LENGTH } from './examples';
 import {
   definitionSenseShape,
+  formEntryShape,
   METADATA_VALUE_LANGUAGE_RULE,
   metadataFieldKeys,
   metadataRuleLines,
   pickMetadata,
   readDefinitionExtraFields,
   readDefinitionMetadataFields,
+  readFormExtraFields,
+  readFormMetadataFields,
   type AiMetadataField,
 } from './metadata-fields';
 import { readStoredAiCredentials } from './storage';
@@ -34,11 +37,7 @@ const DEFINITIONS_MAX_TOKENS = 4096;
 const FORMS_MAX_TOKENS = 8192;
 const MAX_FORMS = 80;
 
-const FORM_METADATA_KEYS = ['tense', 'person', 'number', 'mood'] as const;
-
 const NO_SELF_MENTION = '- A gloss MUST NOT contain the lemma or any inflected form of the lemma';
-
-const FORM_SHAPE = `{"text":"<surface form>","metadata":{"tense":"<in writeFieldsIn>","person":"<in writeFieldsIn>","number":"<in writeFieldsIn>","mood":"<in writeFieldsIn>"}}`;
 
 export function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
   return joinPrompt([
@@ -128,18 +127,22 @@ function joinPrompt(lines: readonly string[]): string {
   return lines.filter((line) => line !== '').join('\n');
 }
 
-export const FORMS_SYSTEM_PROMPT = `You list the surface forms of one dictionary sense.
-JSON keys stay in English.
-${METADATA_VALUE_LANGUAGE_RULE}
-Rules:
-- forms lists every distinct inflected surface form of this sense, not one example. For a verb, cover person, number, tense, and mood, plus the participle and gerund when they exist. For a noun or adjective, cover gender and number. Keep going until that paradigm is covered. Omit a form you cannot spell correctly
-- The forms array in the shape shows the fields. It is not a limit of one form
-- Include the headword itself as one form. Do not repeat a form listed in existingForms
-- No wildcards, regex, parentheses, or asterisks in a form
-- Form metadata keys are only "tense", "person", "number", and "mood". Omit a pair when it does not apply
-- Spelling MUST be correct in every form
-Return JSON only with this shape:
-{"forms":[${FORM_SHAPE}]}`;
+export function formsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
+  return joinPrompt([
+    'You list the surface forms of one dictionary sense.',
+    'JSON keys stay in English.',
+    METADATA_VALUE_LANGUAGE_RULE,
+    'Rules:',
+    '- forms lists every distinct inflected surface form of this sense, not one example. For a verb, cover person, number, tense, and mood, plus the participle and gerund when they exist. For a noun or adjective, cover gender and number. Keep going until that paradigm is covered. Omit a form you cannot spell correctly',
+    '- The forms array in the shape shows the fields. It is not a limit of one form',
+    '- Include the headword itself as one form. Do not repeat a form listed in existingForms',
+    '- No wildcards, regex, parentheses, or asterisks in a form',
+    ...metadataRuleLines('form', fields, extra),
+    '- Spelling MUST be correct in every form',
+    'Return JSON only with this shape:',
+    `{"forms":[${formEntryShape(fields, extra)}]}`,
+  ]);
+}
 
 export type GenerateDefinitionsInput = {
   language: string;
@@ -445,7 +448,8 @@ export function parseGeneratedForms(
   const taken = new Set(
     input.existingForms.map((form) => form.trim().toLowerCase()).filter(Boolean),
   );
-  return parseForms(list, title, taken);
+  const language = input.language.trim().toLowerCase();
+  return parseForms(list, title, taken, language);
 }
 
 /** Ask the saved model for surface forms of one sense. */
@@ -455,7 +459,7 @@ export async function generateForms(request: GenerateFormsInput): Promise<Elemen
   const gloss = request.gloss.trim();
   if (!title || !language || !gloss) return [];
   const input: CompleteJsonInput = {
-    system: FORMS_SYSTEM_PROMPT,
+    system: formsSystemPrompt(readFormMetadataFields(language), readFormExtraFields(language)),
     user: buildFormsUserMessage({ ...request, title, language, gloss }),
     maxTokens: FORMS_MAX_TOKENS,
     temperature: 0,
@@ -474,7 +478,12 @@ export async function generateForms(request: GenerateFormsInput): Promise<Elemen
   }
 }
 
-function parseForms(value: unknown, title: string, taken: ReadonlySet<string>): ElementForm[] {
+function parseForms(
+  value: unknown,
+  title: string,
+  taken: ReadonlySet<string>,
+  language: string,
+): ElementForm[] {
   if (!Array.isArray(value)) return [];
   const lemma = title.trim();
   const lemmaKey = lemma.toLowerCase();
@@ -494,7 +503,11 @@ function parseForms(value: unknown, title: string, taken: ReadonlySet<string>): 
     seen.add(key);
     const metadata =
       item && typeof item === 'object'
-        ? pickMetadata((item as { metadata?: unknown }).metadata, FORM_METADATA_KEYS)
+        ? pickMetadata(
+            (item as { metadata?: unknown }).metadata,
+            metadataFieldKeys(readFormMetadataFields(language)),
+            readFormExtraFields(language),
+          )
         : {};
     forms.push({ text, metadata });
   }

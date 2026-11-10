@@ -1,7 +1,8 @@
-import { Component, signal } from '@angular/core';
+import { Component, input, output, signal } from '@angular/core';
 import {
   DEFAULT_DEFINITION_METADATA_FIELDS,
   DEFAULT_EXAMPLE_METADATA_FIELDS,
+  DEFAULT_FORM_METADATA_FIELDS,
   MAX_METADATA_FIELD_KEY,
   MAX_METADATA_FIELD_PROMPT,
   MAX_METADATA_FIELDS,
@@ -9,6 +10,8 @@ import {
   readDefinitionMetadataFields,
   readExampleExtraFields,
   readExampleMetadataFields,
+  readFormExtraFields,
+  readFormMetadataFields,
   readGenerateDefinitionTranslations,
   readGenerateExampleTranslations,
   readTranslationLanguage,
@@ -17,10 +20,13 @@ import {
   recommendMetadataFields,
   resetDefinitionMetadataFields,
   resetExampleMetadataFields,
+  resetFormMetadataFields,
   writeDefinitionExtraFields,
   writeDefinitionMetadataFields,
   writeExampleExtraFields,
   writeExampleMetadataFields,
+  writeFormExtraFields,
+  writeFormMetadataFields,
   writeGenerateDefinitionTranslations,
   writeGenerateExampleTranslations,
   type AiMetadataField,
@@ -29,10 +35,31 @@ import { LEARNABLE_LANGUAGES, languageDisplayName } from 'collection';
 
 const SETTINGS_SCOPE = 'app';
 
+
+type MetadataKind = 'definition' | 'example' | 'form';
+
 @Component({
   selector: 'app-language-ai-settings',
+  standalone: true,
   template: `
-    <div class="sheet-body">
+    <section class="settings-section" [class.expanded]="open() === 'translation'">
+      <button
+        type="button"
+        class="section-header"
+        [attr.aria-expanded]="open() === 'translation'"
+        (click)="toggle('translation')"
+      >
+        <span class="section-title">
+          Translation language
+          <span class="section-count">{{ languageLabel(translationLanguage()) }}</span>
+        </span>
+        <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      @if (open() === 'translation') {
+        <div class="section-body">
+          <p class="section-hint">Translations are written in this language.</p>
           <label class="translation-language">
             Translation language
             <select
@@ -47,15 +74,33 @@ const SETTINGS_SCOPE = 'app';
               }
             </select>
           </label>
-          <section class="metadata" aria-label="Definition metadata">
+        </div>
+      }
+    </section>
+    <section class="settings-section" [class.expanded]="open() === 'definitions'">
+      <button
+        type="button"
+        class="section-header"
+        [attr.aria-expanded]="open() === 'definitions'"
+        (click)="toggle('definitions')"
+      >
+        <span class="section-title">
+          Definition metadata
+          @if (filledCount(definitionFields()); as count) {
+            <span class="section-count">{{ count }}</span>
+          }
+        </span>
+        <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      @if (open() === 'definitions') {
+        <div class="section-body metadata">
             <div class="section-head">
-              <div class="copy">
-                <h3>Definition metadata</h3>
-                <p>
-                  Asked when fetching definitions. The note is what the AI is told for that field.
-                  Leave it empty to accept whatever fits.
-                </p>
-              </div>
+              <p class="section-hint">
+                Asked when fetching definitions. The note is what the AI is told for that field.
+                Leave it empty to accept whatever fits.
+              </p>
               <button
                 type="button"
                 class="reset"
@@ -157,17 +202,34 @@ const SETTINGS_SCOPE = 'app';
                 }
               </ul>
             }
-          </section>
+        </div>
+      }
+    </section>
 
-          <section class="metadata" aria-label="Example metadata">
+    <section class="settings-section" [class.expanded]="open() === 'examples'">
+      <button
+        type="button"
+        class="section-header"
+        [attr.aria-expanded]="open() === 'examples'"
+        (click)="toggle('examples')"
+      >
+        <span class="section-title">
+          Example metadata
+          @if (filledCount(exampleFields()); as count) {
+            <span class="section-count">{{ count }}</span>
+          }
+        </span>
+        <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      @if (open() === 'examples') {
+        <div class="section-body metadata">
             <div class="section-head">
-              <div class="copy">
-                <h3>Example metadata</h3>
-                <p>
-                  Asked when fetching examples. The note is what the AI is told for that field.
-                  Leave it empty to accept whatever fits.
-                </p>
-              </div>
+              <p class="section-hint">
+                Asked when fetching examples. The note is what the AI is told for that field.
+                Leave it empty to accept whatever fits.
+              </p>
               <button
                 type="button"
                 class="reset"
@@ -269,102 +331,216 @@ const SETTINGS_SCOPE = 'app';
                 }
               </ul>
             }
-          </section>
-    </div>
+        </div>
+      }
+    </section>
+
+    <section class="settings-section" [class.expanded]="open() === 'forms'">
+      <button
+        type="button"
+        class="section-header"
+        [attr.aria-expanded]="open() === 'forms'"
+        (click)="toggle('forms')"
+      >
+        <span class="section-title">
+          Forms metadata
+          @if (filledCount(formFields()); as count) {
+            <span class="section-count">{{ count }}</span>
+          }
+        </span>
+        <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      @if (open() === 'forms') {
+        <div class="section-body metadata">
+          <div class="section-head">
+            <p class="section-hint">
+              Asked when fetching forms. The note is what the AI is told for that field. Leave it
+              empty to accept whatever fits.
+            </p>
+            <button
+              type="button"
+              class="reset"
+              [disabled]="!formFieldsChanged()"
+              (click)="resetFormFields()"
+            >
+              Reset
+            </button>
+          </div>
+          <label class="translation-toggle">
+            <input
+              type="checkbox"
+              [checked]="formExtraFields()"
+              (change)="setFormExtraFields($event)"
+            />
+            Let the AI add other relevant form fields
+          </label>
+          @if (formFields().length) {
+            <ul class="metadata-list">
+              @for (field of formFields(); track $index) {
+                <li class="metadata-field">
+                  <div class="metadata-key-row">
+                    <input
+                      [attr.aria-label]="'Form metadata key ' + ($index + 1)"
+                      [attr.maxlength]="metadataKeyMax"
+                      placeholder="Key"
+                      [value]="field.key"
+                      (input)="setFormField($index, 'key', inputValue($event))"
+                    />
+                    <button
+                      type="button"
+                      class="metadata-remove"
+                      [attr.aria-label]="'Remove form metadata ' + ($index + 1)"
+                      (click)="removeFormField($index)"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <textarea
+                    [attr.aria-label]="'Note for form metadata ' + ($index + 1)"
+                    [attr.maxlength]="metadataPromptMax"
+                    placeholder="Whatever fits"
+                    rows="2"
+                    [value]="field.prompt"
+                    (input)="setFormField($index, 'prompt', inputValue($event))"
+                  ></textarea>
+                </li>
+              }
+            </ul>
+          }
+          <div class="metadata-actions">
+            <button
+              type="button"
+              class="metadata-add"
+              [disabled]="formFields().length >= metadataFieldMax"
+              (click)="addFormField()"
+            >
+              Add field
+            </button>
+            <button
+              type="button"
+              class="metadata-add"
+              [disabled]="recommendingForms()"
+              [attr.aria-busy]="recommendingForms() ? true : null"
+              (click)="recommendForms()"
+            >
+              Recommend
+            </button>
+          </div>
+          @if (formRecommendError()) {
+            <p class="recommend-error">{{ formRecommendError() }}</p>
+          }
+          @let formPicks = openSuggestions(formSuggestions(), formFields());
+          @if (formPicks.length) {
+            <ul class="metadata-suggestions">
+              @for (field of formPicks; track field.key) {
+                <li class="metadata-suggestion">
+                  <div>
+                    <strong>{{ field.key }}</strong>
+                    <p>{{ field.prompt || 'Whatever fits' }}</p>
+                  </div>
+                  <button
+                    type="button"
+                    class="metadata-add"
+                    [disabled]="!canAccept(formFields())"
+                    (click)="acceptFormSuggestion(field)"
+                  >
+                    Add
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      }
+    </section>
   `,
   styles: `
     :host {
-      display: block;
+      display: contents;
     }
 
-    .backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 30;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1.25rem;
-      background: rgba(8, 10, 16, 0.78);
-      backdrop-filter: blur(6px);
-    }
-
-    .panel {
-      width: min(32rem, 100%);
-      max-height: calc(100dvh - 2.5rem);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      border: 1px solid var(--border);
-      border-radius: calc(var(--radius) + 4px);
-      background:
-        radial-gradient(120% 80% at 0% 0%, rgba(var(--accent-rgb), 0.12), transparent 55%),
-        var(--surface);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
-    }
-
-    .sheet-head {
-      display: flex;
-      flex-shrink: 0;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 1rem;
-      padding: 0.9rem 1.15rem;
-    }
-
-    h2,
-    h3,
     p {
       margin: 0;
     }
 
-    h2 {
-      font-size: 1.35rem;
-      font-weight: 750;
-      letter-spacing: -0.03em;
-    }
-
-    .sheet-head p,
-    .copy p {
-      margin-top: 0.35rem;
-      color: var(--muted);
-      font-size: 0.84rem;
-      line-height: 1.45;
-    }
-
-    .icon-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 2.15rem;
-      height: 2.15rem;
+    .settings-section {
       flex-shrink: 0;
+      overflow: hidden;
+      border-radius: 0.9rem;
+      background: color-mix(in srgb, var(--surface) 70%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      width: 100%;
       border: 0;
-      border-radius: 999px;
-      background: rgba(127, 127, 127, 0.1);
-      color: var(--text-muted);
+      background: transparent;
+      color: var(--text);
+      padding: 0.85rem;
+      font: inherit;
+      text-align: left;
       cursor: pointer;
     }
 
-    .icon-btn:hover {
-      background: rgba(127, 127, 127, 0.18);
-      color: var(--text);
+    .section-title {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      min-width: 0;
+      font-size: 0.92rem;
+      font-weight: 700;
     }
 
-    .icon-btn svg {
-      width: 1.1rem;
-      height: 1.1rem;
+    .section-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.25rem;
+      height: 1.25rem;
+      padding: 0 0.35rem;
+      border-radius: 999px;
+      background: rgba(var(--accent-rgb), 0.16);
+      color: var(--accent-text);
+      font-size: 0.68rem;
+      font-weight: 750;
+    }
+
+    .section-chevron {
+      flex-shrink: 0;
+      width: 1rem;
+      height: 1rem;
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+      color: var(--text-muted);
+      transition: transform 0.18s ease;
     }
 
-    .sheet-body {
+    .settings-section.expanded .section-chevron {
+      transform: rotate(180deg);
+    }
+
+    .section-body {
       display: flex;
       flex-direction: column;
-      gap: 1.5rem;
+      gap: 0.75rem;
+      padding: 0 0.75rem 0.85rem;
+    }
+
+    .section-hint {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      line-height: 1.4;
     }
 
     .metadata {
@@ -542,6 +718,8 @@ const SETTINGS_SCOPE = 'app';
   `,
 })
 export class LanguageAiSettings {
+  readonly open = input<string | null>(null);
+  readonly opened = output<string | null>();
   readonly languages = LEARNABLE_LANGUAGES;
   readonly languageLabel = languageDisplayName;
   readonly translationLanguage = signal('en');
@@ -550,27 +728,43 @@ export class LanguageAiSettings {
   readonly metadataFieldMax = MAX_METADATA_FIELDS;
   readonly definitionFields = signal<AiMetadataField[]>([]);
   readonly exampleFields = signal<AiMetadataField[]>([]);
+  readonly formFields = signal<AiMetadataField[]>([]);
   readonly generateDefinitionTranslations = signal(true);
   readonly generateExampleTranslations = signal(true);
   readonly definitionExtraFields = signal(false);
   readonly exampleExtraFields = signal(false);
+  readonly formExtraFields = signal(false);
   readonly recommendingDefinitions = signal(false);
   readonly recommendingExamples = signal(false);
+  readonly recommendingForms = signal(false);
   readonly definitionSuggestions = signal<AiMetadataField[]>([]);
   readonly exampleSuggestions = signal<AiMetadataField[]>([]);
+  readonly formSuggestions = signal<AiMetadataField[]>([]);
   readonly definitionRecommendError = signal('');
   readonly exampleRecommendError = signal('');
+  readonly formRecommendError = signal('');
   private definitionRecommendJob = 0;
   private exampleRecommendJob = 0;
+  private formRecommendJob = 0;
 
   constructor() {
     this.definitionFields.set(readDefinitionMetadataFields(SETTINGS_SCOPE));
     this.exampleFields.set(readExampleMetadataFields(SETTINGS_SCOPE));
+    this.formFields.set(readFormMetadataFields(SETTINGS_SCOPE));
     this.translationLanguage.set(readTranslationLanguage(SETTINGS_SCOPE));
     this.generateDefinitionTranslations.set(readGenerateDefinitionTranslations(SETTINGS_SCOPE));
     this.generateExampleTranslations.set(readGenerateExampleTranslations(SETTINGS_SCOPE));
     this.definitionExtraFields.set(readDefinitionExtraFields(SETTINGS_SCOPE));
     this.exampleExtraFields.set(readExampleExtraFields(SETTINGS_SCOPE));
+    this.formExtraFields.set(readFormExtraFields(SETTINGS_SCOPE));
+  }
+
+  toggle(id: string): void {
+    this.opened.emit(this.open() === id ? null : id);
+  }
+
+  filledCount(fields: readonly AiMetadataField[]): number {
+    return fields.filter((field) => field.key.trim()).length;
   }
 
   definitionFieldsChanged(): boolean {
@@ -579,6 +773,10 @@ export class LanguageAiSettings {
 
   exampleFieldsChanged(): boolean {
     return fieldsDiffer(this.exampleFields(), DEFAULT_EXAMPLE_METADATA_FIELDS);
+  }
+
+  formFieldsChanged(): boolean {
+    return fieldsDiffer(this.formFields(), DEFAULT_FORM_METADATA_FIELDS);
   }
 
   setTranslationLanguage(event: Event): void {
@@ -611,6 +809,12 @@ export class LanguageAiSettings {
     writeExampleExtraFields(SETTINGS_SCOPE, enabled);
   }
 
+  setFormExtraFields(event: Event): void {
+    const enabled = event.target instanceof HTMLInputElement && event.target.checked;
+    this.formExtraFields.set(enabled);
+    writeFormExtraFields(SETTINGS_SCOPE, enabled);
+  }
+
   setDefinitionField(index: number, part: 'key' | 'prompt', value: string): void {
     this.definitionFields.update((fields) => replaceField(fields, index, part, value));
     writeDefinitionMetadataFields(SETTINGS_SCOPE, this.definitionFields());
@@ -621,6 +825,11 @@ export class LanguageAiSettings {
     writeExampleMetadataFields(SETTINGS_SCOPE, this.exampleFields());
   }
 
+  setFormField(index: number, part: 'key' | 'prompt', value: string): void {
+    this.formFields.update((fields) => replaceField(fields, index, part, value));
+    writeFormMetadataFields(SETTINGS_SCOPE, this.formFields());
+  }
+
   addDefinitionField(): void {
     this.definitionFields.update((fields) => appendField(fields));
   }
@@ -629,12 +838,20 @@ export class LanguageAiSettings {
     this.exampleFields.update((fields) => appendField(fields));
   }
 
+  addFormField(): void {
+    this.formFields.update((fields) => appendField(fields));
+  }
+
   recommendDefinitions(): void {
     void this.recommend('definition');
   }
 
   recommendExamples(): void {
     void this.recommend('example');
+  }
+
+  recommendForms(): void {
+    void this.recommend('form');
   }
 
   openSuggestions(
@@ -657,6 +874,10 @@ export class LanguageAiSettings {
     this.acceptSuggestion('example', field);
   }
 
+  acceptFormSuggestion(field: AiMetadataField): void {
+    this.acceptSuggestion('form', field);
+  }
+
   removeDefinitionField(index: number): void {
     this.definitionFields.update((fields) => fields.filter((_, item) => item !== index));
     writeDefinitionMetadataFields(SETTINGS_SCOPE, this.definitionFields());
@@ -665,6 +886,11 @@ export class LanguageAiSettings {
   removeExampleField(index: number): void {
     this.exampleFields.update((fields) => fields.filter((_, item) => item !== index));
     writeExampleMetadataFields(SETTINGS_SCOPE, this.exampleFields());
+  }
+
+  removeFormField(index: number): void {
+    this.formFields.update((fields) => fields.filter((_, item) => item !== index));
+    writeFormMetadataFields(SETTINGS_SCOPE, this.formFields());
   }
 
   resetDefinitionFields(): void {
@@ -679,52 +905,81 @@ export class LanguageAiSettings {
     this.exampleFields.set(readExampleMetadataFields(language));
   }
 
+  resetFormFields(): void {
+    const language = SETTINGS_SCOPE;
+    resetFormMetadataFields(language);
+    this.formFields.set(readFormMetadataFields(language));
+  }
+
   inputValue(event: Event): string {
     return (event.target as HTMLInputElement).value;
   }
 
-  private async recommend(kind: 'definition' | 'example'): Promise<void> {
-    const definitions = kind === 'definition';
-    const recommending = definitions ? this.recommendingDefinitions : this.recommendingExamples;
-    const error = definitions ? this.definitionRecommendError : this.exampleRecommendError;
-    const suggestions = definitions ? this.definitionSuggestions : this.exampleSuggestions;
+  private async recommend(kind: MetadataKind): Promise<void> {
+    const place = this.place(kind);
     if (!readStoredAiCredentials().keys.length) {
-      error.set('Save an API key first.');
+      place.error.set('Save an API key first.');
       return;
     }
-    const job = definitions ? ++this.definitionRecommendJob : ++this.exampleRecommendJob;
-    recommending.set(true);
-    error.set('');
-    const existing = definitions ? this.definitionFields() : this.exampleFields();
+    const job = place.nextJob();
+    place.recommending.set(true);
+    place.error.set('');
     try {
-      const fields = await recommendMetadataFields(kind, existing);
-      if (!this.recommendCurrent(kind, job)) return;
-      suggestions.set(fields);
-      if (!fields.length) error.set('No further fields.');
+      const fields = await recommendMetadataFields(kind, place.fields());
+      if (!place.current(job)) return;
+      place.suggestions.set(fields);
+      if (!fields.length) place.error.set('No further fields.');
     } catch {
-      if (this.recommendCurrent(kind, job)) error.set('Could not recommend fields.');
+      if (place.current(job)) place.error.set('Could not recommend fields.');
     } finally {
-      if (this.recommendCurrent(kind, job)) recommending.set(false);
+      if (place.current(job)) place.recommending.set(false);
     }
   }
 
-  private acceptSuggestion(kind: 'definition' | 'example', field: AiMetadataField): void {
-    const definitions = kind === 'definition';
-    const source = definitions ? this.definitionFields : this.exampleFields;
-    if (!this.canAccept(source())) return;
-    source.update((fields) => acceptField(fields, field));
-    if (definitions) writeDefinitionMetadataFields(SETTINGS_SCOPE, source());
-    else writeExampleMetadataFields(SETTINGS_SCOPE, source());
-    const suggestions = definitions ? this.definitionSuggestions : this.exampleSuggestions;
-    suggestions.update((fields) =>
+  private acceptSuggestion(kind: MetadataKind, field: AiMetadataField): void {
+    const place = this.place(kind);
+    if (!this.canAccept(place.fields())) return;
+    place.fields.update((fields) => acceptField(fields, field));
+    place.write(place.fields());
+    place.suggestions.update((fields) =>
       fields.filter((item) => item.key.toLowerCase() !== field.key.toLowerCase()),
     );
   }
 
-  private recommendCurrent(kind: 'definition' | 'example', job: number): boolean {
-    return kind === 'definition'
-      ? job === this.definitionRecommendJob
-      : job === this.exampleRecommendJob;
+  private place(kind: MetadataKind) {
+    if (kind === 'definition') {
+      return {
+        recommending: this.recommendingDefinitions,
+        error: this.definitionRecommendError,
+        suggestions: this.definitionSuggestions,
+        fields: this.definitionFields,
+        write: (fields: readonly AiMetadataField[]) =>
+          writeDefinitionMetadataFields(SETTINGS_SCOPE, fields),
+        current: (job: number) => job === this.definitionRecommendJob,
+        nextJob: () => ++this.definitionRecommendJob,
+      };
+    }
+    if (kind === 'example') {
+      return {
+        recommending: this.recommendingExamples,
+        error: this.exampleRecommendError,
+        suggestions: this.exampleSuggestions,
+        fields: this.exampleFields,
+        write: (fields: readonly AiMetadataField[]) =>
+          writeExampleMetadataFields(SETTINGS_SCOPE, fields),
+        current: (job: number) => job === this.exampleRecommendJob,
+        nextJob: () => ++this.exampleRecommendJob,
+      };
+    }
+    return {
+      recommending: this.recommendingForms,
+      error: this.formRecommendError,
+      suggestions: this.formSuggestions,
+      fields: this.formFields,
+      write: (fields: readonly AiMetadataField[]) => writeFormMetadataFields(SETTINGS_SCOPE, fields),
+      current: (job: number) => job === this.formRecommendJob,
+      nextJob: () => ++this.formRecommendJob,
+    };
   }
 }
 

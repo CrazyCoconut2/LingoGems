@@ -597,6 +597,7 @@ const MOVE_SLOP_PX = 10;
                         <button
                           type="button"
                           class="mode-choice"
+                          [attr.data-mode]="mode"
                           [class.selected]="modeSelected(mode)"
                           [attr.aria-pressed]="modeSelected(mode)"
                           (click)="chooseMode(mode)"
@@ -1011,9 +1012,7 @@ const MOVE_SLOP_PX = 10;
       }
 
       @if (settingsOpen()) {
-        <div class="settings-layer">
-          <app-settings (closed)="closeSettings()" />
-        </div>
+        <app-settings (closed)="closeSettings()" />
       }
 
       @if (opened(); as element) {
@@ -2060,18 +2059,22 @@ const MOVE_SLOP_PX = 10;
       font: inherit;
     }
 
-    .settings-layer {
-      position: fixed;
-      inset: 0;
-      z-index: 40;
-      overflow: auto;
-      background: var(--bg);
-    }
-
     .mode-choices {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 0.45rem;
+    }
+
+    .mode-choice[data-mode='1'] {
+      --hero-gem: #f05a62;
+    }
+
+    .mode-choice[data-mode='2'] {
+      --hero-gem: #f09440;
+    }
+
+    .mode-choice[data-mode='3'] {
+      --hero-gem: #48c850;
     }
 
     .mode-choice {
@@ -2082,9 +2085,9 @@ const MOVE_SLOP_PX = 10;
       gap: 0.4rem;
       width: 100%;
       min-width: 0;
-      border: 0;
+      border: 1px solid color-mix(in srgb, var(--hero-gem) 48%, transparent);
       border-radius: 0.75rem;
-      background: transparent;
+      background: color-mix(in srgb, var(--hero-gem) 12%, transparent);
       color: var(--text);
       padding: 0.75rem 0.35rem 0.65rem;
       font: inherit;
@@ -2092,17 +2095,16 @@ const MOVE_SLOP_PX = 10;
       font-weight: 650;
       text-align: center;
       cursor: pointer;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
     }
 
     .mode-choice:hover {
-      background: rgba(127, 127, 127, 0.1);
+      background: color-mix(in srgb, var(--hero-gem) 18%, transparent);
     }
 
     .mode-choice.selected {
-      background: rgba(var(--accent-rgb), 0.16);
-      color: var(--accent-text);
-      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.45);
+      border-color: color-mix(in srgb, var(--hero-gem) 72%, transparent);
+      background: color-mix(in srgb, var(--hero-gem) 22%, transparent);
+      color: var(--text);
     }
 
     .mode-choice app-mode-icon {

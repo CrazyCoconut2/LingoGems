@@ -33,13 +33,22 @@ export const DEFAULT_DEFINITION_METADATA_FIELDS: readonly AiMetadataField[] = [
 
 export const DEFAULT_EXAMPLE_METADATA_FIELDS: readonly AiMetadataField[] = [];
 
+export const DEFAULT_FORM_METADATA_FIELDS: readonly AiMetadataField[] = [
+  { key: 'tense', prompt: '' },
+  { key: 'person', prompt: '' },
+  { key: 'number', prompt: '' },
+  { key: 'mood', prompt: '' },
+];
+
 type StoredLanguageSettings = {
   definitions?: AiMetadataField[];
   examples?: AiMetadataField[];
+  forms?: AiMetadataField[];
   definitionTranslations?: false;
   exampleTranslations?: false;
   definitionExtraFields?: true;
   exampleExtraFields?: true;
+  formExtraFields?: true;
   translationLanguage?: string;
 };
 
@@ -99,6 +108,10 @@ export function readExampleMetadataFields(language: string): AiMetadataField[] {
   return copyFields(fieldsFor(language, 'examples', DEFAULT_EXAMPLE_METADATA_FIELDS));
 }
 
+export function readFormMetadataFields(language: string): AiMetadataField[] {
+  return copyFields(fieldsFor(language, 'forms', DEFAULT_FORM_METADATA_FIELDS));
+}
+
 /** An empty list is stored. A list that matches the default is cleared. */
 export function writeDefinitionMetadataFields(
   language: string,
@@ -123,6 +136,17 @@ export function writeExampleMetadataFields(
   });
 }
 
+export function writeFormMetadataFields(
+  language: string,
+  fields: readonly AiMetadataField[],
+): void {
+  const normalized = normalizeMetadataFields(fields);
+  updateLanguage(language, (entry) => {
+    if (metadataFieldsMatch(normalized, DEFAULT_FORM_METADATA_FIELDS)) delete entry.forms;
+    else entry.forms = normalized;
+  });
+}
+
 export function resetDefinitionMetadataFields(language: string): void {
   updateLanguage(language, (entry) => {
     delete entry.definitions;
@@ -132,6 +156,12 @@ export function resetDefinitionMetadataFields(language: string): void {
 export function resetExampleMetadataFields(language: string): void {
   updateLanguage(language, (entry) => {
     delete entry.examples;
+  });
+}
+
+export function resetFormMetadataFields(language: string): void {
+  updateLanguage(language, (entry) => {
+    delete entry.forms;
   });
 }
 
@@ -166,6 +196,10 @@ export function readExampleExtraFields(language: string): boolean {
   return readEntry(language)?.exampleExtraFields === true;
 }
 
+export function readFormExtraFields(language: string): boolean {
+  return readEntry(language)?.formExtraFields === true;
+}
+
 export function writeDefinitionExtraFields(language: string, enabled: boolean): void {
   updateLanguage(language, (entry) => {
     if (enabled) entry.definitionExtraFields = true;
@@ -195,18 +229,25 @@ export function writeExampleExtraFields(language: string, enabled: boolean): voi
   });
 }
 
+export function writeFormExtraFields(language: string, enabled: boolean): void {
+  updateLanguage(language, (entry) => {
+    if (enabled) entry.formExtraFields = true;
+    else delete entry.formExtraFields;
+  });
+}
+
 /** Metadata values are written in the language being learned. Keys stay the English names. */
 export const METADATA_VALUE_LANGUAGE_RULE =
   'Every metadata value MUST be in the language named by writeFieldsIn. Do not use English for a metadata value unless writeFieldsIn is English. Metadata keys stay in English. A note that explains a field is not a sample answer to copy.';
 
 /** Rule lines for a system prompt, or none when no fields are configured and extras are off. */
 export function metadataRuleLines(
-  kind: 'definition' | 'example',
+  kind: 'definition' | 'example' | 'form',
   fields: readonly AiMetadataField[],
   extra = false,
 ): string[] {
   if (!fields.length && !extra) return [];
-  const label = kind === 'definition' ? 'Definition' : 'Example';
+  const label = kind === 'definition' ? 'Definition' : kind === 'example' ? 'Example' : 'Form';
   const lines = [
     `- metadata is key-value pairs that apply to that ${kind}. Omit a pair when it does not apply`,
     `- ${METADATA_VALUE_LANGUAGE_RULE}`,
@@ -238,6 +279,10 @@ export function definitionSenseShape(fields: readonly AiMetadataField[], extra =
 
 export function exampleSentenceShape(fields: readonly AiMetadataField[], extra = false): string {
   return `{"text":"<sentence>"${metadataSuffix(fields, extra)}`;
+}
+
+export function formEntryShape(fields: readonly AiMetadataField[], extra = false): string {
+  return `{"text":"<surface form>"${metadataSuffix(fields, extra)}`;
 }
 
 /** Keep values for the configured keys. When extra is set, also keep other relevant keys. */
@@ -303,11 +348,12 @@ function languageCode(language: string): string {
 
 function fieldsFor(
   language: string,
-  kind: 'definitions' | 'examples',
+  kind: 'definitions' | 'examples' | 'forms',
   defaults: readonly AiMetadataField[],
 ): readonly AiMetadataField[] {
   const entry = readEntry(language);
   if (entry) return entry[kind] ?? defaults;
+  if (kind === 'forms') return defaults;
   const legacy = readLegacyFields();
   return (kind === 'definitions' ? legacy.definitions : legacy.examples) ?? defaults;
 }
@@ -369,19 +415,23 @@ function readMap(): LanguageSettingsMap {
       const record = value as {
         definitions?: unknown;
         examples?: unknown;
+        forms?: unknown;
         definitionTranslations?: unknown;
         exampleTranslations?: unknown;
         definitionExtraFields?: unknown;
         exampleExtraFields?: unknown;
+        formExtraFields?: unknown;
         translationLanguage?: unknown;
       };
       const entry: StoredLanguageSettings = {};
       if (Array.isArray(record.definitions)) entry.definitions = readFieldList(record.definitions);
       if (Array.isArray(record.examples)) entry.examples = readFieldList(record.examples);
+      if (Array.isArray(record.forms)) entry.forms = readFieldList(record.forms);
       if (record.definitionTranslations === false) entry.definitionTranslations = false;
       if (record.exampleTranslations === false) entry.exampleTranslations = false;
       if (record.definitionExtraFields === true) entry.definitionExtraFields = true;
       if (record.exampleExtraFields === true) entry.exampleExtraFields = true;
+      if (record.formExtraFields === true) entry.formExtraFields = true;
       if (typeof record.translationLanguage === 'string' && isLearnableLanguage(record.translationLanguage)) {
         entry.translationLanguage = record.translationLanguage.trim().toLowerCase();
       }
@@ -409,8 +459,10 @@ function mergeSettings(entries: readonly StoredLanguageSettings[]): StoredLangua
   const merged: StoredLanguageSettings = {};
   const definitions: AiMetadataField[] = [];
   const examples: AiMetadataField[] = [];
+  const forms: AiMetadataField[] = [];
   let sawDefinitions = false;
   let sawExamples = false;
+  let sawForms = false;
   for (const entry of entries) {
     if (entry.definitions) {
       sawDefinitions = true;
@@ -420,14 +472,20 @@ function mergeSettings(entries: readonly StoredLanguageSettings[]): StoredLangua
       sawExamples = true;
       examples.push(...entry.examples);
     }
+    if (entry.forms) {
+      sawForms = true;
+      forms.push(...entry.forms);
+    }
     if (entry.definitionExtraFields) merged.definitionExtraFields = true;
     if (entry.exampleExtraFields) merged.exampleExtraFields = true;
+    if (entry.formExtraFields) merged.formExtraFields = true;
     if (!merged.translationLanguage && entry.translationLanguage && entry.translationLanguage !== 'en') {
       merged.translationLanguage = entry.translationLanguage;
     }
   }
   if (sawDefinitions) merged.definitions = normalizeMetadataFields(definitions);
   if (sawExamples) merged.examples = normalizeMetadataFields(examples);
+  if (sawForms) merged.forms = normalizeMetadataFields(forms);
   if (entries.length > 0 && entries.every((entry) => entry.definitionTranslations === false)) {
     merged.definitionTranslations = false;
   }
@@ -444,10 +502,12 @@ function writeMap(map: LanguageSettingsMap): void {
     const next: StoredLanguageSettings = {};
     if (entry.definitions !== undefined) next.definitions = entry.definitions;
     if (entry.examples !== undefined) next.examples = entry.examples;
+    if (entry.forms !== undefined) next.forms = entry.forms;
     if (entry.definitionTranslations === false) next.definitionTranslations = false;
     if (entry.exampleTranslations === false) next.exampleTranslations = false;
     if (entry.definitionExtraFields === true) next.definitionExtraFields = true;
     if (entry.exampleExtraFields === true) next.exampleExtraFields = true;
+    if (entry.formExtraFields === true) next.formExtraFields = true;
     if (entry.translationLanguage && isLearnableLanguage(entry.translationLanguage) && entry.translationLanguage !== 'en') {
       next.translationLanguage = entry.translationLanguage;
     }

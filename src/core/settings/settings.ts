@@ -33,181 +33,335 @@ const AI_PROVIDERS: ProviderOption[] = [
   selector: 'app-settings',
   imports: [FormsModule, LanguageAiSettings],
   template: `
-    <main>
-      <header>
-        <button type="button" class="back" aria-label="Back" (click)="back()">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m15 18-6-6 6-6" />
-          </svg>
-          <span>Back</span>
-        </button>
-        <h1>Settings</h1>
-      </header>
-
-      <form (submit)="save($event)">
-        <div class="copy">
-          <h2>AI provider</h2>
-          <p>The key stays on this device and is used to translate.</p>
-        </div>
-        <label for="settings-ai-provider">
-          Provider
-          <select
-            id="settings-ai-provider"
-            name="aiProvider"
-            [ngModel]="provider()"
-            (ngModelChange)="selectProvider($event)"
-          >
-            @for (option of providers; track option.id) {
-              <option [value]="option.id">{{ option.label }}</option>
-            }
-          </select>
-        </label>
-        <label for="settings-ai-key">
-          API key
-          <input
-            id="settings-ai-key"
-            name="aiApiKey"
-            type="text"
-            autocomplete="off"
-            [ngModel]="apiKey()"
-            (ngModelChange)="setApiKey($event)"
-          />
-        </label>
-        <div class="actions">
-          @if (saved()) {
-            <p class="saved">Saved.</p>
-          }
-          <button type="submit" class="btn btn-primary" [disabled]="!ready()">Save</button>
-        </div>
-      </form>
-
-      <app-language-ai-settings />
-
-      <section class="palettes" aria-label="Comfort colors">
-        <div class="copy">
-          <h2>Comfort colors</h2>
-          <p>Each score icon is colored by its comfort rate, from 1 to 10.</p>
-        </div>
-        <div class="comfort-colors">
-          @for (rate of comfortRates; track rate) {
-            <label>
-              {{ rate }}
-              <input
-                type="color"
-                [attr.aria-label]="'Comfort ' + rate + ' color'"
-                [value]="comfortSwatch(rate)"
-                (input)="setComfortColor(rate, $event)"
-              />
-            </label>
-          }
-        </div>
-        <div class="actions">
-          <button
-            type="button"
-            class="btn btn-secondary"
-            [disabled]="!paletteChanged()"
-            (click)="resetPalette()"
-          >
-            Reset colors
+    <div
+      class="backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Settings"
+      (click)="closeOnBackdrop($event)"
+    >
+      <section class="panel" (click)="$event.stopPropagation()">
+        <header class="panel-header">
+          <div>
+            <h2>Settings</h2>
+            <p>Provider, metadata, comfort colors, and what stays on this device.</p>
+          </div>
+          <button type="button" class="icon-btn" aria-label="Close" (click)="back()">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
           </button>
-        </div>
-      </section>
+        </header>
 
-      <section class="storage" aria-label="Device storage">
-        <div class="copy">
-          <h2>On this device</h2>
-          @if (storageKept() === true) {
-            <p>Languages and keys stay on this device.</p>
-          } @else if (storageKept() === false) {
-            <p>Languages and keys are in temporary storage until this browser locks them.</p>
-          } @else {
-            <p>Checking whether this browser will keep your languages and keys.</p>
-          }
+        <div class="panel-body">
+          <section class="settings-section" [class.expanded]="expanded() === 'provider'">
+            <button
+              type="button"
+              class="section-header"
+              [attr.aria-expanded]="expanded() === 'provider'"
+              (click)="toggle('provider')"
+            >
+              <span class="section-title">
+                AI provider
+                <span class="section-count">{{ providerLabel() }}</span>
+              </span>
+              <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            @if (expanded() === 'provider') {
+              <form class="section-body" (submit)="save($event)">
+                <p class="section-hint">The key stays on this device and is used to translate.</p>
+                <label for="settings-ai-provider">
+                  Provider
+                  <select
+                    id="settings-ai-provider"
+                    name="aiProvider"
+                    [ngModel]="provider()"
+                    (ngModelChange)="selectProvider($event)"
+                  >
+                    @for (option of providers; track option.id) {
+                      <option [value]="option.id">{{ option.label }}</option>
+                    }
+                  </select>
+                </label>
+                <label for="settings-ai-key">
+                  API key
+                  <input
+                    id="settings-ai-key"
+                    name="aiApiKey"
+                    type="text"
+                    autocomplete="off"
+                    [ngModel]="apiKey()"
+                    (ngModelChange)="setApiKey($event)"
+                  />
+                </label>
+                <div class="actions">
+                  @if (saved()) {
+                    <p class="saved">Saved.</p>
+                  }
+                  <button type="submit" class="btn btn-primary" [disabled]="!ready()">Save</button>
+                </div>
+              </form>
+            }
+          </section>
+
+          <app-language-ai-settings [open]="expanded()" (opened)="expanded.set($event)" />
+
+          <section class="settings-section" [class.expanded]="expanded() === 'comfort'">
+            <button
+              type="button"
+              class="section-header"
+              [attr.aria-expanded]="expanded() === 'comfort'"
+              (click)="toggle('comfort')"
+            >
+              <span class="section-title">Comfort colors</span>
+              <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            @if (expanded() === 'comfort') {
+              <div class="section-body">
+                <p class="section-hint">Each score icon is colored by its comfort rate, from 1 to 10.</p>
+                <div class="comfort-colors">
+                  @for (rate of comfortRates; track rate) {
+                    <label>
+                      {{ rate }}
+                      <input
+                        type="color"
+                        [attr.aria-label]="'Comfort ' + rate + ' color'"
+                        [value]="comfortSwatch(rate)"
+                        (input)="setComfortColor(rate, $event)"
+                      />
+                    </label>
+                  }
+                </div>
+                <div class="actions">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    [disabled]="!paletteChanged()"
+                    (click)="resetPalette()"
+                  >
+                    Reset colors
+                  </button>
+                </div>
+              </div>
+            }
+          </section>
+
+          <section class="settings-section" [class.expanded]="expanded() === 'storage'">
+            <button
+              type="button"
+              class="section-header"
+              [attr.aria-expanded]="expanded() === 'storage'"
+              (click)="toggle('storage')"
+            >
+              <span class="section-title">On this device</span>
+              <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            @if (expanded() === 'storage') {
+              <div class="section-body">
+                @if (storageKept() === true) {
+                  <p class="section-hint">Languages and keys stay on this device.</p>
+                } @else if (storageKept() === false) {
+                  <p class="section-hint">
+                    Languages and keys are in temporary storage until this browser locks them.
+                  </p>
+                } @else {
+                  <p class="section-hint">
+                    Checking whether this browser will keep your languages and keys.
+                  </p>
+                }
+              </div>
+            }
+          </section>
         </div>
+
+        <footer class="panel-footer">
+          <button type="button" class="done-btn" (click)="back()">Done</button>
+        </footer>
       </section>
-    </main>
+    </div>
   `,
   styles: `
     :host {
-      display: block;
-      min-height: 100%;
+      display: contents;
     }
 
-    main {
-      width: min(100%, 32rem);
-      min-height: 100dvh;
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      overflow: auto;
+      padding: 1.25rem;
+      background: rgba(8, 10, 16, 0.78);
+      backdrop-filter: blur(6px);
+    }
+
+    .panel {
       box-sizing: border-box;
-      margin: 0 auto;
+      width: min(520px, 100%);
+      max-height: calc(100dvh - 2.5rem);
+      margin-top: auto;
+      margin-bottom: auto;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      gap: 1.5rem;
-      padding: 1rem 1.25rem 2rem;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 4px);
+      background:
+        radial-gradient(120% 80% at 0% 0%, rgba(var(--accent-rgb), 0.12), transparent 55%),
+        var(--surface);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
     }
 
-    header {
+    .panel-header,
+    .panel-footer {
       display: flex;
-      align-items: center;
-      gap: 0.75rem;
+      flex-shrink: 0;
     }
 
-    .back {
+    .panel-header {
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.9rem 1.15rem;
+    }
+
+    h2,
+    p {
+      margin: 0;
+    }
+
+    h2 {
+      font-size: 1.35rem;
+      font-weight: 750;
+      letter-spacing: -0.03em;
+    }
+
+    .panel-header p,
+    .section-hint {
+      margin-top: 0.4rem;
+      color: var(--text-muted);
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    .section-hint {
+      margin-top: 0;
+      font-size: 0.78rem;
+    }
+
+    .icon-btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.15rem;
+      justify-content: center;
+      width: 2.15rem;
+      height: 2.15rem;
+      flex-shrink: 0;
       border: 0;
-      padding: 0.35rem 0.55rem 0.35rem 0.2rem;
       border-radius: 999px;
-      background: transparent;
-      color: var(--accent-text);
-      font-size: 1rem;
-      font-weight: 650;
+      background: rgba(127, 127, 127, 0.1);
+      color: var(--text-muted);
       cursor: pointer;
     }
 
-    .back:hover {
-      background: rgba(139, 144, 165, 0.16);
+    .icon-btn:hover {
+      background: rgba(127, 127, 127, 0.18);
+      color: var(--text);
     }
 
-    .back svg {
-      width: 1.35rem;
-      height: 1.35rem;
+    .icon-btn svg,
+    .section-chevron {
+      width: 1rem;
+      height: 1rem;
       fill: none;
       stroke: currentColor;
-      stroke-width: 2.4;
+      stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
     }
 
-    header h1 {
-      margin: 0;
-      font-size: 1.15rem;
-      font-weight: 650;
-      letter-spacing: -0.03em;
+    .panel-body {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      gap: 0.55rem;
+      min-height: 0;
+      overflow: auto;
+      padding: 0 1.15rem 1.15rem;
     }
 
-    form {
+    .settings-section {
+      flex-shrink: 0;
+      overflow: hidden;
+      border-radius: 0.9rem;
+      background: color-mix(in srgb, var(--surface) 70%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      padding: 0.85rem;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .section-title {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      min-width: 0;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    .section-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.25rem;
+      height: 1.25rem;
+      padding: 0 0.35rem;
+      border-radius: 999px;
+      background: rgba(var(--accent-rgb), 0.16);
+      color: var(--accent-text);
+      font-size: 0.68rem;
+      font-weight: 750;
+    }
+
+    .section-chevron {
+      flex-shrink: 0;
+      color: var(--text-muted);
+      transition: transform 0.18s ease;
+    }
+
+    .settings-section.expanded .section-chevron {
+      transform: rotate(180deg);
+    }
+
+    .section-body {
       display: flex;
       flex-direction: column;
-      gap: 0.9rem;
-    }
-
-    .copy {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-    }
-
-    h2 {
-      margin: 0;
-      font-size: 1.6rem;
-      font-weight: 650;
-      letter-spacing: -0.03em;
-    }
-
-    p {
-      margin: 0;
-      line-height: 1.45;
-      color: var(--muted);
+      gap: 0.75rem;
+      padding: 0 0.75rem 0.85rem;
     }
 
     label {
@@ -241,13 +395,6 @@ const AI_PROVIDERS: ProviderOption[] = [
       font-size: 0.875rem;
     }
 
-    .palettes,
-    .storage {
-      display: flex;
-      flex-direction: column;
-      gap: 0.9rem;
-    }
-
     .comfort-colors {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -267,10 +414,48 @@ const AI_PROVIDERS: ProviderOption[] = [
       padding: 0.15rem;
       cursor: pointer;
     }
+
+    .panel-footer {
+      justify-content: flex-end;
+      padding: 0.85rem 1.15rem 1.15rem;
+      border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    }
+
+    .done-btn {
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: white;
+      font: inherit;
+      font-size: 0.88rem;
+      font-weight: 700;
+      padding: 0.65rem 1.25rem;
+      cursor: pointer;
+    }
+
+    .done-btn:hover {
+      filter: brightness(1.06);
+    }
+
+    @media (max-width: 720px) {
+      .backdrop {
+        align-items: flex-end;
+        padding: 0.65rem;
+      }
+
+      .panel {
+        width: 100%;
+        max-height: calc(100dvh - 1.3rem);
+        margin-top: auto;
+        margin-bottom: 0;
+        border-radius: 14px 14px 0 0;
+      }
+    }
   `,
 })
 export class Settings {
   readonly closed = output<void>();
+  readonly expanded = signal<string | null>(null);
   readonly storageKept = storageKeptState;
   private readonly stored = readStoredAiCredentials().keys[0];
 
@@ -283,6 +468,18 @@ export class Settings {
   private keyId = this.stored?.id ?? '';
   private rememberedProvider = this.stored?.provider;
   private rememberedModel = this.stored?.model ?? '';
+
+  providerLabel(): string {
+    return this.providers.find((option) => option.id === this.provider())?.label ?? '';
+  }
+
+  toggle(id: string): void {
+    this.expanded.update((current) => (current === id ? null : id));
+  }
+
+  closeOnBackdrop(event: Event): void {
+    if (event.target === event.currentTarget) this.back();
+  }
 
   selectProvider(value: string): void {
     if (!isAiProvider(value)) return;
