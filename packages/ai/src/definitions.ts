@@ -23,11 +23,7 @@ import {
   type AiMetadataField,
 } from './metadata-fields';
 import { readStoredAiCredentials } from './storage';
-import {
-  readGenerateDefinitionTranslations,
-  readTranslationLanguage,
-  translationLanguage,
-} from './translation-settings';
+import { readTranslationLanguage, translationLanguage } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
 const MAX_SENSES = 8;
@@ -151,6 +147,7 @@ export type GenerateDefinitionsInput = {
     text: string;
     metadata: ElementMetadata;
   }>;
+  translate?: boolean;
 };
 
 export type GenerateDefinitionFromExampleInput = GenerateDefinitionsInput & {
@@ -172,7 +169,7 @@ export type GenerateFormsInput = {
 export function buildDefinitionsUserMessage(input: GenerateDefinitionsInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations(language));
+  const translateFieldsIn = translationLanguage(language, input.translate === true);
   return JSON.stringify({
     language,
     writeFieldsIn,
@@ -207,7 +204,11 @@ export function parseGeneratedDefinitions(
     const gloss = glossText(sense['gloss'] ?? sense['glosses']);
     if (!gloss || taken.has(gloss.toLowerCase())) continue;
     taken.add(gloss.toLowerCase());
-    const english = takenTranslation(language, sense['translation'] ?? sense['english']);
+    const english = takenTranslation(
+      language,
+      sense['translation'] ?? sense['english'],
+      input.translate === true,
+    );
     definitions.push({
       text: english ? embedTranslation(gloss, readTranslationLanguage(language), english) : gloss,
       metadata: pickMetadata(
@@ -225,7 +226,7 @@ export function buildDefinitionFromExampleUserMessage(
 ): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations(language));
+  const translateFieldsIn = translationLanguage(language, input.translate === true);
   return JSON.stringify({
     language,
     writeFieldsIn,
@@ -271,6 +272,7 @@ export type GenerateElementFromSelectionInput = {
   language: string;
   selected: string;
   context: string;
+  translate?: boolean;
 };
 
 export type GeneratedElement = {
@@ -283,7 +285,7 @@ export function buildElementFromSelectionUserMessage(
 ): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, readGenerateDefinitionTranslations(language));
+  const translateFieldsIn = translationLanguage(language, input.translate === true);
   const context = input.context.trim().slice(0, MAX_EXAMPLE_LENGTH);
   return JSON.stringify({
     language,
@@ -416,8 +418,8 @@ function plainText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function takenTranslation(language: string, raw: unknown): string {
-  if (!translationLanguage(language, readGenerateDefinitionTranslations(language))) return '';
+function takenTranslation(language: string, raw: unknown, translate: boolean): string {
+  if (!translationLanguage(language, translate)) return '';
   return plainText(raw).slice(0, META_VALUE_MAX_LENGTH);
 }
 

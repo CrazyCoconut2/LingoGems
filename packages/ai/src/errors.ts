@@ -5,9 +5,7 @@ export const AI_ERROR = {
   RESPONSE_INVALID: 'error.ai.responseInvalid',
   CREDENTIALS_INVALID: 'error.ai.credentialsInvalid',
   CREDENTIALS_PROVIDER_INVALID: 'error.ai.credentialsProviderInvalid',
-  CREDENTIALS_NOT_CONFIGURED: 'error.ai.credentialsNotConfigured',
   CREDENTIALS_REQUIRED: 'error.ai.credentialsRequired',
-  CREDENTIALS_ALREADY_CONFIGURED: 'error.ai.credentialsAlreadyConfigured',
   PROVIDER_AUTH_FAILED: 'error.ai.providerAuthFailed',
 } as const;
 
@@ -42,24 +40,6 @@ export function attachAiPrompt<T>(err: T, input: { system: string; user: string 
   return err;
 }
 
-export function aiErrorPrompt(err: unknown): string {
-  return err instanceof AiError ? err.prompt : '';
-}
-
 export function aiError(code: string, status = 400, providerStatus?: number): never {
   throw new AiError(code, status, providerStatus);
-}
-
-export function translateAiError(
-  err: unknown,
-  language: { translate(key: string): string },
-  fallbackKey: string,
-): string {
-  if (err instanceof AiError) {
-    const text = language.translate(err.code);
-    if (text !== err.code) {
-      return text;
-    }
-  }
-  return language.translate(fallbackKey);
 }

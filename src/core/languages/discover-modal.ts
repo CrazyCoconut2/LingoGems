@@ -27,6 +27,7 @@ import {
   MAX_METADATA_FIELD_KEY,
   discoverElements,
   readStoredAiCredentials,
+  readTranslationLanguage,
   type DiscoveredElement,
 } from 'ai';
 import { readFieldColor } from '../elements/metadata-colors';
@@ -122,6 +123,18 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                   </button>
                 }
               </div>
+              @if (canTranslate()) {
+                <label class="translate-switch">
+                  <input
+                    type="checkbox"
+                    [checked]="withTranslation()"
+                    [disabled]="busy() || adding()"
+                    aria-label="With a translation"
+                    (change)="setWithTranslation($event)"
+                  />
+                  With a translation
+                </label>
+              }
             </div>
             <button
               type="button"
@@ -580,6 +593,22 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       flex-direction: column;
       gap: 0.35rem;
       min-width: 0;
+    }
+
+    .translate-switch {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      color: var(--text);
+      font-size: 0.84rem;
+      font-weight: 650;
+    }
+
+    .translate-switch input {
+      width: 1rem;
+      height: 1rem;
+      margin: 0;
+      accent-color: var(--accent, #6c63ff);
     }
 
     .note span,
@@ -1234,6 +1263,7 @@ export class DiscoverModal implements OnInit {
   readonly valueMax = VALUE_MAX;
 
   readonly instruction = signal('');
+  readonly withTranslation = signal(false);
   readonly filtersOpen = signal(false);
   readonly historyOpen = signal(false);
   readonly expanded = signal<DiscoverKind | null>(null);
@@ -1468,6 +1498,15 @@ export class DiscoverModal implements OnInit {
     return this.instruction().trim().length > 0 || this.results().length > 0;
   }
 
+  canTranslate(): boolean {
+    const language = this.language().trim().toLowerCase();
+    return language !== '' && language !== readTranslationLanguage(language);
+  }
+
+  setWithTranslation(event: Event): void {
+    this.withTranslation.set(event.target instanceof HTMLInputElement && event.target.checked);
+  }
+
   clearSearch(): void {
     if (this.busy() || this.adding()) return;
     this.notice.set('');
@@ -1535,6 +1574,7 @@ export class DiscoverModal implements OnInit {
     try {
       const found = await discoverElements({
         language,
+        translate: this.canTranslate() && this.withTranslation(),
         instruction: query.instruction,
         metadata: {
           definition: query.definition,

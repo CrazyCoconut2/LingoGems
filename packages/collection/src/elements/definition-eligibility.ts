@@ -60,7 +60,7 @@ export function surfaceSpans(
  * Words in a gloss that are the element or one of its forms.
  * Matching uses the same word boundaries as form highlighting.
  */
-export function definitionSelfMentions(
+function definitionSelfMentions(
   gloss: string,
   lemma: string,
   forms: readonly string[] = [],
@@ -90,7 +90,7 @@ export function definitionSelfMentionWarning(mentions: readonly string[]): strin
   return `Remove ${quoteList(mentions)} from this definition, or this definition is not eligible for games.`;
 }
 
-export function definitionSelfMentionsFor(text: string, element: ElementForms): string[] {
+function definitionSelfMentionsFor(text: string, element: ElementForms): string[] {
   return definitionSelfMentions(parsePassage(text).text, element.title, surfaceForms(element));
 }
 

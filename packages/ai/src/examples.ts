@@ -17,11 +17,7 @@ import {
   type AiMetadataField,
 } from './metadata-fields';
 import { readStoredAiCredentials } from './storage';
-import {
-  readGenerateExampleTranslations,
-  readTranslationLanguage,
-  translationLanguage,
-} from './translation-settings';
+import { readTranslationLanguage, translationLanguage } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
 export const MAX_EXAMPLE_LENGTH = 500;
@@ -72,6 +68,7 @@ export type GenerateExamplesInput = {
   exampleWords: readonly string[];
   exampleInstruction?: string;
   requiredForm?: string;
+  translate?: boolean;
 };
 
 export type GeneratedExample = { text: string; metadata: ElementMetadata };
@@ -79,7 +76,7 @@ export type GeneratedExample = { text: string; metadata: ElementMetadata };
 export function buildExamplesUserMessage(input: GenerateExamplesInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, readGenerateExampleTranslations(language));
+  const translateFieldsIn = translationLanguage(language, input.translate === true);
   const title = input.title.trim();
   const requiredForm = input.requiredForm?.trim() ?? '';
   const forms = requiredForm ? [] : uniqueTexts(input.forms);
@@ -132,7 +129,7 @@ export function parseGeneratedExamples(
     const key = sentence.toLowerCase();
     if (!sentence || sentence.length > MAX_EXAMPLE_LENGTH || taken.has(key)) continue;
     const translated =
-      translationLanguage(language, readGenerateExampleTranslations(language)) === ''
+      translationLanguage(language, input.translate === true) === ''
         ? ''
         : parsePassage(plainText(example['translation'] ?? example['english'])).text.slice(
             0,

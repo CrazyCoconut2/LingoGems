@@ -15,7 +15,7 @@ import {
   readDefinitionMetadataFields,
 } from './metadata-fields';
 import { readStoredAiCredentials } from './storage';
-import { readGenerateDefinitionTranslations, translationLanguage } from './translation-settings';
+import { translationLanguage } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
 export const DISCOVER_COUNT = 5;
@@ -36,6 +36,7 @@ export type DiscoverElementsInput = {
   instruction?: string;
   metadata?: DiscoverMetadata;
   excludeTitles?: readonly string[];
+  translate?: boolean;
 };
 
 export type DiscoveredElement = {
@@ -46,10 +47,7 @@ export type DiscoveredElement = {
 export function buildDiscoverElementsUserMessage(input: DiscoverElementsInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(
-    language,
-    readGenerateDefinitionTranslations(language),
-  );
+  const translateFieldsIn = translationLanguage(language, input.translate === true);
   const instruction = (input.instruction ?? '').trim().slice(0, MAX_DISCOVER_INSTRUCTION);
   const metadata = metadataPayload(input.metadata);
   const excludeTitles = uniqueTitles(input.excludeTitles ?? [], MAX_DISCOVER_EXCLUDE);
@@ -69,6 +67,7 @@ export function buildDiscoverElementsUserMessage(input: DiscoverElementsInput): 
 export function parseDiscoveredElements(
   parsed: unknown,
   language: string,
+  translate = false,
 ): DiscoveredElement[] | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
@@ -87,6 +86,7 @@ export function parseDiscoveredElements(
       language,
       title,
       existingDefinitions: [],
+      translate,
     });
     if (!senses?.length) continue;
     elements.push({
@@ -116,8 +116,9 @@ export async function discoverElements(input: DiscoverElementsInput): Promise<Di
       completeJson(provider, request, credentials),
     );
   try {
-    let elements = parseDiscoveredElements(await complete(), language);
-    if (!elements) elements = parseDiscoveredElements(await complete(), language);
+    const translate = input.translate === true;
+    let elements = parseDiscoveredElements(await complete(), language, translate);
+    if (!elements) elements = parseDiscoveredElements(await complete(), language, translate);
     if (!elements) aiError(AI_ERROR.RESPONSE_INVALID);
     return elements;
   } catch (err) {

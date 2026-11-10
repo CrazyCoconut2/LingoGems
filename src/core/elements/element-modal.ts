@@ -894,6 +894,18 @@ function writeExampleSuggestions(
                           </svg>
                           Add
                         </button>
+                        @if (supportAvailable()) {
+                          <button
+                            type="button"
+                            class="lookup-chip"
+                            [class.selected]="withTranslation()"
+                            [attr.aria-pressed]="withTranslation()"
+                            aria-label="With a translation"
+                            (pointerdown)="toggleWithTranslation($event)"
+                          >
+                            Translation
+                          </button>
+                        }
                         <button
                           type="button"
                           class="lookup-chip"
@@ -1168,6 +1180,18 @@ function writeExampleSuggestions(
                                     </svg>
                                     Add
                                   </button>
+                                  @if (supportAvailable()) {
+                                    <button
+                                      type="button"
+                                      class="lookup-chip"
+                                      [class.selected]="withTranslation()"
+                                      [attr.aria-pressed]="withTranslation()"
+                                      aria-label="With a translation"
+                                      (pointerdown)="toggleWithTranslation($event)"
+                                    >
+                                      Translation
+                                    </button>
+                                  }
                                   <button
                                     type="button"
                                     class="lookup-chip"
@@ -1846,6 +1870,17 @@ function writeExampleSuggestions(
                   }
                 }
               }
+              @if (supportAvailable()) {
+                <label class="translate-switch">
+                  <input
+                    type="checkbox"
+                    [checked]="withTranslation()"
+                    [disabled]="askingExamples() !== null"
+                    (change)="setWithTranslation($event)"
+                  />
+                  With a translation
+                </label>
+              }
               @if (error()) {
                 <p class="error">{{ error() }}</p>
               }
@@ -1976,6 +2011,17 @@ function writeExampleSuggestions(
                   ></textarea>
                 }
               </div>
+              @if (supportAvailable()) {
+                <label class="translate-switch">
+                  <input
+                    type="checkbox"
+                    [checked]="withTranslation()"
+                    [disabled]="definitionSheetBusy()"
+                    (change)="setWithTranslation($event)"
+                  />
+                  With a translation
+                </label>
+              }
               @if (error()) {
                 <p class="error">{{ error() }}</p>
               }
@@ -2181,6 +2227,17 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
+              @if (supportAvailable()) {
+                <label class="translate-switch">
+                  <input
+                    type="checkbox"
+                    [checked]="withTranslation()"
+                    [disabled]="asking()"
+                    (change)="setWithTranslation($event)"
+                  />
+                  With a translation
+                </label>
+              }
               <div class="add-choices">
                 <button
                   type="button"
@@ -4113,6 +4170,27 @@ function writeExampleSuggestions(
       cursor: not-allowed;
     }
 
+    .lookup-chip.selected {
+      background: rgba(var(--accent-rgb), 0.16);
+    }
+
+    .translate-switch {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin: 0.15rem 0 0.35rem;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 650;
+    }
+
+    .translate-switch input {
+      width: 1rem;
+      height: 1rem;
+      margin: 0;
+      accent-color: var(--accent, #6c63ff);
+    }
+
     .body {
       box-sizing: border-box;
       flex: 1 1 auto;
@@ -5171,6 +5249,7 @@ export class ElementModal {
   readonly gemScores = Array.from({ length: TRANSLATION_GEM_MAX + 1 }, (_, gems) => gems);
   readonly equivalentMax = EQUIVALENT_MAX;
   readonly definitionMax = DEFINITION_MAX;
+  readonly withTranslation = signal(false);
   readonly supportAvailable = computed(
     () =>
       this.element().language.trim().toLowerCase() !==
@@ -5642,6 +5721,20 @@ export class ElementModal {
     return languageDisplayName(readTranslationLanguage(this.element().language));
   }
 
+  setWithTranslation(event: Event): void {
+    this.withTranslation.set(event.target instanceof HTMLInputElement && event.target.checked);
+  }
+
+  toggleWithTranslation(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.withTranslation.update((enabled) => !enabled);
+  }
+
+  private aiTranslate(): boolean {
+    return this.supportAvailable() && this.withTranslation();
+  }
+
   canAskEquivalent(): boolean {
     return (
       this.supportAvailable() &&
@@ -5855,6 +5948,7 @@ export class ElementModal {
         language: element.language,
         title,
         example,
+        translate: this.aiTranslate(),
         existingDefinitions: element.definitions.map((definition) => ({
           text: definition.text,
           metadata: definition.metadata,
@@ -5897,6 +5991,7 @@ export class ElementModal {
       const senses = await generateDefinitions({
         language: element.language,
         title,
+        translate: this.aiTranslate(),
         existingDefinitions: element.definitions.map((definition) => ({
           text: definition.text,
           metadata: definition.metadata,
@@ -6413,6 +6508,7 @@ export class ElementModal {
         gloss,
         words: picked,
         definitionInstruction: engineer.instruction,
+        translate: this.aiTranslate(),
       });
       const phrase = phrases[0];
       const showing = this.element().id === element.id;
@@ -6497,6 +6593,7 @@ export class ElementModal {
         language: element.language,
         title: element.title,
         gloss,
+        translate: this.aiTranslate(),
         metadata: definition.metadata,
         existingExamples: definition.examples.map((example) => parsePassage(example.text).text),
         forms: required ? [] : definition.forms.map((form) => form.text),
@@ -6787,6 +6884,7 @@ export class ElementModal {
         language: element.language,
         selected: title,
         context,
+        translate: this.aiTranslate(),
       });
       if (this.element().id !== element.id) return;
       if (!generated) {

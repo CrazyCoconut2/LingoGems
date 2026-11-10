@@ -43,7 +43,6 @@ export { formMatchesTerm, isValidForm } from './elements/forms';
 export {
   definitionEligibleForGames,
   definitionSelfMentionWarningFor,
-  definitionSelfMentions,
   elementHasInvalidDefinition,
   surfaceSpans,
   type SurfaceSpan,
@@ -66,7 +65,6 @@ export {
 
 export {
   DEFAULT_ELEMENT_SORT,
-  ELEMENT_SORTS,
   compareElements,
   elementDefinitionCount,
   elementMatchesCountRanges,
@@ -74,13 +72,8 @@ export {
   elementMatchesComfort,
   elementMatchesMode,
   elementTranslationCount,
-  formatElementCountRange,
   formatMetadataFilter,
   metadataFilterSize,
-  parseElementCountRange,
-  parseComfort,
-  parseElementMode,
-  parseElementSort,
   parseMetadataFilter,
   setCountRangeBound,
   stepCountRange,

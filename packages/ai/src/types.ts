@@ -1,16 +1,5 @@
 export type AiProviderId = 'openai' | 'anthropic' | 'google' | 'groq';
 
-export type AiKeyStatus = {
-  id: string;
-  provider: AiProviderId;
-  keyHint: string;
-  model?: string;
-};
-
-export type AiCredentialsStatus = {
-  keys: AiKeyStatus[];
-};
-
 export type CompleteJsonInput = {
   system: string;
   user: string;

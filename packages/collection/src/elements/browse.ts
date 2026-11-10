@@ -22,13 +22,6 @@ export type ElementSort = (typeof ELEMENT_SORTS)[number];
 
 export const DEFAULT_ELEMENT_SORT: ElementSort = 'created-desc';
 
-const SORT_SET = new Set<string>(ELEMENT_SORTS);
-
-export function parseElementSort(raw: string | null): ElementSort {
-  if (raw && SORT_SET.has(raw)) return raw as ElementSort;
-  return DEFAULT_ELEMENT_SORT;
-}
-
 const COUNT_LIMIT = 99;
 
 /** Inclusive bounds. The minimum is always set and defaults to 0. The maximum may be open. */
@@ -36,30 +29,6 @@ export type ElementCountRange = {
   min: number;
   max: number | null;
 };
-
-/** `2` means at least 2. `2-5` means 2 through 5. `-5` means 0 through 5. */
-export function parseElementCountRange(raw: string | null): ElementCountRange {
-  const open: ElementCountRange = { min: 0, max: null };
-  if (!raw) return open;
-  const text = raw.trim();
-  const ranged = /^(\d{0,2})-(\d{0,2})$/.exec(text);
-  if (ranged) {
-    if (!ranged[1] && !ranged[2]) return open;
-    const min = ranged[1] ? parseCountBound(ranged[1]) : 0;
-    const max = ranged[2] ? parseCountBound(ranged[2]) : null;
-    if (min == null || (ranged[2] && max == null)) return open;
-    if (max != null && min > max) return { min: max, max: min };
-    return { min, max };
-  }
-  const minimum = parseCountBound(text);
-  return minimum == null ? open : { min: minimum, max: null };
-}
-
-/** Serializes a range for the `translations` and `definitions` query params. */
-export function formatElementCountRange(range: ElementCountRange): string | null {
-  if (range.max == null) return range.min > 0 ? String(range.min) : null;
-  return `${range.min}-${range.max}`;
-}
 
 /** Moves one edge by one. The minimum stops at 0. An empty maximum starts at the minimum. */
 export function stepCountRange(
@@ -99,12 +68,6 @@ export function setCountRangeBound(
   return { min: range.min, max: value };
 }
 
-function parseCountBound(raw: string): number | null {
-  if (!/^\d{1,2}$/.test(raw)) return null;
-  const value = Number(raw);
-  return value <= COUNT_LIMIT ? value : null;
-}
-
 export function elementTranslationCount(element: StoredElement): number {
   return element.equivalents.length;
 }
@@ -113,32 +76,10 @@ export function elementDefinitionCount(element: StoredElement): number {
   return element.definitions.length;
 }
 
-/** `1`, `2`, `3`, or a comma-separated list of those. Anything else is dropped. */
-export function parseElementMode(raw: string | null): ElementMode[] {
-  if (!raw) return [];
-  const modes = new Set<ElementMode>();
-  for (const part of raw.split(',')) {
-    const mode = Number(part.trim());
-    if (mode === 1 || mode === 2 || mode === 3) modes.add(mode);
-  }
-  return [...modes].sort((left, right) => left - right);
-}
-
 /** Keep an element in one of the chosen modes. An empty list keeps every element. */
 export function elementMatchesMode(element: StoredElement, modes: readonly ElementMode[]): boolean {
   if (modes.length === 0) return true;
   return element.mode !== null && modes.includes(element.mode);
-}
-
-/** Comfort rates from 1 to 10, one or a comma-separated list. Anything else is dropped. */
-export function parseComfort(raw: string | null): number[] {
-  if (!raw) return [];
-  const rates = new Set<number>();
-  for (const part of raw.split(',')) {
-    const rate = Number(part.trim());
-    if (Number.isInteger(rate) && rate >= 1 && rate <= 10) rates.add(rate);
-  }
-  return [...rates].sort((left, right) => left - right);
 }
 
 /** Keep an element at one of the chosen comfort rates. An empty list keeps every element. */

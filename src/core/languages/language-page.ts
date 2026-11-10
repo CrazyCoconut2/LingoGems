@@ -15,7 +15,7 @@ import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { DiscoverModal } from './discover-modal';
 import { readSelectedLanguage, writeSelectedLanguage } from './selected-language';
 import { Settings } from '../settings/settings';
-import { generateElementFromSelection } from 'ai';
+import { generateElementFromSelection, readTranslationLanguage } from 'ai';
 import {
   addElement,
   compareElements,
@@ -140,6 +140,18 @@ const MOVE_SLOP_PX = 10;
           />
           @if (query().trim()) {
             <div class="search-actions">
+              @if (canTranslate()) {
+                <label class="translate-switch">
+                  <input
+                    type="checkbox"
+                    [checked]="withTranslation()"
+                    [disabled]="asking()"
+                    aria-label="With a translation"
+                    (change)="setWithTranslation($event)"
+                  />
+                  Translation
+                </label>
+              }
               <button
                 type="button"
                 class="search-add"
@@ -1494,6 +1506,24 @@ const MOVE_SLOP_PX = 10;
       flex-shrink: 0;
     }
 
+    .translate-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-right: 0.25rem;
+      color: var(--text);
+      font-size: 0.78rem;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .translate-switch input {
+      width: 0.95rem;
+      height: 0.95rem;
+      margin: 0;
+      accent-color: var(--accent, #6c63ff);
+    }
+
     .search-add {
       display: grid;
       place-items: center;
@@ -2310,6 +2340,7 @@ export class LanguagePage {
   readonly comfortColor = comfortColor;
   readonly needsDefinitionEdit = elementHasInvalidDefinition;
   readonly asking = signal(false);
+  readonly withTranslation = signal(false);
   readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
   readonly selecting = signal(false);
@@ -2904,6 +2935,15 @@ export class LanguagePage {
     return (event.target as HTMLInputElement).value;
   }
 
+  canTranslate(): boolean {
+    const language = this.code().trim().toLowerCase();
+    return language !== '' && language !== readTranslationLanguage(language);
+  }
+
+  setWithTranslation(event: Event): void {
+    this.withTranslation.set(event.target instanceof HTMLInputElement && event.target.checked);
+  }
+
   onSearch(value: string): void {
     if (this.playing()) return;
     const query = value.slice(0, ELEMENT_SEARCH_MAX_LENGTH);
@@ -2938,6 +2978,7 @@ export class LanguagePage {
         language: code,
         selected,
         context: '',
+        translate: this.canTranslate() && this.withTranslation(),
       });
       if (!generated) {
         this.lookupError.set('Could not add that element.');

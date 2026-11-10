@@ -12,8 +12,6 @@ import {
   readExampleMetadataFields,
   readFormExtraFields,
   readFormMetadataFields,
-  readGenerateDefinitionTranslations,
-  readGenerateExampleTranslations,
   readTranslationLanguage,
   writeTranslationLanguage,
   readStoredAiCredentials,
@@ -27,8 +25,6 @@ import {
   writeExampleMetadataFields,
   writeFormExtraFields,
   writeFormMetadataFields,
-  writeGenerateDefinitionTranslations,
-  writeGenerateExampleTranslations,
   type AiMetadataField,
 } from 'ai';
 import { LEARNABLE_LANGUAGES, languageDisplayName } from 'collection';
@@ -110,14 +106,6 @@ type MetadataKind = 'definition' | 'example' | 'form';
                 Reset
               </button>
             </div>
-            <label class="translation-toggle">
-              <input
-                type="checkbox"
-                [checked]="generateDefinitionTranslations()"
-                (change)="setGenerateDefinitionTranslations($event)"
-              />
-              Generate with a translation
-            </label>
             <label class="translation-toggle">
               <input
                 type="checkbox"
@@ -239,14 +227,6 @@ type MetadataKind = 'definition' | 'example' | 'form';
                 Reset
               </button>
             </div>
-            <label class="translation-toggle">
-              <input
-                type="checkbox"
-                [checked]="generateExampleTranslations()"
-                (change)="setGenerateExampleTranslations($event)"
-              />
-              Generate with a translation
-            </label>
             <label class="translation-toggle">
               <input
                 type="checkbox"
@@ -556,11 +536,6 @@ type MetadataKind = 'definition' | 'example' | 'form';
       gap: 1rem;
     }
 
-    h3 {
-      font-size: 1.05rem;
-      font-weight: 700;
-    }
-
     .reset,
     .metadata-add,
     .metadata-remove {
@@ -729,8 +704,6 @@ export class LanguageAiSettings {
   readonly definitionFields = signal<AiMetadataField[]>([]);
   readonly exampleFields = signal<AiMetadataField[]>([]);
   readonly formFields = signal<AiMetadataField[]>([]);
-  readonly generateDefinitionTranslations = signal(true);
-  readonly generateExampleTranslations = signal(true);
   readonly definitionExtraFields = signal(false);
   readonly exampleExtraFields = signal(false);
   readonly formExtraFields = signal(false);
@@ -752,8 +725,6 @@ export class LanguageAiSettings {
     this.exampleFields.set(readExampleMetadataFields(SETTINGS_SCOPE));
     this.formFields.set(readFormMetadataFields(SETTINGS_SCOPE));
     this.translationLanguage.set(readTranslationLanguage(SETTINGS_SCOPE));
-    this.generateDefinitionTranslations.set(readGenerateDefinitionTranslations(SETTINGS_SCOPE));
-    this.generateExampleTranslations.set(readGenerateExampleTranslations(SETTINGS_SCOPE));
     this.definitionExtraFields.set(readDefinitionExtraFields(SETTINGS_SCOPE));
     this.exampleExtraFields.set(readExampleExtraFields(SETTINGS_SCOPE));
     this.formExtraFields.set(readFormExtraFields(SETTINGS_SCOPE));
@@ -783,18 +754,6 @@ export class LanguageAiSettings {
     const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
     writeTranslationLanguage(SETTINGS_SCOPE, value);
     this.translationLanguage.set(readTranslationLanguage(SETTINGS_SCOPE));
-  }
-
-  setGenerateDefinitionTranslations(event: Event): void {
-    const enabled = event.target instanceof HTMLInputElement && event.target.checked;
-    this.generateDefinitionTranslations.set(enabled);
-    writeGenerateDefinitionTranslations(SETTINGS_SCOPE, enabled);
-  }
-
-  setGenerateExampleTranslations(event: Event): void {
-    const enabled = event.target instanceof HTMLInputElement && event.target.checked;
-    this.generateExampleTranslations.set(enabled);
-    writeGenerateExampleTranslations(SETTINGS_SCOPE, enabled);
   }
 
   setDefinitionExtraFields(event: Event): void {

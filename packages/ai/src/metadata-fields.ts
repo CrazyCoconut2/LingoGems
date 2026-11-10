@@ -8,7 +8,6 @@ const MAX_METADATA_VALUE_LENGTH = 100;
 const LANGUAGE_SETTINGS_KEY = 'lingogem.ai-language-settings.v1';
 const GLOBAL_SETTINGS_KEY = 'app';
 const LEGACY_METADATA_FIELDS_KEY = 'lingogem.ai-metadata-fields.v1';
-const LEGACY_TRANSLATIONS_KEY = 'lingogem.ai-generate-translations.v1';
 
 export type AiMetadataField = {
   key: string;
@@ -44,8 +43,6 @@ type StoredLanguageSettings = {
   definitions?: AiMetadataField[];
   examples?: AiMetadataField[];
   forms?: AiMetadataField[];
-  definitionTranslations?: false;
-  exampleTranslations?: false;
   definitionExtraFields?: true;
   exampleExtraFields?: true;
   formExtraFields?: true;
@@ -57,11 +54,6 @@ type LanguageSettingsMap = Record<string, StoredLanguageSettings>;
 type LegacyMetadataFields = {
   definitions: AiMetadataField[] | null;
   examples: AiMetadataField[] | null;
-};
-
-type LegacyTranslations = {
-  definitions: boolean;
-  examples: boolean;
 };
 
 /** Trim, cap, and drop empty or repeated keys. The first spelling of a key wins. */
@@ -162,28 +154,6 @@ export function resetExampleMetadataFields(language: string): void {
 export function resetFormMetadataFields(language: string): void {
   updateLanguage(language, (entry) => {
     delete entry.forms;
-  });
-}
-
-export function readDefinitionTranslations(language: string): boolean {
-  return translationsFor(language).definitions;
-}
-
-export function readExampleTranslations(language: string): boolean {
-  return translationsFor(language).examples;
-}
-
-export function writeDefinitionTranslations(language: string, enabled: boolean): void {
-  updateLanguage(language, (entry) => {
-    if (enabled) delete entry.definitionTranslations;
-    else entry.definitionTranslations = false;
-  });
-}
-
-export function writeExampleTranslations(language: string, enabled: boolean): void {
-  updateLanguage(language, (entry) => {
-    if (enabled) delete entry.exampleTranslations;
-    else entry.exampleTranslations = false;
   });
 }
 
@@ -358,17 +328,6 @@ function fieldsFor(
   return (kind === 'definitions' ? legacy.definitions : legacy.examples) ?? defaults;
 }
 
-function translationsFor(language: string): LegacyTranslations {
-  const entry = readEntry(language);
-  if (entry) {
-    return {
-      definitions: entry.definitionTranslations !== false,
-      examples: entry.exampleTranslations !== false,
-    };
-  }
-  return readLegacyTranslations();
-}
-
 function readEntry(_language: string): StoredLanguageSettings | null {
   const map = readMap();
   return map[GLOBAL_SETTINGS_KEY] ?? null;
@@ -384,12 +343,9 @@ function updateLanguage(_language: string, change: (entry: StoredLanguageSetting
 
 function entryFromLegacy(): StoredLanguageSettings {
   const fields = readLegacyFields();
-  const translations = readLegacyTranslations();
   const entry: StoredLanguageSettings = {};
   if (fields.definitions !== null) entry.definitions = copyFields(fields.definitions);
   if (fields.examples !== null) entry.examples = copyFields(fields.examples);
-  if (!translations.definitions) entry.definitionTranslations = false;
-  if (!translations.examples) entry.exampleTranslations = false;
   return entry;
 }
 
@@ -416,8 +372,6 @@ function readMap(): LanguageSettingsMap {
         definitions?: unknown;
         examples?: unknown;
         forms?: unknown;
-        definitionTranslations?: unknown;
-        exampleTranslations?: unknown;
         definitionExtraFields?: unknown;
         exampleExtraFields?: unknown;
         formExtraFields?: unknown;
@@ -427,8 +381,6 @@ function readMap(): LanguageSettingsMap {
       if (Array.isArray(record.definitions)) entry.definitions = readFieldList(record.definitions);
       if (Array.isArray(record.examples)) entry.examples = readFieldList(record.examples);
       if (Array.isArray(record.forms)) entry.forms = readFieldList(record.forms);
-      if (record.definitionTranslations === false) entry.definitionTranslations = false;
-      if (record.exampleTranslations === false) entry.exampleTranslations = false;
       if (record.definitionExtraFields === true) entry.definitionExtraFields = true;
       if (record.exampleExtraFields === true) entry.exampleExtraFields = true;
       if (record.formExtraFields === true) entry.formExtraFields = true;
@@ -486,12 +438,6 @@ function mergeSettings(entries: readonly StoredLanguageSettings[]): StoredLangua
   if (sawDefinitions) merged.definitions = normalizeMetadataFields(definitions);
   if (sawExamples) merged.examples = normalizeMetadataFields(examples);
   if (sawForms) merged.forms = normalizeMetadataFields(forms);
-  if (entries.length > 0 && entries.every((entry) => entry.definitionTranslations === false)) {
-    merged.definitionTranslations = false;
-  }
-  if (entries.length > 0 && entries.every((entry) => entry.exampleTranslations === false)) {
-    merged.exampleTranslations = false;
-  }
   return merged;
 }
 
@@ -503,8 +449,6 @@ function writeMap(map: LanguageSettingsMap): void {
     if (entry.definitions !== undefined) next.definitions = entry.definitions;
     if (entry.examples !== undefined) next.examples = entry.examples;
     if (entry.forms !== undefined) next.forms = entry.forms;
-    if (entry.definitionTranslations === false) next.definitionTranslations = false;
-    if (entry.exampleTranslations === false) next.exampleTranslations = false;
     if (entry.definitionExtraFields === true) next.definitionExtraFields = true;
     if (entry.exampleExtraFields === true) next.exampleExtraFields = true;
     if (entry.formExtraFields === true) next.formExtraFields = true;
@@ -533,25 +477,6 @@ function readLegacyFields(): LegacyMetadataFields {
     };
   } catch {
     return { definitions: null, examples: null };
-  }
-}
-
-function readLegacyTranslations(): LegacyTranslations {
-  if (typeof localStorage === 'undefined') return { definitions: true, examples: true };
-  try {
-    const raw = localStorage.getItem(LEGACY_TRANSLATIONS_KEY);
-    if (!raw) return { definitions: true, examples: true };
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return { definitions: true, examples: true };
-    }
-    const record = parsed as { definitions?: unknown; examples?: unknown };
-    return {
-      definitions: record.definitions !== false,
-      examples: record.examples !== false,
-    };
-  } catch {
-    return { definitions: true, examples: true };
   }
 }
 

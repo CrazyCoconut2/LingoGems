@@ -1,4 +1,4 @@
-import type { AiCredentialsStatus, AiKeyStatus, AiProviderId } from './types';
+import type { AiProviderId } from './types';
 
 export const AI_PROVIDER_IDS: AiProviderId[] = ['openai', 'anthropic', 'google', 'groq'];
 
@@ -40,47 +40,4 @@ export function modelsForProvider(provider: AiProviderId, extra?: string | null)
 
 export function isAiProvider(value: string): value is AiProviderId {
   return AI_PROVIDER_IDS.includes(value as AiProviderId);
-}
-
-export function keyHintFromSecret(value: string): string {
-  const secret = String(value || '').trim();
-  if (!secret) {
-    return '';
-  }
-  if (secret.length <= 4) {
-    return `…${secret}`;
-  }
-  return `…${secret.slice(-4)}`;
-}
-
-function emptyAiCredentialsStatus(): AiCredentialsStatus {
-  return { keys: [] };
-}
-
-export function normalizeAiCredentials(
-  raw: Partial<AiCredentialsStatus> | null | undefined,
-): AiCredentialsStatus {
-  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.keys)) {
-    return emptyAiCredentialsStatus();
-  }
-
-  const keys: AiKeyStatus[] = [];
-  for (const entry of raw.keys) {
-    if (!entry || typeof entry !== 'object') continue;
-    const id = String(entry.id || '').trim();
-    const provider = String(entry.provider || '').trim();
-    if (!id || !isAiProvider(provider)) continue;
-    const model = String(entry.model || '').trim();
-    keys.push({
-      id,
-      provider,
-      keyHint: String(entry.keyHint || ''),
-      ...(model ? { model } : {}),
-    });
-  }
-  return { keys };
-}
-
-export function hasActiveAiByok(status: AiCredentialsStatus | null | undefined): boolean {
-  return Boolean(status?.keys?.length);
 }

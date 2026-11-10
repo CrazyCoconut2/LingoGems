@@ -15,7 +15,6 @@ import {
   type ComfortRate,
 } from '../elements/comfort-palette';
 import { LanguageAiSettings } from '../languages/language-ai-settings';
-import { storageKept as storageKeptState } from '../storage/keep-storage';
 
 type ProviderOption = {
   id: AiProviderId;
@@ -44,7 +43,7 @@ const AI_PROVIDERS: ProviderOption[] = [
         <header class="panel-header">
           <div>
             <h2>Settings</h2>
-            <p>Provider, metadata, comfort colors, and what stays on this device.</p>
+            <p>Provider, metadata, and comfort colors.</p>
           </div>
           <button type="button" class="icon-btn" aria-label="Close" (click)="back()">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -147,35 +146,6 @@ const AI_PROVIDERS: ProviderOption[] = [
                     Reset colors
                   </button>
                 </div>
-              </div>
-            }
-          </section>
-
-          <section class="settings-section" [class.expanded]="expanded() === 'storage'">
-            <button
-              type="button"
-              class="section-header"
-              [attr.aria-expanded]="expanded() === 'storage'"
-              (click)="toggle('storage')"
-            >
-              <span class="section-title">On this device</span>
-              <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            @if (expanded() === 'storage') {
-              <div class="section-body">
-                @if (storageKept() === true) {
-                  <p class="section-hint">Languages and keys stay on this device.</p>
-                } @else if (storageKept() === false) {
-                  <p class="section-hint">
-                    Languages and keys are in temporary storage until this browser locks them.
-                  </p>
-                } @else {
-                  <p class="section-hint">
-                    Checking whether this browser will keep your languages and keys.
-                  </p>
-                }
               </div>
             }
           </section>
@@ -456,7 +426,6 @@ const AI_PROVIDERS: ProviderOption[] = [
 export class Settings {
   readonly closed = output<void>();
   readonly expanded = signal<string | null>(null);
-  readonly storageKept = storageKeptState;
   private readonly stored = readStoredAiCredentials().keys[0];
 
   readonly providers = AI_PROVIDERS;
