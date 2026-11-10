@@ -282,8 +282,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 <div class="element-body">
                   <span class="bone bone-title"></span>
                 </div>
-                <span class="bone bone-gems"></span>
-                <span class="bone bone-counts"></span>
+                <span class="bone bone-icons"></span>
                 <span class="bone bone-track"></span>
               </div>
             </li>
@@ -336,23 +335,17 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     </span>
                   }
                 </div>
-                <div class="card-gems">
-                  @for (total of gemTotals(element); track total.game) {
+                <div class="card-icons">
+                  @if (modeGem(element); as total) {
                     <span
                       class="card-gem"
-                      [class.active]="isCurrentGame(element.mode, total.game)"
                       [attr.data-game]="total.game"
-                      [attr.aria-current]="isCurrentGame(element.mode, total.game) ? 'true' : null"
-                      [attr.aria-label]="
-                        gemsLabel(total.game, total.gems, isCurrentGame(element.mode, total.game))
-                      "
+                      [attr.aria-label]="gemsLabel(total.game, total.gems)"
                     >
                       <span class="gem" aria-hidden="true"></span>
                       <span>{{ total.gems }}</span>
                     </span>
                   }
-                </div>
-                <div class="counts">
                   <span
                     class="stat"
                     [class.quiet]="!element.equivalents.length"
@@ -1222,24 +1215,18 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       padding: 0.55rem 0.75rem;
     }
 
-    .counts {
+    .card-icons {
+      box-sizing: border-box;
       display: flex;
       flex: none;
       align-items: center;
       gap: 0.85rem;
-      padding: 0.15rem 0.75rem 0.4rem;
+      width: 100%;
+      padding: 0.15rem 0.75rem 0.45rem;
     }
 
     .element:hover {
       background: color-mix(in srgb, var(--score-color, transparent) 18%, var(--surface));
-    }
-
-    .card-gems {
-      display: flex;
-      align-items: center;
-      gap: 0.85rem;
-      width: 100%;
-      padding: 0.15rem 0.75rem 0.2rem;
     }
 
     .card-gem {
@@ -1267,13 +1254,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .card-gem .gem {
-      --gem-size: 0.72rem;
+      --gem-size: 0.85rem;
       background: var(--exercise-gem);
-    }
-
-    .card-gem.active .gem {
-      --gem-size: 0.95rem;
-      filter: drop-shadow(0 0 0.22rem var(--exercise-gem));
     }
 
     .comfort-track {
@@ -1412,21 +1394,15 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       vertical-align: -0.08em;
     }
 
-    .skeleton .bone-counts {
-      width: 4.2rem;
-      height: 0.7rem;
+    .skeleton .bone-icons {
+      width: 6.5rem;
+      height: 0.75rem;
       margin: 0.2rem 0.75rem 0.45rem;
     }
 
     .skeleton .bone-title {
       width: 58%;
       height: 1.05rem;
-    }
-
-    .skeleton .bone-gems {
-      width: 6rem;
-      height: 0.75rem;
-      margin: 0.15rem 0.75rem 0;
     }
 
     .skeleton .bone-track {
@@ -2247,25 +2223,19 @@ export class LanguagePage {
     return totals;
   }
 
-  isCurrentGame(
-    mode: ElementMode | null,
-    game: 'translation' | 'example' | 'definition',
-  ): boolean {
-    return (
-      (mode === 1 && game === 'translation') ||
-      (mode === 2 && game === 'example') ||
-      (mode === 3 && game === 'definition')
-    );
+  modeGem(
+    element: StoredElement,
+  ): { game: 'translation' | 'example' | 'definition'; gems: number } | null {
+    const mode = element.mode;
+    const game =
+      mode === 1 ? 'translation' : mode === 2 ? 'example' : mode === 3 ? 'definition' : null;
+    if (!game) return null;
+    return this.gemTotals(element).find((total) => total.game === game) ?? null;
   }
 
-  gemsLabel(
-    game: 'translation' | 'example' | 'definition',
-    count: number,
-    current = false,
-  ): string {
+  gemsLabel(game: 'translation' | 'example' | 'definition', count: number): string {
     const amount = count === 1 ? '1 gem' : `${count} gems`;
-    const label = `${amount} from ${game}`;
-    return current ? `${label}, current game` : label;
+    return `${amount} from ${game}`;
   }
 
   inputValue(event: Event): string {
