@@ -67,7 +67,7 @@ export function elementModeLabel(mode: ElementMode): string {
   return ELEMENT_MODE_LABELS[mode];
 }
 
-/** Translation can be set when every definition has an equivalent. */
+/** True when every definition already has an equivalent. */
 export function elementReadyForTranslation(element: {
   definitions: readonly { equivalentId: string | null }[];
 }): boolean {
@@ -282,14 +282,12 @@ export function normalizeElementMode(value: unknown): ElementMode | null {
   return null;
 }
 
-/** Translation is kept only when every definition has an equivalent. */
+/** A chosen mode is kept, including translation before every definition has an equivalent. */
 function storedMode(
   value: unknown,
-  definitions: readonly { equivalentId: string | null }[],
+  _definitions: readonly { equivalentId: string | null }[],
 ): ElementMode | null {
-  const mode = normalizeElementMode(value);
-  if (mode === 1 && !elementReadyForTranslation({ definitions })) return null;
-  return mode;
+  return normalizeElementMode(value);
 }
 
 /** Missing or invalid values are 0. */

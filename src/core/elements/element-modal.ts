@@ -21,7 +21,6 @@ import {
   displayTitle,
   embedTranslation,
   elementModeLabel,
-  elementReadyForTranslation,
   type ElementMode,
   formTexts,
   highlightDefinitionPassage,
@@ -1032,8 +1031,10 @@ function writeExampleSuggestions(
                           <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                           </svg>
-                          @if (!definition.equivalentId) {
-                            <span class="notify" aria-hidden="true"></span>
+                          @if (element().mode === 1 && !definition.equivalentId) {
+                            <span class="notify-mode" aria-hidden="true">
+                              <app-mode-icon [mode]="1" />
+                            </span>
                           }
                         </button>
                         <button
@@ -2326,7 +2327,9 @@ function writeExampleSuggestions(
                     [value]="definitionExample()"
                     [attr.maxlength]="exampleLengthMax"
                     [disabled]="asking()"
-                    placeholder="A sentence that uses this word"
+                    [attr.placeholder]="
+                      'Write a sentence in ' + originalLanguageName() + ' that uses this word'
+                    "
                     aria-label="Example"
                     (input)="definitionExample.set(inputValue($event))"
                   ></textarea>
@@ -3402,12 +3405,7 @@ function writeExampleSuggestions(
                     [attr.data-mode]="step"
                     [class.current]="step === mode"
                     [attr.aria-pressed]="step === mode"
-                    [disabled]="busy() || (step !== mode && step === 1 && !translationReady())"
-                    [attr.title]="
-                      step === 1 && !translationReady()
-                        ? 'Every definition needs an equivalent'
-                        : null
-                    "
+                    [disabled]="busy()"
                     (click)="showMode(step)"
                   >
                     <app-mode-icon [mode]="step" />
@@ -4286,15 +4284,20 @@ function writeExampleSuggestions(
       border-radius: 0.4rem;
     }
 
-    .notify {
+    .notify-mode {
       position: absolute;
-      top: 0.12rem;
-      right: 0.12rem;
-      width: 0.42rem;
-      height: 0.42rem;
-      border-radius: 999px;
-      background: var(--danger);
-      box-shadow: 0 0 0 2px var(--surface);
+      top: -0.08rem;
+      right: -0.08rem;
+      width: 0.72rem;
+      height: 0.72rem;
+      pointer-events: none;
+      filter: drop-shadow(0 0 1px var(--surface));
+    }
+
+    .notify-mode app-mode-icon {
+      display: block;
+      width: 100%;
+      height: 100%;
     }
 
     .icon-btn:disabled,
@@ -7373,13 +7376,8 @@ export class ElementModal {
     this.writeRound({ ...this.round(), givenUp: true });
   }
 
-  translationReady(): boolean {
-    return elementReadyForTranslation(this.element());
-  }
-
   async showMode(mode: ElementMode | null): Promise<void> {
     if (this.busy() || this.element().mode === mode) return;
-    if (mode === 1 && !this.translationReady()) return;
     await this.saveAppearance({ mode });
   }
 
