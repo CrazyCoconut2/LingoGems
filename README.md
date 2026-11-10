@@ -73,8 +73,3 @@ TODO
 
 Also, with the embedded browser we can save links for shit. Or put
 them in examples, that's fucking great man it will be awesome.
-
-
-For the definition. I think we should put an example icon.
-When clicked it shows that 
-Right now the 

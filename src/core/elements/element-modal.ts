@@ -593,10 +593,8 @@ function writeExampleSuggestions(
                   }
                   @if (headerTranslationsLocked()) {
                     <span class="locked-translation">{{ text }}</span>
-                  } @else if (inPlay()) {
-                    <span>{{ text }}</span>
                   } @else {
-                    <app-reveal [text]="text" />
+                    <span>{{ text }}</span>
                   }
                 }
               </p>
@@ -637,23 +635,6 @@ function writeExampleSuggestions(
                 }
               </button>
             }
-            <button
-              type="button"
-              class="icon-btn"
-              aria-label="Translations"
-              title="Translations"
-              [disabled]="inPlay() || busy()"
-              (click)="openTranslations()"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m5 8 6 6" />
-                <path d="m4 14 6-6 2-3" />
-                <path d="M2 5h12" />
-                <path d="M7 2h1" />
-                <path d="m22 22-5-10-5 10" />
-                <path d="M14 18h6" />
-              </svg>
-            </button>
             <button
               type="button"
               class="icon-btn danger"
@@ -875,7 +856,11 @@ function writeExampleSuggestions(
                                   <path d="m22 22-5-10-5 10" />
                                   <path d="M14 18h6" />
                                 </svg>
-                                <app-reveal [text]="equivalent" [locked]="inPlay()" />
+                                @if (inPlay()) {
+                                  <app-reveal [text]="equivalent" [locked]="true" />
+                                } @else {
+                                  <span class="equivalent-text">{{ equivalent }}</span>
+                                }
                               }
                             </li>
                           }
@@ -1418,90 +1403,6 @@ function writeExampleSuggestions(
           }
         </div>
 
-        @if (translationsOpen()) {
-          <div class="sheet-backdrop" (click)="closeTranslations($event)">
-            <section
-              class="sheet"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Translations"
-              (click)="$event.stopPropagation()"
-            >
-              <div class="sheet-head">
-                <h3>Translations</h3>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  (click)="dismissTranslations()"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
-              </div>
-              <label for="title-translation">Translation</label>
-              <div class="form-edit">
-                <input
-                  #translationField
-                  id="title-translation"
-                  [value]="titleTranslationDraft()"
-                  [attr.placeholder]="translationLanguageName()"
-                  autocomplete="off"
-                  [disabled]="busy()"
-                  (input)="titleTranslationDraft.set(inputValue($event))"
-                  (keydown.enter)="saveTitleTranslation()"
-                />
-                <button
-                  type="button"
-                  class="icon-btn"
-                  [disabled]="busy() || !titleTranslationDraft().trim()"
-                  [attr.aria-label]="translationEditId() ? 'Save translation' : 'Add translation'"
-                  [attr.title]="translationEditId() ? 'Save translation' : 'Add translation'"
-                  (click)="saveTitleTranslation()"
-                >
-                  @if (translationEditId()) {
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                  } @else {
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M5 12h14" />
-                      <path d="M12 5v14" />
-                    </svg>
-                  }
-                </button>
-              </div>
-              @if (element().equivalents.length) {
-                <ul class="pills">
-                  @for (item of element().equivalents; track item.id) {
-                    <li>
-                      <button
-                        type="button"
-                        [disabled]="busy()"
-                        [attr.aria-label]="'Edit translation ' + ($index + 1)"
-                        (click)="editTitleTranslation(item.id)"
-                      >
-                        <app-reveal [text]="item.text" />
-                      </button>
-                      <button
-                        type="button"
-                        class="tag-remove"
-                        [disabled]="busy()"
-                        [attr.aria-label]="'Remove translation ' + ($index + 1)"
-                        (click)="removeTitleTranslation(item.id)"
-                      >
-                        ×
-                      </button>
-                    </li>
-                  }
-                </ul>
-              }
-            </section>
-          </div>
-        }
-
         @if (editor(); as current) {
           <div class="sheet-backdrop" (click)="closeSheet($event)">
             <section
@@ -1514,28 +1415,6 @@ function writeExampleSuggestions(
               <div class="sheet-head">
                 <h3>{{ sheetTitle(current) }}</h3>
                 <span class="sheet-tools">
-                  @if (current.kind === 'example') {
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      [class.copied]="copied() === 'sheet'"
-                      [attr.aria-label]="copied() === 'sheet' ? 'Copied' : 'Copy example'"
-                      [attr.title]="copied() === 'sheet' ? 'Copied' : 'Copy example'"
-                      [disabled]="!parsePassage(textDraft()).text.trim()"
-                      (click)="copyText('sheet', textDraft())"
-                    >
-                      @if (copied() === 'sheet') {
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
-                      } @else {
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                        </svg>
-                      }
-                    </button>
-                  }
                   <button
                     type="button"
                     class="icon-btn"
@@ -1555,50 +1434,26 @@ function writeExampleSuggestions(
                 >
                   {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
                 </label>
-                @if (current.kind === 'definition') {
-                  <span class="header-actions">
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      [class.copied]="copied() === 'sheet'"
-                      [attr.aria-label]="copied() === 'sheet' ? 'Copied' : 'Copy definition'"
-                      [attr.title]="copied() === 'sheet' ? 'Copied' : 'Copy definition'"
-                      [disabled]="!parsePassage(textDraft()).text.trim()"
-                      (click)="copyText('sheet', textDraft())"
-                    >
-                      @if (copied() === 'sheet') {
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
-                      } @else {
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                        </svg>
-                      }
-                    </button>
-                    @if (current.index != null) {
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Engineer definition"
-                        title="Engineer definition"
-                        [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
-                        [disabled]="aiBusy()"
-                        (click)="openDefinitionEngineer(current.index)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                          />
-                          <path d="M5 3v4" />
-                          <path d="M3 5h4" />
-                          <path d="M19 17v4" />
-                          <path d="M17 19h4" />
-                        </svg>
-                      </button>
-                    }
-                  </span>
+                @if (current.kind === 'definition' && current.index != null) {
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Engineer definition"
+                    title="Engineer definition"
+                    [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
+                    [disabled]="aiBusy()"
+                    (click)="openDefinitionEngineer(current.index)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                      />
+                      <path d="M5 3v4" />
+                      <path d="M3 5h4" />
+                      <path d="M19 17v4" />
+                      <path d="M17 19h4" />
+                    </svg>
+                  </button>
                 }
               </div>
               <textarea
@@ -1661,9 +1516,15 @@ function writeExampleSuggestions(
                 <div class="equivalent-block" [class.missing]="equivalentMissing()">
                   <div class="field-heading">
                     @if (element().equivalents.length) {
-                      <p class="field-label">Equivalent</p>
+                      <p class="field-label game-label">
+                        <app-mode-icon [mode]="1" />
+                        Equivalent
+                      </p>
                     } @else {
-                      <label for="definition-equivalent">Equivalent</label>
+                      <label class="game-label" for="definition-equivalent">
+                        <app-mode-icon [mode]="1" />
+                        Equivalent
+                      </label>
                     }
                     @if (supportAvailable()) {
                       <button
@@ -1700,10 +1561,10 @@ function writeExampleSuggestions(
                             [class.selected]="equivalentSelected(item.id)"
                             [attr.aria-pressed]="equivalentSelected(item.id)"
                             [disabled]="busy()"
-                            aria-label="Show translation"
+                            [attr.aria-label]="item.text"
                             (click)="chooseEquivalent(item.id)"
                           >
-                            <app-reveal [text]="item.text" />
+                            {{ item.text }}
                           </button>
                         </li>
                       }
@@ -4314,12 +4175,6 @@ function writeExampleSuggestions(
       background: var(--accent-soft);
     }
 
-    .icon-btn.copied,
-    .icon-btn.copied:hover:not(:disabled) {
-      color: #7ddea8;
-      background: rgba(125, 222, 168, 0.14);
-    }
-
     .icon-btn.danger:hover:not(:disabled) {
       color: var(--danger);
       background: rgba(255, 92, 122, 0.12);
@@ -4660,7 +4515,8 @@ function writeExampleSuggestions(
     }
 
     .sense-meta li.sense-equivalent app-reveal,
-    .sense-meta li.sense-equivalent .guess-answer {
+    .sense-meta li.sense-equivalent .guess-answer,
+    .sense-meta li.sense-equivalent .equivalent-text {
       color: var(--text);
     }
 
@@ -5184,6 +5040,18 @@ function writeExampleSuggestions(
       gap: 0.5rem;
     }
 
+    .game-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .game-label app-mode-icon {
+      width: 1.1rem;
+      height: 1.1rem;
+      flex: none;
+    }
+
     label,
     .field-label {
       font-size: 0.78rem;
@@ -5705,9 +5573,6 @@ export class ElementModal {
   readonly sheetTranslations = signal<PassageTranslation[]>([]);
   readonly translating = signal(false);
   readonly askingEquivalent = signal(false);
-  readonly translationsOpen = signal(false);
-  readonly titleTranslationDraft = signal('');
-  readonly translationEditId = signal<string | null>(null);
   readonly sheetError = signal('');
   readonly formEdit = signal<FormEdit | null>(null);
   readonly formDraft = signal('');
@@ -5755,11 +5620,9 @@ export class ElementModal {
   readonly engineerEnglish = signal('');
   readonly error = signal('');
   readonly speaking = signal<string | null>(null);
-  readonly copied = signal<string | null>(null);
 
   private translateTicket = 0;
   private equivalentTicket = 0;
-  private copiedTimer: ReturnType<typeof setTimeout> | null = null;
   private exampleJob = 0;
   private relatedJob = 0;
   private wordingJob = 0;
@@ -5771,7 +5634,6 @@ export class ElementModal {
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
   private readonly formFeatureField = viewChild<ElementRef<HTMLInputElement>>('formFeatureField');
   private readonly metaKeyField = viewChild<ElementRef<HTMLInputElement>>('metaKeyField');
-  private readonly translationField = viewChild<ElementRef<HTMLInputElement>>('translationField');
   private readonly titleField = viewChild<ElementRef<HTMLInputElement>>('titleField');
   private readonly equivalentField = viewChild<ElementRef<HTMLInputElement>>('equivalentField');
   private readonly definitionField = viewChild<ElementRef<HTMLTextAreaElement>>('definitionField');
@@ -5798,7 +5660,6 @@ export class ElementModal {
       if (id === this.trackedElementId) return;
       this.trackedElementId = id;
       this.stopSpeech();
-      this.clearCopied();
       this.editor.set(null);
       this.formEdit.set(null);
       this.formError.set('');
@@ -5840,7 +5701,6 @@ export class ElementModal {
       this.exampleSource.set('support');
       this.equivalentGradeError.set('');
       this.loadRound(id);
-      this.dismissTranslations();
       this.engineerDrafts.clear();
       this.definitionEngineerDrafts = readRelatedDrafts(id);
       void this.commitStoredExamples(id);
@@ -5858,7 +5718,6 @@ export class ElementModal {
     document.addEventListener('pointerup', this.syncPassageSelection, true);
     inject(DestroyRef).onDestroy(() => {
       stopWatchingExamples();
-      this.clearCopied();
       document.removeEventListener('selectionchange', this.syncPassageSelection);
       document.removeEventListener('pointerdown', this.onSelectionPointerDown, true);
       document.removeEventListener('pointerup', this.syncPassageSelection, true);
@@ -5928,10 +5787,6 @@ export class ElementModal {
     }
     if (this.editor()) {
       this.editor.set(null);
-      return;
-    }
-    if (this.translationsOpen()) {
-      this.dismissTranslations();
       return;
     }
     if (this.formFeatureEdit()) {
@@ -6046,88 +5901,6 @@ export class ElementModal {
     return element.equivalents
       .filter((item) => this.equivalentSolved(item.id))
       .map((item) => item.text);
-  }
-
-  openTranslations(): void {
-    if (this.inPlay() || this.busy()) return;
-    this.editor.set(null);
-    this.formEdit.set(null);
-    this.formFeatureEdit.set(null);
-    this.metaEdit.set(null);
-    this.exampleEngineer.set(null);
-    this.definitionEngineer.set(null);
-    this.closeDefinitionPrompts();
-    this.confirm.set(null);
-    this.titleTranslationDraft.set('');
-    this.translationEditId.set(null);
-    this.translationsOpen.set(true);
-    setTimeout(() => this.translationField()?.nativeElement.focus());
-  }
-
-  dismissTranslations(): void {
-    this.translationsOpen.set(false);
-    this.titleTranslationDraft.set('');
-    this.translationEditId.set(null);
-  }
-
-  closeTranslations(event: MouseEvent): void {
-    if (event.target !== event.currentTarget) return;
-    this.dismissTranslations();
-  }
-
-  editTitleTranslation(id: string): void {
-    const item = this.element().equivalents.find((entry) => entry.id === id);
-    if (!item || this.busy()) return;
-    this.translationEditId.set(id);
-    this.titleTranslationDraft.set(item.text);
-    setTimeout(() => this.translationField()?.nativeElement.focus());
-  }
-
-  async saveTitleTranslation(): Promise<void> {
-    if (this.busy()) return;
-    const text = this.titleTranslationDraft().trim();
-    if (!text) return;
-    const editId = this.translationEditId();
-    const equivalents = this.element().equivalents.map((item) => ({ ...item }));
-    const definitions = this.copyDefinitions();
-    if (editId) {
-      const current = equivalents.find((item) => item.id === editId);
-      if (!current) return;
-      const duplicate = equivalents.find((item) => item.id !== editId && item.text === text);
-      if (duplicate) {
-        for (const definition of definitions) {
-          if (definition.equivalentId === editId) definition.equivalentId = duplicate.id;
-        }
-        const next = equivalents.filter((item) => item.id !== editId);
-        if (!(await this.persist(definitions, next))) return;
-      } else if (current.text !== text) {
-        current.text = text;
-        if (!(await this.persist(definitions, equivalents))) return;
-      }
-    } else {
-      const linked = assignEquivalent(equivalents, text);
-      if (linked.equivalents.length === equivalents.length) {
-        this.titleTranslationDraft.set('');
-        return;
-      }
-      if (!(await this.persist(definitions, linked.equivalents))) return;
-    }
-    this.titleTranslationDraft.set('');
-    this.translationEditId.set(null);
-  }
-
-  async removeTitleTranslation(id: string): Promise<void> {
-    if (this.busy() || !this.element().equivalents.some((item) => item.id === id)) return;
-    const equivalents = this.element().equivalents.filter((item) => item.id !== id);
-    const definitions = this.copyDefinitions().map((definition) =>
-      definition.equivalentId === id ? { ...definition, equivalentId: null } : definition,
-    );
-    if (!(await this.persist(definitions, equivalents))) return;
-    if (this.translationEditId() === id) {
-      this.translationEditId.set(null);
-      this.titleTranslationDraft.set('');
-    }
-    if (this.equivalentIdDraft() === id) this.equivalentIdDraft.set(null);
   }
 
   equivalentSelected(id: string): boolean {
@@ -6299,7 +6072,6 @@ export class ElementModal {
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.confirm.set(null);
-    this.dismissTranslations();
     this.missingDefinitionsOpen.set(false);
     this.missingTranslationOpen.set(false);
     this.addDefinitionOpen.set(true);
@@ -6315,7 +6087,6 @@ export class ElementModal {
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.confirm.set(null);
-    this.dismissTranslations();
     this.addDefinitionOpen.set(false);
     this.missingTranslationOpen.set(false);
     this.missingDefinitionsOpen.set(true);
@@ -6367,7 +6138,6 @@ export class ElementModal {
 
   generateExample(index: number): void {
     if ((this.inPlay() && !this.translationGame() && !this.definitionGame()) || this.aiBusy() || !this.element().definitions[index]) return;
-    this.dismissTranslations();
     this.openExampleEngineer(index);
   }
 
@@ -6790,22 +6560,6 @@ export class ElementModal {
     this.speaking.set(started ? key : null);
   }
 
-  async copyText(key: string, text: string): Promise<void> {
-    const value = parsePassage(text).text.trim();
-    if (!value || !navigator.clipboard?.writeText) return;
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      return;
-    }
-    this.clearCopied();
-    this.copied.set(key);
-    this.copiedTimer = setTimeout(() => {
-      this.copied.set(null);
-      this.copiedTimer = null;
-    }, 1500);
-  }
-
   async moveDefinition(index: number, delta: -1 | 1): Promise<void> {
     if (this.inPlay() || this.aiBusy()) return;
     const target = index + delta;
@@ -6829,7 +6583,6 @@ export class ElementModal {
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.closeDefinitionPrompts();
-    this.dismissTranslations();
     this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
     const equivalentId = definition?.equivalentId ?? null;
     const known =
@@ -6855,7 +6608,6 @@ export class ElementModal {
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.closeDefinitionPrompts();
-    this.dismissTranslations();
     this.sheetMetadata.set({ ...(example?.metadata ?? {}) });
     this.beginSheet(example?.text ?? '');
     this.editor.set({ kind: 'example', definitionIndex, exampleIndex });
@@ -6923,7 +6675,6 @@ export class ElementModal {
     this.confirm.set(null);
     this.closeDefinitionPrompts();
     this.exampleEngineer.set(null);
-    this.dismissTranslations();
     const draft = this.definitionEngineerDrafts.get(key) ?? {
       instruction: '',
       words: [],
@@ -7227,7 +6978,6 @@ export class ElementModal {
     this.definitionEngineer.set(null);
     this.confirm.set(null);
     this.metaEdit.set(null);
-    this.dismissTranslations();
     this.formError.set('');
     this.formFeatureEdit.set(null);
     this.formFeatures.set(form ? { ...form.metadata } : {});
@@ -7772,12 +7522,6 @@ export class ElementModal {
     this.confirm.set(null);
     if (pending.kind === 'definition') this.editor.set(null);
     else this.adjustExampleEditor(pending.definitionIndex, pending.exampleIndex);
-  }
-
-  private clearCopied(): void {
-    if (this.copiedTimer) clearTimeout(this.copiedTimer);
-    this.copiedTimer = null;
-    this.copied.set(null);
   }
 
   private adjustExampleEditor(definitionIndex: number, exampleIndex: number): void {
