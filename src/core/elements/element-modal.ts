@@ -5077,14 +5077,11 @@ function writeExampleSuggestions(
     }
 
     .example-actions {
-      align-items: flex-start;
+      align-items: center;
     }
 
     .generate-bundle {
       display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.4rem;
     }
 
     .generate-split {
@@ -5110,12 +5107,15 @@ function writeExampleSuggestions(
     }
 
     .generate-main {
-      display: inline-flex;
+      display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 0.65rem;
+      justify-content: center;
+      gap: 0.12rem;
       border-radius: 999px 0 0 999px;
-      padding: 0.7rem 0.85rem 0.7rem 1.1rem;
+      padding: 0.4rem 1rem 0.42rem;
       font-size: 0.9375rem;
+      line-height: 1.1;
     }
 
     .generate-chevron {
@@ -5153,17 +5153,16 @@ function writeExampleSuggestions(
     .generate-translation {
       display: inline-flex;
       align-items: center;
-      gap: 0.3rem;
-      padding-left: 0.65rem;
-      border-left: 1px solid rgba(255, 255, 255, 0.28);
+      gap: 0.22rem;
       color: white;
-      font-size: 0.82rem;
+      font-size: 0.72rem;
       font-weight: 650;
+      line-height: 1;
     }
 
     .generate-translation svg {
-      width: 0.95rem;
-      height: 0.95rem;
+      width: 0.72rem;
+      height: 0.72rem;
       flex: none;
       fill: none;
       stroke: currentColor;
