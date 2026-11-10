@@ -3075,7 +3075,7 @@ function writeExampleSuggestions(
         @if (modeOpen()) {
           <div class="sheet-backdrop" (click)="closeMode($event)">
             <section
-              class="sheet mode-sheet"
+              class="sheet"
               role="dialog"
               aria-modal="true"
               aria-label="Mode"
@@ -3096,65 +3096,49 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <div class="mode-editor">
+              <div class="mode-editor" role="group" aria-label="Mode">
                 @let mode = element().mode;
-                <div
-                  class="mode-sequence"
-                  role="group"
-                  [attr.aria-label]="'Modes, from ' + modeLabel(1) + ' to ' + modeLabel(3)"
-                >
-                  @for (step of modes; track step) {
-                    @if (!$first) {
-                      <span class="mode-next" aria-hidden="true">
-                        <svg viewBox="0 0 24 24">
-                          <path d="m9 6 6 6-6 6" />
-                        </svg>
-                      </span>
-                    }
-                    @if (step === mode) {
-                      <button
-                        type="button"
-                        class="mode-step current"
-                        aria-current="step"
-                        aria-pressed="true"
-                        [attr.aria-label]="'Turn off ' + modeLabel(step)"
-                        [disabled]="busy()"
-                        title="No game"
-                        (click)="showMode(null)"
-                      >
-                        <app-mode-icon [mode]="step" />
-                        <span>{{ modeLabel(step) }}</span>
-                      </button>
-                    } @else {
-                      <button
-                        type="button"
-                        class="mode-step"
-                        [disabled]="busy() || (step === 1 && !translationReady())"
-                        [attr.title]="
-                          step === 1 && !translationReady()
-                            ? 'Every definition needs an equivalent'
-                            : modeLabel(step)
-                        "
-                        (click)="showMode(step)"
-                      >
-                        <app-mode-icon [mode]="step" />
-                        <span>{{ modeLabel(step) }}</span>
-                      </button>
-                    }
-                  }
-                </div>
-                @if (mode) {
+                @for (step of modes; track step) {
                   <button
                     type="button"
-                    class="mode-clear"
-                    [disabled]="busy()"
-                    (click)="showMode(null)"
+                    class="mode-hero"
+                    [class.current]="step === mode"
+                    [attr.aria-pressed]="step === mode"
+                    [disabled]="busy() || (step !== mode && step === 1 && !translationReady())"
+                    [attr.title]="
+                      step === 1 && !translationReady()
+                        ? 'Every definition needs an equivalent'
+                        : null
+                    "
+                    (click)="showMode(step)"
                   >
-                    No game
+                    <app-mode-icon [mode]="step" />
+                    <span class="mode-copy">
+                      <strong>{{ modeLabel(step) }}</strong>
+                      <span class="hint">{{ playHelp(step) }}</span>
+                    </span>
                   </button>
-                } @else {
-                  <div class="mode-clear current" aria-current="true">No game</div>
                 }
+                <button
+                  type="button"
+                  class="mode-hero"
+                  [class.current]="!mode"
+                  [attr.aria-pressed]="!mode"
+                  [disabled]="busy()"
+                  (click)="showMode(null)"
+                >
+                  <svg class="empty-stone" viewBox="0 0 100 100" aria-hidden="true">
+                    <polygon
+                      points="32.4,7.5 67.6,7.5 92.5,32.4 92.5,67.6 67.6,92.5 32.4,92.5 7.5,67.6 7.5,32.4"
+                    />
+                  </svg>
+                  <span class="mode-copy">
+                    <strong>No game</strong>
+                    <span class="hint"
+                      >Leave this element out of Translation, Example, and Definition.</span
+                    >
+                  </span>
+                </button>
               </div>
             </section>
           </div>
@@ -3769,91 +3753,59 @@ function writeExampleSuggestions(
     .mode-editor {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 0.95rem;
+      gap: 0.55rem;
     }
 
-    .mode-sequence {
+    .mode-hero {
       display: flex;
       align-items: center;
-      gap: 0.3rem;
+      gap: 0.85rem;
       width: 100%;
+      margin: 0;
+      padding: 0.75rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
     }
 
-    .mode-step {
+    .mode-hero app-mode-icon,
+    .mode-hero .empty-stone {
+      flex: none;
+      width: 2.4rem;
+      height: 2.4rem;
+    }
+
+    .mode-copy {
       display: flex;
-      flex: 1;
       flex-direction: column;
-      align-items: center;
+      align-items: flex-start;
       gap: 0.22rem;
       min-width: 0;
-      margin: 0;
-      padding: 0.45rem 0.2rem 0.4rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: transparent;
-      color: var(--text);
-      font: inherit;
-      font-size: 0.72rem;
-      font-weight: 700;
-      cursor: pointer;
     }
 
-    .mode-step.current,
-    .mode-clear.current {
+    .mode-hero strong {
+      font-size: 0.95rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .mode-hero .hint {
+      line-height: 1.4;
+    }
+
+    .mode-hero.current {
       border-color: color-mix(in srgb, var(--text) 45%, transparent);
       background: color-mix(in srgb, var(--text) 8%, transparent);
-    }
-
-    .mode-clear {
-      width: 100%;
-      margin: 0;
-      padding: 0.55rem 0.75rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: transparent;
-      color: var(--text);
-      font: inherit;
-      font-size: 0.85rem;
-      font-weight: 700;
-      text-align: center;
-      cursor: pointer;
-    }
-
-    .mode-clear.current {
       cursor: default;
     }
 
-    .mode-clear:disabled {
+    .mode-hero:disabled {
       opacity: 0.45;
       cursor: default;
-    }
-
-    .mode-step app-mode-icon {
-      width: 1.7rem;
-      height: 1.7rem;
-    }
-
-    .mode-step:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
-
-    .mode-next {
-      display: grid;
-      flex: none;
-      place-items: center;
-      color: var(--text-muted);
-    }
-
-    .mode-next svg {
-      width: 0.9rem;
-      height: 0.9rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.4;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     .title-edit {
