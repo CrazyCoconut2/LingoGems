@@ -110,6 +110,7 @@ type HighlightSource = {
   forms: string[];
   color: string;
   style: HighlightStyle;
+  custom: boolean;
 };
 
 function writeMetadata(
@@ -778,6 +779,8 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 class="linguagem-highlighted"
+                                [style.--highlight-color]="part.custom ? part.color : null"
+                                [style.--highlight-style]="part.custom ? part.style : null"
                                 [textContent]="part.text"
                                 (click)="showCollision($event, part.matches)"
                               ></button>
@@ -785,12 +788,16 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 class="linguagem-highlighted"
+                                [style.--highlight-color]="part.custom ? part.color : null"
+                                [style.--highlight-style]="part.custom ? part.style : null"
                                 [textContent]="part.text"
                                 (click)="visitHighlight(part.matches[0].elementId)"
                               ></button>
                             } @else if (part.current) {
                               <span
                                 class="linguagem-highlighted linguagem-highlighted--current"
+                                [style.--highlight-color]="part.custom ? part.color : null"
+                                [style.--highlight-style]="part.custom ? part.style : null"
                                 [textContent]="part.text"
                               ></span>
                             } @else {
@@ -1100,6 +1107,8 @@ function writeExampleSuggestions(
                                       <button
                                         type="button"
                                         class="linguagem-highlighted"
+                                        [style.--highlight-color]="part.custom ? part.color : null"
+                                        [style.--highlight-style]="part.custom ? part.style : null"
                                         [textContent]="part.text"
                                         (click)="showCollision($event, part.matches)"
                                       ></button>
@@ -1107,12 +1116,16 @@ function writeExampleSuggestions(
                                       <button
                                         type="button"
                                         class="linguagem-highlighted"
+                                        [style.--highlight-color]="part.custom ? part.color : null"
+                                        [style.--highlight-style]="part.custom ? part.style : null"
                                         [textContent]="part.text"
                                         (click)="visitHighlight(part.matches[0].elementId)"
                                       ></button>
                                     } @else if (part.current) {
                                       <span
                                         class="linguagem-highlighted linguagem-highlighted--current"
+                                        [style.--highlight-color]="part.custom ? part.color : null"
+                                        [style.--highlight-style]="part.custom ? part.style : null"
                                         [textContent]="part.text"
                                       ></span>
                                     } @else {
@@ -4438,8 +4451,8 @@ function writeExampleSuggestions(
       color: inherit;
       border-bottom: none;
       text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-color: var(--accent);
+      text-decoration-style: var(--highlight-style, solid);
+      text-decoration-color: var(--highlight-color, var(--accent));
       text-decoration-thickness: 1px;
       text-underline-offset: 0.18em;
     }
@@ -4461,7 +4474,7 @@ function writeExampleSuggestions(
       text-decoration: none;
       border-radius: 0.18em;
       padding: 0 0.12em;
-      background: color-mix(in srgb, var(--accent) 32%, transparent);
+      background: color-mix(in srgb, var(--highlight-color, var(--accent)) 32%, transparent);
       box-decoration-break: clone;
       -webkit-box-decoration-break: clone;
     }
@@ -8411,10 +8424,16 @@ function selectionCoversPassage(passage: Element, range: Range): boolean {
   );
 }
 
-function appearanceOf(element: StoredElement): { color: string; style: HighlightStyle } {
+function appearanceOf(element: StoredElement): {
+  color: string;
+  style: HighlightStyle;
+  custom: boolean;
+} {
+  if (!element.highlighted) return { color: '', style: 'solid', custom: false };
   return {
-    color: comfortColor(element.comfort),
-    style: 'solid',
+    color: element.highlightColor ?? comfortColor(element.comfort),
+    style: element.highlightStyle ?? 'solid',
+    custom: true,
   };
 }
 

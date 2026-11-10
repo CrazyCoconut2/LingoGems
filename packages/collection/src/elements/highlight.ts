@@ -17,6 +17,8 @@ export type DefinitionHighlightPart = {
   color: string;
   /** Underline style of the element that won the span. */
   style: HighlightStyle;
+  /** True when that element has a saved highlight. Otherwise the accent underline stays. */
+  custom: boolean;
 };
 
 type HighlightRegex = { source: string; flags?: string };
@@ -27,6 +29,7 @@ type HighlightSource = {
   forms: readonly string[];
   color: string;
   style: HighlightStyle;
+  custom: boolean;
 };
 
 type HighlightRule = {
@@ -36,6 +39,7 @@ type HighlightRule = {
   regexes: HighlightRegex[];
   color: string;
   style: HighlightStyle;
+  custom: boolean;
 };
 
 type HighlightSpan = {
@@ -54,6 +58,7 @@ type HighlightHit = {
   matches: HighlightSpan[];
   color: string;
   style: HighlightStyle;
+  custom: boolean;
 };
 
 const compiledRegexCache = new Map<string, RegExp | null>();
@@ -114,6 +119,7 @@ function collectHighlightMatches(text: string, rules: readonly HighlightRule[]):
           matches: [{ lemma: rule.lemma, id: rule.id, elementId: rule.elementId }],
           color: rule.color,
           style: rule.style,
+          custom: rule.custom,
         });
         if (match[0].length === 0) matcher.lastIndex += 1;
       }
@@ -155,6 +161,7 @@ function ruleFor(id: number, source: HighlightSource): HighlightRule | null {
     regexes: [{ source: pattern, flags: 'iu' }],
     color: source.color,
     style: source.style,
+    custom: source.custom,
   };
 }
 
@@ -179,10 +186,14 @@ export function highlightDefinitionPassage(
   }
   const currentRule = ruleFor(CURRENT_ID, current);
   if (currentRule) rules.push(currentRule);
-  if (!rules.length) return [{ text, current: false, matches: [], color: '', style: 'solid' }];
+  if (!rules.length) {
+    return [{ text, current: false, matches: [], color: '', style: 'solid', custom: false }];
+  }
 
   const hits = resolveHighlightOverlaps(collectHighlightMatches(text, rules));
-  if (!hits.length) return [{ text, current: false, matches: [], color: '', style: 'solid' }];
+  if (!hits.length) {
+    return [{ text, current: false, matches: [], color: '', style: 'solid', custom: false }];
+  }
   hits.sort((left, right) => left.start - right.start);
 
   const parts: DefinitionHighlightPart[] = [];
@@ -195,6 +206,7 @@ export function highlightDefinitionPassage(
         matches: [],
         color: '',
         style: 'solid',
+        custom: false,
       });
     }
     const spans =
@@ -220,6 +232,7 @@ export function highlightDefinitionPassage(
       matches,
       color: hit.color,
       style: hit.style,
+      custom: hit.custom,
     });
     cursor = hit.end;
   }
@@ -230,6 +243,7 @@ export function highlightDefinitionPassage(
       matches: [],
       color: '',
       style: 'solid',
+      custom: false,
     });
   }
 
@@ -239,11 +253,12 @@ export function highlightDefinitionPassage(
       hit: part.current || part.matches.length > 0,
       lemma: part.current ? null : (part.matches[0]?.title ?? null),
     })),
-  ).map(({ text: partText, current, matches, color, style }) => ({
+  ).map(({ text: partText, current, matches, color, style, custom }) => ({
     text: partText,
     current,
     matches,
     color,
     style,
+    custom,
   }));
 }

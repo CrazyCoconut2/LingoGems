@@ -1,7 +1,7 @@
 import { ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
 import { isLearnableLanguage, type LearnableLanguage } from '../languages/catalog';
 import { mergeLanguageMetadata } from '../languages/language-store';
-import { sanitizeHighlightStyle, type HighlightStyle } from './appearance';
+import { sanitizeHighlightColor, sanitizeHighlightStyle, type HighlightStyle } from './appearance';
 import {
   collectMetadataIndexes,
   emptyMetadataIndexes,
@@ -87,6 +87,10 @@ export type StoredElement = {
   title: string;
   equivalents: ElementEquivalent[];
   definitions: ElementDefinition[];
+  /** True once an underline has been chosen. Existing elements stay off. */
+  highlighted: boolean;
+  /** Custom underline color. Null uses this element's comfort color. */
+  highlightColor: string | null;
   /** Custom underline style. Null is solid. */
   highlightStyle: HighlightStyle | null;
   /** Unset until the user chooses a mode. */
@@ -173,6 +177,8 @@ export async function addElement(language: string, title: string): Promise<Store
     title: name,
     equivalents: [],
     definitions: [],
+    highlighted: false,
+    highlightColor: null,
     highlightStyle: null,
     mode: null,
     comfort: MIN_COMFORT,
@@ -264,10 +270,15 @@ function normalizeElement(raw: unknown): StoredElement | null {
 }
 
 function appearanceOf(source: Partial<StoredElement> | null | undefined): {
+  highlighted: boolean;
+  highlightColor: string | null;
   highlightStyle: HighlightStyle | null;
 } {
+  const highlighted = source?.highlighted === true;
   return {
-    highlightStyle: sanitizeHighlightStyle(source?.highlightStyle),
+    highlighted,
+    highlightColor: highlighted ? sanitizeHighlightColor(source?.highlightColor) : null,
+    highlightStyle: highlighted ? sanitizeHighlightStyle(source?.highlightStyle) : null,
   };
 }
 

@@ -13,6 +13,8 @@ export const ELEMENT_SORTS = [
   'translations-desc',
   'clicks-desc',
   'clicks-asc',
+  'gems-desc',
+  'gems-asc',
   'none',
 ] as const;
 
@@ -206,6 +208,26 @@ export function elementMatchesCountRanges(
   );
 }
 
+/** Gems earned in the element's current game. An element with no mode has none. */
+function elementModeGems(element: StoredElement): number {
+  const game =
+    element.mode === 1
+      ? 'translation'
+      : element.mode === 2
+        ? 'example'
+        : element.mode === 3
+          ? 'definition'
+          : null;
+  if (!game) return 0;
+  let gems = 0;
+  for (const definition of element.definitions) {
+    for (const entry of definition.log) {
+      if (entry.game === game) gems += entry.gems;
+    }
+  }
+  return gems;
+}
+
 function countInRange(count: number, range: ElementCountRange): boolean {
   if (count < range.min) return false;
   if (range.max != null && count > range.max) return false;
@@ -227,6 +249,10 @@ export function compareElements(
   if (sort === 'clicks-desc' || sort === 'clicks-asc') {
     const diff = left.clicks - right.clicks;
     return (sort === 'clicks-desc' ? -diff : diff) || title;
+  }
+  if (sort === 'gems-desc' || sort === 'gems-asc') {
+    const diff = elementModeGems(left) - elementModeGems(right);
+    return (sort === 'gems-desc' ? -diff : diff) || title;
   }
   const count = sort === 'definitions-desc' ? elementDefinitionCount : elementTranslationCount;
   return count(right) - count(left) || title;

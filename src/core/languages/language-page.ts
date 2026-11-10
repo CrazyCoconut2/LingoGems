@@ -11,6 +11,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
 import { ModeIcon } from '../elements/mode-icon';
+import { ScoreGauge } from '../elements/score-gauge';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { DiscoverModal } from './discover-modal';
@@ -21,6 +22,7 @@ import {
   compareElements,
   DEFAULT_ELEMENT_SORT,
   definitionEligibleForGames,
+  deleteElement,
   displayTitle,
   elementHasInvalidDefinition,
   ELEMENT_SEARCH_MAX_LENGTH,
@@ -35,6 +37,7 @@ import {
   emptyMetadataIndexes,
   formatElementCountRange,
   formatMetadataFilter,
+  HIGHLIGHT_STYLES,
   isValidForm,
   languageDisplayName,
   mergeMetadataIndexes,
@@ -60,6 +63,7 @@ import {
   type ElementSearch,
   type ElementSearchPart,
   type ElementSort,
+  type HighlightStyle,
   type StoredElement,
   type StoredLanguage,
 } from 'collection';
@@ -77,6 +81,8 @@ type ContentSection = {
 };
 
 const ELEMENT_SKELETONS = [0, 1, 2, 3, 4, 5, 6, 7];
+const LONG_PRESS_MS = 500;
+const MOVE_SLOP_PX = 10;
 
 export const openSavedLanguage: CanActivateFn = async (route) => {
   const router = inject(Router);
@@ -90,7 +96,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
 @Component({
   selector: 'app-language-page',
-  imports: [RouterLink, ElementModal, ModeIcon, LanguageAiSettings, DiscoverModal],
+  imports: [RouterLink, ElementModal, ModeIcon, ScoreGauge, LanguageAiSettings, DiscoverModal],
   template: `
     <main>
       <header>
@@ -246,7 +252,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 aria-label="Sort collection"
                 (click)="$event.stopPropagation()"
               >
-                @for (option of sortOptions; track option.value) {
+                @for (option of sortOptions(); track option.value) {
                   <button
                     type="button"
                     class="popover-option"
@@ -269,7 +275,88 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       }
 
       @if (ready()) {
-        <p class="list-count">{{ countLabel() }}</p>
+        <div class="list-toolbar">
+          <p class="list-count">{{ countLabel() }}</p>
+          @if (selecting()) {
+            <div class="list-toolbar-actions">
+              @if (selectedIds().size) {
+                <button
+                  type="button"
+                  class="list-action"
+                  [class.active]="comfortOpen()"
+                  aria-label="Set comfort"
+                  title="Set comfort"
+                  [disabled]="selectionBusy()"
+                  (click)="openSelectionComfort()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <circle cx="12" cy="12" r="6" />
+                    <circle cx="12" cy="12" r="2" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="list-action"
+                  [class.active]="highlightOpen()"
+                  aria-label="Highlight"
+                  title="Highlight"
+                  [disabled]="selectionBusy()"
+                  (click)="openSelectionHighlight()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m9 11-6 6v3h9l3-3" />
+                    <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="list-action danger"
+                  aria-label="Delete selected"
+                  title="Delete selected"
+                  [disabled]="selectionBusy()"
+                  (click)="askDeleteSelection()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 6h18" />
+                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                  </svg>
+                </button>
+              }
+              <button
+                type="button"
+                class="list-action"
+                aria-label="Select all"
+                title="Select all"
+                [disabled]="selectionBusy() || !shown().length || allShownSelected()"
+                (click)="selectAll()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="list-action"
+                aria-label="Clear selection"
+                title="Clear selection"
+                [disabled]="selectionBusy()"
+                (click)="clearSelection()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </div>
+          }
+        </div>
+        @if (selectionError()) {
+          <p class="selection-error">{{ selectionError() }}</p>
+        }
       } @else {
         <p class="list-count" aria-hidden="true"><span class="bone bone-count"></span></p>
       }
@@ -296,8 +383,16 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 type="button"
                 class="element"
                 [class.playing]="playing()"
+                [class.selected]="isSelected(element.id)"
                 [style.--score-color]="comfortColor(element.comfort)"
-                (click)="openCard(element.id)"
+                [attr.aria-pressed]="selecting() ? isSelected(element.id) : null"
+                (click)="onCardClick(element.id)"
+                (contextmenu)="onCardContextMenu($event, element.id)"
+                (pointerdown)="onCardPointerDown($event, element.id)"
+                (pointermove)="onCardPointerMove($event)"
+                (pointerup)="onCardPointerUp()"
+                (pointercancel)="onCardPointerUp()"
+                (pointerleave)="onCardPointerUp()"
               >
                 <div class="element-body">
                   @if (playing()) {
@@ -323,7 +418,12 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                           </svg>
                         </span>
                       }
-                      <span class="title">
+                      <span
+                        class="title"
+                        [class.underlined]="element.highlighted"
+                        [style.--highlight-color]="titleHighlightColor(element)"
+                        [style.--highlight-style]="element.highlightStyle ?? 'solid'"
+                      >
                         @for (part of highlight(element.title); track $index) {
                           @if (part.hit) {
                             <mark class="hit">{{ part.text }}</mark>
@@ -819,6 +919,195 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
         </div>
       }
 
+      @if (comfortOpen()) {
+        <div class="selection-backdrop" (click)="closeComfortSheet($event)">
+          <section
+            class="selection-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Comfort"
+            (click)="$event.stopPropagation()"
+          >
+            <div class="selection-head">
+              <h3>Comfort</h3>
+              <button
+                type="button"
+                class="list-action"
+                aria-label="Close"
+                [disabled]="selectionBusy()"
+                (click)="closeComfortSheet($event)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </div>
+            <div class="comfort-stepper" role="group" aria-label="Comfort">
+              <button
+                type="button"
+                class="comfort-step"
+                aria-label="Lower comfort"
+                [disabled]="selectionBusy() || comfortDraft() <= 1"
+                (click)="stepSelectionComfort(-1)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14" />
+                </svg>
+              </button>
+              <app-score-gauge [score]="comfortDraft()" size="md" />
+              <button
+                type="button"
+                class="comfort-step"
+                aria-label="Raise comfort"
+                [disabled]="selectionBusy() || comfortDraft() >= 10"
+                (click)="stepSelectionComfort(1)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14" />
+                  <path d="M12 5v14" />
+                </svg>
+              </button>
+            </div>
+            @if (selectionError()) {
+              <p class="selection-error">{{ selectionError() }}</p>
+            }
+          </section>
+        </div>
+      }
+
+      @if (highlightOpen()) {
+        <div class="selection-backdrop" (click)="closeHighlightSheet($event)">
+          <section
+            class="selection-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Highlight"
+            (click)="$event.stopPropagation()"
+          >
+            <div class="selection-head">
+              <h3>Highlight</h3>
+              <button
+                type="button"
+                class="list-action"
+                aria-label="Close"
+                [disabled]="selectionBusy()"
+                (click)="closeHighlightSheet($event)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </div>
+            <div class="color-presets" role="list">
+              @for (color of highlightPresets(); track color) {
+                <button
+                  type="button"
+                  class="color-preset"
+                  role="listitem"
+                  [class.selected]="highlightColorDraft() === color"
+                  [style.background]="color"
+                  [attr.aria-label]="color"
+                  [attr.aria-pressed]="highlightColorDraft() === color"
+                  [disabled]="selectionBusy()"
+                  (click)="highlightColorDraft.set(color)"
+                ></button>
+              }
+            </div>
+            <div class="underline-styles" role="list">
+              @for (style of highlightStyles; track style) {
+                <button
+                  type="button"
+                  class="underline-style"
+                  role="listitem"
+                  [class.selected]="highlightStyleDraft() === style"
+                  [style.--highlight-color]="highlightColorDraft()"
+                  [style.--highlight-style]="style"
+                  [attr.aria-label]="style"
+                  [attr.aria-pressed]="highlightStyleDraft() === style"
+                  [disabled]="selectionBusy()"
+                  (click)="highlightStyleDraft.set(style)"
+                >
+                  Aa
+                </button>
+              }
+            </div>
+            <div class="selection-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                [disabled]="selectionBusy() || !highlightDraftDirty()"
+                (click)="resetHighlightDraft()"
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                [disabled]="selectionBusy()"
+                (click)="closeHighlightSheet($event)"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="btn btn-primary"
+                [disabled]="selectionBusy()"
+                (click)="saveSelectionHighlight()"
+              >
+                Save
+              </button>
+            </div>
+            @if (selectionError()) {
+              <p class="selection-error">{{ selectionError() }}</p>
+            }
+          </section>
+        </div>
+      }
+
+      @if (deleteConfirm()) {
+        <div class="selection-backdrop" (click)="closeDeleteConfirm($event)">
+          <section
+            class="selection-sheet"
+            role="dialog"
+            aria-modal="true"
+            [attr.aria-label]="deleteSelectionTitle()"
+            (click)="$event.stopPropagation()"
+          >
+            <h3>{{ deleteSelectionTitle() }}</h3>
+            <p class="selection-hint">
+              {{
+                selectedIds().size === 1
+                  ? 'This element will be removed.'
+                  : 'These elements will be removed.'
+              }}
+            </p>
+            <div class="selection-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                [disabled]="selectionBusy()"
+                (click)="closeDeleteConfirm($event)"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="btn btn-danger"
+                [disabled]="selectionBusy()"
+                (click)="confirmDeleteSelection()"
+              >
+                Delete
+              </button>
+            </div>
+            @if (selectionError()) {
+              <p class="selection-error">{{ selectionError() }}</p>
+            }
+          </section>
+        </div>
+      }
+
       @if (opened(); as element) {
         <app-element-modal
           [element]="element"
@@ -969,7 +1258,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
     .toolbar-icon-btn svg,
     .section-chevron,
-    .icon-btn svg {
+    .icon-btn svg,
+    .list-action svg,
+    .comfort-step svg {
       display: block;
       width: 1rem;
       height: 1rem;
@@ -1064,6 +1355,193 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       font-size: 0.78rem;
       color: var(--text-muted);
       font-variant-numeric: tabular-nums;
+    }
+
+    .list-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: -0.3rem 0 0;
+    }
+
+    .list-toolbar .list-count {
+      margin: 0;
+    }
+
+    .list-toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .list-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.9rem;
+      height: 1.9rem;
+      flex-shrink: 0;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(127, 127, 127, 0.1);
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .list-action:hover:not(:disabled) {
+      background: rgba(127, 127, 127, 0.18);
+      color: var(--text);
+    }
+
+    .list-action.active {
+      color: var(--text);
+      background: rgba(var(--accent-rgb), 0.16);
+    }
+
+    .list-action.danger {
+      color: var(--danger);
+    }
+
+    .list-action:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .selection-error {
+      margin: 0.35rem 0 0;
+      color: var(--danger);
+      font-size: 0.8rem;
+    }
+
+    .selection-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 36;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem;
+      background: rgba(8, 10, 16, 0.55);
+    }
+
+    .selection-sheet {
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      width: min(22rem, 100%);
+      padding: 1rem 1.1rem 1.1rem;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 4px);
+      background: var(--surface);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+    }
+
+    .selection-sheet h3 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .selection-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .selection-hint {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+
+    .selection-actions {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .btn-danger {
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid rgba(255, 92, 122, 0.55);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(255, 92, 122, 0.12);
+    }
+
+    .comfort-stepper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.1rem;
+    }
+
+    .comfort-step {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.4rem;
+      height: 2.4rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .comfort-step:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+
+    .color-presets,
+    .underline-styles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .color-preset {
+      width: 1.45rem;
+      height: 1.45rem;
+      padding: 0;
+      border: 2px solid transparent;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .color-preset.selected {
+      border-color: var(--text);
+    }
+
+    .underline-style {
+      min-width: 2.4rem;
+      height: 2rem;
+      border: 1px solid var(--border);
+      border-radius: 0.45rem;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+      text-decoration-line: underline;
+      text-decoration-color: var(--highlight-color);
+      text-decoration-style: var(--highlight-style, solid);
+      text-underline-offset: 0.15em;
+    }
+
+    .underline-style.selected {
+      border-color: var(--text);
+    }
+
+    .color-preset:disabled,
+    .underline-style:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .search-bar {
@@ -1212,6 +1690,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       font: inherit;
       text-align: left;
       cursor: pointer;
+      -webkit-touch-callout: none;
     }
 
     .element-body {
@@ -1237,6 +1716,14 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
     .element:hover {
       background: color-mix(in srgb, var(--score-color, transparent) 18%, var(--surface));
+    }
+
+    .element.selected,
+    .element.selected:hover {
+      border-color: color-mix(in srgb, var(--score-color, var(--text)) 72%, white);
+      background: color-mix(in srgb, var(--score-color, transparent) 30%, var(--surface));
+      box-shadow: inset 0 0 0 1px
+        color-mix(in srgb, var(--score-color, var(--text)) 55%, transparent);
     }
 
     .card-gem {
@@ -1324,6 +1811,14 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       font-size: 1.05rem;
       font-weight: 650;
       letter-spacing: -0.02em;
+    }
+
+    .title.underlined {
+      text-decoration-line: underline;
+      text-decoration-style: var(--highlight-style, solid);
+      text-decoration-color: var(--highlight-color, currentColor);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.18em;
     }
 
     .element.playing .element-body {
@@ -1913,18 +2408,34 @@ export class LanguagePage {
   private readonly router = inject(Router);
   private loadId = 0;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
+  private pressTimer: ReturnType<typeof setTimeout> | null = null;
+  private pressStartX = 0;
+  private pressStartY = 0;
+  private swallowClickUntil = 0;
+  private comfortApplied = false;
   private scrollLock = '';
 
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly modeLabel = elementModeLabel;
   readonly comfortRates = COMFORT_RATES;
   readonly comfortColor = comfortColor;
+  readonly highlightStyles = HIGHLIGHT_STYLES;
   readonly needsDefinitionEdit = elementHasInvalidDefinition;
   readonly asking = signal(false);
   readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
+  readonly selecting = signal(false);
+  readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+  readonly selectionBusy = signal(false);
+  readonly selectionError = signal('');
+  readonly comfortOpen = signal(false);
+  readonly comfortDraft = signal(1);
+  readonly highlightOpen = signal(false);
+  readonly highlightColorDraft = signal('');
+  readonly highlightStyleDraft = signal<HighlightStyle>('solid');
+  readonly deleteConfirm = signal(false);
   readonly skeletons = ELEMENT_SKELETONS;
-  readonly sortOptions: { value: ElementSort; label: string }[] = [
+  private readonly baseSortOptions: { value: ElementSort; label: string }[] = [
     { value: 'title-asc', label: 'Title A–Z' },
     { value: 'title-desc', label: 'Title Z–A' },
     { value: 'created-desc', label: 'Most recent' },
@@ -1934,6 +2445,14 @@ export class LanguagePage {
     { value: 'clicks-desc', label: 'Most seen' },
     { value: 'clicks-asc', label: 'Least seen' },
   ];
+  readonly sortOptions = computed(() => {
+    if (!this.modeFilter().length) return this.baseSortOptions;
+    return [
+      ...this.baseSortOptions,
+      { value: 'gems-desc' as const, label: 'Most gems' },
+      { value: 'gems-asc' as const, label: 'Least gems' },
+    ];
+  });
   readonly code = signal('');
   readonly name = signal('');
   readonly ready = signal(false);
@@ -2043,8 +2562,18 @@ export class LanguagePage {
       });
   });
   readonly countLabel = computed(() => {
+    if (this.selecting()) {
+      const count = this.selectedIds().size;
+      return count === 1 ? '1 selected' : `${count} selected`;
+    }
     const count = this.shown().length;
     return count === 1 ? '1 element' : `${count} elements`;
+  });
+  readonly allShownSelected = computed(() => {
+    const shown = this.shown();
+    if (!shown.length) return false;
+    const selected = this.selectedIds();
+    return shown.every((element) => selected.has(element.id));
   });
   readonly emptyMessage = computed(() => {
     if (!this.elements().length) return 'No elements yet.';
@@ -2056,6 +2585,7 @@ export class LanguagePage {
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       if (this.searchTimer) clearTimeout(this.searchTimer);
+      this.clearPressTimer();
       if (this.filtersOpen() || this.aiSettingsOpen() || this.discoverOpen()) this.unlockScroll();
     });
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
@@ -2081,9 +2611,11 @@ export class LanguagePage {
     });
   }
 
-  @HostListener('document:click')
-  closeSortFromDocument(): void {
-    this.sortOpen.set(false);
+  @HostListener('document:click', ['$event'])
+  closeSortFromDocument(event: MouseEvent): void {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest('.toolbar-menu')) this.sortOpen.set(false);
+    this.dismissSelectionFromOutside(target);
   }
 
   @HostListener('document:keydown.escape')
@@ -2098,6 +2630,23 @@ export class LanguagePage {
     }
     if (this.filtersOpen()) {
       this.closeFilters();
+      return;
+    }
+    if (this.elementId() || this.selectionBusy()) return;
+    if (this.comfortOpen()) {
+      this.closeComfortSheet();
+      return;
+    }
+    if (this.highlightOpen()) {
+      this.highlightOpen.set(false);
+      return;
+    }
+    if (this.deleteConfirm()) {
+      this.deleteConfirm.set(false);
+      return;
+    }
+    if (this.selecting()) {
+      this.clearSelection();
       return;
     }
     this.sortOpen.set(false);
@@ -2116,6 +2665,305 @@ export class LanguagePage {
     }
     this.recordClick(id);
     this.openElement(id);
+  }
+
+  isSelected(id: string): boolean {
+    return this.selectedIds().has(id);
+  }
+
+  titleHighlightColor(element: StoredElement): string {
+    return element.highlightColor ?? comfortColor(element.comfort);
+  }
+
+  onCardClick(id: string): void {
+    if (Date.now() < this.swallowClickUntil) {
+      this.swallowClickUntil = 0;
+      return;
+    }
+    if (this.selecting()) {
+      this.toggleSelected(id);
+      return;
+    }
+    this.openCard(id);
+  }
+
+  onCardContextMenu(event: Event, id: string): void {
+    if (this.playing()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.selecting()) {
+      if (!this.selectedIds().has(id)) this.toggleSelected(id);
+      return;
+    }
+    this.beginSelection(id);
+  }
+
+  onCardPointerDown(event: PointerEvent, id: string): void {
+    if (this.playing() || this.selecting() || this.selectionBusy()) return;
+    if (event.pointerType === 'mouse' || event.button !== 0) return;
+    this.clearPressTimer();
+    this.pressStartX = event.clientX;
+    this.pressStartY = event.clientY;
+    this.pressTimer = setTimeout(() => {
+      this.pressTimer = null;
+      this.beginSelection(id);
+    }, LONG_PRESS_MS);
+  }
+
+  onCardPointerMove(event: PointerEvent): void {
+    if (this.pressTimer == null) return;
+    const dx = event.clientX - this.pressStartX;
+    const dy = event.clientY - this.pressStartY;
+    if (dx * dx + dy * dy > MOVE_SLOP_PX * MOVE_SLOP_PX) this.clearPressTimer();
+  }
+
+  onCardPointerUp(): void {
+    this.clearPressTimer();
+  }
+
+  selectAll(): void {
+    if (this.selectionBusy()) return;
+    const ids = this.shown()
+      .map((element) => element.id)
+      .filter((id) => id);
+    if (!ids.length || ids.every((id) => this.selectedIds().has(id))) return;
+    const next = new Set(this.selectedIds());
+    for (const id of ids) next.add(id);
+    this.selectedIds.set(next);
+    this.selecting.set(true);
+  }
+
+  clearSelection(): void {
+    this.clearPressTimer();
+    this.selecting.set(false);
+    this.selectedIds.set(new Set());
+    this.comfortOpen.set(false);
+    this.highlightOpen.set(false);
+    this.deleteConfirm.set(false);
+    this.comfortApplied = false;
+    this.selectionError.set('');
+  }
+
+  openSelectionComfort(): void {
+    if (this.selectionBusy() || this.selectedIds().size === 0) return;
+    const selected = this.selectedElements();
+    const shared = selected[0]?.comfort ?? 1;
+    const rate = selected.every((element) => element.comfort === shared) ? shared : 1;
+    this.comfortDraft.set(rate);
+    this.comfortApplied = false;
+    this.highlightOpen.set(false);
+    this.deleteConfirm.set(false);
+    this.comfortOpen.set(true);
+  }
+
+  closeComfortSheet(event?: Event): void {
+    event?.stopPropagation();
+    if (this.selectionBusy()) return;
+    this.comfortOpen.set(false);
+    if (!this.comfortApplied) return;
+    this.comfortApplied = false;
+    this.clearSelection();
+  }
+
+  async stepSelectionComfort(delta: number): Promise<void> {
+    const rate = Math.min(10, Math.max(1, this.comfortDraft() + delta));
+    if (rate === this.comfortDraft() || this.selectionBusy()) return;
+    const saved = await this.writeSelected((element) => ({ ...element, comfort: rate }));
+    if (!saved) return;
+    this.comfortDraft.set(rate);
+    this.comfortApplied = true;
+  }
+
+  openSelectionHighlight(): void {
+    if (this.selectionBusy() || this.selectedIds().size === 0) return;
+    const uniform = this.uniformHighlight();
+    this.highlightColorDraft.set(uniform?.color ?? this.selectionComfortColor());
+    this.highlightStyleDraft.set(uniform?.style ?? 'solid');
+    this.comfortOpen.set(false);
+    this.deleteConfirm.set(false);
+    this.highlightOpen.set(true);
+  }
+
+  closeHighlightSheet(event?: Event): void {
+    event?.stopPropagation();
+    if (this.selectionBusy()) return;
+    this.highlightOpen.set(false);
+  }
+
+  highlightPresets(): string[] {
+    const seen = new Set<string>();
+    const colors: string[] = [];
+    for (const color of [
+      this.selectionComfortColor(),
+      ...COMFORT_RATES.map((rate) => comfortColor(rate)),
+    ]) {
+      const key = color.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      colors.push(key);
+    }
+    return colors;
+  }
+
+  highlightDraftDirty(): boolean {
+    return (
+      this.highlightColorDraft() !== this.selectionComfortColor() ||
+      this.highlightStyleDraft() !== 'solid'
+    );
+  }
+
+  resetHighlightDraft(): void {
+    if (this.selectionBusy()) return;
+    this.highlightColorDraft.set(this.selectionComfortColor());
+    this.highlightStyleDraft.set('solid');
+  }
+
+  async saveSelectionHighlight(): Promise<void> {
+    if (this.selectionBusy() || this.selectedIds().size === 0) return;
+    const fallback = this.selectionComfortColor().toLowerCase();
+    const color = this.highlightColorDraft().toLowerCase();
+    const style = this.highlightStyleDraft();
+    const saved = await this.writeSelected((element) => ({
+      ...element,
+      highlighted: true,
+      highlightColor: color === fallback ? null : color,
+      highlightStyle: style === 'solid' ? null : style,
+    }));
+    if (!saved) return;
+    this.highlightOpen.set(false);
+    this.clearSelection();
+  }
+
+  askDeleteSelection(): void {
+    if (this.selectionBusy() || this.selectedIds().size === 0) return;
+    this.comfortOpen.set(false);
+    this.highlightOpen.set(false);
+    this.deleteConfirm.set(true);
+  }
+
+  closeDeleteConfirm(event?: Event): void {
+    event?.stopPropagation();
+    if (this.selectionBusy()) return;
+    this.deleteConfirm.set(false);
+  }
+
+  deleteSelectionTitle(): string {
+    return this.selectedIds().size === 1
+      ? 'Delete this element?'
+      : `Delete ${this.selectedIds().size} elements?`;
+  }
+
+  async confirmDeleteSelection(): Promise<void> {
+    const ids = [...this.selectedIds()];
+    if (!ids.length || this.selectionBusy()) return;
+    this.selectionBusy.set(true);
+    this.selectionError.set('');
+    try {
+      await Promise.all(ids.map((id) => deleteElement(id)));
+      const gone = new Set(ids);
+      this.elements.update((list) => list.filter((item) => !gone.has(item.id)));
+      if (gone.has(this.elementId())) this.closeElement();
+      this.clearSelection();
+    } catch {
+      this.selectionError.set('Could not delete these elements.');
+    } finally {
+      this.selectionBusy.set(false);
+    }
+  }
+
+  private beginSelection(id: string): void {
+    if (this.playing() || this.selectionBusy() || !id) return;
+    this.swallowClickUntil = Date.now() + 400;
+    this.selecting.set(true);
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+  }
+
+  private dropSelected(id: string): void {
+    if (!this.selectedIds().has(id)) return;
+    const next = new Set(this.selectedIds());
+    next.delete(id);
+    if (next.size === 0) {
+      this.clearSelection();
+      return;
+    }
+    this.selectedIds.set(next);
+  }
+
+  private toggleSelected(id: string): void {
+    const next = new Set(this.selectedIds());
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    if (next.size === 0) {
+      this.clearSelection();
+      return;
+    }
+    this.selectedIds.set(next);
+  }
+
+  private dismissSelectionFromOutside(target: Element | null): void {
+    if (this.selectionBusy() || !this.selecting()) return;
+    if (this.comfortOpen() || this.highlightOpen() || this.deleteConfirm()) return;
+    if (target?.closest('.element, .list-toolbar-actions, .selection-backdrop, app-element-modal')) {
+      return;
+    }
+    this.clearSelection();
+  }
+
+  private clearPressTimer(): void {
+    if (this.pressTimer == null) return;
+    clearTimeout(this.pressTimer);
+    this.pressTimer = null;
+  }
+
+  private selectedElements(): StoredElement[] {
+    const ids = this.selectedIds();
+    return this.elements().filter((element) => ids.has(element.id));
+  }
+
+  /** Shared comfort color, or the first comfort color when the selection mixes rates. */
+  private selectionComfortColor(): string {
+    const selected = this.selectedElements();
+    const comfort = selected[0]?.comfort ?? 1;
+    if (selected.every((element) => element.comfort === comfort)) return comfortColor(comfort);
+    return comfortColor(1);
+  }
+
+  private uniformHighlight(): { color: string; style: HighlightStyle } | null {
+    const selected = this.selectedElements();
+    if (!selected.length || selected.some((element) => !element.highlighted)) return null;
+    const first = selected[0];
+    if (!first) return null;
+    const color = first.highlightColor ?? comfortColor(first.comfort);
+    const style = first.highlightStyle ?? 'solid';
+    const same = selected.every((element) => {
+      const next = element.highlightColor ?? comfortColor(element.comfort);
+      return next === color && (element.highlightStyle ?? 'solid') === style;
+    });
+    return same ? { color, style } : null;
+  }
+
+  private async writeSelected(patch: (element: StoredElement) => StoredElement): Promise<boolean> {
+    const current = this.selectedElements();
+    if (!current.length || this.selectionBusy()) return false;
+    const language = current[0]?.language;
+    this.selectionBusy.set(true);
+    this.selectionError.set('');
+    try {
+      const saved = await Promise.all(current.map((element) => saveElement(patch(element))));
+      if (this.code() !== language) return false;
+      const byId = new Map(saved.map((item) => [item.id, item]));
+      this.elements.update((list) => list.map((item) => byId.get(item.id) ?? item));
+      return true;
+    } catch {
+      this.selectionError.set('Could not update these elements.');
+      return false;
+    } finally {
+      this.selectionBusy.set(false);
+    }
   }
 
   private recordClick(id: string): void {
@@ -2197,7 +3045,10 @@ export class LanguagePage {
 
   onElementDeleted(): void {
     const id = this.elementId();
-    if (id) this.elements.update((list) => list.filter((item) => item.id !== id));
+    if (id) {
+      this.elements.update((list) => list.filter((item) => item.id !== id));
+      this.dropSelected(id);
+    }
     this.closeElement();
   }
 
@@ -2368,6 +3219,7 @@ export class LanguagePage {
       return;
     }
     this.commitSearch();
+    this.clearSelection();
     this.sortOpen.set(false);
     if (this.discoverOpen()) this.closeDiscover();
     this.dismissed.set(new Set());
@@ -2506,11 +3358,13 @@ export class LanguagePage {
       ? current.filter((item) => item !== mode)
       : [...current, mode].sort((left, right) => left - right);
     this.modeFilter.set(next);
+    if (!next.length) this.releaseGemSort();
     this.writeBrowse();
   }
 
   clearMode(): void {
     this.modeFilter.set([]);
+    this.releaseGemSort();
     this.writeBrowse();
   }
 
@@ -2545,6 +3399,7 @@ export class LanguagePage {
     this.definitionMetaFilter.set({});
     this.exampleMetaFilter.set({});
     this.formMetaFilter.set({});
+    this.releaseGemSort();
     this.writeBrowse();
   }
 
@@ -2632,6 +3487,7 @@ export class LanguagePage {
     this.playOrder.set([]);
     this.dismissed.set(new Set());
     this.playId.set('');
+    this.clearSelection();
     const params = this.route.snapshot.queryParamMap;
     const restored = (params.get('q') ?? '').slice(0, ELEMENT_SEARCH_MAX_LENGTH);
     this.query.set(restored);
@@ -2640,6 +3496,7 @@ export class LanguagePage {
     this.translationRange.set(parseElementCountRange(params.get('translations')));
     this.definitionRange.set(parseElementCountRange(params.get('definitions')));
     this.modeFilter.set(parseElementMode(params.get('mode')));
+    this.releaseGemSort();
     this.comfortFilter.set(parseComfort(params.get('comfort')));
     this.definitionMetaFilter.set(parseMetadataFilter(params.get('definitionMeta')));
     this.exampleMetaFilter.set(parseMetadataFilter(params.get('exampleMeta')));
@@ -2658,6 +3515,13 @@ export class LanguagePage {
     this.applyLanguageMetadata(stored);
     this.ready.set(true);
     this.reconcileOpen();
+  }
+
+  private releaseGemSort(): void {
+    const sort = this.sort();
+    if (this.modeFilter().length === 0 && (sort === 'gems-desc' || sort === 'gems-asc')) {
+      this.sort.set(DEFAULT_ELEMENT_SORT);
+    }
   }
 
   private writeBrowse(): void {

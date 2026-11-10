@@ -65,8 +65,10 @@ TODO
   keep track of when the user unblurs.
 - Edit or delete metadata for all the elements : Example, modify
   mexico with a flat and it modified the region for all the things.
-- There should be a give up option too and we get to the regular
-  data for our shit.
+- FORMS: Forms prioritized for example generation. 
+  If you choose one,it checks its metadata and recommends some to prioritize among the other forms when you want to create an example for another thing.
+- We should be able to no longer have a support language. 
+  Careful with this feature cause it affects lots of things.
 
 Also, with the embedded browser we can save links for shit. Or put
 them in examples, that's fucking great man it will be awesome.
