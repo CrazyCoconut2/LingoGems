@@ -70,5 +70,11 @@ TODO
 - We should be able to no longer have a support language. 
   Careful with this feature cause it affects lots of things.
 - The game mode no longer needs to turn the cards around nor to do anything related to shuffling. All it needs to do is open the cards in game mode
+
 Also, with the embedded browser we can save links for shit. Or put
 them in examples, that's fucking great man it will be awesome.
+
+
+For the definition. I think we should put an example icon.
+When clicked it shows that 
+Right now the 

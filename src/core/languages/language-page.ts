@@ -1597,7 +1597,8 @@ const MOVE_SLOP_PX = 10;
       min-height: 4.8rem;
       padding: 0;
       overflow: hidden;
-      border: 1px solid color-mix(in srgb, var(--score-color, var(--border)) 42%, var(--border));
+      --level-line: color-mix(in srgb, var(--score-color, var(--border)) 42%, var(--border));
+      border: 1px solid var(--level-line);
       border-radius: var(--radius);
       background: color-mix(in srgb, var(--score-color, transparent) 12%, var(--surface));
       color: inherit;
@@ -1634,7 +1635,8 @@ const MOVE_SLOP_PX = 10;
 
     .element.selected,
     .element.selected:hover {
-      border-color: color-mix(in srgb, var(--score-color, var(--text)) 72%, white);
+      --level-line: color-mix(in srgb, var(--score-color, var(--text)) 72%, white);
+      border-color: var(--level-line);
       background: color-mix(in srgb, var(--score-color, transparent) 30%, var(--surface));
       box-shadow: inset 0 0 0 1px
         color-mix(in srgb, var(--score-color, var(--text)) 55%, transparent);
@@ -1674,14 +1676,14 @@ const MOVE_SLOP_PX = 10;
       width: 100%;
       margin-top: auto;
       gap: 2px;
-      background: color-mix(in srgb, #000 55%, var(--surface));
+      background: var(--level-line, var(--border));
     }
 
     .comfort-mark {
       flex: 1 1 0;
       min-width: 0;
       height: 0.48rem;
-      background: color-mix(in srgb, var(--text) 16%, transparent);
+      background: color-mix(in srgb, var(--text) 16%, color-mix(in srgb, #000 55%, var(--surface)));
     }
 
     .comfort-mark.filled {

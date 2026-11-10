@@ -53,6 +53,8 @@ import {
   generateExamples,
   generateForms,
   generateRelatedWords,
+  readFormExtraFields,
+  readFormMetadataFields,
   gradeDefinition,
   gradeEquivalent,
   gradeExample,
@@ -153,6 +155,11 @@ const NEW_DEFINITIONS_KEY = 'lingogem.definition-new.v1';
 
 function definitionGloss(text: string): string {
   return parsePassage(text).text.trim().toLowerCase();
+}
+
+function joinList(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
 function readDefinitionSuggestions(elementId: string): StoredSuggestion[] {
@@ -1332,7 +1339,7 @@ function writeExampleSuggestions(
                           title="Generate forms"
                           [disabled]="inPlay() || aiBusy()"
                           [attr.aria-busy]="askingForms() === index ? true : null"
-                          (click)="generateForms(index)"
+                          (click)="askGenerateForms(index)"
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path
@@ -3513,6 +3520,47 @@ function writeExampleSuggestions(
           }
         }
 
+        @if (formsConfirm(); as choice) {
+          @if (formsConfirmDetail(choice.index); as pending) {
+          <div class="sheet-backdrop" (click)="closeFormsConfirm($event)">
+            <section
+              class="sheet confirm"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Generate forms"
+              (click)="$event.stopPropagation()"
+            >
+              <h3>Generate forms?</h3>
+              <p>
+                The AI will add the missing inflected forms of this sense. A verb covers person,
+                number, tense, and mood, plus the participle and gerund when they exist. A noun or
+                adjective covers gender and number.
+              </p>
+              <ul class="confirm-points">
+                <li>Sense: {{ pending.gloss }}</li>
+                <li>Lemma: {{ pending.title }}</li>
+                <li>Written in {{ pending.language }}</li>
+                <li>Forms already saved stay as they are.</li>
+                @if (pending.fields) {
+                  <li>Each new form is labeled with {{ pending.fields }}.</li>
+                }
+                @if (pending.extra) {
+                  <li>Other labels can be added when a form needs them.</li>
+                }
+              </ul>
+              <div class="sheet-actions">
+                <button type="button" class="btn btn-secondary" (click)="formsConfirm.set(null)">
+                  Cancel
+                </button>
+                <button type="button" class="btn btn-primary" (click)="confirmGenerateForms()">
+                  Generate
+                </button>
+              </div>
+            </section>
+          </div>
+          }
+        }
+
         @if (confirm(); as pending) {
           <div class="sheet-backdrop" (click)="closeSheet($event)">
             <section
@@ -4370,6 +4418,17 @@ function writeExampleSuggestions(
 
     button.section-title .fold-chevron.open {
       transform: rotate(180deg);
+    }
+
+    .confirm-points {
+      margin: 0;
+      padding-left: 1.1rem;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    .confirm-points li + li {
+      margin-top: 0.28rem;
     }
 
     .empty,
@@ -5555,6 +5614,7 @@ export class ElementModal {
   readonly addingDefinitions = signal<'missing' | 'example' | null>(null);
   readonly definitionExample = signal('');
   readonly askingForms = signal<number | null>(null);
+  readonly formsConfirm = signal<{ index: number } | null>(null);
   readonly askingExamples = signal<number | null>(null);
   readonly askingRelated = signal<number | null>(null);
   readonly askingWording = signal<number | null>(null);
@@ -5627,6 +5687,7 @@ export class ElementModal {
       this.titleEdit.set(false);
       this.titleError.set('');
       this.confirm.set(null);
+      this.formsConfirm.set(null);
       this.askingForms.set(null);
       this.askingExamples.set(null);
       this.askingRelated.set(null);
@@ -5685,6 +5746,10 @@ export class ElementModal {
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
+    if (this.formsConfirm()) {
+      this.formsConfirm.set(null);
+      return;
+    }
     if (this.equivalentPromptOpen()) {
       this.closeEquivalentPrompt();
       return;
@@ -6123,6 +6188,44 @@ export class ElementModal {
     void this.askForms(index);
   }
 
+  askGenerateForms(index: number): void {
+    if (this.inPlay() || this.aiBusy() || !this.element().definitions[index]) return;
+    this.formsConfirm.set({ index });
+  }
+
+  closeFormsConfirm(event: MouseEvent): void {
+    if (event.target !== event.currentTarget) return;
+    this.formsConfirm.set(null);
+  }
+
+  formsConfirmDetail(index: number): {
+    gloss: string;
+    title: string;
+    language: string;
+    fields: string;
+    extra: boolean;
+  } | null {
+    const element = this.element();
+    const definition = element.definitions[index];
+    const gloss = parsePassage(definition?.text ?? '').text.trim();
+    if (!definition || !gloss) return null;
+    const fields = readFormMetadataFields(element.language).map((field) => field.key);
+    return {
+      gloss,
+      title: element.title.trim(),
+      language: languageDisplayName(element.language),
+      fields: joinList(fields),
+      extra: readFormExtraFields(element.language),
+    };
+  }
+
+  confirmGenerateForms(): void {
+    const choice = this.formsConfirm();
+    this.formsConfirm.set(null);
+    if (!choice) return;
+    this.generateForms(choice.index);
+  }
+
   formsOpen(index: number): boolean {
     return this.expandedForms().has(index);
   }
@@ -6374,6 +6477,8 @@ export class ElementModal {
     if (wording != null) this.askingWording.set(map(wording));
     const forms = this.askingForms();
     if (forms != null) this.askingForms.set(map(forms));
+    const confirming = this.formsConfirm();
+    if (confirming) this.formsConfirm.set({ index: map(confirming.index) });
     this.moveExpandedForms((index) => (index === from ? to : index === to ? from : index));
     const engineer = this.exampleEngineer();
     if (engineer) {
@@ -6409,6 +6514,8 @@ export class ElementModal {
     if (asking != null) this.askingExamples.set(asking + by);
     const forms = this.askingForms();
     if (forms != null) this.askingForms.set(forms + by);
+    const confirming = this.formsConfirm();
+    if (confirming) this.formsConfirm.set({ index: confirming.index + by });
     this.moveExpandedForms((index) => index + by);
     const related = this.askingRelated();
     if (related != null) this.askingRelated.set(related + by);
@@ -7451,6 +7558,11 @@ export class ElementModal {
       const forms = this.askingForms();
       if (forms === pending.index) this.askingForms.set(null);
       else if (forms != null && forms > pending.index) this.askingForms.set(forms - 1);
+      const confirming = this.formsConfirm();
+      if (confirming?.index === pending.index) this.formsConfirm.set(null);
+      else if (confirming && confirming.index > pending.index) {
+        this.formsConfirm.set({ index: confirming.index - 1 });
+      }
       this.moveExpandedForms((index) =>
         index === pending.index ? null : index > pending.index ? index - 1 : index,
       );
