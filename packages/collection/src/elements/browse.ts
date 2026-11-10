@@ -11,6 +11,8 @@ export const ELEMENT_SORTS = [
   'created-asc',
   'definitions-desc',
   'translations-desc',
+  'clicks-desc',
+  'clicks-asc',
   'none',
 ] as const;
 
@@ -221,6 +223,10 @@ export function compareElements(
   if (sort === 'created-desc' || sort === 'created-asc') {
     const diff = left.createdAt - right.createdAt;
     return (sort === 'created-desc' ? -diff : diff) || title;
+  }
+  if (sort === 'clicks-desc' || sort === 'clicks-asc') {
+    const diff = left.clicks - right.clicks;
+    return (sort === 'clicks-desc' ? -diff : diff) || title;
   }
   const count = sort === 'definitions-desc' ? elementDefinitionCount : elementTranslationCount;
   return count(right) - count(left) || title;
