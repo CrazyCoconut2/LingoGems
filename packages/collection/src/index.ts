@@ -6,19 +6,16 @@ export {
 } from './languages/catalog';
 
 export {
-  addLanguage,
-  mergeLanguageMetadata,
-  readLanguage,
-  readLanguages,
-  replaceLanguageMetadata,
-  saveLanguage,
-  type StoredLanguage,
-} from './languages/language-store';
+  mergeMetadataCatalog,
+  readMetadataCatalog,
+  replaceMetadataCatalog,
+} from './elements/metadata-catalog';
 
 export {
   addElement,
   deleteElement,
   displayTitle,
+  readAllElements,
   readElements,
   assignEquivalent,
   embedTranslation,

@@ -1429,7 +1429,7 @@ export class DiscoverModal implements OnInit {
     return Object.entries(sense.metadata).map(([key, value]) => ({
       key,
       value,
-      color: readFieldColor(this.language(), 'definitions', key),
+      color: readFieldColor('definitions', key),
     }));
   }
 

@@ -5704,7 +5704,7 @@ export class ElementModal {
   }
 
   metaColor(place: MetadataColorPlace, key: string): string | null {
-    return readFieldColor(this.element().language, place, key);
+    return readFieldColor(place, key);
   }
 
   sheetMetaColor(kind: Editor['kind'], key: string): string | null {

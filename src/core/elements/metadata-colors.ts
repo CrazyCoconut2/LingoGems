@@ -9,39 +9,26 @@ const PLACES: readonly MetadataColorPlace[] = ['definitions', 'examples', 'forms
 
 type PlaceColors = Record<string, string>;
 
-type LanguageColors = Partial<Record<MetadataColorPlace, PlaceColors>>;
-
-type ColorStore = Record<string, LanguageColors>;
+type ColorStore = Partial<Record<MetadataColorPlace, PlaceColors>>;
 
 const revision = signal(0);
 
 /** Color set on a metadata field. Values do not have their own color. */
-export function readFieldColor(
-  language: string,
-  place: MetadataColorPlace,
-  key: string,
-): string | null {
+export function readFieldColor(place: MetadataColorPlace, key: string): string | null {
   revision();
   const name = key.trim();
   if (!name) return null;
-  return readStore()[language.trim().toLowerCase()]?.[place]?.[name] ?? null;
+  return readStore()[place]?.[name] ?? null;
 }
 
 /** Sets or clears the color for a metadata field. */
-export function writeFieldColor(
-  language: string,
-  place: MetadataColorPlace,
-  key: string,
-  value: unknown,
-): void {
+export function writeFieldColor(place: MetadataColorPlace, key: string, value: unknown): void {
   const color = value === null ? null : sanitizePaletteColor(value);
   if (value !== null && !color) return;
-  const code = language.trim().toLowerCase();
   const name = key.trim();
-  if (!code || !name || reserved(name) || typeof localStorage === 'undefined') return;
+  if (!name || reserved(name) || typeof localStorage === 'undefined') return;
   const store = readStore();
-  const languageColors: LanguageColors = { ...(store[code] ?? {}) };
-  const placeColors: PlaceColors = { ...(languageColors[place] ?? {}) };
+  const placeColors: PlaceColors = { ...(store[place] ?? {}) };
   if (color) {
     if (placeColors[name] === color) return;
     placeColors[name] = color;
@@ -50,10 +37,8 @@ export function writeFieldColor(
   } else {
     delete placeColors[name];
   }
-  if (Object.keys(placeColors).length) languageColors[place] = placeColors;
-  else delete languageColors[place];
-  if (Object.keys(languageColors).length) store[code] = languageColors;
-  else delete store[code];
+  if (Object.keys(placeColors).length) store[place] = placeColors;
+  else delete store[place];
   writeStore(store);
 }
 
@@ -64,28 +49,32 @@ function readStore(): ColorStore {
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    const store: ColorStore = {};
-    for (const [code, value] of Object.entries(parsed)) {
-      const language = code.trim().toLowerCase();
-      if (!language || reserved(language)) continue;
-      const colors = readLanguage(value);
-      if (colors) store[language] = colors;
+    const record = parsed as Record<string, unknown>;
+    if (PLACES.some((place) => place in record)) return readPlaces(record);
+    const merged: ColorStore = {};
+    for (const value of Object.values(record)) {
+      const colors = readPlaces(value);
+      for (const place of PLACES) {
+        const fields = colors[place];
+        if (!fields) continue;
+        merged[place] = { ...fields, ...(merged[place] ?? {}) };
+      }
     }
-    return store;
+    return merged;
   } catch {
     return {};
   }
 }
 
-function readLanguage(value: unknown): LanguageColors | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+function readPlaces(value: unknown): ColorStore {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const record = value as Record<string, unknown>;
-  const colors: LanguageColors = {};
+  const colors: ColorStore = {};
   for (const place of PLACES) {
     const fields = readPlace(record[place]);
     if (fields) colors[place] = fields;
   }
-  return Object.keys(colors).length ? colors : null;
+  return colors;
 }
 
 function readPlace(value: unknown): PlaceColors | null {

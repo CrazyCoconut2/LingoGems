@@ -1,7 +1,5 @@
-import { Location } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import {
   isAiProvider,
   readStoredAiCredentials,
@@ -269,9 +267,8 @@ const AI_PROVIDERS: ProviderOption[] = [
   `,
 })
 export class Settings {
-  private readonly location = inject(Location);
+  readonly closed = output<void>();
   readonly storageKept = storageKeptState;
-  private readonly router = inject(Router);
   private readonly stored = readStoredAiCredentials().keys[0];
 
   readonly providers = AI_PROVIDERS;
@@ -327,12 +324,7 @@ export class Settings {
   }
 
   back(): void {
-    const state = this.location.getState() as { navigationId?: number } | null;
-    if (state?.navigationId && state.navigationId > 1) {
-      this.location.back();
-      return;
-    }
-    void this.router.navigateByUrl('/');
+    this.closed.emit();
   }
 }
 

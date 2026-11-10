@@ -1,14 +1,20 @@
-import { Component, OnInit } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, OnInit, signal } from '@angular/core';
 import packageJson from '../../package.json';
+import { isOnboarded } from './credentials/credentials';
+import { LanguagePage } from './languages/language-page';
+import { Onboarding } from './onboarding/onboarding';
 import { KeepStorageBar } from './storage/keep-storage-bar';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, KeepStorageBar],
+  imports: [KeepStorageBar, Onboarding, LanguagePage],
   template: `
     <app-keep-storage />
-    <router-outlet />
+    @if (onboarded()) {
+      <app-language-page />
+    } @else {
+      <app-onboarding (finished)="onboarded.set(true)" />
+    }
     <p class="version">v{{ version }}</p>
   `,
   styles: `
@@ -36,6 +42,7 @@ import { KeepStorageBar } from './storage/keep-storage-bar';
 })
 export class App implements OnInit {
   readonly version = packageJson.version;
+  readonly onboarded = signal(isOnboarded());
 
   ngOnInit(): void {
     document.getElementById('lg-boot-splash')?.remove();

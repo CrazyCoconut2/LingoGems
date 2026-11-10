@@ -7,8 +7,6 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, CanActivateFn, Router, RouterLink } from '@angular/router';
 import { ElementModal } from '../elements/element-modal';
 import { ModeIcon } from '../elements/mode-icon';
 import { ScoreGauge } from '../elements/score-gauge';
@@ -16,6 +14,8 @@ import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { DiscoverModal } from './discover-modal';
 import { LanguageAiSettings } from './language-ai-settings';
+import { readSelectedLanguage, writeSelectedLanguage } from './selected-language';
+import { Settings } from '../settings/settings';
 import { generateElementFromSelection } from 'ai';
 import {
   addElement,
@@ -35,22 +35,19 @@ import {
   elementModeLabel,
   elementPrefixSearch,
   emptyMetadataIndexes,
-  formatElementCountRange,
   formatMetadataFilter,
+  isLearnableLanguage,
   isValidForm,
+  LEARNABLE_LANGUAGES,
   languageDisplayName,
   mergeMetadataIndexes,
   mergeMetadataVariability,
   metadataFilterSize,
-  parseElementCountRange,
-  parseComfort,
-  parseElementMode,
-  parseElementSort,
   parseMetadataFilter,
+  readAllElements,
   readElements,
-  readLanguage,
-  readLanguages,
-  replaceLanguageMetadata,
+  readMetadataCatalog,
+  replaceMetadataCatalog,
   saveElement,
   setCountRangeBound,
   stepCountRange,
@@ -62,11 +59,18 @@ import {
   type ElementSearch,
   type ElementSearchPart,
   type ElementSort,
+  type LearnableLanguage,
   type StoredElement,
-  type StoredLanguage,
 } from 'collection';
 
-type FilterSection = 'mode' | 'comfort' | 'translations' | 'definitions' | 'examples' | 'forms';
+type FilterSection =
+  | 'language'
+  | 'mode'
+  | 'comfort'
+  | 'translations'
+  | 'definitions'
+  | 'examples'
+  | 'forms';
 
 type MetadataKind = 'definitions' | 'examples' | 'forms';
 
@@ -82,33 +86,19 @@ const ELEMENT_SKELETONS = [0, 1, 2, 3, 4, 5, 6, 7];
 const LONG_PRESS_MS = 500;
 const MOVE_SLOP_PX = 10;
 
-export const openSavedLanguage: CanActivateFn = async (route) => {
-  const router = inject(Router);
-  const code = String(route.paramMap.get('code') ?? '')
-    .trim()
-    .toLowerCase();
-  const languages = await readLanguages();
-  if (languages.some((language) => language.code === code)) return true;
-  return router.createUrlTree(['/']);
-};
-
 @Component({
   selector: 'app-language-page',
-  imports: [RouterLink, ElementModal, ModeIcon, ScoreGauge, LanguageAiSettings, DiscoverModal],
+  imports: [ElementModal, ModeIcon, ScoreGauge, LanguageAiSettings, DiscoverModal, Settings],
   template: `
     <main>
       <header>
-        <a class="back" routerLink="/" aria-label="Back to languages">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m15 18-6-6 6-6" />
-          </svg>
-        </a>
-        <h1>{{ name() }}</h1>
+        <h1>{{ code() ? name() : 'LingoGems' }}</h1>
         <div class="header-actions">
           <button
             type="button"
             class="settings"
             [class.active]="playing()"
+            [disabled]="!code()"
             [attr.aria-pressed]="playing()"
             [attr.aria-label]="playing() ? 'Edition' : 'Play'"
             [attr.title]="playing() ? 'Edition' : 'Play'"
@@ -121,6 +111,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           <button
             type="button"
             class="settings"
+            [disabled]="!code()"
             aria-label="Definition and example settings"
             title="Definition and example settings"
             (click)="openAiSettings()"
@@ -137,14 +128,21 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
               <path d="M18 16h4" />
             </svg>
           </button>
-          <a class="settings" routerLink="/settings" aria-label="Settings" title="Settings">
+          <button
+            type="button"
+            class="settings"
+            [class.active]="settingsOpen()"
+            aria-label="Settings"
+            title="Settings"
+            (click)="openSettings()"
+          >
             <svg viewBox="0 0 24 24">
               <path
                 d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
               />
               <circle cx="12" cy="12" r="3" />
             </svg>
-          </a>
+          </button>
         </div>
       </header>
 
@@ -156,7 +154,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
             autocomplete="off"
             [value]="query()"
             [attr.maxlength]="maxSearchLength"
-            [disabled]="playing()"
+            [disabled]="playing() || !code()"
             (input)="onSearch(inputValue($event))"
             placeholder="Search lemmas or forms…"
             aria-label="Search lemmas or forms"
@@ -198,7 +196,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
             type="button"
             class="toolbar-icon-btn"
             [class.active]="discoverOpen()"
-            [disabled]="playing()"
+            [disabled]="playing() || !code()"
             aria-label="Discover"
             title="Discover"
             (click)="openDiscover($event)"
@@ -231,7 +229,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
               class="toolbar-icon-btn"
               [class.active]="sortOpen() || sortActive()"
               [attr.aria-expanded]="sortOpen()"
-              [disabled]="playing()"
+              [disabled]="playing() || !code()"
               aria-label="Sort collection"
               title="Sort"
               (click)="toggleSort($event)"
@@ -496,7 +494,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       @if (discoverOpen()) {
         <app-discover-modal
           [language]="code()"
-          [catalog]="languageMetadata()"
+          [catalog]="metadataCatalog()"
           [elements]="elements()"
           (closed)="closeDiscover()"
           (added)="reloadElements()"
@@ -516,7 +514,9 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
             <header class="filter-header">
               <div>
                 <h2 class="filter-title">Filters</h2>
-                <p class="filter-subtitle">Keep elements by mode, comfort, counts, or metadata.</p>
+                <p class="filter-subtitle">
+                  Keep elements by language, mode, comfort, counts, or metadata.
+                </p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
                 <svg viewBox="0 0 24 24">
@@ -548,6 +548,44 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
               @if (recomputeError()) {
                 <p class="recompute-error">{{ recomputeError() }}</p>
               }
+
+              <section class="filter-section" [class.expanded]="expanded() === 'language'">
+                <button
+                  type="button"
+                  class="section-header"
+                  [attr.aria-expanded]="expanded() === 'language'"
+                  (click)="toggleSection('language')"
+                >
+                  <span class="section-title">
+                    Language
+                    @if (code()) {
+                      <span class="section-count">{{ name() }}</span>
+                    }
+                  </span>
+                  <svg class="section-chevron" viewBox="0 0 24 24">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+                @if (expanded() === 'language') {
+                  <div class="section-body">
+                    <p class="section-hint">Choose one language to continue.</p>
+                    <div class="language-choices" role="radiogroup" aria-label="Language">
+                      @for (option of languageOptions; track option) {
+                        <button
+                          type="button"
+                          class="language-choice"
+                          role="radio"
+                          [class.selected]="code() === option"
+                          [attr.aria-checked]="code() === option"
+                          (click)="chooseLanguage(option)"
+                        >
+                          {{ languageName(option) }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              </section>
 
               <section class="filter-section" [class.expanded]="expanded() === 'mode'">
                 <button
@@ -997,6 +1035,12 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
         </div>
       }
 
+      @if (settingsOpen()) {
+        <div class="settings-layer">
+          <app-settings (closed)="closeSettings()" />
+        </div>
+      }
+
       @if (opened(); as element) {
         <app-element-modal
           [element]="element"
@@ -1035,32 +1079,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       gap: 0.35rem;
     }
 
-    .back {
-      display: inline-flex;
-      flex: none;
-      align-items: center;
-      padding: 0.3rem;
-      border-radius: 999px;
-      color: var(--accent-text);
-      font-size: 1rem;
-      font-weight: 650;
-      text-decoration: none;
-    }
-
-    .back:hover {
-      background: rgba(139, 144, 165, 0.16);
-    }
-
-    .back svg {
-      width: 1.35rem;
-      height: 1.35rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.4;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
     h1 {
       flex: 1;
       margin: 0;
@@ -1094,9 +1112,14 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       cursor: pointer;
     }
 
-    .settings:hover {
+    .settings:hover:not(:disabled) {
       color: var(--text);
       background: rgba(139, 144, 165, 0.16);
+    }
+
+    .settings:disabled {
+      opacity: 0.4;
+      cursor: default;
     }
 
     .settings.active {
@@ -2044,6 +2067,45 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       border-radius: 0.2rem;
     }
 
+    .language-choices {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .language-choice {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      border: 0;
+      border-radius: 0.65rem;
+      background: transparent;
+      color: var(--text);
+      padding: 0.55rem 0.7rem;
+      font: inherit;
+      font-size: 0.92rem;
+      font-weight: 650;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .language-choice:hover {
+      background: rgba(127, 127, 127, 0.1);
+    }
+
+    .language-choice.selected {
+      background: rgba(var(--accent-rgb), 0.16);
+      color: var(--accent-text);
+    }
+
+    .settings-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      overflow: auto;
+      background: var(--bg);
+    }
+
     .mode-choices {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2266,8 +2328,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
   `,
 })
 export class LanguagePage {
-  private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private loadId = 0;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   private pressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -2276,7 +2336,10 @@ export class LanguagePage {
   private swallowClickUntil = 0;
   private comfortApplied = false;
   private scrollLock = '';
+  private scrollLocked = false;
+  private promptedLanguage = false;
 
+  readonly languageOptions = LEARNABLE_LANGUAGES;
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly modeLabel = elementModeLabel;
   readonly comfortRates = COMFORT_RATES;
@@ -2349,11 +2412,12 @@ export class LanguagePage {
   readonly definitionMetaFilter = signal<ElementMetadataVariability>({});
   readonly exampleMetaFilter = signal<ElementMetadataVariability>({});
   readonly formMetaFilter = signal<ElementMetadataVariability>({});
-  readonly languageMetadata = signal<ElementMetadataIndexes>(emptyMetadataIndexes());
+  readonly metadataCatalog = signal<ElementMetadataIndexes>(emptyMetadataIndexes());
   readonly recomputing = signal(false);
   readonly recomputeError = signal('');
   readonly sortOpen = signal(false);
   readonly filtersOpen = signal(false);
+  readonly settingsOpen = signal(false);
   readonly aiSettingsOpen = signal(false);
   readonly playing = signal(false);
   readonly playId = signal('');
@@ -2434,6 +2498,7 @@ export class LanguagePage {
     return shown.every((element) => selected.has(element.id));
   });
   readonly emptyMessage = computed(() => {
+    if (!this.code()) return 'Select a language to continue.';
     if (!this.elements().length) return 'No elements yet.';
     if (this.playing() && this.playable().length > 0) return 'Nothing left this round.';
     if (this.playing() && this.visible().length > 0) return 'No elements ready for games.';
@@ -2444,18 +2509,10 @@ export class LanguagePage {
     inject(DestroyRef).onDestroy(() => {
       if (this.searchTimer) clearTimeout(this.searchTimer);
       this.clearPressTimer();
-      if (this.filtersOpen() || this.aiSettingsOpen() || this.discoverOpen()) this.unlockScroll();
+      if (this.overlayOpen()) this.unlockScroll(true);
     });
-    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
-      void this.load(params.get('code') ?? '');
-    });
-    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
-      const id = params.get('element')?.trim() ?? '';
-      this.elementId.set(id);
-      if (!id) this.trail.set([]);
-      else if (this.trail().at(-1) !== id) this.trail.set([id]);
-      this.reconcileOpen();
-    });
+    void this.loadCatalog();
+    void this.load(readSelectedLanguage() ?? '');
     effect(() => {
       if (!this.playing()) return;
       const dismissed = this.dismissed();
@@ -2478,6 +2535,10 @@ export class LanguagePage {
 
   @HostListener('document:keydown.escape')
   closeMenusOnEscape(): void {
+    if (this.settingsOpen()) {
+      this.closeSettings();
+      return;
+    }
     if (this.aiSettingsOpen()) {
       this.closeAiSettings();
       return;
@@ -2509,7 +2570,7 @@ export class LanguagePage {
   openElement(id: string): void {
     if (!id) return;
     this.trail.set([id]);
-    this.writeElement(id, false);
+    this.showElement(id);
   }
 
   openCard(id: string): void {
@@ -2744,7 +2805,7 @@ export class LanguagePage {
   visitElement(id: string): void {
     if (!id || id === this.elementId()) return;
     this.trail.update((trail) => [...trail, id]);
-    this.writeElement(id, true);
+    this.showElement(id);
   }
 
   backElement(): void {
@@ -2752,7 +2813,7 @@ export class LanguagePage {
     if (trail.length < 2) return;
     const next = trail.slice(0, -1);
     this.trail.set(next);
-    this.writeElement(next[next.length - 1] ?? '', true);
+    this.showElement(next[next.length - 1] ?? '');
   }
 
   async addFromSelection(title: string): Promise<void> {
@@ -2792,11 +2853,13 @@ export class LanguagePage {
       created = await saveElement({ ...created, definitions });
     }
     this.elements.set(await readElements(code));
-    if (this.code() === code) await this.loadLanguageMetadata(code);
+    if (this.code() === code) {
+      this.metadataCatalog.update((current) => mergeMetadataIndexes(current, created));
+    }
     if (fromSearch) {
       this.clearSearch();
       this.trail.set([created.id]);
-      this.writeElement(created.id, false, true);
+      this.showElement(created.id);
       return;
     }
     if (created.id === this.elementId()) return;
@@ -2805,7 +2868,7 @@ export class LanguagePage {
 
   replaceElement(saved: StoredElement): void {
     this.elements.update((list) => list.map((item) => (item.id === saved.id ? saved : item)));
-    this.languageMetadata.update((current) => mergeMetadataIndexes(current, saved));
+    this.metadataCatalog.update((current) => mergeMetadataIndexes(current, saved));
   }
 
   onElementDeleted(): void {
@@ -2821,16 +2884,12 @@ export class LanguagePage {
     if (!this.elementId()) return;
     this.playId.set('');
     this.trail.set([]);
-    this.writeElement(null, false);
+    this.showElement(null);
   }
 
-  private writeElement(id: string | null, replace: boolean, dropSearch = false): void {
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: dropSearch ? { element: id || null, q: null } : { element: id || null },
-      queryParamsHandling: 'merge',
-      replaceUrl: replace,
-    });
+  private showElement(id: string | null): void {
+    this.elementId.set(id ?? '');
+    if (!id) this.trail.set([]);
   }
 
   highlight(text: string): ElementSearchPart[] {
@@ -2904,7 +2963,7 @@ export class LanguagePage {
     this.elements.set(await readElements(code));
     this.clearSearch();
     this.trail.set([created.id]);
-    this.writeElement(created.id, false, true);
+    this.showElement(created.id);
   }
 
   async askFromSearch(): Promise<void> {
@@ -2976,6 +3035,7 @@ export class LanguagePage {
   }
 
   togglePlay(): void {
+    if (!this.code()) return;
     if (this.playing()) {
       this.playing.set(false);
       this.playOrder.set([]);
@@ -2994,21 +3054,22 @@ export class LanguagePage {
 
   toggleSort(event: Event): void {
     event.stopPropagation();
-    if (this.playing()) return;
+    if (this.playing() || !this.code()) return;
     this.sortOpen.update((open) => !open);
   }
 
   chooseSort(sort: ElementSort): void {
-    if (this.playing()) return;
+    if (this.playing() || !this.code()) return;
     this.sortOpen.set(false);
     this.sort.set(this.sort() === sort ? 'none' : sort);
-    this.writeBrowse();
   }
 
   openAiSettings(): void {
+    if (!this.code()) return;
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.discoverOpen()) this.closeDiscover();
+    if (this.settingsOpen()) this.closeSettings();
     if (this.aiSettingsOpen()) return;
     this.aiSettingsOpen.set(true);
     this.lockScroll();
@@ -3022,10 +3083,11 @@ export class LanguagePage {
 
   openDiscover(event: Event): void {
     event.stopPropagation();
-    if (this.playing()) return;
+    if (this.playing() || !this.code()) return;
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.aiSettingsOpen()) this.closeAiSettings();
+    if (this.settingsOpen()) this.closeSettings();
     if (this.discoverOpen()) return;
     this.discoverOpen.set(true);
     this.lockScroll();
@@ -3040,16 +3102,18 @@ export class LanguagePage {
   async reloadElements(): Promise<void> {
     const code = this.code();
     if (!code) return;
-    const elements = await readElements(code);
+    const [elements, catalog] = await Promise.all([readElements(code), readMetadataCatalog()]);
     if (this.code() !== code) return;
     this.elements.set(elements);
+    this.metadataCatalog.set(catalog);
   }
 
   openFilters(event: Event): void {
     event.stopPropagation();
     this.sortOpen.set(false);
     if (this.discoverOpen()) this.closeDiscover();
-    this.expanded.set('translations');
+    if (this.settingsOpen()) this.closeSettings();
+    this.expanded.set(this.code() ? 'translations' : 'language');
     this.filtersOpen.set(true);
     this.lockScroll();
   }
@@ -3124,13 +3188,11 @@ export class LanguagePage {
       : [...current, mode].sort((left, right) => left - right);
     this.modeFilter.set(next);
     if (!next.length) this.releaseGemSort();
-    this.writeBrowse();
   }
 
   clearMode(): void {
     this.modeFilter.set([]);
     this.releaseGemSort();
-    this.writeBrowse();
   }
 
   comfortSelected(rate: number): boolean {
@@ -3148,12 +3210,10 @@ export class LanguagePage {
       ? current.filter((item) => item !== rate)
       : [...current, rate].sort((left, right) => left - right);
     this.comfortFilter.set(next);
-    this.writeBrowse();
   }
 
   clearComfort(): void {
     this.comfortFilter.set([]);
-    this.writeBrowse();
   }
 
   clearFilters(): void {
@@ -3165,11 +3225,10 @@ export class LanguagePage {
     this.exampleMetaFilter.set({});
     this.formMetaFilter.set({});
     this.releaseGemSort();
-    this.writeBrowse();
   }
 
   metadataEntries(kind: MetadataKind): { key: string; values: string[] }[] {
-    const shown = mergeMetadataVariability(this.metadataCatalog(kind), this.metadataFilter(kind));
+    const shown = mergeMetadataVariability(this.catalogFor(kind), this.metadataFilter(kind));
     return Object.entries(shown).map(([key, values]) => ({ key, values }));
   }
 
@@ -3182,15 +3241,15 @@ export class LanguagePage {
   }
 
   fieldColor(kind: MetadataKind, key: string): string | null {
-    return readFieldColor(this.code(), kind, key);
+    return readFieldColor(kind, key);
   }
 
   setFieldColor(kind: MetadataKind, key: string, event: Event): void {
-    writeFieldColor(this.code(), kind, key, (event.target as HTMLInputElement).value);
+    writeFieldColor(kind, key, (event.target as HTMLInputElement).value);
   }
 
   clearFieldColor(kind: MetadataKind, key: string): void {
-    writeFieldColor(this.code(), kind, key, null);
+    writeFieldColor(kind, key, null);
   }
 
   toggleMetadata(kind: MetadataKind, key: string, value: string): void {
@@ -3217,69 +3276,94 @@ export class LanguagePage {
     this.setMetadataFilter(section.kind, {});
   }
 
+  languageName(code: string): string {
+    return languageDisplayName(code);
+  }
+
+  chooseLanguage(code: LearnableLanguage): void {
+    if (code === this.code()) return;
+    writeSelectedLanguage(code);
+    void this.load(code);
+  }
+
+  openSettings(): void {
+    this.sortOpen.set(false);
+    if (this.filtersOpen()) this.closeFilters();
+    if (this.discoverOpen()) this.closeDiscover();
+    if (this.aiSettingsOpen()) this.closeAiSettings();
+    if (this.settingsOpen()) return;
+    this.settingsOpen.set(true);
+    this.lockScroll();
+  }
+
+  closeSettings(): void {
+    if (!this.settingsOpen()) return;
+    this.settingsOpen.set(false);
+    this.unlockScroll();
+  }
+
   async recomputeMetadata(): Promise<void> {
     if (this.recomputing()) return;
-    const code = this.code();
-    if (!code) return;
     this.recomputing.set(true);
     this.recomputeError.set('');
     try {
+      const all = await readAllElements();
       const next: StoredElement[] = [];
-      for (const element of this.elements()) {
-        next.push(await saveElement(element, { syncLanguage: false }));
+      for (const element of all) {
+        next.push(await saveElement(element, { syncCatalog: false }));
       }
       const union = next.reduce(
         (indexes, element) => mergeMetadataIndexes(indexes, element),
         emptyMetadataIndexes(),
       );
-      const language = await replaceLanguageMetadata(code, union);
-      if (this.code() !== code) return;
-      this.elements.set(next);
-      if (language) this.applyLanguageMetadata(language);
-      else this.languageMetadata.set(union);
+      const catalog = await replaceMetadataCatalog(union);
+      const code = this.code();
+      if (code) this.elements.set(next.filter((element) => element.language === code));
+      this.metadataCatalog.set(catalog);
     } catch {
-      if (this.code() === code) this.recomputeError.set('Could not recompute metadata.');
+      this.recomputeError.set('Could not recompute metadata.');
     } finally {
       this.recomputing.set(false);
     }
   }
 
+  private async loadCatalog(): Promise<void> {
+    this.metadataCatalog.set(await readMetadataCatalog());
+  }
+
   private async load(language: string): Promise<void> {
     const seq = ++this.loadId;
     const code = language.trim().toLowerCase();
-    if (this.searchTimer) clearTimeout(this.searchTimer);
     this.playing.set(false);
     this.playOrder.set([]);
     this.dismissed.set(new Set());
     this.playId.set('');
     this.clearSelection();
-    const params = this.route.snapshot.queryParamMap;
-    const restored = (params.get('q') ?? '').slice(0, ELEMENT_SEARCH_MAX_LENGTH);
-    this.query.set(restored);
-    this.search.set(elementPrefixSearch(restored));
-    this.sort.set(parseElementSort(params.get('sort')));
-    this.translationRange.set(parseElementCountRange(params.get('translations')));
-    this.definitionRange.set(parseElementCountRange(params.get('definitions')));
-    this.modeFilter.set(parseElementMode(params.get('mode')));
-    this.releaseGemSort();
-    this.comfortFilter.set(parseComfort(params.get('comfort')));
-    this.definitionMetaFilter.set(parseMetadataFilter(params.get('definitionMeta')));
-    this.exampleMetaFilter.set(parseMetadataFilter(params.get('exampleMeta')));
-    this.formMetaFilter.set(parseMetadataFilter(params.get('formMeta')));
     this.sortOpen.set(false);
-    if (this.filtersOpen()) this.closeFilters();
     if (this.aiSettingsOpen()) this.closeAiSettings();
     if (this.discoverOpen()) this.closeDiscover();
+    this.elementId.set('');
+    this.trail.set([]);
+    if (!isLearnableLanguage(code)) {
+      this.code.set('');
+      this.name.set('');
+      this.elements.set([]);
+      this.ready.set(true);
+      if (!this.promptedLanguage) {
+        this.promptedLanguage = true;
+        this.expanded.set('language');
+        this.filtersOpen.set(true);
+        this.lockScroll();
+      }
+      return;
+    }
     this.code.set(code);
     this.name.set(languageDisplayName(code));
     this.ready.set(false);
     const elements = await readElements(code);
-    const stored = await readLanguage(code);
     if (seq !== this.loadId) return;
     this.elements.set(elements);
-    this.applyLanguageMetadata(stored);
     this.ready.set(true);
-    this.reconcileOpen();
   }
 
   private releaseGemSort(): void {
@@ -3289,40 +3373,25 @@ export class LanguagePage {
     }
   }
 
-  private writeBrowse(): void {
-    if (this.router.url.split('?')[0] !== `/languages/${this.code()}`) return;
-    const sort = this.sort();
-    const translations = formatElementCountRange(this.translationRange());
-    const definitions = formatElementCountRange(this.definitionRange());
-    const mode = this.modeFilter();
-    const comfort = this.comfortFilter();
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: {
-        sort: sort === DEFAULT_ELEMENT_SORT ? null : sort,
-        mode: mode.length ? mode.join(',') : null,
-        comfort: comfort.length ? comfort.join(',') : null,
-        translations,
-        definitions,
-        definitionMeta: formatMetadataFilter(this.definitionMetaFilter()),
-        exampleMeta: formatMetadataFilter(this.exampleMetaFilter()),
-        formMeta: formatMetadataFilter(this.formMetaFilter()),
-        has: null,
-        hide: null,
-      },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
+  private overlayOpen(): boolean {
+    return (
+      this.filtersOpen() || this.settingsOpen() || this.aiSettingsOpen() || this.discoverOpen()
+    );
   }
 
   private lockScroll(): void {
+    if (this.scrollLocked) return;
     this.scrollLock = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    this.scrollLocked = true;
   }
 
-  private unlockScroll(): void {
+  private unlockScroll(force = false): void {
+    if (!force && this.overlayOpen()) return;
+    if (!this.scrollLocked) return;
     document.body.style.overflow = this.scrollLock;
     this.scrollLock = '';
+    this.scrollLocked = false;
   }
 
   private rangeFor(kind: 'translations' | 'definitions'): ElementCountRange {
@@ -3332,7 +3401,6 @@ export class LanguagePage {
   private setRange(kind: 'translations' | 'definitions', range: ElementCountRange): void {
     if (kind === 'translations') this.translationRange.set(range);
     else this.definitionRange.set(range);
-    this.writeBrowse();
   }
 
   private metadataFilter(kind: MetadataKind): ElementMetadataVariability {
@@ -3341,8 +3409,8 @@ export class LanguagePage {
     return this.formMetaFilter();
   }
 
-  private metadataCatalog(kind: MetadataKind): ElementMetadataVariability {
-    const metadata = this.languageMetadata();
+  private catalogFor(kind: MetadataKind): ElementMetadataVariability {
+    const metadata = this.metadataCatalog();
     if (kind === 'definitions') return metadata.definitionMetadata;
     if (kind === 'examples') return metadata.exampleMetadata;
     return metadata.formMetadata;
@@ -3353,32 +3421,6 @@ export class LanguagePage {
     if (kind === 'definitions') this.definitionMetaFilter.set(next);
     else if (kind === 'examples') this.exampleMetaFilter.set(next);
     else this.formMetaFilter.set(next);
-    this.writeBrowse();
-  }
-
-  private async loadLanguageMetadata(code: string): Promise<void> {
-    const language = await readLanguage(code);
-    if (this.code() !== code) return;
-    this.applyLanguageMetadata(language);
-  }
-
-  private applyLanguageMetadata(language: StoredLanguage | null): void {
-    this.languageMetadata.set(
-      language
-        ? {
-            definitionMetadata: language.definitionMetadata,
-            exampleMetadata: language.exampleMetadata,
-            formMetadata: language.formMetadata,
-          }
-        : emptyMetadataIndexes(),
-    );
-  }
-
-  private reconcileOpen(): void {
-    const id = this.elementId();
-    if (!this.ready() || !id) return;
-    if (this.elements().some((element) => element.id === id)) return;
-    this.closeElement();
   }
 
   private commitSearch(): void {
@@ -3386,15 +3428,7 @@ export class LanguagePage {
       clearTimeout(this.searchTimer);
       this.searchTimer = null;
     }
-    const search = elementPrefixSearch(this.query());
-    this.search.set(search);
-    if (this.router.url.split('?')[0] !== `/languages/${this.code()}`) return;
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { q: search.mode === 'prefix' ? search.value : null },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
+    this.search.set(elementPrefixSearch(this.query()));
   }
 }
 

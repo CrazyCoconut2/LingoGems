@@ -1,6 +1,6 @@
 import { ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
 import { isLearnableLanguage, type LearnableLanguage } from '../languages/catalog';
-import { mergeLanguageMetadata } from '../languages/language-store';
+import { mergeMetadataCatalog } from './metadata-catalog';
 import {
   collectMetadataIndexes,
   emptyMetadataIndexes,
@@ -125,7 +125,22 @@ export async function readElements(language: string): Promise<StoredElement[]> {
       .index('language')
       .getAll(code),
   );
-  const records = Array.isArray(result) ? result : [];
+  return materializeElements(Array.isArray(result) ? result : [], code);
+}
+
+export async function readAllElements(): Promise<StoredElement[]> {
+  if (typeof indexedDB === 'undefined') return [];
+  const db = await openDatabase();
+  const result = await idbRequest(
+    db.transaction(ELEMENTS_STORE, 'readonly').objectStore(ELEMENTS_STORE).getAll(),
+  );
+  return materializeElements(Array.isArray(result) ? result : []);
+}
+
+async function materializeElements(
+  records: unknown[],
+  language?: LearnableLanguage,
+): Promise<StoredElement[]> {
   const stale = records.filter(recordHasDefinitionGem);
   if (stale.length) {
     await Promise.all(
@@ -137,7 +152,10 @@ export async function readElements(language: string): Promise<StoredElement[]> {
   }
   return records
     .map(normalizeElement)
-    .filter((element): element is StoredElement => element !== null && element.language === code)
+    .filter(
+      (element): element is StoredElement =>
+        element !== null && (!language || element.language === language),
+    )
     .sort(
       (left, right) => left.createdAt - right.createdAt || left.title.localeCompare(right.title),
     );
@@ -182,7 +200,7 @@ export async function addElement(language: string, title: string): Promise<Store
 
 export async function saveElement(
   element: StoredElement,
-  options?: { syncLanguage?: boolean },
+  options?: { syncCatalog?: boolean },
 ): Promise<StoredElement> {
   const language = String(element?.language ?? '')
     .trim()
@@ -211,8 +229,8 @@ export async function saveElement(
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
   await putElement(saved);
-  if (options?.syncLanguage !== false && !metadataIndexesEmpty(indexes)) {
-    await mergeLanguageMetadata(language, indexes);
+  if (options?.syncCatalog !== false && !metadataIndexesEmpty(indexes)) {
+    await mergeMetadataCatalog(indexes);
   }
   return saved;
 }

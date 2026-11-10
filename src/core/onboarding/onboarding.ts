@@ -1,6 +1,5 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { isAiProvider, writeStoredAiCredentials, type AiProviderId } from 'ai';
 import { markOnboarded } from '../credentials/credentials';
 
@@ -171,7 +170,7 @@ const AI_PROVIDERS: ProviderOption<AiProviderId>[] = [
   `,
 })
 export class Onboarding {
-  private readonly router = inject(Router);
+  readonly finished = output<void>();
 
   readonly aiProviders = AI_PROVIDERS;
 
@@ -203,7 +202,7 @@ export class Onboarding {
 
   private finish(): void {
     markOnboarded();
-    void this.router.navigateByUrl('/');
+    this.finished.emit();
   }
 }
 
