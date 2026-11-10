@@ -53,8 +53,6 @@ import {
   generateExamples,
   generateForms,
   generateRelatedWords,
-  readFormExtraFields,
-  readFormMetadataFields,
   gradeDefinition,
   gradeEquivalent,
   gradeExample,
@@ -155,11 +153,6 @@ const NEW_DEFINITIONS_KEY = 'lingogem.definition-new.v1';
 
 function definitionGloss(text: string): string {
   return parsePassage(text).text.trim().toLowerCase();
-}
-
-function joinList(items: readonly string[]): string {
-  if (items.length <= 1) return items[0] ?? '';
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
 function readDefinitionSuggestions(elementId: string): StoredSuggestion[] {
@@ -3531,23 +3524,7 @@ function writeExampleSuggestions(
               (click)="$event.stopPropagation()"
             >
               <h3>Generate forms?</h3>
-              <p>
-                The AI will add the missing inflected forms of this sense. A verb covers person,
-                number, tense, and mood, plus the participle and gerund when they exist. A noun or
-                adjective covers gender and number.
-              </p>
-              <ul class="confirm-points">
-                <li>Sense: {{ pending.gloss }}</li>
-                <li>Lemma: {{ pending.title }}</li>
-                <li>Written in {{ pending.language }}</li>
-                <li>Forms already saved stay as they are.</li>
-                @if (pending.fields) {
-                  <li>Each new form is labeled with {{ pending.fields }}.</li>
-                }
-                @if (pending.extra) {
-                  <li>Other labels can be added when a form needs them.</li>
-                }
-              </ul>
+              <p>The AI will add the missing inflected forms of “{{ pending.gloss }}”.</p>
               <div class="sheet-actions">
                 <button type="button" class="btn btn-secondary" (click)="formsConfirm.set(null)">
                   Cancel
@@ -4418,17 +4395,6 @@ function writeExampleSuggestions(
 
     button.section-title .fold-chevron.open {
       transform: rotate(180deg);
-    }
-
-    .confirm-points {
-      margin: 0;
-      padding-left: 1.1rem;
-      color: var(--text);
-      font-size: 0.9rem;
-    }
-
-    .confirm-points li + li {
-      margin-top: 0.28rem;
     }
 
     .empty,
@@ -6198,25 +6164,11 @@ export class ElementModal {
     this.formsConfirm.set(null);
   }
 
-  formsConfirmDetail(index: number): {
-    gloss: string;
-    title: string;
-    language: string;
-    fields: string;
-    extra: boolean;
-  } | null {
-    const element = this.element();
-    const definition = element.definitions[index];
+  formsConfirmDetail(index: number): { gloss: string } | null {
+    const definition = this.element().definitions[index];
     const gloss = parsePassage(definition?.text ?? '').text.trim();
     if (!definition || !gloss) return null;
-    const fields = readFormMetadataFields(element.language).map((field) => field.key);
-    return {
-      gloss,
-      title: element.title.trim(),
-      language: languageDisplayName(element.language),
-      fields: joinList(fields),
-      extra: readFormExtraFields(element.language),
-    };
+    return { gloss };
   }
 
   confirmGenerateForms(): void {
