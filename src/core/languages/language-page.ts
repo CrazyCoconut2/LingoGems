@@ -1599,7 +1599,7 @@ const MOVE_SLOP_PX = 10;
       overflow: hidden;
       --level-line: color-mix(in srgb, var(--score-color, var(--border)) 42%, var(--border));
       border: 1px solid var(--level-line);
-      border-radius: var(--radius);
+      border-radius: 0;
       background: color-mix(in srgb, var(--score-color, transparent) 12%, var(--surface));
       color: inherit;
       font: inherit;
@@ -1673,9 +1673,11 @@ const MOVE_SLOP_PX = 10;
 
     .comfort-track {
       display: flex;
+      box-sizing: border-box;
       width: 100%;
       margin-top: auto;
       gap: 2px;
+      border-top: 1px solid var(--level-line, var(--border));
       background: var(--level-line, var(--border));
     }
 
