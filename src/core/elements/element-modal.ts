@@ -6889,8 +6889,6 @@ export class ElementModal {
     return (
       this.supportAvailable() &&
       draft.length > 0 &&
-      this.sheetTranslations().length === 0 &&
-      parsePassage(draft).translations.length === 0 &&
       !this.translating() &&
       !this.askingEquivalent() &&
       !this.busy()
@@ -6907,9 +6905,9 @@ export class ElementModal {
     try {
       const translated = await translatePhrase(text, source);
       if (ticket !== this.translateTicket) return;
-      this.sheetTranslations.set([
-        { language: readTranslationLanguage(source), text: translated },
-      ]);
+      const target = readTranslationLanguage(source);
+      const rest = this.sheetTranslations().filter((item) => item.language !== target);
+      this.sheetTranslations.set([...rest, { language: target, text: translated }]);
     } catch {
       if (ticket !== this.translateTicket) return;
       this.sheetError.set('Could not translate this.');
