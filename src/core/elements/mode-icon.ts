@@ -15,7 +15,7 @@ type GemFace = {
   line: string;
 };
 
-/** Translation is a ruby, form an orange stone, definition a green stone. */
+/** Translation is a ruby, example an orange stone, definition a green stone. */
 const MODE_GEM: Record<ElementMode, GemFace> = {
   1: {
     top: '#ffd0cc',
@@ -117,10 +117,11 @@ const MODE_GEM: Record<ElementMode, GemFace> = {
           }
           @case (2) {
             <path
-              d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
+              d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
             />
-            <path d="m22 12.5-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5" />
-            <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
+            <path
+              d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+            />
           }
           @default {
             <path

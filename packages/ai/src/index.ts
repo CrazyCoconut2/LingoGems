@@ -156,6 +156,28 @@ export {
 } from './grade-definition';
 
 export {
+  GRADE_EXAMPLE_SYSTEM_PROMPT,
+  buildGradeExampleUserMessage,
+  gradeExample,
+  parseGradedExample,
+  type GradeExampleInput,
+  type GradedExample,
+} from './grade-example';
+
+export {
+  CORRECT_EXAMPLE_SYSTEM_PROMPT,
+  REFORMULATE_EXAMPLE_SYSTEM_PROMPT,
+  buildPolishExampleUserMessage,
+  parsePolishedExample,
+  polishExample,
+  type CorrectedExample,
+  type PolishExampleInput,
+  type PolishExampleResult,
+  type PolishExampleTask,
+  type ReformulatedExample,
+} from './polish-example';
+
+export {
   GRADE_EQUIVALENT_SYSTEM_PROMPT,
   buildGradeEquivalentUserMessage,
   gradeEquivalent,

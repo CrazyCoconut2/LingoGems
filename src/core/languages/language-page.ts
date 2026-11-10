@@ -399,7 +399,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       @for (total of gemTotals(element); track total.game) {
                         <span
                           class="card-gem"
-                          [class.quiet]="!total.gems"
                           [attr.data-game]="total.game"
                           [attr.aria-label]="gemsLabel(total.game, total.gems)"
                         >
@@ -1296,6 +1295,10 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       --exercise-gem: #f05a62;
     }
 
+    .card-gem[data-game='example'] {
+      --exercise-gem: #f09440;
+    }
+
     .card-gem[data-game='definition'] {
       --exercise-gem: #48c850;
     }
@@ -1303,10 +1306,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     .card-gem .gem {
       --gem-size: 0.72rem;
       background: var(--exercise-gem);
-    }
-
-    .card-gem.quiet {
-      opacity: 0.4;
     }
 
     .element.playing .marks {
@@ -2295,22 +2294,28 @@ export class LanguagePage {
     return element.definitions.reduce((total, definition) => total + definition.forms.length, 0);
   }
 
-  gemTotals(element: StoredElement): { game: 'translation' | 'definition'; gems: number }[] {
+  gemTotals(
+    element: StoredElement,
+  ): { game: 'translation' | 'example' | 'definition'; gems: number }[] {
     let translation = 0;
+    let example = 0;
     let definition = 0;
     for (const item of element.definitions) {
       for (const entry of item.log) {
         if (entry.game === 'translation') translation += entry.gems;
+        else if (entry.game === 'example') example += entry.gems;
         else definition += entry.gems;
       }
     }
-    return [
+    const totals: { game: 'translation' | 'example' | 'definition'; gems: number }[] = [
       { game: 'translation', gems: translation },
+      { game: 'example', gems: example },
       { game: 'definition', gems: definition },
     ];
+    return totals.filter((total) => total.gems > 0);
   }
 
-  gemsLabel(game: 'translation' | 'definition', count: number): string {
+  gemsLabel(game: 'translation' | 'example' | 'definition', count: number): string {
     const amount = count === 1 ? '1 gem' : `${count} gems`;
     return `${amount} from ${game}`;
   }

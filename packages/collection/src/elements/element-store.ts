@@ -33,7 +33,7 @@ export type DefinitionLogBy = 'user' | 'ai';
 
 /** One scored answer in a game, kept on the definition it belongs to. */
 export type DefinitionLogEntry = {
-  game: 'translation' | 'definition';
+  game: 'translation' | 'example' | 'definition';
   gems: number;
   by: DefinitionLogBy;
   at: number;
@@ -55,12 +55,12 @@ export function formTexts(forms: readonly ElementForm[]): string[] {
   return forms.map((form) => form.text);
 }
 
-/** 1 is Translation, 2 is Form, and 3 is Definition. */
+/** 1 is Translation, 2 is Example, and 3 is Definition. */
 export type ElementMode = 1 | 2 | 3;
 
 const ELEMENT_MODE_LABELS: Record<ElementMode, string> = {
   1: 'Translation',
-  2: 'Form',
+  2: 'Example',
   3: 'Definition',
 };
 
@@ -375,7 +375,9 @@ function normalizeLog(value: unknown): DefinitionLogEntry[] {
 function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   if (!raw || typeof raw !== 'object') return null;
   const source = raw as Partial<DefinitionLogEntry>;
-  if (source.game !== 'translation' && source.game !== 'definition') return null;
+  if (source.game !== 'translation' && source.game !== 'example' && source.game !== 'definition') {
+    return null;
+  }
   const gems = Math.round(Number(source.gems));
   if (!Number.isInteger(gems) || gems < 0 || gems > TRANSLATION_GEM_MAX) return null;
   if (source.by !== 'user' && source.by !== 'ai') return null;

@@ -1,18 +1,12 @@
-import {
-  formMatchesTerm,
-  surfaceSpans,
-  type DefinitionLogBy,
-  type StoredElement,
-} from 'collection';
+import { surfaceSpans, type DefinitionLogBy } from 'collection';
 import type { GradedDefinition } from 'ai';
 
 export const EQUIVALENT_MAX = 200;
-export const RECALL_MAX = 200;
 export const DEFINITION_MAX = 500;
 
 export type AnswerLanguage = 'original' | 'english';
 
-/** Gems attributed to one equivalent answer in the current round. */
+/** Gems attributed to one answer in the current round. */
 export type EquivalentReward = {
   gems: number;
   by: DefinitionLogBy;
@@ -25,9 +19,6 @@ export type PlayRound = {
   equivalentRewards: Array<EquivalentReward | null>;
   /** Index of this attempt inside the definition log. Null until it is saved. */
   equivalentLogIndexes: Array<number | null>;
-  recall: string;
-  recalled: boolean;
-  revealedCount: number;
   definitionDrafts: string[];
   /** Support-language wording written beside the working-language answer. */
   definitionSupportDrafts: string[];
@@ -38,6 +29,13 @@ export type PlayRound = {
   definitionLanguages: AnswerLanguage[];
   grades: Array<GradedDefinition | null>;
   definitionTranslations: string[];
+  exampleDrafts: string[];
+  /** Support-language wording written beside the working-language example. */
+  exampleSupportDrafts: string[];
+  exampleSubmitted: boolean[];
+  exampleRewards: Array<EquivalentReward | null>;
+  /** Index of this example attempt inside the definition log. Null until it is saved. */
+  exampleLogIndexes: Array<number | null>;
   /** The learner stopped this round. The card is shown again. */
   givenUp: boolean;
 };
@@ -48,9 +46,6 @@ export function emptyPlayRound(): PlayRound {
     equivalentSubmitted: [],
     equivalentRewards: [],
     equivalentLogIndexes: [],
-    recall: '',
-    recalled: false,
-    revealedCount: 0,
     definitionDrafts: [],
     definitionSupportDrafts: [],
     definitionSubmitted: [],
@@ -59,79 +54,20 @@ export function emptyPlayRound(): PlayRound {
     definitionLanguages: [],
     grades: [],
     definitionTranslations: [],
+    exampleDrafts: [],
+    exampleSupportDrafts: [],
+    exampleSubmitted: [],
+    exampleRewards: [],
+    exampleLogIndexes: [],
     givenUp: false,
   };
 }
 
-export function graphemes(text: string): string[] {
-  if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
-    return [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].map(
-      (part) => part.segment,
-    );
-  }
-  return Array.from(text);
-}
-
-/** How many graphemes to show so the cue uncovers one more letter. */
-export function nextLetterCount(chars: readonly string[], from: number): number {
-  let index = from;
-  while (index < chars.length) {
-    index += 1;
-    if (/\p{L}/u.test(chars[index - 1] ?? '')) return index;
-  }
-  return from;
-}
-
-export function matchesElement(answer: string, element: StoredElement): boolean {
-  const text = answer.trim();
-  if (!text) return false;
-  if (sameSurface(text, element.title) || formMatchesTerm(element.title, text)) return true;
-  return element.definitions.some((definition) =>
-    definition.forms.some(
-      (form) => sameSurface(text, form.text) || formMatchesTerm(form.text, text),
-    ),
-  );
-}
-
-function sameSurface(left: string, right: string): boolean {
-  return normalizeSurface(left) === normalizeSurface(right);
-}
-
-function normalizeSurface(value: string): string {
-  return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
-}
-
-type SurfacePart = { kind: 'text'; text: string } | { kind: 'blur'; text: string };
-
-function blurredParts(sentence: string, element: StoredElement): SurfacePart[] {
-  const forms = element.definitions.flatMap((definition) =>
-    definition.forms.map((form) => form.text),
-  );
-  const spans = surfaceSpans(sentence, element.title, forms);
-  if (!spans.length) return [{ kind: 'text', text: sentence }];
-  const parts: SurfacePart[] = [];
-  let cursor = 0;
-  for (const span of spans) {
-    if (span.start < cursor) continue;
-    if (span.start > cursor) parts.push({ kind: 'text', text: sentence.slice(cursor, span.start) });
-    parts.push({ kind: 'blur', text: span.surface });
-    cursor = span.end;
-  }
-  if (cursor < sentence.length) parts.push({ kind: 'text', text: sentence.slice(cursor) });
-  return parts;
-}
-
-/** True when this text contains the title or one of its forms. */
-export function textNamesElement(text: string, element: StoredElement): boolean {
-  const forms = element.definitions.flatMap((definition) =>
-    definition.forms.map((form) => form.text),
-  );
-  return surfaceSpans(text, element.title, forms).length > 0;
-}
-
-/** The element's own words become an ellipsis so speech does not say the answer. */
-export function maskedSentence(sentence: string, element: StoredElement): string {
-  return blurredParts(sentence, element)
-    .map((part) => (part.kind === 'text' ? part.text : '…'))
-    .join('');
+/** True when the sentence contains the title or one of the given forms. */
+export function exampleContainsForm(
+  sentence: string,
+  title: string,
+  forms: readonly string[],
+): boolean {
+  return surfaceSpans(sentence, title, forms).length > 0;
 }
