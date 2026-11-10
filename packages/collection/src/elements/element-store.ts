@@ -93,6 +93,8 @@ export type StoredElement = {
   mode: ElementMode | null;
   /** How comfortable this element feels, from 1 to 10. Missing values are 1. */
   comfort: number;
+  /** Times this card was opened from the edition list. Missing values are 0. */
+  clicks: number;
   /** Distinct metadata values across this element's definitions. */
   definitionMetadata: ElementMetadataVariability;
   /** Distinct metadata values across this element's examples. */
@@ -174,6 +176,7 @@ export async function addElement(language: string, title: string): Promise<Store
     highlightStyle: null,
     mode: null,
     comfort: MIN_COMFORT,
+    clicks: 0,
     ...emptyMetadataIndexes(),
     createdAt: Date.now(),
   };
@@ -207,6 +210,7 @@ export async function saveElement(
     ...appearanceOf(element),
     mode: storedMode(element?.mode, content.definitions),
     comfort: normalizeComfort(element?.comfort),
+    clicks: normalizeClicks(element?.clicks),
     ...indexes,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
@@ -252,6 +256,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     ...appearanceOf(source),
     mode: storedMode(source.mode, content.definitions),
     comfort: normalizeComfort(source.comfort),
+    clicks: normalizeClicks(source.clicks),
     ...collectMetadataIndexes(content.definitions),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
@@ -281,6 +286,13 @@ function storedMode(
   const mode = normalizeElementMode(value);
   if (mode === 1 && !elementReadyForTranslation({ definitions })) return null;
   return mode;
+}
+
+/** Missing or invalid values are 0. */
+function normalizeClicks(value: unknown): number {
+  const clicks = Math.round(Number(value));
+  if (!Number.isInteger(clicks) || clicks < 0) return 0;
+  return clicks;
 }
 
 /** Missing or out-of-range values are 1. */

@@ -336,16 +336,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                   }
                 </div>
                 <div class="card-icons">
-                  @if (modeGem(element); as total) {
-                    <span
-                      class="card-gem"
-                      [attr.data-game]="total.game"
-                      [attr.aria-label]="gemsLabel(total.game, total.gems)"
-                    >
-                      <span class="gem" aria-hidden="true"></span>
-                      <span>{{ total.gems }}</span>
-                    </span>
-                  }
                   <span
                     class="stat"
                     [class.quiet]="!element.equivalents.length"
@@ -379,6 +369,25 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                     </svg>
                     <span>{{ element.definitions.length }}</span>
                   </span>
+                  @if (element.clicks > 0) {
+                    <span class="stat" [attr.aria-label]="clicksLabel(element.clicks)">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      <span>{{ element.clicks }}</span>
+                    </span>
+                  }
+                  @if (modeGem(element); as total) {
+                    <span
+                      class="card-gem"
+                      [attr.data-game]="total.game"
+                      [attr.aria-label]="gemsLabel(total.game, total.gems)"
+                    >
+                      <span class="gem" aria-hidden="true"></span>
+                      <span>{{ total.gems }}</span>
+                    </span>
+                  }
                 </div>
                 <div
                   class="comfort-track"
@@ -1220,6 +1229,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       display: flex;
       flex: none;
       align-items: center;
+      justify-content: flex-end;
       gap: 0.85rem;
       width: 100%;
       padding: 0.15rem 0.75rem 0.45rem;
@@ -2102,7 +2112,18 @@ export class LanguagePage {
       this.playCard(id);
       return;
     }
+    this.recordClick(id);
     this.openElement(id);
+  }
+
+  private recordClick(id: string): void {
+    const current = this.elements().find((element) => element.id === id);
+    if (!current) return;
+    const next = { ...current, clicks: current.clicks + 1 };
+    this.elements.update((list) => list.map((item) => (item.id === id ? next : item)));
+    void saveElement(next).then((saved) => {
+      if (this.elements().some((item) => item.id === saved.id)) this.replaceElement(saved);
+    });
   }
 
   visitElement(id: string): void {
@@ -2200,6 +2221,10 @@ export class LanguagePage {
 
   definitionsLabel(count: number): string {
     return count === 1 ? '1 definition' : `${count} definitions`;
+  }
+
+  clicksLabel(count: number): string {
+    return count === 1 ? '1 click' : `${count} clicks`;
   }
 
   gemTotals(
