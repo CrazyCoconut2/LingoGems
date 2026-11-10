@@ -12,6 +12,8 @@ import {
   addElement,
   displayTitle,
   formMatchesTerm,
+  LEARNABLE_LANGUAGES,
+  languageDisplayName,
   mergeMetadataVariability,
   normalizeMetadataVariability,
   parsePassage,
@@ -27,7 +29,6 @@ import {
   MAX_METADATA_FIELD_KEY,
   discoverElements,
   readStoredAiCredentials,
-  readTranslationLanguage,
   type DiscoveredElement,
 } from 'ai';
 import { readFieldColor } from '../elements/metadata-colors';
@@ -123,18 +124,20 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                   </button>
                 }
               </div>
-              @if (canTranslate()) {
-                <label class="translate-switch">
-                  <input
-                    type="checkbox"
-                    [checked]="withTranslation()"
-                    [disabled]="busy() || adding()"
-                    aria-label="With a translation"
-                    (change)="setWithTranslation($event)"
-                  />
-                  With a translation
-                </label>
-              }
+              <label class="translate-switch">
+                Translation
+                <select
+                  aria-label="Translation language"
+                  [value]="translationInto()"
+                  [disabled]="busy() || adding()"
+                  (change)="setTranslationInto($event)"
+                >
+                  <option value="">No translation</option>
+                  @for (code of translationLanguages(); track code) {
+                    <option [value]="code">{{ languageName(code) }}</option>
+                  }
+                </select>
+              </label>
             </div>
             <button
               type="button"
@@ -604,11 +607,15 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       font-weight: 650;
     }
 
-    .translate-switch input {
-      width: 1rem;
-      height: 1rem;
-      margin: 0;
-      accent-color: var(--accent, #6c63ff);
+    .translate-switch select {
+      max-width: 11rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 0.84rem;
+      padding: 0.15rem 0.45rem;
     }
 
     .note span,
@@ -1263,7 +1270,7 @@ export class DiscoverModal implements OnInit {
   readonly valueMax = VALUE_MAX;
 
   readonly instruction = signal('');
-  readonly withTranslation = signal(false);
+  readonly translationInto = signal('');
   readonly filtersOpen = signal(false);
   readonly historyOpen = signal(false);
   readonly expanded = signal<DiscoverKind | null>(null);
@@ -1488,6 +1495,27 @@ export class DiscoverModal implements OnInit {
       : 'All of these are already in the collection.';
   }
 
+  languageName(code: string): string {
+    return languageDisplayName(code);
+  }
+
+  translationLanguages(): string[] {
+    const learning = this.language().trim().toLowerCase();
+    return LEARNABLE_LANGUAGES.filter((code) => code !== learning);
+  }
+
+  setTranslationInto(event: Event): void {
+    const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
+    this.translationInto.set(value);
+  }
+
+  private translationTarget(): string {
+    const learning = this.language().trim().toLowerCase();
+    const into = this.translationInto().trim().toLowerCase();
+    if (!into || into === learning) return '';
+    return LEARNABLE_LANGUAGES.includes(into as (typeof LEARNABLE_LANGUAGES)[number]) ? into : '';
+  }
+
   canClear(): boolean {
     return (
       this.instruction().trim().length > 0 || this.results().length > 0 || this.metaCount() > 0
@@ -1496,15 +1524,6 @@ export class DiscoverModal implements OnInit {
 
   canSearch(): boolean {
     return this.instruction().trim().length > 0 || this.results().length > 0;
-  }
-
-  canTranslate(): boolean {
-    const language = this.language().trim().toLowerCase();
-    return language !== '' && language !== readTranslationLanguage(language);
-  }
-
-  setWithTranslation(event: Event): void {
-    this.withTranslation.set(event.target instanceof HTMLInputElement && event.target.checked);
   }
 
   clearSearch(): void {
@@ -1574,7 +1593,7 @@ export class DiscoverModal implements OnInit {
     try {
       const found = await discoverElements({
         language,
-        translate: this.canTranslate() && this.withTranslation(),
+        translation: this.translationTarget(),
         instruction: query.instruction,
         metadata: {
           definition: query.definition,

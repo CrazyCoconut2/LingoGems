@@ -2,7 +2,6 @@ import { languageDisplayName } from 'collection';
 import { completeJson, runWithKeyFallback } from './complete';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
-import { readTranslationLanguage } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
 export const TRANSLATE_SYSTEM_PROMPT = `You translate each input string into targetLang.
@@ -69,8 +68,8 @@ export type GenerateEquivalentInput = {
 export function buildEquivalentUserMessage(input: GenerateEquivalentInput): string {
   const sourceRaw = String(input.sourceLang || '').trim();
   const sourceLang = sourceRaw ? languageDisplayName(sourceRaw) || sourceRaw : '';
-  const targetRaw = String(input.targetLang || readTranslationLanguage(sourceRaw)).trim() || 'en';
-  const targetLang = languageDisplayName(targetRaw) || targetRaw;
+  const targetRaw = String(input.targetLang || '').trim();
+  const targetLang = targetRaw ? languageDisplayName(targetRaw) || targetRaw : '';
   const english = String(input.english || '').trim();
   return JSON.stringify({
     lemma: String(input.lemma || '').trim(),

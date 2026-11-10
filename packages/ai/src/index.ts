@@ -4,8 +4,6 @@ export { isAiProvider } from './credentials';
 
 export { readStoredAiCredentials, writeStoredAiCredentials } from './storage';
 
-export { readTranslationLanguage, writeTranslationLanguage } from './translation-settings';
-
 export {
   DEFAULT_DEFINITION_METADATA_FIELDS,
   DEFAULT_EXAMPLE_METADATA_FIELDS,

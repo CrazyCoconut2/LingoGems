@@ -8,10 +8,7 @@ import {
 import { completeJson, runWithKeyFallback } from './complete';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
-import {
-  readTranslationLanguage,
-  translationLanguage,
-} from './translation-settings';
+import { translationLanguage, translationTarget } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
 export const DEFINITION_RELATIONS = [
@@ -93,7 +90,7 @@ export type GenerateDefinitionPhraseInput = {
   gloss: string;
   words: readonly RelatedWord[];
   definitionInstruction?: string;
-  translate?: boolean;
+  translation?: string;
 };
 
 export type GeneratedDefinitionPhrase = { text: string };
@@ -120,7 +117,7 @@ export function buildRelatedWordsUserMessage(input: GenerateRelatedWordsInput): 
 export function buildDefinitionPhraseUserMessage(input: GenerateDefinitionPhraseInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, input.translate === true);
+  const translateFieldsIn = translationLanguage(language, input.translation);
   const instruction = (input.definitionInstruction ?? '')
     .trim()
     .slice(0, MAX_DEFINITION_INSTRUCTION);
@@ -176,18 +173,16 @@ export function parseGeneratedDefinitionPhrase(
     const phrase = item as Record<string, unknown>;
     const sentence = parsePassage(plainText(phrase['text'])).text.replace(/\s+/g, ' ').trim();
     if (!sentence || sentence.length > MAX_DEFINITION_WORDING) continue;
-    const translated =
-      translationLanguage(language, input.translate === true) === ''
-        ? ''
-        : parsePassage(plainText(phrase['translation'] ?? phrase['english'])).text.slice(
-            0,
-            MAX_DEFINITION_WORDING,
-          );
+    const into = translationTarget(language, input.translation);
+    const translated = into
+      ? parsePassage(plainText(phrase['translation'] ?? phrase['english'])).text.slice(
+          0,
+          MAX_DEFINITION_WORDING,
+        )
+      : '';
     return [
       {
-        text: translated
-          ? embedTranslation(sentence, readTranslationLanguage(language), translated)
-          : sentence,
+        text: translated ? embedTranslation(sentence, into, translated) : sentence,
       },
     ];
   }

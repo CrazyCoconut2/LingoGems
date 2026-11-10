@@ -27,6 +27,8 @@ import {
   highlightDefinitionPassage,
   isValidForm,
   languageDisplayName,
+  LEARNABLE_LANGUAGES,
+  isLearnableLanguage,
   parsePassage,
   saveElement,
   TRANSLATION_GEM_MAX,
@@ -51,7 +53,6 @@ import {
   generateExamples,
   generateForms,
   generateRelatedWords,
-  readTranslationLanguage,
   gradeDefinition,
   gradeEquivalent,
   gradeExample,
@@ -395,18 +396,14 @@ function joinPhrase(current: string, addition: string): string {
   return `${left} ${right}`;
 }
 
-function definitionFromDraft(
-  current: string,
-  gloss: string,
-  english: string,
-  language: string,
-): string {
+function definitionFromDraft(current: string, gloss: string, english: string, target: string): string {
   const parsed = parsePassage(current);
-  const target = readTranslationLanguage(language);
   const languages = new Set(parsed.translations.map((item) => item.language));
   const nextEnglish = english.replace(/\s+/g, ' ').trim();
-  if (nextEnglish) languages.add(target);
-  else languages.delete(target);
+  if (target) {
+    if (nextEnglish) languages.add(target);
+    else languages.delete(target);
+  }
   let text = gloss.replace(/\s+/g, ' ').trim();
   for (const language of [...languages].sort()) {
     const value =
@@ -894,18 +891,19 @@ function writeExampleSuggestions(
                           </svg>
                           Add
                         </button>
-                        @if (supportAvailable()) {
-                          <button
-                            type="button"
-                            class="lookup-chip"
-                            [class.selected]="withTranslation()"
-                            [attr.aria-pressed]="withTranslation()"
-                            aria-label="With a translation"
-                            (pointerdown)="toggleWithTranslation($event)"
-                          >
-                            Translation
-                          </button>
-                        }
+                        <select
+                          class="lookup-chip"
+                          aria-label="Translation language"
+                          [value]="translationInto()"
+                          [disabled]="aiBusy()"
+                          (pointerdown)="$event.stopPropagation()"
+                          (change)="setTranslationInto($event)"
+                        >
+                          <option value="">Translation</option>
+                          @for (code of translationLanguages(); track code) {
+                            <option [value]="code">{{ languageName(code) }}</option>
+                          }
+                        </select>
                         <button
                           type="button"
                           class="lookup-chip"
@@ -1180,18 +1178,19 @@ function writeExampleSuggestions(
                                     </svg>
                                     Add
                                   </button>
-                                  @if (supportAvailable()) {
-                                    <button
-                                      type="button"
-                                      class="lookup-chip"
-                                      [class.selected]="withTranslation()"
-                                      [attr.aria-pressed]="withTranslation()"
-                                      aria-label="With a translation"
-                                      (pointerdown)="toggleWithTranslation($event)"
-                                    >
-                                      Translation
-                                    </button>
-                                  }
+                                  <select
+                                    class="lookup-chip"
+                                    aria-label="Translation language"
+                                    [value]="translationInto()"
+                                    [disabled]="aiBusy() || exampleGame()"
+                                    (pointerdown)="$event.stopPropagation()"
+                                    (change)="setTranslationInto($event)"
+                                  >
+                                    <option value="">Translation</option>
+                                    @for (code of translationLanguages(); track code) {
+                                      <option [value]="code">{{ languageName(code) }}</option>
+                                    }
+                                  </select>
                                   <button
                                     type="button"
                                     class="lookup-chip"
@@ -1592,9 +1591,23 @@ function writeExampleSuggestions(
               @if (current.kind === 'definition' && definitionWarning(textDraft()); as warning) {
                 <p class="warning" role="status">{{ warning }}</p>
               }
-              @if (showTranslationField()) {
+              <label class="translate-switch">
+                Translation
+                <select
+                  aria-label="Translation language"
+                  [value]="translationInto()"
+                  [disabled]="translating() || askingEquivalent() || busy()"
+                  (change)="setTranslationInto($event)"
+                >
+                  <option value="">No translation</option>
+                  @for (code of translationLanguages(); track code) {
+                    <option [value]="code">{{ languageName(code) }}</option>
+                  }
+                </select>
+              </label>
+              @if (supportAvailable()) {
                 <div class="field-heading">
-                  <label for="translation-text">Translation</label>
+                  <label for="translation-text">{{ translationLanguageName() }}</label>
                   <button
                     type="button"
                     class="icon-btn"
@@ -1870,17 +1883,20 @@ function writeExampleSuggestions(
                   }
                 }
               }
-              @if (supportAvailable()) {
-                <label class="translate-switch">
-                  <input
-                    type="checkbox"
-                    [checked]="withTranslation()"
-                    [disabled]="askingExamples() !== null"
-                    (change)="setWithTranslation($event)"
-                  />
-                  With a translation
-                </label>
-              }
+              <label class="translate-switch">
+                Translation
+                <select
+                  aria-label="Translation language"
+                  [value]="translationInto()"
+                  [disabled]="askingExamples() !== null"
+                  (change)="setTranslationInto($event)"
+                >
+                  <option value="">No translation</option>
+                  @for (code of translationLanguages(); track code) {
+                    <option [value]="code">{{ languageName(code) }}</option>
+                  }
+                </select>
+              </label>
               @if (error()) {
                 <p class="error">{{ error() }}</p>
               }
@@ -2011,17 +2027,20 @@ function writeExampleSuggestions(
                   ></textarea>
                 }
               </div>
-              @if (supportAvailable()) {
-                <label class="translate-switch">
-                  <input
-                    type="checkbox"
-                    [checked]="withTranslation()"
-                    [disabled]="definitionSheetBusy()"
-                    (change)="setWithTranslation($event)"
-                  />
-                  With a translation
-                </label>
-              }
+              <label class="translate-switch">
+                Translation
+                <select
+                  aria-label="Translation language"
+                  [value]="translationInto()"
+                  [disabled]="definitionSheetBusy()"
+                  (change)="setTranslationInto($event)"
+                >
+                  <option value="">No translation</option>
+                  @for (code of translationLanguages(); track code) {
+                    <option [value]="code">{{ languageName(code) }}</option>
+                  }
+                </select>
+              </label>
               @if (error()) {
                 <p class="error">{{ error() }}</p>
               }
@@ -2227,17 +2246,20 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              @if (supportAvailable()) {
-                <label class="translate-switch">
-                  <input
-                    type="checkbox"
-                    [checked]="withTranslation()"
-                    [disabled]="asking()"
-                    (change)="setWithTranslation($event)"
-                  />
-                  With a translation
-                </label>
-              }
+              <label class="translate-switch">
+                Translation
+                <select
+                  aria-label="Translation language"
+                  [value]="translationInto()"
+                  [disabled]="asking()"
+                  (change)="setTranslationInto($event)"
+                >
+                  <option value="">No translation</option>
+                  @for (code of translationLanguages(); track code) {
+                    <option [value]="code">{{ languageName(code) }}</option>
+                  }
+                </select>
+              </label>
               <div class="add-choices">
                 <button
                   type="button"
@@ -2657,6 +2679,18 @@ function writeExampleSuggestions(
                     </label>
                   }
                   <span class="header-actions">
+                    <select
+                      class="translate-language"
+                      aria-label="Translation language"
+                      [value]="translationInto()"
+                      [disabled]="translating() || askingPolish() !== null"
+                      (change)="setTranslationInto($event)"
+                    >
+                      <option value="">No translation</option>
+                      @for (code of translationLanguages(); track code) {
+                        <option [value]="code">{{ languageName(code) }}</option>
+                      }
+                    </select>
                     @if (supportAvailable()) {
                       <button
                         type="button"
@@ -2947,6 +2981,18 @@ function writeExampleSuggestions(
                       </label>
                     }
                     <span class="header-actions">
+                      <select
+                        class="translate-language"
+                        aria-label="Translation language"
+                        [value]="translationInto()"
+                        [disabled]="translating() || askingPolish() !== null"
+                        (change)="setTranslationInto($event)"
+                      >
+                        <option value="">No translation</option>
+                        @for (code of translationLanguages(); track code) {
+                          <option [value]="code">{{ languageName(code) }}</option>
+                        }
+                      </select>
                       @if (supportAvailable()) {
                         <button
                           type="button"
@@ -4184,11 +4230,23 @@ function writeExampleSuggestions(
       font-weight: 650;
     }
 
-    .translate-switch input {
-      width: 1rem;
-      height: 1rem;
-      margin: 0;
-      accent-color: var(--accent, #6c63ff);
+    .translate-switch select,
+    .translate-language,
+    select.lookup-chip {
+      max-width: 10rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 650;
+      padding: 0.15rem 0.45rem;
+    }
+
+    select.lookup-chip {
+      height: 1.7rem;
+      cursor: pointer;
     }
 
     .body {
@@ -5249,12 +5307,9 @@ export class ElementModal {
   readonly gemScores = Array.from({ length: TRANSLATION_GEM_MAX + 1 }, (_, gems) => gems);
   readonly equivalentMax = EQUIVALENT_MAX;
   readonly definitionMax = DEFINITION_MAX;
-  readonly withTranslation = signal(false);
-  readonly supportAvailable = computed(
-    () =>
-      this.element().language.trim().toLowerCase() !==
-      readTranslationLanguage(this.element().language),
-  );
+  readonly translationInto = signal('');
+  readonly supportAvailable = computed(() => this.translationTarget() !== '');
+  readonly languageName = languageDisplayName;
   readonly originalLanguageName = computed(
     () => languageDisplayName(this.element().language) || this.element().language,
   );
@@ -5718,21 +5773,25 @@ export class ElementModal {
   }
 
   translationLanguageName(): string {
-    return languageDisplayName(readTranslationLanguage(this.element().language));
+    const code = this.translationTarget();
+    return code ? languageDisplayName(code) : '';
   }
 
-  setWithTranslation(event: Event): void {
-    this.withTranslation.set(event.target instanceof HTMLInputElement && event.target.checked);
+  translationLanguages(): string[] {
+    const learning = this.element().language.trim().toLowerCase();
+    return LEARNABLE_LANGUAGES.filter((code) => code !== learning);
   }
 
-  toggleWithTranslation(event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.withTranslation.update((enabled) => !enabled);
+  setTranslationInto(event: Event): void {
+    const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
+    this.translationInto.set(isLearnableLanguage(value) ? value : '');
   }
 
-  private aiTranslate(): boolean {
-    return this.supportAvailable() && this.withTranslation();
+  private translationTarget(): string {
+    const learning = this.element().language.trim().toLowerCase();
+    const into = this.translationInto().trim().toLowerCase();
+    if (!isLearnableLanguage(into) || into === learning) return '';
+    return into;
   }
 
   canAskEquivalent(): boolean {
@@ -5750,7 +5809,7 @@ export class ElementModal {
     const element = this.element();
     const definition = this.textDraft().trim();
     const english =
-      this.sheetTranslations().find((item) => item.language === readTranslationLanguage(element.language))
+      this.sheetTranslations().find((item) => item.language === this.translationTarget())
         ?.text ?? '';
     const ticket = ++this.equivalentTicket;
     this.askingEquivalent.set(true);
@@ -5761,6 +5820,7 @@ export class ElementModal {
         sourceLang: element.language,
         definition,
         english,
+        targetLang: this.translationTarget(),
       });
       if (ticket !== this.equivalentTicket) return;
       if (!translation) {
@@ -5948,7 +6008,7 @@ export class ElementModal {
         language: element.language,
         title,
         example,
-        translate: this.aiTranslate(),
+        translation: this.translationTarget(),
         existingDefinitions: element.definitions.map((definition) => ({
           text: definition.text,
           metadata: definition.metadata,
@@ -5991,7 +6051,7 @@ export class ElementModal {
       const senses = await generateDefinitions({
         language: element.language,
         title,
-        translate: this.aiTranslate(),
+        translation: this.translationTarget(),
         existingDefinitions: element.definitions.map((definition) => ({
           text: definition.text,
           metadata: definition.metadata,
@@ -6365,7 +6425,7 @@ export class ElementModal {
     this.engineerEnglish.set(
       editing
         ? this.translationDraft()
-        : (passage.translations.find((item) => item.language === readTranslationLanguage(this.element().language))
+        : (passage.translations.find((item) => item.language === this.translationTarget())
             ?.text ??
           ''),
     );
@@ -6414,7 +6474,7 @@ export class ElementModal {
     if (!target) return false;
     const oldSense = senseKey(target.text);
     const english = this.supportAvailable() ? this.engineerEnglish() : '';
-    const nextText = definitionFromDraft(target.text, gloss, english, element.language);
+    const nextText = definitionFromDraft(target.text, gloss, english, this.translationTarget());
     if (nextText === target.text) return true;
     const nextSense = senseKey(nextText);
     target.text = nextText;
@@ -6508,7 +6568,7 @@ export class ElementModal {
         gloss,
         words: picked,
         definitionInstruction: engineer.instruction,
-        translate: this.aiTranslate(),
+        translation: this.translationTarget(),
       });
       const phrase = phrases[0];
       const showing = this.element().id === element.id;
@@ -6530,7 +6590,7 @@ export class ElementModal {
       this.engineerGloss.set(joinPhrase(this.engineerGloss(), extra.text));
       if (this.supportAvailable()) {
         const english =
-          extra.translations.find((item) => item.language === readTranslationLanguage(element.language))
+          extra.translations.find((item) => item.language === this.translationTarget())
             ?.text ??
           '';
         if (english) this.engineerEnglish.set(joinPhrase(this.engineerEnglish(), english));
@@ -6593,7 +6653,7 @@ export class ElementModal {
         language: element.language,
         title: element.title,
         gloss,
-        translate: this.aiTranslate(),
+        translation: this.translationTarget(),
         metadata: definition.metadata,
         existingExamples: definition.examples.map((example) => parsePassage(example.text).text),
         forms: required ? [] : definition.forms.map((form) => form.text),
@@ -6884,7 +6944,7 @@ export class ElementModal {
         language: element.language,
         selected: title,
         context,
-        translate: this.aiTranslate(),
+        translation: this.translationTarget(),
       });
       if (this.element().id !== element.id) return;
       if (!generated) {
@@ -6941,21 +7001,18 @@ export class ElementModal {
     this.passageSelection.set(null);
   };
 
-  showTranslationField(): boolean {
-    return this.supportAvailable() || this.sheetTranslations().length > 0;
-  }
-
   translationDraft(): string {
     return (
       this.sheetTranslations().find(
-        (item) => item.language === readTranslationLanguage(this.element().language),
+        (item) => item.language === this.translationTarget(),
       )?.text ??
       ''
     );
   }
 
   setTranslationDraft(value: string): void {
-    const target = readTranslationLanguage(this.element().language);
+    const target = this.translationTarget();
+    if (!target) return;
     const rest = this.sheetTranslations().filter((item) => item.language !== target);
     const text = value.replace(/]/g, '');
     this.sheetTranslations.set(text.trim() ? [...rest, { language: target, text }] : rest);
@@ -6980,9 +7037,9 @@ export class ElementModal {
     this.translating.set(true);
     this.sheetError.set('');
     try {
-      const translated = await translatePhrase(text, source);
+      const translated = await translatePhrase(text, source, this.translationTarget());
       if (ticket !== this.translateTicket) return;
-      const target = readTranslationLanguage(source);
+      const target = this.translationTarget();
       const rest = this.sheetTranslations().filter((item) => item.language !== target);
       this.sheetTranslations.set([...rest, { language: target, text: translated }]);
     } catch {
@@ -7851,7 +7908,7 @@ export class ElementModal {
       towardWorking ? this.definitionSupportDraftAt(index) : this.definitionDraftAt(index)
     ).trim();
     const element = this.element();
-    const support = readTranslationLanguage(element.language);
+    const support = this.translationTarget();
     const ticket = this.translateTicket;
     this.translating.set(true);
     this.error.set('');
@@ -8205,7 +8262,7 @@ export class ElementModal {
       towardWorking ? this.exampleSupportDraftAt(index) : this.exampleDraftAt(index)
     ).trim();
     const element = this.element();
-    const support = readTranslationLanguage(element.language);
+    const support = this.translationTarget();
     const ticket = this.translateTicket;
     this.translating.set(true);
     this.error.set('');

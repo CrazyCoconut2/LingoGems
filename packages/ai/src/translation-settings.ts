@@ -1,20 +1,15 @@
-import { languageDisplayName } from 'collection';
-import { readStoredTranslationLanguage, writeStoredTranslationLanguage } from './metadata-fields';
+import { isLearnableLanguage, languageDisplayName } from 'collection';
 
-/** The language translations are written in for this learning language. */
-export function readTranslationLanguage(language: string): string {
-  return readStoredTranslationLanguage(language);
+/** Language code to translate into, or '' when it is missing or the same as the learning language. */
+export function translationTarget(learning: string, target: string | null | undefined): string {
+  const into = String(target ?? '').trim().toLowerCase();
+  const from = learning.trim().toLowerCase();
+  if (!isLearnableLanguage(into) || !from || from === into) return '';
+  return into;
 }
 
-/** Saves the translation language for this learning language. English clears it. */
-export function writeTranslationLanguage(language: string, value: unknown): void {
-  writeStoredTranslationLanguage(language, value);
-}
-
-/** The translation language's name when this language should come back with one. */
-export function translationLanguage(language: string, enabled: boolean): string {
-  const target = readTranslationLanguage(language);
-  const code = language.trim().toLowerCase();
-  if (!enabled || !code || code === target) return '';
-  return languageDisplayName(target) || target;
+/** Display name of that language, or '' when there is nothing to translate into. */
+export function translationLanguage(learning: string, target: string | null | undefined): string {
+  const into = translationTarget(learning, target);
+  return into ? languageDisplayName(into) || into : '';
 }

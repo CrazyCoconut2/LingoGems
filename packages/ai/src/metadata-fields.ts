@@ -46,7 +46,6 @@ type StoredLanguageSettings = {
   definitionExtraFields?: true;
   exampleExtraFields?: true;
   formExtraFields?: true;
-  translationLanguage?: string;
 };
 
 type LanguageSettingsMap = Record<string, StoredLanguageSettings>;
@@ -174,21 +173,6 @@ export function writeDefinitionExtraFields(language: string, enabled: boolean): 
   updateLanguage(language, (entry) => {
     if (enabled) entry.definitionExtraFields = true;
     else delete entry.definitionExtraFields;
-  });
-}
-
-/** The language translations are written in. Missing or invalid values are English. */
-export function readStoredTranslationLanguage(language: string): string {
-  const stored = readEntry(language)?.translationLanguage;
-  return typeof stored === 'string' && isLearnableLanguage(stored) ? stored : 'en';
-}
-
-/** Saves the translation language for one learning language. English clears it. */
-export function writeStoredTranslationLanguage(language: string, value: unknown): void {
-  const target = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  updateLanguage(language, (entry) => {
-    if (!isLearnableLanguage(target) || target === 'en') delete entry.translationLanguage;
-    else entry.translationLanguage = target;
   });
 }
 
@@ -375,7 +359,6 @@ function readMap(): LanguageSettingsMap {
         definitionExtraFields?: unknown;
         exampleExtraFields?: unknown;
         formExtraFields?: unknown;
-        translationLanguage?: unknown;
       };
       const entry: StoredLanguageSettings = {};
       if (Array.isArray(record.definitions)) entry.definitions = readFieldList(record.definitions);
@@ -384,9 +367,6 @@ function readMap(): LanguageSettingsMap {
       if (record.definitionExtraFields === true) entry.definitionExtraFields = true;
       if (record.exampleExtraFields === true) entry.exampleExtraFields = true;
       if (record.formExtraFields === true) entry.formExtraFields = true;
-      if (typeof record.translationLanguage === 'string' && isLearnableLanguage(record.translationLanguage)) {
-        entry.translationLanguage = record.translationLanguage.trim().toLowerCase();
-      }
       map[language] = entry;
     }
     return collapseToGlobal(map);
@@ -431,9 +411,6 @@ function mergeSettings(entries: readonly StoredLanguageSettings[]): StoredLangua
     if (entry.definitionExtraFields) merged.definitionExtraFields = true;
     if (entry.exampleExtraFields) merged.exampleExtraFields = true;
     if (entry.formExtraFields) merged.formExtraFields = true;
-    if (!merged.translationLanguage && entry.translationLanguage && entry.translationLanguage !== 'en') {
-      merged.translationLanguage = entry.translationLanguage;
-    }
   }
   if (sawDefinitions) merged.definitions = normalizeMetadataFields(definitions);
   if (sawExamples) merged.examples = normalizeMetadataFields(examples);
@@ -452,9 +429,6 @@ function writeMap(map: LanguageSettingsMap): void {
     if (entry.definitionExtraFields === true) next.definitionExtraFields = true;
     if (entry.exampleExtraFields === true) next.exampleExtraFields = true;
     if (entry.formExtraFields === true) next.formExtraFields = true;
-    if (entry.translationLanguage && isLearnableLanguage(entry.translationLanguage) && entry.translationLanguage !== 'en') {
-      next.translationLanguage = entry.translationLanguage;
-    }
     stored[code] = next;
   }
   if (!Object.keys(stored).length) localStorage.removeItem(LANGUAGE_SETTINGS_KEY);

@@ -12,8 +12,6 @@ import {
   readExampleMetadataFields,
   readFormExtraFields,
   readFormMetadataFields,
-  readTranslationLanguage,
-  writeTranslationLanguage,
   readStoredAiCredentials,
   recommendMetadataFields,
   resetDefinitionMetadataFields,
@@ -27,7 +25,6 @@ import {
   writeFormMetadataFields,
   type AiMetadataField,
 } from 'ai';
-import { LEARNABLE_LANGUAGES, languageDisplayName } from 'collection';
 
 const SETTINGS_SCOPE = 'app';
 
@@ -38,41 +35,6 @@ type MetadataKind = 'definition' | 'example' | 'form';
   selector: 'app-language-ai-settings',
   standalone: true,
   template: `
-    <section class="settings-section" [class.expanded]="open() === 'translation'">
-      <button
-        type="button"
-        class="section-header"
-        [attr.aria-expanded]="open() === 'translation'"
-        (click)="toggle('translation')"
-      >
-        <span class="section-title">
-          Translation language
-          <span class="section-count">{{ languageLabel(translationLanguage()) }}</span>
-        </span>
-        <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-      @if (open() === 'translation') {
-        <div class="section-body">
-          <p class="section-hint">Translations are written in this language.</p>
-          <label class="translation-language">
-            Translation language
-            <select
-              aria-label="Translation language"
-              [value]="translationLanguage()"
-              (change)="setTranslationLanguage($event)"
-            >
-              @for (code of languages; track code) {
-                <option [value]="code" [selected]="code === translationLanguage()">
-                  {{ languageLabel(code) }}
-                </option>
-              }
-            </select>
-          </label>
-        </div>
-      }
-    </section>
     <section class="settings-section" [class.expanded]="open() === 'definitions'">
       <button
         type="button"
@@ -565,15 +527,6 @@ type MetadataKind = 'definition' | 'example' | 'form';
       cursor: not-allowed;
     }
 
-    label.translation-language {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-      color: var(--text);
-      font-size: 0.9rem;
-      font-weight: 650;
-    }
-
     select {
       padding: 0.75rem 0.85rem;
       border: 1px solid var(--border);
@@ -695,9 +648,6 @@ type MetadataKind = 'definition' | 'example' | 'form';
 export class LanguageAiSettings {
   readonly open = input<string | null>(null);
   readonly opened = output<string | null>();
-  readonly languages = LEARNABLE_LANGUAGES;
-  readonly languageLabel = languageDisplayName;
-  readonly translationLanguage = signal('en');
   readonly metadataKeyMax = MAX_METADATA_FIELD_KEY;
   readonly metadataPromptMax = MAX_METADATA_FIELD_PROMPT;
   readonly metadataFieldMax = MAX_METADATA_FIELDS;
@@ -724,7 +674,6 @@ export class LanguageAiSettings {
     this.definitionFields.set(readDefinitionMetadataFields(SETTINGS_SCOPE));
     this.exampleFields.set(readExampleMetadataFields(SETTINGS_SCOPE));
     this.formFields.set(readFormMetadataFields(SETTINGS_SCOPE));
-    this.translationLanguage.set(readTranslationLanguage(SETTINGS_SCOPE));
     this.definitionExtraFields.set(readDefinitionExtraFields(SETTINGS_SCOPE));
     this.exampleExtraFields.set(readExampleExtraFields(SETTINGS_SCOPE));
     this.formExtraFields.set(readFormExtraFields(SETTINGS_SCOPE));
@@ -748,12 +697,6 @@ export class LanguageAiSettings {
 
   formFieldsChanged(): boolean {
     return fieldsDiffer(this.formFields(), DEFAULT_FORM_METADATA_FIELDS);
-  }
-
-  setTranslationLanguage(event: Event): void {
-    const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
-    writeTranslationLanguage(SETTINGS_SCOPE, value);
-    this.translationLanguage.set(readTranslationLanguage(SETTINGS_SCOPE));
   }
 
   setDefinitionExtraFields(event: Event): void {

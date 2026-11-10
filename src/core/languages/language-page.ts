@@ -15,7 +15,7 @@ import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { DiscoverModal } from './discover-modal';
 import { readSelectedLanguage, writeSelectedLanguage } from './selected-language';
 import { Settings } from '../settings/settings';
-import { generateElementFromSelection, readTranslationLanguage } from 'ai';
+import { generateElementFromSelection } from 'ai';
 import {
   addElement,
   compareElements,
@@ -140,18 +140,20 @@ const MOVE_SLOP_PX = 10;
           />
           @if (query().trim()) {
             <div class="search-actions">
-              @if (canTranslate()) {
-                <label class="translate-switch">
-                  <input
-                    type="checkbox"
-                    [checked]="withTranslation()"
-                    [disabled]="asking()"
-                    aria-label="With a translation"
-                    (change)="setWithTranslation($event)"
-                  />
-                  Translation
-                </label>
-              }
+              <label class="translate-switch">
+                Translation
+                <select
+                  aria-label="Translation language"
+                  [value]="translationInto()"
+                  [disabled]="asking()"
+                  (change)="setTranslationInto($event)"
+                >
+                  <option value="">No translation</option>
+                  @for (code of translationLanguages(); track code) {
+                    <option [value]="code">{{ languageName(code) }}</option>
+                  }
+                </select>
+              </label>
               <button
                 type="button"
                 class="search-add"
@@ -1517,11 +1519,15 @@ const MOVE_SLOP_PX = 10;
       white-space: nowrap;
     }
 
-    .translate-switch input {
-      width: 0.95rem;
-      height: 0.95rem;
-      margin: 0;
-      accent-color: var(--accent, #6c63ff);
+    .translate-switch select {
+      max-width: 9rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 0.78rem;
+      padding: 0.15rem 0.4rem;
     }
 
     .search-add {
@@ -2340,7 +2346,7 @@ export class LanguagePage {
   readonly comfortColor = comfortColor;
   readonly needsDefinitionEdit = elementHasInvalidDefinition;
   readonly asking = signal(false);
-  readonly withTranslation = signal(false);
+  readonly translationInto = signal('');
   readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
   readonly selecting = signal(false);
@@ -2935,15 +2941,6 @@ export class LanguagePage {
     return (event.target as HTMLInputElement).value;
   }
 
-  canTranslate(): boolean {
-    const language = this.code().trim().toLowerCase();
-    return language !== '' && language !== readTranslationLanguage(language);
-  }
-
-  setWithTranslation(event: Event): void {
-    this.withTranslation.set(event.target instanceof HTMLInputElement && event.target.checked);
-  }
-
   onSearch(value: string): void {
     if (this.playing()) return;
     const query = value.slice(0, ELEMENT_SEARCH_MAX_LENGTH);
@@ -2978,7 +2975,7 @@ export class LanguagePage {
         language: code,
         selected,
         context: '',
-        translate: this.canTranslate() && this.withTranslation(),
+        translation: this.translationTarget(),
       });
       if (!generated) {
         this.lookupError.set('Could not add that element.');
@@ -3261,6 +3258,23 @@ export class LanguagePage {
 
   languageName(code: string): string {
     return languageDisplayName(code);
+  }
+
+  translationLanguages(): string[] {
+    const learning = this.code().trim().toLowerCase();
+    return this.languageOptions.filter((code) => code !== learning);
+  }
+
+  setTranslationInto(event: Event): void {
+    const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
+    this.translationInto.set(isLearnableLanguage(value) ? value : '');
+  }
+
+  private translationTarget(): string {
+    const learning = this.code().trim().toLowerCase();
+    const into = this.translationInto().trim().toLowerCase();
+    if (!isLearnableLanguage(into) || into === learning) return '';
+    return into;
   }
 
   chooseLanguageValue(event: Event): void {

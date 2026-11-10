@@ -36,7 +36,7 @@ export type DiscoverElementsInput = {
   instruction?: string;
   metadata?: DiscoverMetadata;
   excludeTitles?: readonly string[];
-  translate?: boolean;
+  translation?: string;
 };
 
 export type DiscoveredElement = {
@@ -47,7 +47,7 @@ export type DiscoveredElement = {
 export function buildDiscoverElementsUserMessage(input: DiscoverElementsInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, input.translate === true);
+  const translateFieldsIn = translationLanguage(language, input.translation);
   const instruction = (input.instruction ?? '').trim().slice(0, MAX_DISCOVER_INSTRUCTION);
   const metadata = metadataPayload(input.metadata);
   const excludeTitles = uniqueTitles(input.excludeTitles ?? [], MAX_DISCOVER_EXCLUDE);
@@ -67,7 +67,7 @@ export function buildDiscoverElementsUserMessage(input: DiscoverElementsInput): 
 export function parseDiscoveredElements(
   parsed: unknown,
   language: string,
-  translate = false,
+  translation = '',
 ): DiscoveredElement[] | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
@@ -86,7 +86,7 @@ export function parseDiscoveredElements(
       language,
       title,
       existingDefinitions: [],
-      translate,
+      translation,
     });
     if (!senses?.length) continue;
     elements.push({
@@ -116,9 +116,9 @@ export async function discoverElements(input: DiscoverElementsInput): Promise<Di
       completeJson(provider, request, credentials),
     );
   try {
-    const translate = input.translate === true;
-    let elements = parseDiscoveredElements(await complete(), language, translate);
-    if (!elements) elements = parseDiscoveredElements(await complete(), language, translate);
+    const translation = input.translation ?? '';
+    let elements = parseDiscoveredElements(await complete(), language, translation);
+    if (!elements) elements = parseDiscoveredElements(await complete(), language, translation);
     if (!elements) aiError(AI_ERROR.RESPONSE_INVALID);
     return elements;
   } catch (err) {
