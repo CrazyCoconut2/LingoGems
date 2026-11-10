@@ -18,18 +18,6 @@ export type CompleteJsonInput = {
   temperature?: number;
 };
 
-export type ChatMessage = {
-  role: 'user' | 'assistant';
-  content: string;
-};
-
-export type CompleteChatInput = {
-  system: string;
-  messages: ChatMessage[];
-  maxTokens?: number;
-  temperature?: number;
-};
-
 export type ProviderCredentials = {
   apiKey: string;
   model?: string;

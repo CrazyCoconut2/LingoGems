@@ -1,10 +1,7 @@
 import { surfaceSpans, type DefinitionLogBy } from 'collection';
-import type { GradedDefinition } from 'ai';
 
 export const EQUIVALENT_MAX = 200;
 export const DEFINITION_MAX = 500;
-
-export type AnswerLanguage = 'original' | 'english';
 
 /** Gems attributed to one answer in the current round. */
 export type EquivalentReward = {
@@ -26,9 +23,6 @@ export type PlayRound = {
   definitionRewards: Array<EquivalentReward | null>;
   /** Index of this definition attempt inside the definition log. Null until it is saved. */
   definitionLogIndexes: Array<number | null>;
-  definitionLanguages: AnswerLanguage[];
-  grades: Array<GradedDefinition | null>;
-  definitionTranslations: string[];
   exampleDrafts: string[];
   /** Support-language wording written beside the working-language example. */
   exampleSupportDrafts: string[];
@@ -51,9 +45,6 @@ export function emptyPlayRound(): PlayRound {
     definitionSubmitted: [],
     definitionRewards: [],
     definitionLogIndexes: [],
-    definitionLanguages: [],
-    grades: [],
-    definitionTranslations: [],
     exampleDrafts: [],
     exampleSupportDrafts: [],
     exampleSubmitted: [],

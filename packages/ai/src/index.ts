@@ -2,8 +2,6 @@ export type {
   AiCredentialsStatus,
   AiKeyStatus,
   AiProviderId,
-  ChatMessage,
-  CompleteChatInput,
   CompleteJsonInput,
   StoredAiCredentials,
   StoredAiKey,
@@ -74,7 +72,7 @@ export {
   type DiscoverMetadata,
 } from './discover-elements';
 
-export { completeChat, completeJson, runWithKeyFallback } from './complete';
+export { completeJson, runWithKeyFallback } from './complete';
 
 export {
   AI_ERROR,
@@ -166,15 +164,11 @@ export {
 
 export {
   CORRECT_EXAMPLE_SYSTEM_PROMPT,
-  REFORMULATE_EXAMPLE_SYSTEM_PROMPT,
   buildPolishExampleUserMessage,
   parsePolishedExample,
   polishExample,
   type CorrectedExample,
   type PolishExampleInput,
-  type PolishExampleResult,
-  type PolishExampleTask,
-  type ReformulatedExample,
 } from './polish-example';
 
 export {

@@ -33,8 +33,6 @@ export type DiscoverSearch = {
   updatedAt: number;
 };
 
-type DiscoverQuery = Pick<DiscoverSearch, 'instruction' | 'definition' | 'example' | 'form'>;
-
 export function readDiscoverSearches(language: string): DiscoverSearch[] {
   const code = language.trim().toLowerCase();
   if (!code) return [];
@@ -54,38 +52,6 @@ export function rememberDiscoverSearch(language: string, search: DiscoverSearch)
   all[code] = searches;
   writeAll(all);
   return searches;
-}
-
-/** Drop one saved search and return that language's remaining list. */
-export function forgetDiscoverSearch(language: string, id: string): DiscoverSearch[] {
-  const code = language.trim().toLowerCase();
-  const searchId = id.trim();
-  if (!code || !searchId) return readDiscoverSearches(language);
-  const all = readAll();
-  const current = all[code] ?? [];
-  const searches = current.filter((item) => item.id !== searchId);
-  if (searches.length) all[code] = searches;
-  else delete all[code];
-  writeAll(all);
-  return searches;
-}
-
-export function discoverQueryMatches(search: DiscoverQuery, query: DiscoverQuery): boolean {
-  return (
-    search.instruction.trim() === query.instruction.trim() &&
-    canonical(search.definition) === canonical(query.definition) &&
-    canonical(search.example) === canonical(query.example) &&
-    canonical(search.form) === canonical(query.form)
-  );
-}
-
-function canonical(value: ElementMetadataVariability): string {
-  const normalized = normalizeMetadataVariability(value);
-  return JSON.stringify(
-    Object.keys(normalized)
-      .sort()
-      .map((key) => [key, [...normalized[key]].sort()]),
-  );
 }
 
 function readAll(): Record<string, DiscoverSearch[]> {

@@ -1,15 +1,10 @@
 import { AI_ERROR, AiError, aiError } from './errors';
 import { isAiProvider, modelsForProvider } from './credentials';
-import { completeChatWithAnthropic, completeJsonWithAnthropic } from './providers/anthropic';
-import { completeChatWithGoogle, completeJsonWithGoogle } from './providers/google';
-import { completeChatWithGroq, completeJsonWithGroq } from './providers/groq';
-import { completeChatWithOpenAI, completeJsonWithOpenAI } from './providers/openai';
-import type {
-  AiProviderId,
-  CompleteChatInput,
-  CompleteJsonInput,
-  ProviderCredentials,
-} from './types';
+import { completeJsonWithAnthropic } from './providers/anthropic';
+import { completeJsonWithGoogle } from './providers/google';
+import { completeJsonWithGroq } from './providers/groq';
+import { completeJsonWithOpenAI } from './providers/openai';
+import type { AiProviderId, CompleteJsonInput, ProviderCredentials } from './types';
 
 function isRetryableAiModelError(err: unknown): boolean {
   if (!(err instanceof AiError)) return false;
@@ -35,25 +30,6 @@ async function completeWithProvider(
       return completeJsonWithGoogle(input, credentials);
     case 'groq':
       return completeJsonWithGroq(input, credentials);
-    default:
-      aiError(AI_ERROR.CREDENTIALS_PROVIDER_INVALID);
-  }
-}
-
-async function chatWithProvider(
-  provider: AiProviderId,
-  input: CompleteChatInput,
-  credentials: ProviderCredentials,
-): Promise<string> {
-  switch (provider) {
-    case 'openai':
-      return completeChatWithOpenAI(input, credentials);
-    case 'anthropic':
-      return completeChatWithAnthropic(input, credentials);
-    case 'google':
-      return completeChatWithGoogle(input, credentials);
-    case 'groq':
-      return completeChatWithGroq(input, credentials);
     default:
       aiError(AI_ERROR.CREDENTIALS_PROVIDER_INVALID);
   }
@@ -95,21 +71,6 @@ export async function completeJson(
   return withModelFallback(provider, credentials, (id, creds) =>
     completeWithProvider(id, input, creds),
   );
-}
-
-/** Multi-turn plain-text completion. Returns the assistant reply. */
-export async function completeChat(
-  provider: string,
-  input: CompleteChatInput,
-  credentials: ProviderCredentials,
-): Promise<string> {
-  return withModelFallback(provider, credentials, async (id, creds) => {
-    const text = await chatWithProvider(id, input, creds);
-    if (!text) {
-      aiError(AI_ERROR.RESPONSE_INVALID);
-    }
-    return text;
-  });
 }
 
 const ATTEMPTS_PER_KEY = 2;

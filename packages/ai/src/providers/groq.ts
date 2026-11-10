@@ -2,8 +2,7 @@ import { AI_ERROR, aiError } from '../errors';
 import { fetchProviderJson } from '../http';
 import { extractJsonObject } from '../parse';
 import { AI_DEFAULT_MODELS } from '../credentials';
-import { completeChatWithOpenAiCompatible } from './openai';
-import type { CompleteChatInput, CompleteJsonInput, ProviderCredentials } from '../types';
+import type { CompleteJsonInput, ProviderCredentials } from '../types';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
@@ -43,16 +42,4 @@ export async function completeJsonWithGroq(
 
   const content = data?.choices?.[0]?.message?.content;
   return extractJsonObject(content);
-}
-
-export async function completeChatWithGroq(
-  input: CompleteChatInput,
-  credentials: ProviderCredentials,
-): Promise<string> {
-  const apiKey = String(credentials?.apiKey || '').trim();
-  if (!apiKey) {
-    aiError(AI_ERROR.CREDENTIALS_INVALID);
-  }
-  const model = String(credentials?.model || '').trim() || AI_DEFAULT_MODELS.groq;
-  return completeChatWithOpenAiCompatible(GROQ_CHAT_URL, 'groq-chat', input, apiKey, model);
 }

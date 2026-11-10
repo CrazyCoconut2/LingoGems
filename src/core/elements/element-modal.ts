@@ -296,8 +296,6 @@ type DefinitionEngineer = DefinitionEngineerDraft & {
   definitionIndex: number;
 };
 
-type WordingSuggestion = { text: string };
-
 const RELATED_CACHE_KEY = 'lingogem.definition-related.v1';
 const RELATED_RELATIONS = new Set(['synonym', 'antonym', 'hypernym', 'hyponym', 'related']);
 
@@ -422,27 +420,6 @@ function definitionFromDraft(
   return text;
 }
 
-function appendDefinitionPhrase(current: string, addition: string): string {
-  const base = parsePassage(current);
-  const extra = parsePassage(addition);
-  const gloss = [base.text, extra.text].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-  const languages = new Set<string>();
-  for (const item of [...base.translations, ...extra.translations]) {
-    if (item.language) languages.add(item.language);
-  }
-  let text = gloss;
-  for (const language of [...languages].sort()) {
-    const joined = [base, extra]
-      .map((passage) => passage.translations.find((item) => item.language === language)?.text ?? '')
-      .filter(Boolean)
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (joined) text = embedTranslation(text, language, joined);
-  }
-  return text;
-}
-
 function exampleSuggestionList(raw: unknown): ExampleSuggestion[] {
   if (!Array.isArray(raw)) return [];
   const suggestions: ExampleSuggestion[] = [];
@@ -488,72 +465,6 @@ function watchExampleSuggestions(listener: (elementId: string) => void): () => v
 }
 
 const exampleSuggestionListeners = new Set<(elementId: string) => void>();
-
-const WORDING_SUGGESTIONS_KEY = 'lingogem.definition-wording.v1';
-
-function wordingSuggestionList(raw: unknown): WordingSuggestion[] {
-  if (!Array.isArray(raw)) return [];
-  const suggestions: WordingSuggestion[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const text = String((item as { text?: unknown }).text ?? '').trim();
-    if (!text) continue;
-    suggestions.push({ text });
-  }
-  return suggestions;
-}
-
-function readWordingSuggestionStore(): Record<string, unknown> {
-  if (typeof localStorage === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(WORDING_SUGGESTIONS_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return parsed as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
-function readWordingSuggestions(elementId: string): Record<string, WordingSuggestion[]> {
-  if (!elementId) return {};
-  const raw = readWordingSuggestionStore()[elementId];
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  const lists: Record<string, WordingSuggestion[]> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    const sense = key.trim().toLowerCase();
-    const list = wordingSuggestionList(value);
-    if (sense && list.length) lists[sense] = list;
-  }
-  return lists;
-}
-
-function watchWordingSuggestions(listener: (elementId: string) => void): () => void {
-  wordingSuggestionListeners.add(listener);
-  return () => wordingSuggestionListeners.delete(listener);
-}
-
-const wordingSuggestionListeners = new Set<(elementId: string) => void>();
-
-function writeWordingSuggestions(
-  elementId: string,
-  lists: Record<string, WordingSuggestion[]>,
-): void {
-  if (typeof localStorage === 'undefined' || !elementId) return;
-  const stored = readWordingSuggestionStore();
-  const bucket: Record<string, WordingSuggestion[]> = {};
-  for (const [key, list] of Object.entries(lists)) {
-    const sense = key.trim().toLowerCase();
-    if (sense && list.length) bucket[sense] = list;
-  }
-  if (Object.keys(bucket).length) stored[elementId] = bucket;
-  else delete stored[elementId];
-  if (Object.keys(stored).length) {
-    localStorage.setItem(WORDING_SUGGESTIONS_KEY, JSON.stringify(stored));
-  } else localStorage.removeItem(WORDING_SUGGESTIONS_KEY);
-  for (const listener of wordingSuggestionListeners) listener(elementId);
-}
 
 function writeExampleSuggestions(
   elementId: string,
@@ -2596,10 +2507,6 @@ function writeExampleSuggestions(
                     <div class="compare-side yours">
                       <p class="field-label">Your answer</p>
                       <p>{{ definitionDraftAt(prompt) }}</p>
-                      @if (definitionTranslationAt(prompt); as translated) {
-                        <p class="field-label">Translation</p>
-                        <p>{{ translated }}</p>
-                      }
                     </div>
                   </div>
                   <p class="field-label">Gems</p>
@@ -4875,11 +4782,6 @@ function writeExampleSuggestions(
       flex: none;
     }
 
-    .definition-engineer .staged-wording {
-      max-height: 12rem;
-      overflow: auto;
-    }
-
     .definition-engineer .section-heading .btn {
       padding: 0.4rem 0.8rem;
       font-size: 0.8125rem;
@@ -4926,30 +4828,6 @@ function writeExampleSuggestions(
     }
 
     .engineer-words button.selected .relation {
-      color: var(--accent-text);
-    }
-
-    .staged-wording {
-      display: flex;
-      flex-direction: column;
-      gap: 0.55rem;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .staged-wording li {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-      padding: 0.65rem 0.75rem;
-      border: 1px dashed var(--accent-border);
-      border-radius: var(--radius);
-      background: var(--accent-soft);
-    }
-
-    .staged-wording .passage {
-      margin: 0;
       color: var(--accent-text);
     }
 
@@ -5311,7 +5189,6 @@ export class ElementModal {
   readonly addSelection = output<string>();
   readonly addPrepared = output<PreparedElement>();
 
-  readonly translationGemMax = TRANSLATION_GEM_MAX;
   readonly gemScores = Array.from({ length: TRANSLATION_GEM_MAX + 1 }, (_, gems) => gems);
   readonly equivalentMax = EQUIVALENT_MAX;
   readonly definitionMax = DEFINITION_MAX;
@@ -5387,7 +5264,6 @@ export class ElementModal {
   readonly askingWording = signal<number | null>(null);
   readonly newGlosses = signal<ReadonlySet<string>>(new Set());
   readonly exampleSuggestions = signal<Record<string, ExampleSuggestion[]>>({});
-  readonly wordingSuggestions = signal<Record<string, WordingSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
   readonly modeOpen = signal(false);
@@ -5487,17 +5363,12 @@ export class ElementModal {
       this.engineerDrafts.clear();
       this.definitionEngineerDrafts = readRelatedDrafts(id);
       void this.commitStoredExamples(id);
-      this.loadWordingSuggestions(id);
       this.refreshNewDefinitions(id);
       void this.adoptStoredSuggestions(id);
     });
     const stopWatchingExamples = watchExampleSuggestions((elementId) => {
       if (elementId !== this.trackedElementId) return;
       this.exampleSuggestions.set(readExampleSuggestions(elementId));
-    });
-    const stopWatchingWording = watchWordingSuggestions((elementId) => {
-      if (elementId !== this.trackedElementId) return;
-      this.wordingSuggestions.set(readWordingSuggestions(elementId));
     });
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -5506,7 +5377,6 @@ export class ElementModal {
     document.addEventListener('pointerup', this.syncPassageSelection, true);
     inject(DestroyRef).onDestroy(() => {
       stopWatchingExamples();
-      stopWatchingWording();
       this.clearCopied();
       document.removeEventListener('selectionchange', this.syncPassageSelection);
       document.removeEventListener('pointerdown', this.onSelectionPointerDown, true);
@@ -6396,13 +6266,6 @@ export class ElementModal {
     return this.askingRelated() !== null || this.askingWording() !== null;
   }
 
-  stagedWording(index: number): WordingSuggestion[] {
-    const definition = this.element().definitions[index];
-    const key = senseKey(definition?.text ?? '');
-    if (!key) return [];
-    return this.wordingSuggestions()[key] ?? [];
-  }
-
   openDefinitionEngineer(index: number): void {
     if (this.aiBusy()) return;
     const definition = this.element().definitions[index];
@@ -6485,8 +6348,6 @@ export class ElementModal {
     if (oldSense && nextSense && oldSense !== nextSense) {
       this.rekeyDefinitionEngineerDraft(oldSense, nextSense);
       this.rekeyExampleSuggestions(element.id, oldSense, nextSense);
-      const staged = this.wordingSuggestions()[oldSense] ?? [];
-      if (staged.length) this.rekeyWordingSuggestions(element.id, oldSense, nextSense, staged);
     }
     return true;
   }
@@ -6604,44 +6465,6 @@ export class ElementModal {
       if (this.element().id === element.id) this.error.set('Could not forge a definition.');
     } finally {
       if (this.wordingJob === job && this.element().id === element.id) this.askingWording.set(null);
-    }
-  }
-
-  dismissStagedWording(definitionIndex: number, stagedIndex: number): void {
-    if (this.busy()) return;
-    const definition = this.element().definitions[definitionIndex];
-    const sense = senseKey(definition?.text ?? '');
-    const list = sense ? (this.wordingSuggestions()[sense] ?? []) : [];
-    if (!sense || !list[stagedIndex]) return;
-    this.replaceWordingSuggestions(
-      this.element().id,
-      sense,
-      list.filter((_, at) => at !== stagedIndex),
-    );
-  }
-
-  async addStagedWording(definitionIndex: number, stagedIndex: number): Promise<void> {
-    if (this.aiBusy()) return;
-    const element = this.element();
-    const definition = element.definitions[definitionIndex];
-    const sense = senseKey(definition?.text ?? '');
-    const suggestion = sense ? this.wordingSuggestions()[sense]?.[stagedIndex] : undefined;
-    if (!definition || !sense || !suggestion) return;
-    const definitions = this.copyDefinitions();
-    const target = definitions[definitionIndex];
-    if (!target) return;
-    const nextText = appendDefinitionPhrase(target.text, suggestion.text);
-    if (nextText === target.text) return;
-    const nextSense = senseKey(nextText);
-    target.text = nextText;
-    if (!(await this.persist(definitions, element.equivalents))) return;
-    const list = this.wordingSuggestions()[sense] ?? [];
-    const remaining = list.filter((item) => item !== suggestion);
-    if (nextSense && nextSense !== sense) {
-      this.rekeyWordingSuggestions(element.id, sense, nextSense, remaining);
-      this.rekeyDefinitionEngineerDraft(sense, nextSense);
-    } else {
-      this.replaceWordingSuggestions(element.id, sense, remaining);
     }
   }
 
@@ -7271,7 +7094,6 @@ export class ElementModal {
         this.definitionEngineerDrafts.delete(removed);
         writeRelatedDrafts(this.element().id, this.definitionEngineerDrafts);
         this.replaceExampleSuggestions(this.element().id, removed, []);
-        this.replaceWordingSuggestions(this.element().id, removed, []);
       }
       const engineer = this.exampleEngineer();
       if (engineer?.definitionIndex === pending.index) this.exampleEngineer.set(null);
@@ -7380,7 +7202,6 @@ export class ElementModal {
       clearDefinitionSuggestions(id);
       dropNewDefinitions(id);
       writeExampleSuggestions(id, {});
-      writeWordingSuggestions(id, {});
       writeRelatedDrafts(id, new Map());
       this.confirm.set(null);
       this.deleted.emit();
@@ -7429,42 +7250,6 @@ export class ElementModal {
     writeRelatedDrafts(this.element().id, this.definitionEngineerDrafts);
   }
 
-  private loadWordingSuggestions(id: string): void {
-    const stored = readWordingSuggestions(id);
-    const senses = new Set(
-      this.element()
-        .definitions.map((definition) => senseKey(definition.text))
-        .filter(Boolean),
-    );
-    const kept: Record<string, WordingSuggestion[]> = {};
-    let dirty = false;
-    for (const [sense, list] of Object.entries(stored)) {
-      if (!senses.has(sense)) {
-        dirty = true;
-        continue;
-      }
-      if (list.length) kept[sense] = list;
-    }
-    if (Object.keys(kept).length !== Object.keys(stored).length) dirty = true;
-    this.wordingSuggestions.set(kept);
-    if (dirty) writeWordingSuggestions(id, kept);
-  }
-
-  private replaceWordingSuggestions(
-    elementId: string,
-    sense: string,
-    list: WordingSuggestion[],
-  ): void {
-    const current =
-      this.element().id === elementId
-        ? { ...this.wordingSuggestions() }
-        : readWordingSuggestions(elementId);
-    if (list.length) current[sense] = list;
-    else delete current[sense];
-    writeWordingSuggestions(elementId, current);
-    if (this.element().id === elementId) this.wordingSuggestions.set(current);
-  }
-
   private rekeyExampleSuggestions(elementId: string, from: string, to: string): void {
     if (!from || !to || from === to) return;
     const current =
@@ -7477,22 +7262,6 @@ export class ElementModal {
     current[to] = [...(current[to] ?? []), ...moving];
     writeExampleSuggestions(elementId, current);
     if (this.element().id === elementId) this.exampleSuggestions.set(current);
-  }
-
-  private rekeyWordingSuggestions(
-    elementId: string,
-    from: string,
-    to: string,
-    remaining: WordingSuggestion[],
-  ): void {
-    const current =
-      this.element().id === elementId
-        ? { ...this.wordingSuggestions() }
-        : readWordingSuggestions(elementId);
-    delete current[from];
-    if (remaining.length && to) current[to] = [...(current[to] ?? []), ...remaining];
-    writeWordingSuggestions(elementId, current);
-    if (this.element().id === elementId) this.wordingSuggestions.set(current);
   }
 
   /** Examples generated before they were saved immediately. */
@@ -7951,19 +7720,6 @@ export class ElementModal {
     return this.round().definitionDrafts[index] ?? '';
   }
 
-  answerLanguage(index: number): 'original' | 'english' {
-    if (!this.supportAvailable()) return 'original';
-    return this.round().definitionLanguages[index] ?? 'original';
-  }
-
-  gradeAt(index: number): PlayRound['grades'][number] {
-    return this.round().grades[index] ?? null;
-  }
-
-  definitionTranslationAt(index: number): string {
-    return this.round().definitionTranslations[index] ?? '';
-  }
-
   definitionConcealed(index: number): boolean {
     if (!this.definitionGame()) return false;
     if (this.definitionRewardAt(index) && this.definitionPrompt() !== index) return false;
@@ -8042,11 +7798,7 @@ export class ElementModal {
         const definitionDrafts = this.round().definitionDrafts.slice();
         while (definitionDrafts.length <= index) definitionDrafts.push('');
         definitionDrafts[index] = result;
-        const grades = this.round().grades.slice();
-        const definitionTranslations = this.round().definitionTranslations.slice();
-        grades[index] = null;
-        definitionTranslations[index] = '';
-        this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
+        this.writeRound({ ...this.round(), definitionDrafts });
         this.definitionPolishNote.set(null);
         this.definitionSource.set('working');
         setTimeout(() => this.definitionField()?.nativeElement.focus());
@@ -8096,11 +7848,7 @@ export class ElementModal {
       const definitionDrafts = this.round().definitionDrafts.slice();
       while (definitionDrafts.length <= index) definitionDrafts.push('');
       definitionDrafts[index] = polished.text.slice(0, DEFINITION_MAX);
-      const grades = this.round().grades.slice();
-      const definitionTranslations = this.round().definitionTranslations.slice();
-      grades[index] = null;
-      definitionTranslations[index] = '';
-      this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
+      this.writeRound({ ...this.round(), definitionDrafts });
       this.definitionPolishNote.set({ task: 'correct', explanation: polished.explanation });
     } catch {
       if (this.alive && this.element().id === element.id) {
@@ -8117,11 +7865,7 @@ export class ElementModal {
     const definitionDrafts = this.round().definitionDrafts.slice();
     while (definitionDrafts.length <= index) definitionDrafts.push('');
     definitionDrafts[index] = value;
-    const grades = this.round().grades.slice();
-    const definitionTranslations = this.round().definitionTranslations.slice();
-    grades[index] = null;
-    definitionTranslations[index] = '';
-    this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
+    this.writeRound({ ...this.round(), definitionDrafts });
   }
 
   onDefinitionSupportDraft(index: number, event: Event): void {
@@ -8173,31 +7917,7 @@ export class ElementModal {
     while (definitionDrafts.length <= index) definitionDrafts.push('');
     definitionDrafts[index] = value;
     this.definitionPolishNote.set(null);
-    const grades = this.round().grades.slice();
-    const definitionTranslations = this.round().definitionTranslations.slice();
-    if (grades[index] != null || definitionTranslations[index]) {
-      grades[index] = null;
-      definitionTranslations[index] = '';
-    }
-    this.writeRound({ ...this.round(), definitionDrafts, grades, definitionTranslations });
-  }
-
-  setDefinitionLanguage(index: number, language: 'original' | 'english'): void {
-    if (!this.supportAvailable() || this.askingGrade() === index) return;
-    if (this.answerLanguage(index) === language) return;
-    const definitionLanguages = this.round().definitionLanguages.slice();
-    while (definitionLanguages.length <= index) definitionLanguages.push('original');
-    definitionLanguages[index] = language;
-    const grades = this.round().grades.slice();
-    const definitionTranslations = this.round().definitionTranslations.slice();
-    grades[index] = null;
-    definitionTranslations[index] = '';
-    this.writeRound({
-      ...this.round(),
-      definitionLanguages,
-      grades,
-      definitionTranslations,
-    });
+    this.writeRound({ ...this.round(), definitionDrafts });
   }
 
   /** Concede this definition. The gloss is shown and the attempt earns no gems. */
@@ -8215,16 +7935,12 @@ export class ElementModal {
     const definitionDrafts = this.round().definitionDrafts.slice();
     while (definitionDrafts.length <= index) definitionDrafts.push('');
     definitionDrafts[index] = '';
-    const definitionTranslations = this.round().definitionTranslations.slice();
-    while (definitionTranslations.length <= index) definitionTranslations.push('');
-    definitionTranslations[index] = '';
     const definitionSubmitted = this.round().definitionSubmitted?.slice() ?? [];
     while (definitionSubmitted.length <= index) definitionSubmitted.push(false);
     definitionSubmitted[index] = true;
     this.writeRound({
       ...this.round(),
       definitionDrafts,
-      definitionTranslations,
       definitionSubmitted,
     });
     this.writeDefinitionReward(index, { gems: 0, by: 'user', explanation: '' }, logIndex);
@@ -8471,18 +8187,14 @@ export class ElementModal {
     if (!this.canCorrectExample(index) || !this.exampleGame()) return;
     const element = this.element();
     const text = this.exampleDraftAt(index).trim();
-    const forms = element.definitions[index]?.forms.map((form) => form.text) ?? [];
     this.askingPolish.set('correct');
     this.error.set('');
     try {
       const polished = await polishExample({
         language: element.language,
         text,
-        task: 'correct',
-        lemma: element.title,
-        forms,
       });
-      if (!this.alive || this.element().id !== element.id || polished.task !== 'correct') return;
+      if (!this.alive || this.element().id !== element.id) return;
       if (this.exampleDraftAt(index).trim() !== text) return;
       const exampleDrafts = this.round().exampleDrafts?.slice() ?? [];
       while (exampleDrafts.length <= index) exampleDrafts.push('');
