@@ -1813,7 +1813,7 @@ function writeExampleSuggestions(
               role="dialog"
               aria-modal="true"
               aria-label="Ask AI for examples"
-              (click)="$event.stopPropagation()"
+              (click)="onExampleSheetClick($event)"
             >
               <div class="sheet-head">
                 <h3>Ask AI for examples</h3>
@@ -1884,33 +1884,77 @@ function writeExampleSuggestions(
                   }
                 }
               }
-              <label class="translate-switch">
-                Translation
-                <select
-                  aria-label="Translation language"
-                  [value]="translationTarget()"
-                  [disabled]="askingExamples() !== null"
-                  (change)="setTranslationInto($event)"
-                >
-                  <option value="" [selected]="!translationTarget()">No translation</option>
-                  @for (code of translationLanguages(); track code) {
-                    <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
-                  }
-                </select>
-              </label>
               @if (error()) {
                 <p class="error">{{ error() }}</p>
               }
-              <div class="sheet-actions">
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  [disabled]="askingExamples() !== null"
-                  [attr.aria-busy]="askingExamples() !== null ? true : null"
-                  (click)="generateEngineeredExample()"
-                >
-                  Generate
-                </button>
+              <div class="sheet-actions example-actions">
+                <div class="generate-bundle">
+                  <div class="generate-split">
+                    <button
+                      type="button"
+                      class="generate-main"
+                      [disabled]="askingExamples() !== null"
+                      [attr.aria-busy]="askingExamples() !== null ? true : null"
+                      (click)="generateEngineeredExample()"
+                    >
+                      Generate
+                      @if (translationTarget(); as code) {
+                        <span class="generate-translation">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
+                          {{ languageName(code) }}
+                        </span>
+                      }
+                    </button>
+                    <button
+                      type="button"
+                      class="generate-chevron"
+                      [class.open]="exampleTranslationOpen()"
+                      [attr.aria-expanded]="exampleTranslationOpen()"
+                      aria-label="Translation language"
+                      [disabled]="askingExamples() !== null"
+                      (click)="toggleExampleTranslation()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+                    @if (exampleTranslationOpen()) {
+                      <ul class="translation-menu" role="listbox" aria-label="Translation language">
+                        <li>
+                          <button
+                            type="button"
+                            role="option"
+                            [class.selected]="!translationTarget()"
+                            [attr.aria-selected]="!translationTarget()"
+                            (click)="chooseExampleTranslation('')"
+                          >
+                            No translation
+                          </button>
+                        </li>
+                        @for (code of translationLanguages(); track code) {
+                          <li>
+                            <button
+                              type="button"
+                              role="option"
+                              [class.selected]="code === translationTarget()"
+                              [attr.aria-selected]="code === translationTarget()"
+                              (click)="chooseExampleTranslation(code)"
+                            >
+                              {{ languageName(code) }}
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                    }
+                  </div>
+                </div>
                 <button
                   type="button"
                   class="btn btn-secondary"
@@ -4822,7 +4866,7 @@ function writeExampleSuggestions(
     }
 
     .engineer-sheet {
-      overflow: hidden;
+      overflow: visible;
     }
 
     .engineer-sheet textarea {
@@ -5030,6 +5074,145 @@ function writeExampleSuggestions(
       justify-content: flex-end;
       flex-wrap: wrap;
       margin-top: 0.25rem;
+    }
+
+    .example-actions {
+      align-items: flex-start;
+    }
+
+    .generate-bundle {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.4rem;
+    }
+
+    .generate-split {
+      position: relative;
+      display: inline-flex;
+      align-items: stretch;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .generate-split:hover:not(:has(:disabled)) {
+      background: var(--accent-hover);
+    }
+
+    .generate-main,
+    .generate-chevron {
+      border: 0;
+      background: transparent;
+      color: white;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .generate-main {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      border-radius: 999px 0 0 999px;
+      padding: 0.7rem 0.85rem 0.7rem 1.1rem;
+      font-size: 0.9375rem;
+    }
+
+    .generate-chevron {
+      display: grid;
+      place-items: center;
+      border-left: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 0 999px 999px 0;
+      padding: 0 0.75rem;
+    }
+
+    .generate-main:disabled,
+    .generate-chevron:disabled {
+      cursor: not-allowed;
+    }
+
+    .generate-split:has(:disabled) {
+      opacity: 0.45;
+    }
+
+    .generate-chevron svg {
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 0.15s ease;
+    }
+
+    .generate-chevron.open svg {
+      transform: rotate(180deg);
+    }
+
+    .generate-translation {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding-left: 0.65rem;
+      border-left: 1px solid rgba(255, 255, 255, 0.28);
+      color: white;
+      font-size: 0.82rem;
+      font-weight: 650;
+    }
+
+    .generate-translation svg {
+      width: 0.95rem;
+      height: 0.95rem;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .translation-menu {
+      position: absolute;
+      z-index: 6;
+      right: 0;
+      bottom: calc(100% + 0.4rem);
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      width: max-content;
+      min-width: 11rem;
+      max-height: min(18rem, 70vh);
+      margin: 0;
+      padding: 0.35rem;
+      overflow: auto;
+      list-style: none;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+
+    .translation-menu button {
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.88rem;
+      text-align: left;
+      padding: 0.4rem 0.6rem;
+      cursor: pointer;
+    }
+
+    .translation-menu button:hover {
+      background: rgba(var(--accent-rgb), 0.1);
+    }
+
+    .translation-menu button.selected {
+      background: rgba(var(--accent-rgb), 0.16);
+      color: var(--accent-text);
     }
 
     .btn-danger {
@@ -5379,6 +5562,7 @@ export class ElementModal {
   readonly newGlosses = signal<ReadonlySet<string>>(new Set());
   readonly exampleSuggestions = signal<Record<string, ExampleSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
+  readonly exampleTranslationOpen = signal(false);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
   readonly modeOpen = signal(false);
   readonly helpOpen = signal(false);
@@ -5786,6 +5970,22 @@ export class ElementModal {
   setTranslationInto(event: Event): void {
     const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
     rememberTranslationInto(value);
+  }
+
+  toggleExampleTranslation(): void {
+    if (this.askingExamples() !== null) return;
+    this.exampleTranslationOpen.update((open) => !open);
+  }
+
+  chooseExampleTranslation(code: string): void {
+    rememberTranslationInto(code);
+    this.exampleTranslationOpen.set(false);
+  }
+
+  onExampleSheetClick(event: MouseEvent): void {
+    event.stopPropagation();
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest('.generate-bundle')) this.exampleTranslationOpen.set(false);
   }
 
   private translationTarget(): string {
@@ -6379,6 +6579,7 @@ export class ElementModal {
     this.confirm.set(null);
     const draft = this.engineerDrafts.get(key) ?? { instruction: '', forms: [] };
     const available = new Set(definition.forms.map((form) => form.text.toLowerCase()));
+    this.exampleTranslationOpen.set(false);
     this.exampleEngineer.set({
       definitionIndex: index,
       instruction: draft.instruction,
@@ -6632,6 +6833,7 @@ export class ElementModal {
   }
 
   async generateEngineeredExample(): Promise<void> {
+    this.exampleTranslationOpen.set(false);
     const engineer = this.exampleEngineer();
     if (!engineer || this.aiBusy()) return;
     const element = this.element();
