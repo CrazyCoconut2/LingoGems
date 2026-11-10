@@ -91,25 +91,25 @@ export function definitionFromExampleSystemPrompt(
   extra = false,
 ): string {
   return joinPrompt([
-    'You write one dictionary sense for a headword from one example sentence.',
+    'You place one example sentence on a dictionary headword.',
     'JSON keys stay in English.',
     'The gloss MUST be in the language named by writeFieldsIn.',
     'Do not use English for a gloss unless writeFieldsIn is English.',
     metadataIntro(fields, extra),
     'Rules:',
-    '- Return exactly one sense: the meaning of the lemma as it is used in example',
+    '- If the example uses a meaning already listed in existingDefinitions, return {"match":"<that gloss exactly as listed>"} and nothing else',
+    '- Otherwise return exactly one new sense: the meaning of the lemma as it is used in the example',
     '- Do not define a different meaning',
-    '- Do not repeat a meaning or a gloss already listed in existingDefinitions',
     '- One short dictionary-style gloss',
     NO_SELF_MENTION,
     '- Do not include the example, other examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
     '- Spelling MUST be correct in the gloss and the English gloss',
     ...metadataRuleLines('definition', fields, extra),
-    'translateFieldsIn, when present, names the translation language. Then the sense MUST include "translation", a faithful gloss in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
-    'Return JSON only with this shape:',
+    'translateFieldsIn, when present, names the translation language. A new sense MUST include "translation", a faithful gloss in that language, with its first letter capitalized. A match does not include a translation. When translateFieldsIn is absent, omit "translation".',
+    'A new sense uses this shape:',
     `{"senses":[${definitionSenseShape(fields, extra)}]}`,
-    'When translateFieldsIn is present, add "translation":"<gloss in translateFieldsIn>" on the sense.',
+    'When translateFieldsIn is present, add "translation":"<gloss in translateFieldsIn>" on the new sense.',
   ]);
 }
 
@@ -242,10 +242,53 @@ export function buildDefinitionFromExampleUserMessage(
   });
 }
 
-/** One sense for the way the headword is used in the example, or null when nothing usable comes back. */
+/** Where one example sentence belongs: an existing sense, or a new one. */
+export type ExamplePlacement =
+  | { kind: 'existing'; gloss: string }
+  | { kind: 'new'; definition: GeneratedDefinition };
+
+function matchingGloss(
+  gloss: string,
+  existing: ReadonlyArray<{ gloss: string }>,
+): string {
+  const key = gloss.trim().toLowerCase();
+  if (!key) return '';
+  return existing.find((definition) => definition.gloss.toLowerCase() === key)?.gloss ?? '';
+}
+
+/** An existing sense for the example, a new sense, or null when the reply is unusable. */
+export function parseExamplePlacement(
+  parsed: unknown,
+  input: GenerateDefinitionFromExampleInput,
+): ExamplePlacement | null {
+  const source =
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  if (!source) return null;
+  const existing = describedDefinitions(
+    input.language,
+    input.existingDefinitions,
+    input.translation ?? '',
+  );
+  const matched = matchingGloss(glossText(source['match']), existing);
+  if (matched) return { kind: 'existing', gloss: matched };
+  const senses = parseGeneratedDefinitions(parsed, input);
+  if (senses?.[0]) return { kind: 'new', definition: senses[0] };
+  const list = source['senses'];
+  if (!Array.isArray(list)) return null;
+  for (const item of list) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const gloss = matchingGloss(glossText((item as Record<string, unknown>)['gloss']), existing);
+    if (gloss) return { kind: 'existing', gloss };
+  }
+  return null;
+}
+
+/** Place the example on an existing sense, or write one new sense. Null when nothing usable comes back. */
 export async function generateDefinitionFromExample(
   request: GenerateDefinitionFromExampleInput,
-): Promise<GeneratedDefinition | null> {
+): Promise<ExamplePlacement | null> {
   const title = request.title.trim();
   const language = request.language.trim().toLowerCase();
   const example = request.example.trim().slice(0, MAX_EXAMPLE_LENGTH);
@@ -264,10 +307,10 @@ export async function generateDefinitionFromExample(
   const complete = () =>
     runWithKeyFallback(keys, (provider, credentials) => completeJson(provider, input, credentials));
   try {
-    let senses = parseGeneratedDefinitions(await complete(), prepared);
-    if (!senses) senses = parseGeneratedDefinitions(await complete(), prepared);
-    if (!senses) aiError(AI_ERROR.RESPONSE_INVALID);
-    return senses[0] ?? null;
+    let placed = parseExamplePlacement(await complete(), prepared);
+    if (!placed) placed = parseExamplePlacement(await complete(), prepared);
+    if (!placed) aiError(AI_ERROR.RESPONSE_INVALID);
+    return placed;
   } catch (err) {
     throw attachAiPrompt(err, input);
   }

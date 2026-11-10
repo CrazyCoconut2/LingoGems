@@ -689,11 +689,29 @@ function writeExampleSuggestions(
               <button
                 type="button"
                 class="icon-btn"
+                aria-label="Add a definition from an example"
+                title="From an example"
+                [disabled]="inPlay() || aiBusy()"
+                [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
+                (click)="openDefinitionFromExample()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                  />
+                  <path
+                    d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
                 aria-label="Generate definitions"
                 title="Generate definitions"
                 [disabled]="inPlay() || aiBusy()"
                 [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
-                (click)="openAddDefinition()"
+                (click)="openMissingDefinitions()"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path
@@ -2273,17 +2291,17 @@ function writeExampleSuggestions(
               class="sheet add-definition"
               role="dialog"
               aria-modal="true"
-              aria-label="Add a definition"
-              (click)="$event.stopPropagation()"
+              aria-label="From an example"
+              (click)="onDefinitionExampleClick($event)"
             >
               <div class="sheet-head">
-                <h3>Add a definition</h3>
+                <h3>From an example</h3>
                 <button
                   type="button"
                   class="icon-btn"
                   aria-label="Close"
                   [disabled]="asking()"
-                  (click)="addDefinitionOpen.set(false)"
+                  (click)="closeDefinitionPrompts()"
                 >
                   <svg viewBox="0 0 24 24">
                     <path d="M18 6 6 18" />
@@ -2291,33 +2309,8 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <label class="translate-switch">
-                Translation
-                <select
-                  aria-label="Translation language"
-                  [value]="translationTarget()"
-                  [disabled]="asking()"
-                  (change)="setTranslationInto($event)"
-                >
-                  <option value="" [selected]="!translationTarget()">No translation</option>
-                  @for (code of translationLanguages(); track code) {
-                    <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
-                  }
-                </select>
-              </label>
-              <div class="add-choices">
-                <button
-                  type="button"
-                  class="btn btn-secondary add-choice"
-                  [disabled]="asking()"
-                  [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
-                  (click)="addMissingDefinitions()"
-                >
-                  Add missing definitions
-                </button>
-              </div>
+              <p>This sentence is added to a definition that already fits, or a new definition is written.</p>
               <div class="add-example">
-                <label class="field-label" for="definition-example">From an example</label>
                 <div class="example-entry">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path
@@ -2334,17 +2327,173 @@ function writeExampleSuggestions(
                     [attr.maxlength]="exampleLengthMax"
                     [disabled]="asking()"
                     placeholder="A sentence that uses this word"
+                    aria-label="Example"
                     (input)="definitionExample.set(inputValue($event))"
                   ></textarea>
                 </div>
+              </div>
+              <div class="sheet-actions example-actions">
+                <div class="generate-bundle">
+                  <div class="generate-split">
+                    <button
+                      type="button"
+                      class="generate-main"
+                      [disabled]="asking() || !definitionExample().trim()"
+                      [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
+                      (click)="addDefinitionFromExample()"
+                    >
+                      Ask
+                      @if (translationTarget(); as code) {
+                        <span class="generate-translation">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
+                          {{ languageName(code) }}
+                        </span>
+                      }
+                    </button>
+                    <button
+                      type="button"
+                      class="generate-chevron"
+                      [class.open]="definitionExampleTranslationOpen()"
+                      [attr.aria-expanded]="definitionExampleTranslationOpen()"
+                      aria-label="Translation language"
+                      [disabled]="asking()"
+                      (click)="toggleDefinitionExampleTranslation()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+                    @if (definitionExampleTranslationOpen()) {
+                      <ul class="translation-menu" role="listbox" aria-label="Translation language">
+                        <li>
+                          <button
+                            type="button"
+                            role="option"
+                            [class.selected]="!translationTarget()"
+                            [attr.aria-selected]="!translationTarget()"
+                            (click)="chooseDefinitionExampleTranslation('')"
+                          >
+                            No translation
+                          </button>
+                        </li>
+                        @for (code of translationLanguages(); track code) {
+                          <li>
+                            <button
+                              type="button"
+                              role="option"
+                              [class.selected]="code === translationTarget()"
+                              [attr.aria-selected]="code === translationTarget()"
+                              (click)="chooseDefinitionExampleTranslation(code)"
+                            >
+                              {{ languageName(code) }}
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                    }
+                  </div>
+                </div>
+              </div>
+              @if (error()) {
+                <p class="error">{{ error() }}</p>
+              }
+            </section>
+          </div>
+        }
+
+        @if (missingDefinitionsOpen()) {
+          <div class="sheet-backdrop" (click)="closeMissingDefinitions($event)">
+            <section
+              class="sheet confirm missing-definitions"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Generate definitions"
+              (click)="onMissingDefinitionsClick($event)"
+            >
+              <h3>Generate definitions?</h3>
+              <p>The AI will add the missing definitions of “{{ shownTitle() }}”.</p>
+              <div class="sheet-actions example-actions">
+                <div class="generate-bundle">
+                  <div class="generate-split">
+                    <button
+                      type="button"
+                      class="generate-main"
+                      [disabled]="asking()"
+                      [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
+                      (click)="addMissingDefinitions()"
+                    >
+                      Generate
+                      @if (translationTarget(); as code) {
+                        <span class="generate-translation">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
+                          {{ languageName(code) }}
+                        </span>
+                      }
+                    </button>
+                    <button
+                      type="button"
+                      class="generate-chevron"
+                      [class.open]="missingTranslationOpen()"
+                      [attr.aria-expanded]="missingTranslationOpen()"
+                      aria-label="Translation language"
+                      [disabled]="asking()"
+                      (click)="toggleMissingTranslation()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+                    @if (missingTranslationOpen()) {
+                      <ul class="translation-menu" role="listbox" aria-label="Translation language">
+                        <li>
+                          <button
+                            type="button"
+                            role="option"
+                            [class.selected]="!translationTarget()"
+                            [attr.aria-selected]="!translationTarget()"
+                            (click)="chooseMissingTranslation('')"
+                          >
+                            No translation
+                          </button>
+                        </li>
+                        @for (code of translationLanguages(); track code) {
+                          <li>
+                            <button
+                              type="button"
+                              role="option"
+                              [class.selected]="code === translationTarget()"
+                              [attr.aria-selected]="code === translationTarget()"
+                              (click)="chooseMissingTranslation(code)"
+                            >
+                              {{ languageName(code) }}
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                    }
+                  </div>
+                </div>
                 <button
                   type="button"
-                  class="btn btn-primary add-choice"
-                  [disabled]="asking() || !definitionExample().trim()"
-                  [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
-                  (click)="addDefinitionFromExample()"
+                  class="btn btn-secondary"
+                  [disabled]="asking()"
+                  (click)="closeDefinitionPrompts()"
                 >
-                  Add this definition
+                  Cancel
                 </button>
               </div>
               @if (error()) {
@@ -4890,7 +5039,9 @@ function writeExampleSuggestions(
       box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
     }
 
-    .engineer-sheet {
+    .engineer-sheet,
+    .missing-definitions,
+    .add-definition {
       overflow: visible;
     }
 
@@ -5576,6 +5727,9 @@ export class ElementModal {
   readonly titleDraft = signal('');
   readonly titleError = signal('');
   readonly addDefinitionOpen = signal(false);
+  readonly missingDefinitionsOpen = signal(false);
+  readonly missingTranslationOpen = signal(false);
+  readonly definitionExampleTranslationOpen = signal(false);
   readonly expandedForms = signal<ReadonlySet<number>>(new Set());
   readonly addingDefinitions = signal<'missing' | 'example' | null>(null);
   readonly definitionExample = signal('');
@@ -5663,7 +5817,7 @@ export class ElementModal {
       this.equivalentPrompt.set(-1);
       this.definitionPrompt.set(-1);
       this.examplePrompt.set(-1);
-      this.addDefinitionOpen.set(false);
+      this.closeDefinitionPrompts();
       this.expandedForms.set(new Set());
       this.modeOpen.set(false);
       this.helpOpen.set(false);
@@ -5753,8 +5907,12 @@ export class ElementModal {
       if (!this.busy()) this.modeOpen.set(false);
       return;
     }
+    if (this.missingDefinitionsOpen()) {
+      if (!this.asking()) this.closeDefinitionPrompts();
+      return;
+    }
     if (this.addDefinitionOpen()) {
-      if (!this.asking()) this.addDefinitionOpen.set(false);
+      if (!this.asking()) this.closeDefinitionPrompts();
       return;
     }
     if (this.confirm()) {
@@ -5895,7 +6053,7 @@ export class ElementModal {
     this.metaEdit.set(null);
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
-    this.addDefinitionOpen.set(false);
+    this.closeDefinitionPrompts();
     this.confirm.set(null);
     this.titleTranslationDraft.set('');
     this.translationEditId.set(null);
@@ -6127,7 +6285,7 @@ export class ElementModal {
     );
   }
 
-  openAddDefinition(): void {
+  openDefinitionFromExample(): void {
     if (this.inPlay() || this.aiBusy()) return;
     this.error.set('');
     this.definitionExample.set('');
@@ -6139,7 +6297,69 @@ export class ElementModal {
     this.definitionEngineer.set(null);
     this.confirm.set(null);
     this.dismissTranslations();
+    this.missingDefinitionsOpen.set(false);
+    this.missingTranslationOpen.set(false);
     this.addDefinitionOpen.set(true);
+  }
+
+  openMissingDefinitions(): void {
+    if (this.inPlay() || this.aiBusy() || !this.element().title.trim()) return;
+    this.error.set('');
+    this.editor.set(null);
+    this.formEdit.set(null);
+    this.formFeatureEdit.set(null);
+    this.metaEdit.set(null);
+    this.exampleEngineer.set(null);
+    this.definitionEngineer.set(null);
+    this.confirm.set(null);
+    this.dismissTranslations();
+    this.addDefinitionOpen.set(false);
+    this.missingTranslationOpen.set(false);
+    this.missingDefinitionsOpen.set(true);
+  }
+
+  closeDefinitionPrompts(): void {
+    this.addDefinitionOpen.set(false);
+    this.missingDefinitionsOpen.set(false);
+    this.missingTranslationOpen.set(false);
+    this.definitionExampleTranslationOpen.set(false);
+  }
+
+  closeMissingDefinitions(event: MouseEvent): void {
+    if (event.target !== event.currentTarget || this.asking()) return;
+    this.closeDefinitionPrompts();
+  }
+
+  toggleMissingTranslation(): void {
+    if (this.asking()) return;
+    this.missingTranslationOpen.update((open) => !open);
+  }
+
+  chooseMissingTranslation(code: string): void {
+    rememberTranslationInto(code);
+    this.missingTranslationOpen.set(false);
+  }
+
+  onMissingDefinitionsClick(event: MouseEvent): void {
+    event.stopPropagation();
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest('.generate-bundle')) this.missingTranslationOpen.set(false);
+  }
+
+  toggleDefinitionExampleTranslation(): void {
+    if (this.asking()) return;
+    this.definitionExampleTranslationOpen.update((open) => !open);
+  }
+
+  chooseDefinitionExampleTranslation(code: string): void {
+    rememberTranslationInto(code);
+    this.definitionExampleTranslationOpen.set(false);
+  }
+
+  onDefinitionExampleClick(event: MouseEvent): void {
+    event.stopPropagation();
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest('.generate-bundle')) this.definitionExampleTranslationOpen.set(false);
   }
 
   generateExample(index: number): void {
@@ -6229,21 +6449,22 @@ export class ElementModal {
   closeAddDefinition(event?: MouseEvent): void {
     if (event && event.target !== event.currentTarget) return;
     if (this.asking()) return;
-    this.addDefinitionOpen.set(false);
+    this.closeDefinitionPrompts();
   }
 
   addDefinitionManually(): void {
     if (this.inPlay() || this.asking()) return;
-    this.addDefinitionOpen.set(false);
+    this.closeDefinitionPrompts();
     this.openDefinition(null);
   }
 
   async addMissingDefinitions(): Promise<void> {
     if (this.aiBusy() || !this.element().title.trim()) return;
+    this.missingTranslationOpen.set(false);
     this.addingDefinitions.set('missing');
     try {
       await this.askDefinitions();
-      if (!this.error()) this.addDefinitionOpen.set(false);
+      if (!this.error()) this.closeDefinitionPrompts();
     } finally {
       this.addingDefinitions.set(null);
     }
@@ -6258,8 +6479,9 @@ export class ElementModal {
     this.addingDefinitions.set('example');
     this.asking.set(true);
     this.error.set('');
+    this.definitionExampleTranslationOpen.set(false);
     try {
-      const sense = await generateDefinitionFromExample({
+      const placed = await generateDefinitionFromExample({
         language: element.language,
         title,
         example,
@@ -6270,29 +6492,53 @@ export class ElementModal {
         })),
       });
       if (this.element().id !== element.id) return;
-      if (!sense) {
-        this.error.set('Could not write a definition from that example.');
+      if (!placed) {
+        this.error.set('Could not place that example.');
+        return;
+      }
+      if (placed.kind === 'existing') {
+        await this.attachExample(element, placed.gloss, example);
         return;
       }
       const seen = new Set(
         element.definitions.map((definition) => definitionGloss(definition.text)),
       );
-      const key = definitionGloss(sense.text);
-      if (!key || seen.has(key)) {
-        this.error.set('That sense is already here.');
+      const key = definitionGloss(placed.definition.text);
+      if (key && seen.has(key)) {
+        await this.attachExample(element, key, example);
         return;
       }
-      if (!(await this.commitGeneratedSenses(element, [{ ...sense, example }]))) return;
+      if (!(await this.commitGeneratedSenses(element, [{ ...placed.definition, example }]))) return;
       this.definitionExample.set('');
-      this.addDefinitionOpen.set(false);
+      this.closeDefinitionPrompts();
     } catch {
       if (this.element().id === element.id) {
-        this.error.set('Could not write a definition from that example.');
+        this.error.set('Could not place that example.');
       }
     } finally {
       if (this.element().id === element.id) this.asking.set(false);
       this.addingDefinitions.set(null);
     }
+  }
+
+  private async attachExample(element: StoredElement, gloss: string, example: string): Promise<void> {
+    const definitions = this.copyDefinitions();
+    const target = definitions.find(
+      (definition) => senseKey(definition.text) === gloss.trim().toLowerCase(),
+    );
+    if (!target) {
+      this.error.set('Could not place that example.');
+      return;
+    }
+    const key = senseKey(example);
+    if (!key || target.examples.some((item) => senseKey(item.text) === key)) {
+      this.error.set('That example is already there.');
+      return;
+    }
+    target.examples.push({ text: example, metadata: {} });
+    if (!(await this.persist(definitions, element.equivalents))) return;
+    this.definitionExample.set('');
+    this.closeDefinitionPrompts();
   }
 
   async askDefinitions(): Promise<void> {
@@ -6579,7 +6825,7 @@ export class ElementModal {
     this.metaEdit.set(null);
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
-    this.addDefinitionOpen.set(false);
+    this.closeDefinitionPrompts();
     this.dismissTranslations();
     this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
     const equivalentId = definition?.equivalentId ?? null;
@@ -6605,7 +6851,7 @@ export class ElementModal {
     this.metaEdit.set(null);
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
-    this.addDefinitionOpen.set(false);
+    this.closeDefinitionPrompts();
     this.dismissTranslations();
     this.sheetMetadata.set({ ...(example?.metadata ?? {}) });
     this.beginSheet(example?.text ?? '');
@@ -6629,7 +6875,7 @@ export class ElementModal {
     const key = senseKey(definition?.text ?? '');
     if (!definition || !key) return;
     this.definitionEngineer.set(null);
-    this.addDefinitionOpen.set(false);
+    this.closeDefinitionPrompts();
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -6672,7 +6918,7 @@ export class ElementModal {
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.confirm.set(null);
-    this.addDefinitionOpen.set(false);
+    this.closeDefinitionPrompts();
     this.exampleEngineer.set(null);
     this.dismissTranslations();
     const draft = this.definitionEngineerDrafts.get(key) ?? {
@@ -6972,7 +7218,7 @@ export class ElementModal {
 
   openForm(definitionIndex: number, form?: { text: string; metadata: ElementMetadata }): void {
     if (!this.element().definitions[definitionIndex]) return;
-    this.addDefinitionOpen.set(false);
+    this.closeDefinitionPrompts();
     this.editor.set(null);
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
