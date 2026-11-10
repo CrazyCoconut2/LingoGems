@@ -41,13 +41,6 @@ export {
   type StoredElement,
 } from './elements/element-store';
 
-export {
-  HIGHLIGHT_STYLES,
-  resolveHighlightStyle,
-  sanitizeHighlightStyle,
-  type HighlightStyle,
-} from './elements/appearance';
-
 export { formMatchesTerm, isValidForm } from './elements/forms';
 
 export {

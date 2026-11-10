@@ -37,7 +37,6 @@ import {
   emptyMetadataIndexes,
   formatElementCountRange,
   formatMetadataFilter,
-  HIGHLIGHT_STYLES,
   isValidForm,
   languageDisplayName,
   mergeMetadataIndexes,
@@ -63,7 +62,6 @@ import {
   type ElementSearch,
   type ElementSearchPart,
   type ElementSort,
-  type HighlightStyle,
   type StoredElement,
   type StoredLanguage,
 } from 'collection';
@@ -297,20 +295,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 </button>
                 <button
                   type="button"
-                  class="list-action"
-                  [class.active]="highlightOpen()"
-                  aria-label="Highlight"
-                  title="Highlight"
-                  [disabled]="selectionBusy()"
-                  (click)="openSelectionHighlight()"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m9 11-6 6v3h9l3-3" />
-                    <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
                   class="list-action danger"
                   aria-label="Delete selected"
                   title="Delete selected"
@@ -418,12 +402,7 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                           </svg>
                         </span>
                       }
-                      <span
-                        class="title"
-                        [class.underlined]="element.highlighted"
-                        [style.--highlight-color]="titleHighlightColor(element)"
-                        [style.--highlight-style]="element.highlightStyle ?? 'solid'"
-                      >
+                      <span class="title">
                         @for (part of highlight(element.title); track $index) {
                           @if (part.hit) {
                             <mark class="hit">{{ part.text }}</mark>
@@ -976,96 +955,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
         </div>
       }
 
-      @if (highlightOpen()) {
-        <div class="selection-backdrop" (click)="closeHighlightSheet($event)">
-          <section
-            class="selection-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Highlight"
-            (click)="$event.stopPropagation()"
-          >
-            <div class="selection-head">
-              <h3>Highlight</h3>
-              <button
-                type="button"
-                class="list-action"
-                aria-label="Close"
-                [disabled]="selectionBusy()"
-                (click)="closeHighlightSheet($event)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M18 6 6 18" />
-                  <path d="m6 6 12 12" />
-                </svg>
-              </button>
-            </div>
-            <div class="color-presets" role="list">
-              @for (color of highlightPresets(); track color) {
-                <button
-                  type="button"
-                  class="color-preset"
-                  role="listitem"
-                  [class.selected]="highlightColorDraft() === color"
-                  [style.background]="color"
-                  [attr.aria-label]="color"
-                  [attr.aria-pressed]="highlightColorDraft() === color"
-                  [disabled]="selectionBusy()"
-                  (click)="highlightColorDraft.set(color)"
-                ></button>
-              }
-            </div>
-            <div class="underline-styles" role="list">
-              @for (style of highlightStyles; track style) {
-                <button
-                  type="button"
-                  class="underline-style"
-                  role="listitem"
-                  [class.selected]="highlightStyleDraft() === style"
-                  [style.--highlight-color]="highlightColorDraft()"
-                  [style.--highlight-style]="style"
-                  [attr.aria-label]="style"
-                  [attr.aria-pressed]="highlightStyleDraft() === style"
-                  [disabled]="selectionBusy()"
-                  (click)="highlightStyleDraft.set(style)"
-                >
-                  Aa
-                </button>
-              }
-            </div>
-            <div class="selection-actions">
-              <button
-                type="button"
-                class="btn btn-secondary"
-                [disabled]="selectionBusy() || !highlightDraftDirty()"
-                (click)="resetHighlightDraft()"
-              >
-                Reset
-              </button>
-              <button
-                type="button"
-                class="btn btn-secondary"
-                [disabled]="selectionBusy()"
-                (click)="closeHighlightSheet($event)"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                class="btn btn-primary"
-                [disabled]="selectionBusy()"
-                (click)="saveSelectionHighlight()"
-              >
-                Save
-              </button>
-            </div>
-            @if (selectionError()) {
-              <p class="selection-error">{{ selectionError() }}</p>
-            }
-          </section>
-        </div>
-      }
-
       @if (deleteConfirm()) {
         <div class="selection-backdrop" (click)="closeDeleteConfirm($event)">
           <section
@@ -1525,51 +1414,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       cursor: default;
     }
 
-    .color-presets,
-    .underline-styles {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-    }
-
-    .color-preset {
-      width: 1.45rem;
-      height: 1.45rem;
-      padding: 0;
-      border: 2px solid transparent;
-      border-radius: 999px;
-      cursor: pointer;
-    }
-
-    .color-preset.selected {
-      border-color: var(--text);
-    }
-
-    .underline-style {
-      min-width: 2.4rem;
-      height: 2rem;
-      border: 1px solid var(--border);
-      border-radius: 0.45rem;
-      background: transparent;
-      color: var(--text);
-      font: inherit;
-      cursor: pointer;
-      text-decoration-line: underline;
-      text-decoration-color: var(--highlight-color);
-      text-decoration-style: var(--highlight-style, solid);
-      text-underline-offset: 0.15em;
-    }
-
-    .underline-style.selected {
-      border-color: var(--text);
-    }
-
-    .color-preset:disabled,
-    .underline-style:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-
     .search-bar {
       box-sizing: border-box;
       display: flex;
@@ -1837,14 +1681,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       font-size: 1.05rem;
       font-weight: 650;
       letter-spacing: -0.02em;
-    }
-
-    .title.underlined {
-      text-decoration-line: underline;
-      text-decoration-style: var(--highlight-style, solid);
-      text-decoration-color: var(--highlight-color, currentColor);
-      text-decoration-thickness: 1px;
-      text-underline-offset: 0.18em;
     }
 
     .element.playing .element-body {
@@ -2445,7 +2281,6 @@ export class LanguagePage {
   readonly modeLabel = elementModeLabel;
   readonly comfortRates = COMFORT_RATES;
   readonly comfortColor = comfortColor;
-  readonly highlightStyles = HIGHLIGHT_STYLES;
   readonly needsDefinitionEdit = elementHasInvalidDefinition;
   readonly asking = signal(false);
   readonly discoverOpen = signal(false);
@@ -2456,9 +2291,6 @@ export class LanguagePage {
   readonly selectionError = signal('');
   readonly comfortOpen = signal(false);
   readonly comfortDraft = signal(1);
-  readonly highlightOpen = signal(false);
-  readonly highlightColorDraft = signal('');
-  readonly highlightStyleDraft = signal<HighlightStyle>('solid');
   readonly deleteConfirm = signal(false);
   readonly skeletons = ELEMENT_SKELETONS;
   private readonly baseSortOptions: { value: ElementSort; label: string }[] = [
@@ -2663,10 +2495,6 @@ export class LanguagePage {
       this.closeComfortSheet();
       return;
     }
-    if (this.highlightOpen()) {
-      this.highlightOpen.set(false);
-      return;
-    }
     if (this.deleteConfirm()) {
       this.deleteConfirm.set(false);
       return;
@@ -2695,10 +2523,6 @@ export class LanguagePage {
 
   isSelected(id: string): boolean {
     return this.selectedIds().has(id);
-  }
-
-  titleHighlightColor(element: StoredElement): string {
-    return element.highlightColor ?? comfortColor(element.comfort);
   }
 
   onCardClick(id: string): void {
@@ -2764,7 +2588,6 @@ export class LanguagePage {
     this.selecting.set(false);
     this.selectedIds.set(new Set());
     this.comfortOpen.set(false);
-    this.highlightOpen.set(false);
     this.deleteConfirm.set(false);
     this.comfortApplied = false;
     this.selectionError.set('');
@@ -2777,7 +2600,6 @@ export class LanguagePage {
     const rate = selected.every((element) => element.comfort === shared) ? shared : 1;
     this.comfortDraft.set(rate);
     this.comfortApplied = false;
-    this.highlightOpen.set(false);
     this.deleteConfirm.set(false);
     this.comfortOpen.set(true);
   }
@@ -2800,70 +2622,9 @@ export class LanguagePage {
     this.comfortApplied = true;
   }
 
-  openSelectionHighlight(): void {
-    if (this.selectionBusy() || this.selectedIds().size === 0) return;
-    const uniform = this.uniformHighlight();
-    this.highlightColorDraft.set(uniform?.color ?? this.selectionComfortColor());
-    this.highlightStyleDraft.set(uniform?.style ?? 'solid');
-    this.comfortOpen.set(false);
-    this.deleteConfirm.set(false);
-    this.highlightOpen.set(true);
-  }
-
-  closeHighlightSheet(event?: Event): void {
-    event?.stopPropagation();
-    if (this.selectionBusy()) return;
-    this.highlightOpen.set(false);
-  }
-
-  highlightPresets(): string[] {
-    const seen = new Set<string>();
-    const colors: string[] = [];
-    for (const color of [
-      this.selectionComfortColor(),
-      ...COMFORT_RATES.map((rate) => comfortColor(rate)),
-    ]) {
-      const key = color.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      colors.push(key);
-    }
-    return colors;
-  }
-
-  highlightDraftDirty(): boolean {
-    return (
-      this.highlightColorDraft() !== this.selectionComfortColor() ||
-      this.highlightStyleDraft() !== 'solid'
-    );
-  }
-
-  resetHighlightDraft(): void {
-    if (this.selectionBusy()) return;
-    this.highlightColorDraft.set(this.selectionComfortColor());
-    this.highlightStyleDraft.set('solid');
-  }
-
-  async saveSelectionHighlight(): Promise<void> {
-    if (this.selectionBusy() || this.selectedIds().size === 0) return;
-    const fallback = this.selectionComfortColor().toLowerCase();
-    const color = this.highlightColorDraft().toLowerCase();
-    const style = this.highlightStyleDraft();
-    const saved = await this.writeSelected((element) => ({
-      ...element,
-      highlighted: true,
-      highlightColor: color === fallback ? null : color,
-      highlightStyle: style === 'solid' ? null : style,
-    }));
-    if (!saved) return;
-    this.highlightOpen.set(false);
-    this.clearSelection();
-  }
-
   askDeleteSelection(): void {
     if (this.selectionBusy() || this.selectedIds().size === 0) return;
     this.comfortOpen.set(false);
-    this.highlightOpen.set(false);
     this.deleteConfirm.set(true);
   }
 
@@ -2932,7 +2693,7 @@ export class LanguagePage {
 
   private dismissSelectionFromOutside(target: Element | null): void {
     if (this.selectionBusy() || !this.selecting()) return;
-    if (this.comfortOpen() || this.highlightOpen() || this.deleteConfirm()) return;
+    if (this.comfortOpen() || this.deleteConfirm()) return;
     if (target?.closest('.element, .list-toolbar-actions, .selection-backdrop, app-element-modal')) {
       return;
     }
@@ -2948,28 +2709,6 @@ export class LanguagePage {
   private selectedElements(): StoredElement[] {
     const ids = this.selectedIds();
     return this.elements().filter((element) => ids.has(element.id));
-  }
-
-  /** Shared comfort color, or the first comfort color when the selection mixes rates. */
-  private selectionComfortColor(): string {
-    const selected = this.selectedElements();
-    const comfort = selected[0]?.comfort ?? 1;
-    if (selected.every((element) => element.comfort === comfort)) return comfortColor(comfort);
-    return comfortColor(1);
-  }
-
-  private uniformHighlight(): { color: string; style: HighlightStyle } | null {
-    const selected = this.selectedElements();
-    if (!selected.length || selected.some((element) => !element.highlighted)) return null;
-    const first = selected[0];
-    if (!first) return null;
-    const color = first.highlightColor ?? comfortColor(first.comfort);
-    const style = first.highlightStyle ?? 'solid';
-    const same = selected.every((element) => {
-      const next = element.highlightColor ?? comfortColor(element.comfort);
-      return next === color && (element.highlightStyle ?? 'solid') === style;
-    });
-    return same ? { color, style } : null;
   }
 
   private async writeSelected(patch: (element: StoredElement) => StoredElement): Promise<boolean> {

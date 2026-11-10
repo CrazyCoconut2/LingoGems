@@ -1,7 +1,6 @@
 import { ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
 import { isLearnableLanguage, type LearnableLanguage } from '../languages/catalog';
 import { mergeLanguageMetadata } from '../languages/language-store';
-import { sanitizeHighlightColor, sanitizeHighlightStyle, type HighlightStyle } from './appearance';
 import {
   collectMetadataIndexes,
   emptyMetadataIndexes,
@@ -87,12 +86,6 @@ export type StoredElement = {
   title: string;
   equivalents: ElementEquivalent[];
   definitions: ElementDefinition[];
-  /** True once an underline has been chosen. Existing elements stay off. */
-  highlighted: boolean;
-  /** Custom underline color. Null uses this element's comfort color. */
-  highlightColor: string | null;
-  /** Custom underline style. Null is solid. */
-  highlightStyle: HighlightStyle | null;
   /** Unset until the user chooses a mode. */
   mode: ElementMode | null;
   /** How comfortable this element feels, from 1 to 10. Missing values are 1. */
@@ -177,9 +170,6 @@ export async function addElement(language: string, title: string): Promise<Store
     title: name,
     equivalents: [],
     definitions: [],
-    highlighted: false,
-    highlightColor: null,
-    highlightStyle: null,
     mode: null,
     comfort: MIN_COMFORT,
     clicks: 0,
@@ -213,7 +203,6 @@ export async function saveElement(
     title,
     equivalents: content.equivalents,
     definitions: content.definitions,
-    ...appearanceOf(element),
     mode: storedMode(element?.mode, content.definitions),
     comfort: normalizeComfort(element?.comfort),
     clicks: normalizeClicks(element?.clicks),
@@ -259,26 +248,12 @@ function normalizeElement(raw: unknown): StoredElement | null {
     title,
     equivalents: content.equivalents,
     definitions: content.definitions,
-    ...appearanceOf(source),
     mode: storedMode(source.mode, content.definitions),
     comfort: normalizeComfort(source.comfort),
     clicks: normalizeClicks(source.clicks),
     ...collectMetadataIndexes(content.definitions),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
-  };
-}
-
-function appearanceOf(source: Partial<StoredElement> | null | undefined): {
-  highlighted: boolean;
-  highlightColor: string | null;
-  highlightStyle: HighlightStyle | null;
-} {
-  const highlighted = source?.highlighted === true;
-  return {
-    highlighted,
-    highlightColor: highlighted ? sanitizeHighlightColor(source?.highlightColor) : null,
-    highlightStyle: highlighted ? sanitizeHighlightStyle(source?.highlightStyle) : null,
   };
 }
 

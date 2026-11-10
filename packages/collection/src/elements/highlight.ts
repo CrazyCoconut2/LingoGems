@@ -1,4 +1,3 @@
-import { type HighlightStyle } from './appearance';
 import { compileFormSources } from './forms';
 import { stickTrailingPunctuation } from './stick-punctuation';
 
@@ -13,12 +12,8 @@ export type DefinitionHighlightPart = {
   current: boolean;
   /** Other elements whose forms cover this span. */
   matches: DefinitionHighlightMatch[];
-  /** Underline color of the element that won the span. */
+  /** Comfort color of the element that won the span. */
   color: string;
-  /** Underline style of the element that won the span. */
-  style: HighlightStyle;
-  /** True when that element has a saved highlight. Otherwise the accent underline stays. */
-  custom: boolean;
 };
 
 type HighlightRegex = { source: string; flags?: string };
@@ -28,8 +23,6 @@ type HighlightSource = {
   title: string;
   forms: readonly string[];
   color: string;
-  style: HighlightStyle;
-  custom: boolean;
 };
 
 type HighlightRule = {
@@ -38,8 +31,6 @@ type HighlightRule = {
   elementId: string | null;
   regexes: HighlightRegex[];
   color: string;
-  style: HighlightStyle;
-  custom: boolean;
 };
 
 type HighlightSpan = {
@@ -57,8 +48,6 @@ type HighlightHit = {
   elementId: string | null;
   matches: HighlightSpan[];
   color: string;
-  style: HighlightStyle;
-  custom: boolean;
 };
 
 const compiledRegexCache = new Map<string, RegExp | null>();
@@ -118,8 +107,6 @@ function collectHighlightMatches(text: string, rules: readonly HighlightRule[]):
           elementId: rule.elementId,
           matches: [{ lemma: rule.lemma, id: rule.id, elementId: rule.elementId }],
           color: rule.color,
-          style: rule.style,
-          custom: rule.custom,
         });
         if (match[0].length === 0) matcher.lastIndex += 1;
       }
@@ -160,8 +147,6 @@ function ruleFor(id: number, source: HighlightSource): HighlightRule | null {
     elementId: source.id,
     regexes: [{ source: pattern, flags: 'iu' }],
     color: source.color,
-    style: source.style,
-    custom: source.custom,
   };
 }
 
@@ -187,12 +172,12 @@ export function highlightDefinitionPassage(
   const currentRule = ruleFor(CURRENT_ID, current);
   if (currentRule) rules.push(currentRule);
   if (!rules.length) {
-    return [{ text, current: false, matches: [], color: '', style: 'solid', custom: false }];
+    return [{ text, current: false, matches: [], color: '' }];
   }
 
   const hits = resolveHighlightOverlaps(collectHighlightMatches(text, rules));
   if (!hits.length) {
-    return [{ text, current: false, matches: [], color: '', style: 'solid', custom: false }];
+    return [{ text, current: false, matches: [], color: '' }];
   }
   hits.sort((left, right) => left.start - right.start);
 
@@ -205,8 +190,6 @@ export function highlightDefinitionPassage(
         current: false,
         matches: [],
         color: '',
-        style: 'solid',
-        custom: false,
       });
     }
     const spans =
@@ -231,8 +214,6 @@ export function highlightDefinitionPassage(
       current: hit.id === CURRENT_ID,
       matches,
       color: hit.color,
-      style: hit.style,
-      custom: hit.custom,
     });
     cursor = hit.end;
   }
@@ -242,8 +223,6 @@ export function highlightDefinitionPassage(
       current: false,
       matches: [],
       color: '',
-      style: 'solid',
-      custom: false,
     });
   }
 
@@ -253,12 +232,10 @@ export function highlightDefinitionPassage(
       hit: part.current || part.matches.length > 0,
       lemma: part.current ? null : (part.matches[0]?.title ?? null),
     })),
-  ).map(({ text: partText, current, matches, color, style, custom }) => ({
+  ).map(({ text: partText, current, matches, color }) => ({
     text: partText,
     current,
     matches,
     color,
-    style,
-    custom,
   }));
 }
