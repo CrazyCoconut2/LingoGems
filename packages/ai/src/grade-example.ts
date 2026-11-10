@@ -4,19 +4,17 @@ import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
 import type { CompleteJsonInput } from './types';
 
-export const GRADE_EXAMPLE_SYSTEM_PROMPT = `You score a learner's example sentence for one dictionary sense.
+export const GRADE_EXAMPLE_SYSTEM_PROMPT = `You score how well a learner's example shows one dictionary sense.
 JSON keys stay in English.
 The sentence and the gloss are both in the language named by writeFieldsIn.
-forms lists this sense's forms. A form may be a pattern. lemma is the headword.
-formPresent says whether the sentence already contains the lemma or one of those forms. Trust formPresent. Do not decide that yourself, and do not look for pattern characters in the sentence.
-Score gems from 0 to ${TRANSLATION_GEM_MAX}.
-- When formPresent is false, the score MUST be 0
-- ${TRANSLATION_GEM_MAX} means a form is present and the sentence clearly uses it in the sense of the gloss
-- Partial credit means a form is present but the sense is weak, incomplete, or only partly the gloss
-- 0 means no form, a different sense, or not an example
-Spelling mistakes do not sink a fitting sentence.
+lemma is the headword. The sentence already contains it or one of its forms. Do not score whether the word is present.
+Score gems from 0 to ${TRANSLATION_GEM_MAX} for whether the rest of the sentence shows that the learner used the word in the sense of the gloss.
+- ${TRANSLATION_GEM_MAX} means the other words make this sense clear. Someone who did not know the lemma could tell what it means here
+- Partial credit means the sense is only partly shown, or the context is thin but still real
+- 0 means the sentence does not show the sense. The lemma alone scores 0. The lemma with only a function word, such as an article, also scores 0. A different sense scores 0
+Spelling mistakes do not sink a sentence that shows the sense.
 explanation MUST be in the language named by writeFieldsIn. Do not write it in English unless writeFieldsIn is English.
-explanation says whether a form is present and whether the sentence matches the gloss, and why the score is what it is. Do not quote the gloss in full.
+explanation says whether the sentence shows this sense and why the score is what it is. Do not quote the gloss in full.
 JSON only: {"score":<0-${TRANSLATION_GEM_MAX}>,"explanation":"<text>"}`;
 
 const GRADE_MAX_TOKENS = 1024;
@@ -24,10 +22,8 @@ const GRADE_MAX_TOKENS = 1024;
 export type GradeExampleInput = {
   language: string;
   lemma: string;
-  forms: readonly string[];
   gloss: string;
   answer: string;
-  formPresent: boolean;
 };
 
 export type GradedExample = {
@@ -41,10 +37,8 @@ export function buildGradeExampleUserMessage(input: GradeExampleInput): string {
   return JSON.stringify({
     writeFieldsIn,
     lemma: input.lemma.trim(),
-    forms: input.forms.map((form) => form.trim()).filter(Boolean),
     gloss: input.gloss.trim(),
     answer: input.answer.trim(),
-    formPresent: input.formPresent,
   });
 }
 
@@ -81,16 +75,8 @@ export async function gradeExample(request: GradeExampleInput): Promise<GradedEx
   const lemma = String(request.lemma || '').trim();
   const gloss = String(request.gloss || '').trim();
   const answer = String(request.answer || '').trim();
-  const forms = (request.forms ?? []).map((form) => String(form || '').trim()).filter(Boolean);
   if (!language || !lemma || !gloss || !answer) aiError(AI_ERROR.RESPONSE_INVALID);
-  const ready: GradeExampleInput = {
-    language,
-    lemma,
-    forms,
-    gloss,
-    answer,
-    formPresent: request.formPresent === true,
-  };
+  const ready: GradeExampleInput = { language, lemma, gloss, answer };
   const input: CompleteJsonInput = {
     system: GRADE_EXAMPLE_SYSTEM_PROMPT,
     user: buildGradeExampleUserMessage(ready),

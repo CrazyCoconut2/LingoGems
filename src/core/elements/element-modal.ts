@@ -3003,24 +3003,27 @@ function writeExampleSuggestions(
                           </svg>
                         </button>
                       }
-                      <button
-                        type="button"
-                        class="icon-btn fix"
-                        aria-label="Correct"
-                        title="Correct"
-                        [attr.aria-busy]="askingPolish() === 'correct' ? true : null"
-                        [disabled]="!canCorrectExample(prompt)"
-                        (click)="correctExample(prompt)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m6 16 6-12 6 12" />
-                          <path d="M8 12h8" />
-                          <path d="m16 20 2 2 4-4" />
-                        </svg>
-                      </button>
+                      @if (!supportAvailable() || exampleSource() === 'working') {
+                        <button
+                          type="button"
+                          class="icon-btn fix"
+                          aria-label="Correct"
+                          title="Correct"
+                          [attr.aria-busy]="askingPolish() === 'correct' ? true : null"
+                          [disabled]="!canCorrectExample(prompt)"
+                          (click)="correctExample(prompt)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m6 16 6-12 6 12" />
+                            <path d="M8 12h8" />
+                            <path d="m16 20 2 2 4-4" />
+                          </svg>
+                        </button>
+                      }
                     </span>
                   </div>
-                  @if (exampleCorrection(); as correction) {
+                  @if (!supportAvailable() || exampleSource() === 'working') {
+                    @if (exampleCorrection(); as correction) {
                     <div class="compare-side fix">
                       <div class="field-heading">
                         <p class="field-label">Correction</p>
@@ -3038,6 +3041,7 @@ function writeExampleSuggestions(
                       </div>
                       <p class="hint">{{ correction }}</p>
                     </div>
+                    }
                   }
                   @if (supportAvailable() && exampleSource() === 'support') {
                     <textarea
@@ -3075,7 +3079,7 @@ function writeExampleSuggestions(
                     <button
                       type="button"
                       class="btn btn-primary"
-                      [disabled]="aiBusy() || translating() || !exampleDraftAt(prompt).trim()"
+                      [disabled]="aiBusy() || translating() || !exampleReady(prompt)"
                       (click)="submitExample(prompt)"
                     >
                       Submit
@@ -3285,10 +3289,10 @@ function writeExampleSuggestions(
                         "
                         (click)="exerciseEntry.set($index)"
                       >
-                        <span
-                          >{{ modeLabel(logMode(entry.game)) }} ·
-                          <span class="hint">{{ exerciseWhen(entry.at) }}</span></span
-                        >
+                        <span class="log-copy">
+                          <span class="log-game">{{ modeLabel(logMode(entry.game)) }}</span>
+                          <span class="hint">{{ exerciseWhen(entry.at) }}</span>
+                        </span>
                         <span class="gem-pick" [attr.data-game]="entry.game" aria-hidden="true">
                           @for (gems of gemScores; track gems) {
                             @if (gems > 0) {
@@ -5125,7 +5129,50 @@ function writeExampleSuggestions(
 
     button.log-row {
       justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      height: auto;
+      padding: 0.55rem 0.7rem;
       text-align: start;
+    }
+
+    button.log-row .log-copy {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.12rem;
+      min-width: 0;
+    }
+
+    button.log-row .log-game {
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    button.log-row .hint {
+      max-width: 100%;
+      overflow: hidden;
+      font-size: 0.75rem;
+      font-weight: 550;
+      line-height: 1.2;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    button.log-row .gem-pick {
+      flex: none;
+      flex-wrap: nowrap;
+      gap: 0.12rem;
+    }
+
+    button.log-row .gem-pick-stone {
+      width: 1.05rem;
+      height: 1.05rem;
+      cursor: inherit;
+    }
+
+    button.log-row .gem-gain-stone {
+      --gem-size: 0.72rem;
     }
 
     .gem-gain-count {
@@ -6845,7 +6892,7 @@ export class ElementModal {
       return `Write the equivalent for each definition. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI.`;
     }
     if (mode === 2) {
-      return `Write an example for each definition. The sentence must use the element in that sense. The AI scores it from 0 to ${TRANSLATION_GEM_MAX}.`;
+      return `Write an example for each definition. It must contain the element, and the other words must show that sense. The AI scores it from 0 to ${TRANSLATION_GEM_MAX}.`;
     }
     return `Write each hidden definition and submit it. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI. Or give up to see it.`;
   }
@@ -8412,48 +8459,35 @@ export class ElementModal {
   }
 
   canCorrectExample(index: number): boolean {
+    if (this.supportAvailable() && this.exampleSource() !== 'working') return false;
     if (this.translating() || this.askingPolish() !== null || this.askingExampleGrade() === index) {
       return false;
     }
-    const text =
-      this.supportAvailable() && this.exampleSource() === 'support'
-        ? this.exampleSupportDraftAt(index)
-        : this.exampleDraftAt(index);
-    return text.trim().length > 0;
+    return this.exampleDraftAt(index).trim().length > 0;
   }
 
   /** Fix spelling in the visible draft. Wording and meaning stay as written. */
   async correctExample(index: number): Promise<void> {
     if (!this.canCorrectExample(index) || !this.exampleGame()) return;
-    const support = this.supportAvailable() && this.exampleSource() === 'support';
     const element = this.element();
-    const text = (support ? this.exampleSupportDraftAt(index) : this.exampleDraftAt(index)).trim();
+    const text = this.exampleDraftAt(index).trim();
     const forms = element.definitions[index]?.forms.map((form) => form.text) ?? [];
     this.askingPolish.set('correct');
     this.error.set('');
     try {
       const polished = await polishExample({
-        language: support ? readTranslationLanguage(element.language) : element.language,
+        language: element.language,
         text,
         task: 'correct',
         lemma: element.title,
         forms,
       });
       if (!this.alive || this.element().id !== element.id || polished.task !== 'correct') return;
-      const current = (support ? this.exampleSupportDraftAt(index) : this.exampleDraftAt(index)).trim();
-      if (current !== text) return;
-      const corrected = polished.text.slice(0, this.exampleLengthMax);
-      if (support) {
-        const exampleSupportDrafts = this.round().exampleSupportDrafts?.slice() ?? [];
-        while (exampleSupportDrafts.length <= index) exampleSupportDrafts.push('');
-        exampleSupportDrafts[index] = corrected;
-        this.writeRound({ ...this.round(), exampleSupportDrafts });
-      } else {
-        const exampleDrafts = this.round().exampleDrafts?.slice() ?? [];
-        while (exampleDrafts.length <= index) exampleDrafts.push('');
-        exampleDrafts[index] = corrected;
-        this.writeRound({ ...this.round(), exampleDrafts });
-      }
+      if (this.exampleDraftAt(index).trim() !== text) return;
+      const exampleDrafts = this.round().exampleDrafts?.slice() ?? [];
+      while (exampleDrafts.length <= index) exampleDrafts.push('');
+      exampleDrafts[index] = polished.text.slice(0, this.exampleLengthMax);
+      this.writeRound({ ...this.round(), exampleDrafts });
       this.exampleCorrection.set(polished.explanation);
     } catch {
       if (this.alive && this.element().id === element.id) {
@@ -8482,9 +8516,17 @@ export class ElementModal {
     this.writeRound({ ...this.round(), exampleDrafts });
   }
 
+  /** Submit needs a target-language sentence that already contains the element. */
+  exampleReady(index: number): boolean {
+    const answer = this.exampleDraftAt(index).trim();
+    if (!answer) return false;
+    const forms = this.element().definitions[index]?.forms.map((form) => form.text) ?? [];
+    return exampleContainsForm(answer, this.element().title, forms);
+  }
+
   submitExample(index: number): void {
     if (!this.exampleGame() || this.aiBusy() || this.translating() || this.exampleSubmitted(index)) return;
-    if (!this.exampleDraftAt(index).trim()) return;
+    if (!this.exampleReady(index)) return;
     const exampleSubmitted = this.round().exampleSubmitted?.slice() ?? [];
     while (exampleSubmitted.length <= index) exampleSubmitted.push(false);
     exampleSubmitted[index] = true;
@@ -8524,8 +8566,6 @@ export class ElementModal {
     const gloss = parsePassage(definition?.text ?? '').text.trim();
     const answer = this.exampleDraftAt(index).trim();
     if (!definition || !gloss || !answer) return;
-    const forms = definition.forms.map((form) => form.text);
-    const formPresent = exampleContainsForm(answer, element.title, forms);
     const job = ++this.exampleGradeJob;
     this.askingExampleGrade.set(index);
     this.error.set('');
@@ -8533,16 +8573,13 @@ export class ElementModal {
       const grade = await gradeExample({
         language: element.language,
         lemma: element.title,
-        forms,
         gloss,
         answer,
-        formPresent,
       });
       if (!this.alive || job !== this.exampleGradeJob || this.element().id !== element.id) return;
       if (this.exampleDraftAt(index).trim() !== answer) return;
-      const score = formPresent ? grade.score : 0;
       const logIndex = await this.recordExampleReward(index, {
-        gems: score,
+        gems: grade.score,
         by: 'ai',
         answer,
         explanation: grade.explanation,
@@ -8555,7 +8592,7 @@ export class ElementModal {
       }
       this.writeExampleReward(
         index,
-        { gems: score, by: 'ai', explanation: grade.explanation },
+        { gems: grade.score, by: 'ai', explanation: grade.explanation },
         logIndex,
       );
     } catch {
