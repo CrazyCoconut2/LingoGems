@@ -32,6 +32,7 @@ import {
   type DiscoveredElement,
 } from 'ai';
 import { readFieldColor } from '../elements/metadata-colors';
+import { rememberTranslationInto, translationInto } from './translation-language';
 import { Reveal } from '../elements/reveal';
 import {
   readDiscoverSearches,
@@ -81,6 +82,9 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
         <header class="head">
           <div>
             <h2>Discover</h2>
+            @if (languageName(language()); as learning) {
+              <p class="learning">{{ learning }}</p>
+            }
             <p>Elements to add, with their definitions. A note and metadata narrow the batch.</p>
           </div>
           <button type="button" class="icon-btn" aria-label="Close" (click)="closed.emit()">
@@ -124,21 +128,21 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                   </button>
                 }
               </div>
-              <label class="translate-switch">
-                Translation
-                <select
-                  aria-label="Translation language"
-                  [value]="translationInto()"
-                  [disabled]="busy() || adding()"
-                  (change)="setTranslationInto($event)"
-                >
-                  <option value="">No translation</option>
-                  @for (code of translationLanguages(); track code) {
-                    <option [value]="code">{{ languageName(code) }}</option>
-                  }
-                </select>
-              </label>
             </div>
+            <select
+              class="translate-language"
+              aria-label="Translation language"
+              [value]="translationTarget()"
+              [disabled]="busy() || adding()"
+              (change)="setTranslationInto($event)"
+            >
+              <option value="" [selected]="!translationTarget()">No translation</option>
+              @for (code of translationLanguages(); track code) {
+                <option [value]="code" [selected]="code === translationTarget()">
+                  {{ languageName(code) }}
+                </option>
+              }
+            </select>
             <button
               type="button"
               class="filter-btn search-btn"
@@ -516,6 +520,14 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       letter-spacing: -0.03em;
     }
 
+    .head p.learning {
+      margin: 0.2rem 0 0;
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: 650;
+      line-height: 1.2;
+    }
+
     .head p,
     .hint,
     .notice,
@@ -598,24 +610,20 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       min-width: 0;
     }
 
-    .translate-switch {
-      display: flex;
-      align-items: center;
-      gap: 0.45rem;
-      color: var(--text);
-      font-size: 0.84rem;
-      font-weight: 650;
-    }
-
-    .translate-switch select {
-      max-width: 11rem;
+    .translate-language {
+      flex: none;
+      align-self: flex-end;
+      box-sizing: border-box;
+      height: 2.4rem;
+      max-width: 9.5rem;
       border: 1px solid var(--border);
-      border-radius: 999px;
-      background: transparent;
-      color: inherit;
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
       font: inherit;
-      font-size: 0.84rem;
-      padding: 0.15rem 0.45rem;
+      font-size: 0.78rem;
+      font-weight: 650;
+      padding: 0 0.45rem;
     }
 
     .note span,
@@ -1270,7 +1278,7 @@ export class DiscoverModal implements OnInit {
   readonly valueMax = VALUE_MAX;
 
   readonly instruction = signal('');
-  readonly translationInto = signal('');
+  readonly translationInto = translationInto;
   readonly filtersOpen = signal(false);
   readonly historyOpen = signal(false);
   readonly expanded = signal<DiscoverKind | null>(null);
@@ -1506,7 +1514,7 @@ export class DiscoverModal implements OnInit {
 
   setTranslationInto(event: Event): void {
     const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
-    this.translationInto.set(value);
+    rememberTranslationInto(value);
   }
 
   private translationTarget(): string {

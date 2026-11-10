@@ -74,6 +74,7 @@ import {
 } from './play-session';
 import { Reveal } from './reveal';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
+import { rememberTranslationInto, translationInto } from '../languages/translation-language';
 import { ModeIcon } from './mode-icon';
 import { comfortColor } from './comfort-palette';
 import { ScoreGauge } from './score-gauge';
@@ -894,14 +895,14 @@ function writeExampleSuggestions(
                         <select
                           class="lookup-chip"
                           aria-label="Translation language"
-                          [value]="translationInto()"
+                          [value]="translationTarget()"
                           [disabled]="aiBusy()"
                           (pointerdown)="$event.stopPropagation()"
                           (change)="setTranslationInto($event)"
                         >
-                          <option value="">Translation</option>
+                          <option value="" [selected]="!translationTarget()">Translation</option>
                           @for (code of translationLanguages(); track code) {
-                            <option [value]="code">{{ languageName(code) }}</option>
+                            <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
                           }
                         </select>
                         <button
@@ -1181,14 +1182,14 @@ function writeExampleSuggestions(
                                   <select
                                     class="lookup-chip"
                                     aria-label="Translation language"
-                                    [value]="translationInto()"
+                                    [value]="translationTarget()"
                                     [disabled]="aiBusy() || exampleGame()"
                                     (pointerdown)="$event.stopPropagation()"
                                     (change)="setTranslationInto($event)"
                                   >
-                                    <option value="">Translation</option>
+                                    <option value="" [selected]="!translationTarget()">Translation</option>
                                     @for (code of translationLanguages(); track code) {
-                                      <option [value]="code">{{ languageName(code) }}</option>
+                                      <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
                                     }
                                   </select>
                                   <button
@@ -1595,13 +1596,13 @@ function writeExampleSuggestions(
                 Translation
                 <select
                   aria-label="Translation language"
-                  [value]="translationInto()"
+                  [value]="translationTarget()"
                   [disabled]="translating() || askingEquivalent() || busy()"
                   (change)="setTranslationInto($event)"
                 >
-                  <option value="">No translation</option>
+                  <option value="" [selected]="!translationTarget()">No translation</option>
                   @for (code of translationLanguages(); track code) {
-                    <option [value]="code">{{ languageName(code) }}</option>
+                    <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
                   }
                 </select>
               </label>
@@ -1887,13 +1888,13 @@ function writeExampleSuggestions(
                 Translation
                 <select
                   aria-label="Translation language"
-                  [value]="translationInto()"
+                  [value]="translationTarget()"
                   [disabled]="askingExamples() !== null"
                   (change)="setTranslationInto($event)"
                 >
-                  <option value="">No translation</option>
+                  <option value="" [selected]="!translationTarget()">No translation</option>
                   @for (code of translationLanguages(); track code) {
-                    <option [value]="code">{{ languageName(code) }}</option>
+                    <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
                   }
                 </select>
               </label>
@@ -2031,13 +2032,13 @@ function writeExampleSuggestions(
                 Translation
                 <select
                   aria-label="Translation language"
-                  [value]="translationInto()"
+                  [value]="translationTarget()"
                   [disabled]="definitionSheetBusy()"
                   (change)="setTranslationInto($event)"
                 >
-                  <option value="">No translation</option>
+                  <option value="" [selected]="!translationTarget()">No translation</option>
                   @for (code of translationLanguages(); track code) {
-                    <option [value]="code">{{ languageName(code) }}</option>
+                    <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
                   }
                 </select>
               </label>
@@ -2250,13 +2251,13 @@ function writeExampleSuggestions(
                 Translation
                 <select
                   aria-label="Translation language"
-                  [value]="translationInto()"
+                  [value]="translationTarget()"
                   [disabled]="asking()"
                   (change)="setTranslationInto($event)"
                 >
-                  <option value="">No translation</option>
+                  <option value="" [selected]="!translationTarget()">No translation</option>
                   @for (code of translationLanguages(); track code) {
-                    <option [value]="code">{{ languageName(code) }}</option>
+                    <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
                   }
                 </select>
               </label>
@@ -2682,13 +2683,13 @@ function writeExampleSuggestions(
                     <select
                       class="translate-language"
                       aria-label="Translation language"
-                      [value]="translationInto()"
+                      [value]="translationTarget()"
                       [disabled]="translating() || askingPolish() !== null"
                       (change)="setTranslationInto($event)"
                     >
-                      <option value="">No translation</option>
+                      <option value="" [selected]="!translationTarget()">No translation</option>
                       @for (code of translationLanguages(); track code) {
-                        <option [value]="code">{{ languageName(code) }}</option>
+                        <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
                       }
                     </select>
                     @if (supportAvailable()) {
@@ -2984,13 +2985,13 @@ function writeExampleSuggestions(
                       <select
                         class="translate-language"
                         aria-label="Translation language"
-                        [value]="translationInto()"
+                        [value]="translationTarget()"
                         [disabled]="translating() || askingPolish() !== null"
                         (change)="setTranslationInto($event)"
                       >
-                        <option value="">No translation</option>
+                        <option value="" [selected]="!translationTarget()">No translation</option>
                         @for (code of translationLanguages(); track code) {
-                          <option [value]="code">{{ languageName(code) }}</option>
+                          <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
                         }
                       </select>
                       @if (supportAvailable()) {
@@ -5307,7 +5308,7 @@ export class ElementModal {
   readonly gemScores = Array.from({ length: TRANSLATION_GEM_MAX + 1 }, (_, gems) => gems);
   readonly equivalentMax = EQUIVALENT_MAX;
   readonly definitionMax = DEFINITION_MAX;
-  readonly translationInto = signal('');
+  readonly translationInto = translationInto;
   readonly supportAvailable = computed(() => this.translationTarget() !== '');
   readonly languageName = languageDisplayName;
   readonly originalLanguageName = computed(
@@ -5784,7 +5785,7 @@ export class ElementModal {
 
   setTranslationInto(event: Event): void {
     const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
-    this.translationInto.set(isLearnableLanguage(value) ? value : '');
+    rememberTranslationInto(value);
   }
 
   private translationTarget(): string {

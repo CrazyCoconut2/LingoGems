@@ -14,6 +14,7 @@ import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { DiscoverModal } from './discover-modal';
 import { readSelectedLanguage, writeSelectedLanguage } from './selected-language';
+import { rememberTranslationInto, translationInto } from './translation-language';
 import { Settings } from '../settings/settings';
 import { generateElementFromSelection } from 'ai';
 import {
@@ -144,13 +145,15 @@ const MOVE_SLOP_PX = 10;
                 Translation
                 <select
                   aria-label="Translation language"
-                  [value]="translationInto()"
+                  [value]="translationTarget()"
                   [disabled]="asking()"
                   (change)="setTranslationInto($event)"
                 >
-                  <option value="">No translation</option>
+                  <option value="" [selected]="!translationTarget()">No translation</option>
                   @for (code of translationLanguages(); track code) {
-                    <option [value]="code">{{ languageName(code) }}</option>
+                    <option [value]="code" [selected]="code === translationTarget()">
+                      {{ languageName(code) }}
+                    </option>
                   }
                 </select>
               </label>
@@ -481,7 +484,7 @@ const MOVE_SLOP_PX = 10;
         <p class="empty">{{ emptyMessage() }}</p>
       }
 
-      @if (discoverOpen()) {
+      @if (discoverOpen() && code()) {
         <app-discover-modal
           [language]="code()"
           [catalog]="metadataCatalog()"
@@ -1171,7 +1174,7 @@ const MOVE_SLOP_PX = 10;
       stroke-linejoin: round;
     }
 
-    .toolbar-icon-btn:hover {
+    .toolbar-icon-btn:hover:not(:disabled) {
       color: var(--text);
       border-color: rgba(var(--accent-rgb), 0.4);
     }
@@ -2346,7 +2349,7 @@ export class LanguagePage {
   readonly comfortColor = comfortColor;
   readonly needsDefinitionEdit = elementHasInvalidDefinition;
   readonly asking = signal(false);
-  readonly translationInto = signal('');
+  readonly translationInto = translationInto;
   readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
   readonly selecting = signal(false);
@@ -3267,7 +3270,7 @@ export class LanguagePage {
 
   setTranslationInto(event: Event): void {
     const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
-    this.translationInto.set(isLearnableLanguage(value) ? value : '');
+    rememberTranslationInto(value);
   }
 
   private translationTarget(): string {
