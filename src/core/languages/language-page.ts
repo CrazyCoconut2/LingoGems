@@ -279,13 +279,11 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
           @for (item of skeletons; track item) {
             <li>
               <div class="element skeleton">
-                <div class="element-main">
-                  <span class="bone bone-rail"></span>
-                  <div class="element-body">
-                    <span class="bone bone-title"></span>
-                    <span class="bone bone-marks"></span>
-                  </div>
+                <div class="element-body">
+                  <span class="bone bone-title"></span>
                 </div>
+                <span class="bone bone-gems"></span>
+                <span class="bone bone-counts"></span>
                 <span class="bone bone-track"></span>
               </div>
             </li>
@@ -302,56 +300,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                 [style.--score-color]="comfortColor(element.comfort)"
                 (click)="openCard(element.id)"
               >
-                <div class="element-main">
-                <div class="counts">
-                  <span
-                    class="stat"
-                    [class.quiet]="!element.equivalents.length"
-                    [attr.aria-label]="
-                      element.equivalents.length === 1
-                        ? '1 translation'
-                        : element.equivalents.length + ' translations'
-                    "
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m5 8 6 6" />
-                      <path d="m4 14 6-6 2-3" />
-                      <path d="M2 5h12" />
-                      <path d="M7 2h1" />
-                      <path d="m22 22-5-10-5 10" />
-                      <path d="M14 18h6" />
-                    </svg>
-                    <span>{{ element.equivalents.length }}</span>
-                  </span>
-                  <span
-                    class="stat"
-                    [class.quiet]="!element.definitions.length"
-                    [attr.aria-label]="definitionsLabel(element.definitions.length)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
-                      />
-                      <path d="m8 13 4-7 4 7" />
-                      <path d="M9.1 11h5.7" />
-                    </svg>
-                    <span>{{ element.definitions.length }}</span>
-                  </span>
-                  <span
-                    class="stat"
-                    [class.quiet]="!formCount(element)"
-                    [attr.aria-label]="formsLabel(formCount(element))"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
-                      />
-                      <path d="m22 12.5-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5" />
-                      <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
-                    </svg>
-                    <span>{{ formCount(element) }}</span>
-                  </span>
-                </div>
                 <div class="element-body">
                   @if (playing()) {
                     @if (element.mode; as mode) {
@@ -387,28 +335,57 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
                       </span>
                     </span>
                   }
-                  <span class="marks">
-                    @if (!playing()) {
-                      @if (element.mode; as mode) {
-                        <span class="mode-icon" [attr.aria-label]="modeLabel(mode)">
-                          <app-mode-icon [mode]="mode" />
-                        </span>
-                      }
-                    }
-                    <span class="card-gems">
-                      @for (total of gemTotals(element); track total.game) {
-                        <span
-                          class="card-gem"
-                          [attr.data-game]="total.game"
-                          [attr.aria-label]="gemsLabel(total.game, total.gems)"
-                        >
-                          <span class="gem" aria-hidden="true"></span>
-                          <span>{{ total.gems }}</span>
-                        </span>
-                      }
-                    </span>
-                  </span>
                 </div>
+                <div class="card-gems">
+                  @for (total of gemTotals(element); track total.game) {
+                    <span
+                      class="card-gem"
+                      [class.active]="isCurrentGame(element.mode, total.game)"
+                      [attr.data-game]="total.game"
+                      [attr.aria-current]="isCurrentGame(element.mode, total.game) ? 'true' : null"
+                      [attr.aria-label]="
+                        gemsLabel(total.game, total.gems, isCurrentGame(element.mode, total.game))
+                      "
+                    >
+                      <span class="gem" aria-hidden="true"></span>
+                      <span>{{ total.gems }}</span>
+                    </span>
+                  }
+                </div>
+                <div class="counts">
+                  <span
+                    class="stat"
+                    [class.quiet]="!element.equivalents.length"
+                    [attr.aria-label]="
+                      element.equivalents.length === 1
+                        ? '1 translation'
+                        : element.equivalents.length + ' translations'
+                    "
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m5 8 6 6" />
+                      <path d="m4 14 6-6 2-3" />
+                      <path d="M2 5h12" />
+                      <path d="M7 2h1" />
+                      <path d="m22 22-5-10-5 10" />
+                      <path d="M14 18h6" />
+                    </svg>
+                    <span>{{ element.equivalents.length }}</span>
+                  </span>
+                  <span
+                    class="stat"
+                    [class.quiet]="!element.definitions.length"
+                    [attr.aria-label]="definitionsLabel(element.definitions.length)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
+                      />
+                      <path d="m8 13 4-7 4 7" />
+                      <path d="M9.1 11h5.7" />
+                    </svg>
+                    <span>{{ element.definitions.length }}</span>
+                  </span>
                 </div>
                 <div
                   class="comfort-track"
@@ -1235,53 +1212,39 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       cursor: pointer;
     }
 
-    .element-main {
+    .element-body {
       display: flex;
       flex: 1;
-      align-items: stretch;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 0.35rem;
       min-width: 0;
+      padding: 0.55rem 0.75rem;
     }
 
     .counts {
       display: flex;
       flex: none;
-      flex-direction: column;
-      align-self: stretch;
-      min-width: 2.55rem;
-      border-right: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
-      background: color-mix(in srgb, var(--text) 5%, transparent);
-    }
-
-    .element-body {
-      display: flex;
-      flex: 1;
-      flex-direction: column;
-      justify-content: space-between;
-      gap: 0.35rem;
-      min-width: 0;
-      padding: 0.55rem 0.75rem;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.15rem 0.75rem 0.4rem;
     }
 
     .element:hover {
       background: color-mix(in srgb, var(--score-color, transparent) 18%, var(--surface));
     }
 
-    .marks {
+    .card-gems {
       display: flex;
       align-items: center;
-      gap: 0.45rem;
+      gap: 0.85rem;
       width: 100%;
-    }
-
-    .card-gems {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      margin-left: auto;
+      padding: 0.15rem 0.75rem 0.2rem;
     }
 
     .card-gem {
       display: inline-flex;
+      flex: none;
       align-items: center;
       gap: 0.16rem;
       color: var(--exercise-gem);
@@ -1308,24 +1271,24 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       background: var(--exercise-gem);
     }
 
-    .element.playing .marks {
-      width: auto;
-    }
-
-    .element.playing .card-gems {
-      margin-left: 0;
+    .card-gem.active .gem {
+      --gem-size: 0.95rem;
+      filter: drop-shadow(0 0 0.22rem var(--exercise-gem));
     }
 
     .comfort-track {
       display: flex;
       width: 100%;
       margin-top: auto;
+      gap: 2px;
+      background: color-mix(in srgb, #000 55%, var(--surface));
     }
 
     .comfort-mark {
-      flex: 1;
-      height: 0.38rem;
-      background: color-mix(in srgb, var(--text) 14%, transparent);
+      flex: 1 1 0;
+      min-width: 0;
+      height: 0.48rem;
+      background: color-mix(in srgb, var(--text) 16%, transparent);
     }
 
     .comfort-mark.filled {
@@ -1371,24 +1334,6 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       letter-spacing: -0.02em;
     }
 
-    .mode-icon {
-      display: grid;
-      place-items: center;
-      width: 1.35rem;
-      height: 1.35rem;
-      margin: 0;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      color: var(--text);
-      cursor: pointer;
-    }
-
-    .mode-icon app-mode-icon {
-      width: 100%;
-      height: 100%;
-    }
-
     .element.playing .element-body {
       align-items: center;
     }
@@ -1421,24 +1366,15 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
     }
 
     .stat {
-      box-sizing: border-box;
-      flex: 1 1 0;
-      display: flex;
+      display: inline-flex;
+      flex: none;
       align-items: center;
-      justify-content: center;
       gap: 0.18rem;
-      min-height: 0;
-      padding: 0.2rem 0.3rem;
-      border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
       color: var(--text-muted);
-      font-size: 0.68rem;
+      font-size: 0.72rem;
       font-weight: 650;
       font-variant-numeric: tabular-nums;
       line-height: 1;
-    }
-
-    .stat:last-child {
-      border-bottom: 0;
     }
 
     .stat.quiet {
@@ -1447,8 +1383,8 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
 
     .stat svg {
       display: block;
-      width: 0.68rem;
-      height: 0.68rem;
+      width: 0.85rem;
+      height: 0.85rem;
       flex: none;
       fill: none;
       stroke: currentColor;
@@ -1476,11 +1412,10 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       vertical-align: -0.08em;
     }
 
-    .skeleton .bone-rail {
-      width: 2.55rem;
-      height: auto;
-      align-self: stretch;
-      border-radius: 0;
+    .skeleton .bone-counts {
+      width: 4.2rem;
+      height: 0.7rem;
+      margin: 0.2rem 0.75rem 0.45rem;
     }
 
     .skeleton .bone-title {
@@ -1488,14 +1423,15 @@ export const openSavedLanguage: CanActivateFn = async (route) => {
       height: 1.05rem;
     }
 
-    .skeleton .bone-marks {
-      width: 1.35rem;
-      height: 1.15rem;
+    .skeleton .bone-gems {
+      width: 6rem;
+      height: 0.75rem;
+      margin: 0.15rem 0.75rem 0;
     }
 
     .skeleton .bone-track {
       width: 100%;
-      height: 0.38rem;
+      height: 0.48rem;
       margin: 0;
       border-radius: 0;
     }
@@ -2290,10 +2226,6 @@ export class LanguagePage {
     return count === 1 ? '1 definition' : `${count} definitions`;
   }
 
-  formCount(element: StoredElement): number {
-    return element.definitions.reduce((total, definition) => total + definition.forms.length, 0);
-  }
-
   gemTotals(
     element: StoredElement,
   ): { game: 'translation' | 'example' | 'definition'; gems: number }[] {
@@ -2312,16 +2244,28 @@ export class LanguagePage {
       { game: 'example', gems: example },
       { game: 'definition', gems: definition },
     ];
-    return totals.filter((total) => total.gems > 0);
+    return totals;
   }
 
-  gemsLabel(game: 'translation' | 'example' | 'definition', count: number): string {
+  isCurrentGame(
+    mode: ElementMode | null,
+    game: 'translation' | 'example' | 'definition',
+  ): boolean {
+    return (
+      (mode === 1 && game === 'translation') ||
+      (mode === 2 && game === 'example') ||
+      (mode === 3 && game === 'definition')
+    );
+  }
+
+  gemsLabel(
+    game: 'translation' | 'example' | 'definition',
+    count: number,
+    current = false,
+  ): string {
     const amount = count === 1 ? '1 gem' : `${count} gems`;
-    return `${amount} from ${game}`;
-  }
-
-  formsLabel(count: number): string {
-    return count === 1 ? '1 form' : `${count} forms`;
+    const label = `${amount} from ${game}`;
+    return current ? `${label}, current game` : label;
   }
 
   inputValue(event: Event): string {
