@@ -2,7 +2,6 @@ import { ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
 import {
   isLearnableLanguage,
   languageCodeFromLabel,
-  languageDisplayName,
   type LearnableLanguage,
 } from '../languages/catalog';
 import { mergeMetadataCatalog } from './metadata-catalog';
@@ -470,16 +469,38 @@ export function parsePassage(value: string): ParsedPassage {
   return { text, translations };
 }
 
-/** The same phrase with each marker on its own line, written as `[English: …]`. */
-export function passageForEditing(value: string): string {
+/** The phrase as edited: the gloss, then the selected translation alone inside `[]`. */
+export function passageForEditing(value: string, language = ''): string {
   const parsed = parsePassage(value);
-  const parts = parsed.translations
-    .slice()
-    .sort((left, right) => left.language.localeCompare(right.language))
-    .map((item) => `[${languageDisplayName(item.language)}: ${item.text}]`);
+  const key = language.trim().toLowerCase().split('-')[0];
+  const translation = key
+    ? (parsed.translations.find((item) => item.language === key)?.text ?? '')
+    : '';
   const base = parsed.text.trim();
-  if (!parts.length) return base;
-  return base ? `${base}\n${parts.join('\n')}` : parts.join('\n');
+  if (!translation) return base;
+  return base ? `${base}\n[${translation}]` : `[${translation}]`;
+}
+
+/** Read an editing box. A whole line of `[…]` is the translation, with or without a language label. */
+export function readEditingDraft(draft: string): { text: string; translation: string } {
+  const gloss: string[] = [];
+  let translation = '';
+  for (const line of draft.replace(/\r\n/g, '\n').split('\n')) {
+    const match = line.trim().match(/^\[([^\[\]]+)]$/);
+    if (match) translation = translationBody(match[1]);
+    else gloss.push(line);
+  }
+  const parsed = parsePassage(gloss.join('\n'));
+  return {
+    text: parsed.text,
+    translation: translation || parsed.translations.at(-1)?.text || '',
+  };
+}
+
+function translationBody(body: string): string {
+  const labeled = body.match(/^([^:\n]+):\s*([\s\S]+)$/);
+  if (labeled && languageCodeFromLabel(labeled[1].trim())) return labeled[2].trim();
+  return body.trim();
 }
 
 /** Store a translation on a phrase as `Primary [en: …]`, replacing that language's tag. */

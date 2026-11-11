@@ -21,6 +21,7 @@ export {
   embedTranslation,
   parsePassage,
   passageForEditing,
+  readEditingDraft,
   formTexts,
   elementModeLabel,
   elementReadyForTranslation,
