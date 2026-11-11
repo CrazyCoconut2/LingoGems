@@ -4286,14 +4286,23 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
-      border-radius: 12px;
+      position: relative;
     }
 
-    .equivalent-block.missing {
-      margin-inline: -0.55rem;
-      padding: 0.55rem;
+    .equivalent-block.missing::before {
+      content: '';
+      position: absolute;
+      z-index: 0;
+      inset: -0.55rem;
+      border-radius: 12px;
       background: rgba(255, 92, 122, 0.12);
       box-shadow: inset 0 0 0 1px rgba(255, 92, 122, 0.55);
+      pointer-events: none;
+    }
+
+    .equivalent-block > * {
+      position: relative;
+      z-index: 1;
     }
 
     h2,
@@ -6199,7 +6208,9 @@ export class ElementModal {
   }
 
   equivalentMissing(): boolean {
-    return !this.equivalentIdDraft() && !this.equivalentDraft().trim();
+    return (
+      this.element().mode === 1 && !this.equivalentIdDraft() && !this.equivalentDraft().trim()
+    );
   }
 
   translationLanguageName(): string {
