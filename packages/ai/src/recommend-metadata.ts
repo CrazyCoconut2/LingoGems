@@ -20,7 +20,7 @@ Rules:
 Return JSON only with this shape:
 {"fields":[{"key":"<label>","prompt":"<instruction or empty>"}]}`;
 
-export function buildRecommendMetadataUserMessage(
+function buildRecommendMetadataUserMessage(
   kind: 'definition' | 'example' | 'form',
   existing: readonly AiMetadataField[],
 ): string {
@@ -34,7 +34,7 @@ export function buildRecommendMetadataUserMessage(
 }
 
 /** New fields, or null when the reply has no fields array. */
-export function parseRecommendedMetadataFields(
+function parseRecommendedMetadataFields(
   parsed: unknown,
   existing: readonly AiMetadataField[],
 ): AiMetadataField[] | null {

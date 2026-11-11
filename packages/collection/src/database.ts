@@ -8,7 +8,7 @@ import { requestPersistentStorage } from './persistent-storage';
 const DB_NAME = 'lingogem';
 const DB_VERSION = 3;
 
-export const LANGUAGES_STORE = 'languages';
+const LANGUAGES_STORE = 'languages';
 export const ELEMENTS_STORE = 'elements';
 export const CATALOG_STORE = 'catalog';
 export const CATALOG_ID = 'app';

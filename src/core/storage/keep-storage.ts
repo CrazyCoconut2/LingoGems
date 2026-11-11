@@ -2,8 +2,8 @@ import { signal } from '@angular/core';
 import { requestPersistentStorage, storageIsPersistent } from 'collection';
 
 export const storageKept = signal<boolean | null>(null);
-export const storageRefused = signal(false);
-export const standaloneApp = signal(false);
+const storageRefused = signal(false);
+const standaloneApp = signal(false);
 
 let started = false;
 let refreshing: Promise<boolean> | null = null;
@@ -20,7 +20,7 @@ export function startKeepingStorage(): void {
   void watchPermission();
 }
 
-export function refreshKeptStorage(): Promise<boolean> {
+function refreshKeptStorage(): Promise<boolean> {
   if (refreshing) return refreshing;
   refreshing = storageIsPersistent()
     .then((already) => {
@@ -70,12 +70,8 @@ export function keepStorageMessage(): string {
 }
 
 function markKept(granted: boolean): void {
-  const previous = storageKept();
   storageKept.set(granted);
   if (granted) storageRefused.set(false);
-  if (previous !== granted) {
-    console.info(`LingoGems storage ${granted ? 'persistent' : 'best-effort'}`);
-  }
 }
 
 function onInstalled(): void {

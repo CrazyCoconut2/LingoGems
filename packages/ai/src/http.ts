@@ -1,6 +1,6 @@
 import { AI_ERROR, AiError, aiError } from './errors';
 
-export function mapProviderHttpError(status: number, bodyText = ''): never {
+function mapProviderHttpError(status: number, bodyText = ''): never {
   const text = String(bodyText || '').toLowerCase();
   let err: AiError;
   if (

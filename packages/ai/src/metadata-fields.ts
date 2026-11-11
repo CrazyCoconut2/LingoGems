@@ -75,7 +75,7 @@ export function normalizeMetadataFields(fields: readonly AiMetadataField[]): AiM
 }
 
 /** True when the saved list is the same as the default, ignoring blank rows. */
-export function metadataFieldsMatch(
+function metadataFieldsMatch(
   fields: readonly AiMetadataField[],
   defaults: readonly AiMetadataField[],
 ): boolean {
@@ -91,100 +91,91 @@ export function metadataFieldKeys(fields: readonly AiMetadataField[]): string[] 
   return fields.map((field) => field.key);
 }
 
-export function readDefinitionMetadataFields(language: string): AiMetadataField[] {
-  return copyFields(fieldsFor(language, 'definitions', DEFAULT_DEFINITION_METADATA_FIELDS));
+export function readDefinitionMetadataFields(): AiMetadataField[] {
+  return copyFields(fieldsFor('definitions', DEFAULT_DEFINITION_METADATA_FIELDS));
 }
 
-export function readExampleMetadataFields(language: string): AiMetadataField[] {
-  return copyFields(fieldsFor(language, 'examples', DEFAULT_EXAMPLE_METADATA_FIELDS));
+export function readExampleMetadataFields(): AiMetadataField[] {
+  return copyFields(fieldsFor('examples', DEFAULT_EXAMPLE_METADATA_FIELDS));
 }
 
-export function readFormMetadataFields(language: string): AiMetadataField[] {
-  return copyFields(fieldsFor(language, 'forms', DEFAULT_FORM_METADATA_FIELDS));
+export function readFormMetadataFields(): AiMetadataField[] {
+  return copyFields(fieldsFor('forms', DEFAULT_FORM_METADATA_FIELDS));
 }
 
 /** An empty list is stored. A list that matches the default is cleared. */
-export function writeDefinitionMetadataFields(
-  language: string,
-  fields: readonly AiMetadataField[],
-): void {
+export function writeDefinitionMetadataFields(fields: readonly AiMetadataField[]): void {
   const normalized = normalizeMetadataFields(fields);
-  updateLanguage(language, (entry) => {
+  updateSettings((entry) => {
     if (metadataFieldsMatch(normalized, DEFAULT_DEFINITION_METADATA_FIELDS))
       delete entry.definitions;
     else entry.definitions = normalized;
   });
 }
 
-export function writeExampleMetadataFields(
-  language: string,
-  fields: readonly AiMetadataField[],
-): void {
+export function writeExampleMetadataFields(fields: readonly AiMetadataField[]): void {
   const normalized = normalizeMetadataFields(fields);
-  updateLanguage(language, (entry) => {
+  updateSettings((entry) => {
     if (metadataFieldsMatch(normalized, DEFAULT_EXAMPLE_METADATA_FIELDS)) delete entry.examples;
     else entry.examples = normalized;
   });
 }
 
-export function writeFormMetadataFields(
-  language: string,
-  fields: readonly AiMetadataField[],
-): void {
+export function writeFormMetadataFields(fields: readonly AiMetadataField[]): void {
   const normalized = normalizeMetadataFields(fields);
-  updateLanguage(language, (entry) => {
+  updateSettings((entry) => {
     if (metadataFieldsMatch(normalized, DEFAULT_FORM_METADATA_FIELDS)) delete entry.forms;
     else entry.forms = normalized;
   });
 }
 
-export function resetDefinitionMetadataFields(language: string): void {
-  updateLanguage(language, (entry) => {
+export function resetDefinitionMetadataFields(): void {
+  updateSettings((entry) => {
     delete entry.definitions;
   });
 }
 
-export function resetExampleMetadataFields(language: string): void {
-  updateLanguage(language, (entry) => {
+export function resetExampleMetadataFields(): void {
+  updateSettings((entry) => {
     delete entry.examples;
   });
 }
 
-export function resetFormMetadataFields(language: string): void {
-  updateLanguage(language, (entry) => {
+export function resetFormMetadataFields(): void {
+  updateSettings((entry) => {
     delete entry.forms;
   });
 }
 
-/** Off unless this language has asked for fields beyond the configured list. */
-export function readDefinitionExtraFields(language: string): boolean {
-  return readEntry(language)?.definitionExtraFields === true;
+/** Off unless extra fields beyond the configured list are enabled. */
+export function readDefinitionExtraFields(): boolean {
+  return readEntry()?.definitionExtraFields === true;
 }
 
-export function readExampleExtraFields(language: string): boolean {
-  return readEntry(language)?.exampleExtraFields === true;
+export function readExampleExtraFields(): boolean {
+  return readEntry()?.exampleExtraFields === true;
 }
 
-export function readFormExtraFields(language: string): boolean {
-  return readEntry(language)?.formExtraFields === true;
+export function readFormExtraFields(): boolean {
+  return readEntry()?.formExtraFields === true;
 }
 
-export function writeDefinitionExtraFields(language: string, enabled: boolean): void {
-  updateLanguage(language, (entry) => {
+export function writeDefinitionExtraFields(enabled: boolean): void {
+  updateSettings((entry) => {
     if (enabled) entry.definitionExtraFields = true;
     else delete entry.definitionExtraFields;
   });
 }
 
-export function writeExampleExtraFields(language: string, enabled: boolean): void {
-  updateLanguage(language, (entry) => {
+export function writeExampleExtraFields(enabled: boolean): void {
+  updateSettings((entry) => {
     if (enabled) entry.exampleExtraFields = true;
     else delete entry.exampleExtraFields;
   });
 }
 
-export function writeFormExtraFields(language: string, enabled: boolean): void {
-  updateLanguage(language, (entry) => {
+export function writeFormExtraFields(enabled: boolean): void {
+  updateSettings((entry) => {
     if (enabled) entry.formExtraFields = true;
     else delete entry.formExtraFields;
   });
@@ -301,23 +292,22 @@ function languageCode(language: string): string {
 }
 
 function fieldsFor(
-  language: string,
   kind: 'definitions' | 'examples' | 'forms',
   defaults: readonly AiMetadataField[],
 ): readonly AiMetadataField[] {
-  const entry = readEntry(language);
+  const entry = readEntry();
   if (entry) return entry[kind] ?? defaults;
   if (kind === 'forms') return defaults;
   const legacy = readLegacyFields();
   return (kind === 'definitions' ? legacy.definitions : legacy.examples) ?? defaults;
 }
 
-function readEntry(_language: string): StoredLanguageSettings | null {
+function readEntry(): StoredLanguageSettings | null {
   const map = readMap();
   return map[GLOBAL_SETTINGS_KEY] ?? null;
 }
 
-function updateLanguage(_language: string, change: (entry: StoredLanguageSettings) => void): void {
+function updateSettings(change: (entry: StoredLanguageSettings) => void): void {
   if (typeof localStorage === 'undefined') return;
   const map = readMap();
   const entry = map[GLOBAL_SETTINGS_KEY] ?? entryFromLegacy();
@@ -377,7 +367,8 @@ function readMap(): LanguageSettingsMap {
 
 function collapseToGlobal(map: LanguageSettingsMap): LanguageSettingsMap {
   const languages = Object.entries(map).filter(([code]) => isLearnableLanguage(code));
-  if (!languages.length) return map[GLOBAL_SETTINGS_KEY] ? { [GLOBAL_SETTINGS_KEY]: map[GLOBAL_SETTINGS_KEY] } : {};
+  if (!languages.length)
+    return map[GLOBAL_SETTINGS_KEY] ? { [GLOBAL_SETTINGS_KEY]: map[GLOBAL_SETTINGS_KEY] } : {};
   const merged = mergeSettings([
     ...(map[GLOBAL_SETTINGS_KEY] ? [map[GLOBAL_SETTINGS_KEY]] : []),
     ...languages.map(([, entry]) => entry),

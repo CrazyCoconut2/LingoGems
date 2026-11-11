@@ -11,7 +11,7 @@ import { readStoredAiCredentials } from './storage';
 import { translationLanguage, translationTarget } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
-export const DEFINITION_RELATIONS = [
+const DEFINITION_RELATIONS = [
   'synonym',
   'antonym',
   'hypernym',
@@ -19,10 +19,10 @@ export const DEFINITION_RELATIONS = [
   'related',
 ] as const;
 
-export type DefinitionRelation = (typeof DEFINITION_RELATIONS)[number];
+type DefinitionRelation = (typeof DEFINITION_RELATIONS)[number];
 
 export const MAX_DEFINITION_INSTRUCTION = 400;
-export const MAX_DEFINITION_WORDING = 300;
+const MAX_DEFINITION_WORDING = 300;
 export const MAX_RELATED_PICKS = 4;
 
 const RELATED_MAX_TOKENS = 1024;
@@ -35,7 +35,7 @@ const META_VALUE_MAX_LENGTH = 100;
 const WORD_SHAPE = '{"text":"<word>","relation":"<synonym|antonym|hypernym|hyponym|related>"}';
 const PHRASE_SHAPE = '{"text":"<phrase>"}';
 
-export const RELATED_WORDS_SYSTEM_PROMPT = `You list words related to one dictionary sense.
+const RELATED_WORDS_SYSTEM_PROMPT = `You list words related to one dictionary sense.
 JSON keys stay in English.
 Every word MUST be in the language named by writeFieldsIn.
 Do not use English for a word unless writeFieldsIn is English.
@@ -50,7 +50,7 @@ Rules:
 Return JSON only with this shape:
 {"words":[${WORD_SHAPE}]}`;
 
-export const DEFINITION_PHRASE_SYSTEM_PROMPT = `You write one short phrase that will be appended to an existing dictionary gloss.
+const DEFINITION_PHRASE_SYSTEM_PROMPT = `You write one short phrase that will be appended to an existing dictionary gloss.
 JSON keys stay in English.
 The phrase MUST be in the language named by writeFieldsIn.
 Do not use English for the phrase unless writeFieldsIn is English.
@@ -75,7 +75,7 @@ export type RelatedWord = {
   relation: DefinitionRelation;
 };
 
-export type GenerateRelatedWordsInput = {
+type GenerateRelatedWordsInput = {
   language: string;
   title: string;
   gloss: string;
@@ -84,7 +84,7 @@ export type GenerateRelatedWordsInput = {
   definitionInstruction?: string;
 };
 
-export type GenerateDefinitionPhraseInput = {
+type GenerateDefinitionPhraseInput = {
   language: string;
   title: string;
   gloss: string;
@@ -93,9 +93,9 @@ export type GenerateDefinitionPhraseInput = {
   translation?: string;
 };
 
-export type GeneratedDefinitionPhrase = { text: string };
+type GeneratedDefinitionPhrase = { text: string };
 
-export function buildRelatedWordsUserMessage(input: GenerateRelatedWordsInput): string {
+function buildRelatedWordsUserMessage(input: GenerateRelatedWordsInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   const instruction = (input.definitionInstruction ?? '')
@@ -114,7 +114,7 @@ export function buildRelatedWordsUserMessage(input: GenerateRelatedWordsInput): 
   });
 }
 
-export function buildDefinitionPhraseUserMessage(input: GenerateDefinitionPhraseInput): string {
+function buildDefinitionPhraseUserMessage(input: GenerateDefinitionPhraseInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   const translateFieldsIn = translationLanguage(language, input.translation);
@@ -135,7 +135,7 @@ export function buildDefinitionPhraseUserMessage(input: GenerateDefinitionPhrase
 }
 
 /** Usable related words, or null when the reply has no words array. */
-export function parseGeneratedRelatedWords(
+function parseGeneratedRelatedWords(
   parsed: unknown,
   input: GenerateRelatedWordsInput,
 ): RelatedWord[] | null {
@@ -160,7 +160,7 @@ export function parseGeneratedRelatedWords(
 }
 
 /** Usable phrase, or null when the reply has no phrases array. */
-export function parseGeneratedDefinitionPhrase(
+function parseGeneratedDefinitionPhrase(
   parsed: unknown,
   input: GenerateDefinitionPhraseInput,
 ): GeneratedDefinitionPhrase[] | null {

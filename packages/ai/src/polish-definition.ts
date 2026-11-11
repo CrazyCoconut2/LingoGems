@@ -4,7 +4,7 @@ import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
 import type { CompleteJsonInput } from './types';
 
-export const POLISH_DEFINITION_SYSTEM_PROMPT = `You correct one learner definition.
+const POLISH_DEFINITION_SYSTEM_PROMPT = `You correct one learner definition.
 JSON keys stay in English.
 text is in the language named by writeFieldsIn.
 text and explanation MUST be in that same language. Do not translate text.
@@ -13,7 +13,7 @@ explanation names each error in the original, such as spelling, grammar, agreeme
 Do not add facts that were not in text.
 JSON only: {"text":"<corrected definition>","explanation":"<what was wrong>"}`;
 
-export const REFORMULATE_DEFINITION_SYSTEM_PROMPT = `You propose more natural wordings of one learner definition.
+const REFORMULATE_DEFINITION_SYSTEM_PROMPT = `You propose more natural wordings of one learner definition.
 JSON keys stay in English.
 text is in the language named by writeFieldsIn.
 Every option MUST be in that same language. Do not translate it.
@@ -28,26 +28,26 @@ const REFORMULATE_OPTION_COUNT = 3;
 
 export type PolishDefinitionTask = 'correct' | 'reformulate';
 
-export type PolishDefinitionInput = {
+type PolishDefinitionInput = {
   language: string;
   text: string;
   task: PolishDefinitionTask;
 };
 
-export type PolishedDefinition = {
+type PolishedDefinition = {
   task: 'correct';
   text: string;
   explanation: string;
 };
 
-export type ReformulatedDefinition = {
+type ReformulatedDefinition = {
   task: 'reformulate';
   options: string[];
 };
 
-export type PolishDefinitionResult = PolishedDefinition | ReformulatedDefinition;
+type PolishDefinitionResult = PolishedDefinition | ReformulatedDefinition;
 
-export function buildPolishDefinitionUserMessage(input: PolishDefinitionInput): string {
+function buildPolishDefinitionUserMessage(input: PolishDefinitionInput): string {
   const language = input.language.trim().toLowerCase();
   return JSON.stringify({
     writeFieldsIn: languageDisplayName(language) || language,
@@ -61,7 +61,7 @@ function readText(value: unknown): string {
     .trim();
 }
 
-export function parsePolishedDefinition(
+function parsePolishedDefinition(
   parsed: unknown,
   task: PolishDefinitionTask,
 ): PolishDefinitionResult | null {

@@ -4,7 +4,7 @@ import {
   type ElementMetadataVariability,
 } from './metadata-variability';
 
-export const ELEMENT_SORTS = [
+const ELEMENT_SORTS = [
   'title-asc',
   'title-desc',
   'created-desc',
@@ -68,11 +68,11 @@ export function setCountRangeBound(
   return { min: range.min, max: value };
 }
 
-export function elementTranslationCount(element: StoredElement): number {
+function elementTranslationCount(element: StoredElement): number {
   return element.equivalents.length;
 }
 
-export function elementDefinitionCount(element: StoredElement): number {
+function elementDefinitionCount(element: StoredElement): number {
   return element.definitions.length;
 }
 

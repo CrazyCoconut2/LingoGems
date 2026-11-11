@@ -4,7 +4,7 @@ import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
 import type { CompleteJsonInput } from './types';
 
-export const GRADE_EQUIVALENT_SYSTEM_PROMPT = `You judge whether a word a learner wrote applies to one dictionary sense.
+const GRADE_EQUIVALENT_SYSTEM_PROMPT = `You judge whether a word a learner wrote applies to one dictionary sense.
 JSON keys stay in English.
 answer is the learner's word or phrase. Read it in the language it is written in, which may differ from writeFieldsIn.
 definition is the sense, in the language named by writeFieldsIn.
@@ -20,19 +20,19 @@ JSON only: {"score":<0-${TRANSLATION_GEM_MAX}>,"explanation":"<text>"}`;
 
 const GRADE_MAX_TOKENS = 1024;
 
-export type GradeEquivalentInput = {
+type GradeEquivalentInput = {
   language: string;
   lemma: string;
   definition: string;
   answer: string;
 };
 
-export type GradedEquivalent = {
+type GradedEquivalent = {
   score: number;
   explanation: string;
 };
 
-export function buildGradeEquivalentUserMessage(input: GradeEquivalentInput): string {
+function buildGradeEquivalentUserMessage(input: GradeEquivalentInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   return JSON.stringify({
@@ -44,7 +44,7 @@ export function buildGradeEquivalentUserMessage(input: GradeEquivalentInput): st
 }
 
 /** A clamped score and an explanation, or null when the reply is unusable. */
-export function parseGradedEquivalent(parsed: unknown): GradedEquivalent | null {
+function parseGradedEquivalent(parsed: unknown): GradedEquivalent | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)

@@ -14,7 +14,7 @@ import {
 
 export type ElementMetadata = Record<string, string>;
 
-export type ElementExample = {
+type ElementExample = {
   text: string;
   metadata: ElementMetadata;
 };
@@ -69,16 +69,6 @@ const ELEMENT_MODE_LABELS: Record<ElementMode, string> = {
 
 export function elementModeLabel(mode: ElementMode): string {
   return ELEMENT_MODE_LABELS[mode];
-}
-
-/** True when every definition already has an equivalent. */
-export function elementReadyForTranslation(element: {
-  definitions: readonly { equivalentId: string | null }[];
-}): boolean {
-  return (
-    element.definitions.length > 0 &&
-    element.definitions.every((definition) => !!definition.equivalentId)
-  );
 }
 
 const MIN_COMFORT = 1;
@@ -238,7 +228,7 @@ export async function saveElement(
     title,
     equivalents: content.equivalents,
     definitions,
-    mode: storedMode(element?.mode, content.definitions),
+    mode: normalizeElementMode(element?.mode),
     comfort: normalizeComfort(element?.comfort),
     clicks: normalizeClicks(element?.clicks),
     ...indexes,
@@ -287,7 +277,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     title,
     equivalents: content.equivalents,
     definitions: content.definitions,
-    mode: storedMode(source.mode, content.definitions),
+    mode: normalizeElementMode(source.mode),
     comfort: normalizeComfort(source.comfort),
     clicks: normalizeClicks(source.clicks),
     ...collectMetadataIndexes(content.definitions),
@@ -302,18 +292,10 @@ function deletedAtOf(value: unknown): number | null {
 }
 
 /** Missing or unknown values are unset. */
-export function normalizeElementMode(value: unknown): ElementMode | null {
+function normalizeElementMode(value: unknown): ElementMode | null {
   const mode = Math.round(Number(value));
   if (mode === 1 || mode === 2 || mode === 3) return mode;
   return null;
-}
-
-/** A chosen mode is kept, including translation before every definition has an equivalent. */
-function storedMode(
-  value: unknown,
-  _definitions: readonly { equivalentId: string | null }[],
-): ElementMode | null {
-  return normalizeElementMode(value);
 }
 
 /** Missing or invalid values are 0. */
@@ -453,7 +435,7 @@ function capitalizePassage(value: string): string {
   );
 }
 
-export type PassageTranslation = {
+type PassageTranslation = {
   language: string;
   text: string;
 };

@@ -26,7 +26,7 @@ export class AiError extends Error {
 }
 
 /** One message a person can paste into a chat AI: instructions, then the user payload. */
-export function copyableAiPrompt(input: { system: string; user: string }): string {
+function copyableAiPrompt(input: { system: string; user: string }): string {
   const system = input.system.trim();
   const user = input.user.trim();
   if (system && user) return `${system}\n\n${user}`;

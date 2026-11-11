@@ -21,11 +21,11 @@ import { translationLanguage, translationTarget } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
 export const MAX_EXAMPLE_LENGTH = 500;
-export const MAX_EXAMPLE_WORDS = 20;
+const MAX_EXAMPLE_WORDS = 20;
 export const MAX_EXAMPLE_INSTRUCTION = 400;
 const EXAMPLES_MAX_TOKENS = 1024;
 
-export function examplesSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
+function examplesSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
   const lines = [
     'You write one dictionary example sentence for one sense.',
     'JSON keys stay in English.',
@@ -41,7 +41,7 @@ export function examplesSystemPrompt(fields: readonly AiMetadataField[], extra =
     '- When requiredForm is absent, the sentence MUST include the lemma, or an exact form listed in forms, naturally',
     '- When requiredForm is present, the sentence MUST contain that exact form. Do not use the lemma or a different inflection instead',
     '- Match the given gloss. Do not invent another sense',
-    '- metadata, when present, is that sense\'s metadata. The sentence must agree with it',
+    "- metadata, when present, is that sense's metadata. The sentence must agree with it",
     '- Write the sentence so the meaning of the lemma is obvious from the rest of the sentence. A learner who knows the other words should be able to tell what the lemma means immediately',
     '- exampleWords, when present, are words the learner chose to include. Use as many as fit naturally. Do not pull in other collection words. The array order is not an order to use in the sentence',
     "- exampleInstruction, when present, is the learner's note about the subject or the wording. Follow it. It does not override the other rules",
@@ -58,7 +58,7 @@ export function examplesSystemPrompt(fields: readonly AiMetadataField[], extra =
   return lines.join('\n');
 }
 
-export type GenerateExamplesInput = {
+type GenerateExamplesInput = {
   language: string;
   title: string;
   gloss: string;
@@ -71,9 +71,9 @@ export type GenerateExamplesInput = {
   translation?: string;
 };
 
-export type GeneratedExample = { text: string; metadata: ElementMetadata };
+type GeneratedExample = { text: string; metadata: ElementMetadata };
 
-export function buildExamplesUserMessage(input: GenerateExamplesInput): string {
+function buildExamplesUserMessage(input: GenerateExamplesInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   const translateFieldsIn = translationLanguage(language, input.translation);
@@ -110,7 +110,7 @@ export function sentenceUsesForm(sentence: string, form: string): boolean {
 }
 
 /** Usable examples, or null when the reply has no examples array. */
-export function parseGeneratedExamples(
+function parseGeneratedExamples(
   parsed: unknown,
   input: GenerateExamplesInput,
 ): GeneratedExample[] | null {
@@ -140,8 +140,8 @@ export function parseGeneratedExamples(
         text: translated && into ? embedTranslation(sentence, into, translated) : sentence,
         metadata: pickMetadata(
           example['metadata'],
-          metadataFieldKeys(readExampleMetadataFields(language)),
-          readExampleExtraFields(language),
+          metadataFieldKeys(readExampleMetadataFields()),
+          readExampleExtraFields(),
         ),
       },
     ];
@@ -159,10 +159,7 @@ export async function generateExamples(
   if (!title || !language || !gloss) return [];
   const ready = { ...request, title, language, gloss };
   const input: CompleteJsonInput = {
-    system: examplesSystemPrompt(
-      readExampleMetadataFields(language),
-      readExampleExtraFields(language),
-    ),
+    system: examplesSystemPrompt(readExampleMetadataFields(), readExampleExtraFields()),
     user: buildExamplesUserMessage(ready),
     maxTokens: EXAMPLES_MAX_TOKENS,
     temperature: 0.4,

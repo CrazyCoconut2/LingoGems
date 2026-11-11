@@ -24,9 +24,9 @@ Rules:
 Return JSON only with this shape:
 {"metadata":{"<key>":"<value>"}}`;
 
-export type SuggestMetadataKind = 'definition' | 'example' | 'form';
+type SuggestMetadataKind = 'definition' | 'example' | 'form';
 
-export type SuggestMetadataInput = {
+type SuggestMetadataInput = {
   kind: SuggestMetadataKind;
   lemma: string;
   language: string;
@@ -34,7 +34,7 @@ export type SuggestMetadataInput = {
   existing: ElementMetadata;
 };
 
-export function buildSuggestMetadataUserMessage(input: SuggestMetadataInput): string {
+function buildSuggestMetadataUserMessage(input: SuggestMetadataInput): string {
   const language = input.language.trim().toLowerCase();
   return JSON.stringify({
     kind: input.kind,
@@ -46,7 +46,7 @@ export function buildSuggestMetadataUserMessage(input: SuggestMetadataInput): st
 }
 
 /** New pairs, or null when the reply has no metadata object. */
-export function parseSuggestedMetadata(
+function parseSuggestedMetadata(
   parsed: unknown,
   existing: ElementMetadata,
 ): ElementMetadata | null {

@@ -1,6 +1,6 @@
 import type { AiProviderId } from './types';
 
-export const AI_PROVIDER_IDS: AiProviderId[] = ['openai', 'anthropic', 'google', 'groq'];
+const AI_PROVIDER_IDS: AiProviderId[] = ['openai', 'anthropic', 'google', 'groq'];
 
 export const AI_DEFAULT_MODELS: Record<AiProviderId, string> = {
   openai: 'gpt-5',
@@ -10,7 +10,7 @@ export const AI_DEFAULT_MODELS: Record<AiProviderId, string> = {
 };
 
 /** Strongest first. BYOK completion walks this list until one model answers. */
-export const AI_MODELS: Record<AiProviderId, readonly string[]> = {
+const AI_MODELS: Record<AiProviderId, readonly string[]> = {
   openai: ['gpt-5', 'gpt-4.1', 'gpt-4o', 'gpt-5-mini', 'gpt-4.1-mini', 'gpt-4o-mini'],
   anthropic: [
     'claude-opus-4-5',

@@ -26,9 +26,6 @@ import {
   type AiMetadataField,
 } from 'ai';
 
-const SETTINGS_SCOPE = 'app';
-
-
 type MetadataKind = 'definition' | 'example' | 'form';
 
 @Component({
@@ -54,104 +51,104 @@ type MetadataKind = 'definition' | 'example' | 'form';
       </button>
       @if (open() === 'definitions') {
         <div class="section-body metadata">
-            <div class="section-head">
-              <p class="section-hint">
-                Asked when fetching definitions. The note is what the AI is told for that field.
-                Leave it empty to accept whatever fits.
-              </p>
-              <button
-                type="button"
-                class="reset"
-                [disabled]="!definitionFieldsChanged()"
-                (click)="resetDefinitionFields()"
-              >
-                Reset
-              </button>
-            </div>
-            <label class="translation-toggle">
-              <input
-                type="checkbox"
-                [checked]="definitionExtraFields()"
-                (change)="setDefinitionExtraFields($event)"
-              />
-              Let the AI add other relevant definition fields
-            </label>
-            @if (definitionFields().length) {
-              <ul class="metadata-list">
-                @for (field of definitionFields(); track $index) {
-                  <li class="metadata-field">
-                    <div class="metadata-key-row">
-                      <input
-                        [attr.aria-label]="'Definition metadata key ' + ($index + 1)"
-                        [attr.maxlength]="metadataKeyMax"
-                        placeholder="Key"
-                        [value]="field.key"
-                        (input)="setDefinitionField($index, 'key', inputValue($event))"
-                      />
-                      <button
-                        type="button"
-                        class="metadata-remove"
-                        [attr.aria-label]="'Remove definition metadata ' + ($index + 1)"
-                        (click)="removeDefinitionField($index)"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <textarea
-                      [attr.aria-label]="'Note for definition metadata ' + ($index + 1)"
-                      [attr.maxlength]="metadataPromptMax"
-                      placeholder="Whatever fits"
-                      rows="2"
-                      [value]="field.prompt"
-                      (input)="setDefinitionField($index, 'prompt', inputValue($event))"
-                    ></textarea>
-                  </li>
-                }
-              </ul>
-            }
-            <div class="metadata-actions">
-              <button
-                type="button"
-                class="metadata-add"
-                [disabled]="definitionFields().length >= metadataFieldMax"
-                (click)="addDefinitionField()"
-              >
-                Add field
-              </button>
-              <button
-                type="button"
-                class="metadata-add"
-                [disabled]="recommendingDefinitions()"
-                [attr.aria-busy]="recommendingDefinitions() ? true : null"
-                (click)="recommendDefinitions()"
-              >
-                Recommend
-              </button>
-            </div>
-            @if (definitionRecommendError()) {
-              <p class="recommend-error">{{ definitionRecommendError() }}</p>
-            }
-            @let definitionPicks = openSuggestions(definitionSuggestions(), definitionFields());
-            @if (definitionPicks.length) {
-              <ul class="metadata-suggestions">
-                @for (field of definitionPicks; track field.key) {
-                  <li class="metadata-suggestion">
-                    <div>
-                      <strong>{{ field.key }}</strong>
-                      <p>{{ field.prompt || 'Whatever fits' }}</p>
-                    </div>
+          <div class="section-head">
+            <p class="section-hint">
+              Asked when fetching definitions. The note is what the AI is told for that field. Leave
+              it empty to accept whatever fits.
+            </p>
+            <button
+              type="button"
+              class="reset"
+              [disabled]="!definitionFieldsChanged()"
+              (click)="resetDefinitionFields()"
+            >
+              Reset
+            </button>
+          </div>
+          <label class="translation-toggle">
+            <input
+              type="checkbox"
+              [checked]="definitionExtraFields()"
+              (change)="setDefinitionExtraFields($event)"
+            />
+            Let the AI add other relevant definition fields
+          </label>
+          @if (definitionFields().length) {
+            <ul class="metadata-list">
+              @for (field of definitionFields(); track $index) {
+                <li class="metadata-field">
+                  <div class="metadata-key-row">
+                    <input
+                      [attr.aria-label]="'Definition metadata key ' + ($index + 1)"
+                      [attr.maxlength]="metadataKeyMax"
+                      placeholder="Key"
+                      [value]="field.key"
+                      (input)="setDefinitionField($index, 'key', inputValue($event))"
+                    />
                     <button
                       type="button"
-                      class="metadata-add"
-                      [disabled]="!canAccept(definitionFields())"
-                      (click)="acceptDefinitionSuggestion(field)"
+                      class="metadata-remove"
+                      [attr.aria-label]="'Remove definition metadata ' + ($index + 1)"
+                      (click)="removeDefinitionField($index)"
                     >
-                      Add
+                      ×
                     </button>
-                  </li>
-                }
-              </ul>
-            }
+                  </div>
+                  <textarea
+                    [attr.aria-label]="'Note for definition metadata ' + ($index + 1)"
+                    [attr.maxlength]="metadataPromptMax"
+                    placeholder="Whatever fits"
+                    rows="2"
+                    [value]="field.prompt"
+                    (input)="setDefinitionField($index, 'prompt', inputValue($event))"
+                  ></textarea>
+                </li>
+              }
+            </ul>
+          }
+          <div class="metadata-actions">
+            <button
+              type="button"
+              class="metadata-add"
+              [disabled]="definitionFields().length >= metadataFieldMax"
+              (click)="addDefinitionField()"
+            >
+              Add field
+            </button>
+            <button
+              type="button"
+              class="metadata-add"
+              [disabled]="recommendingDefinitions()"
+              [attr.aria-busy]="recommendingDefinitions() ? true : null"
+              (click)="recommendDefinitions()"
+            >
+              Recommend
+            </button>
+          </div>
+          @if (definitionRecommendError()) {
+            <p class="recommend-error">{{ definitionRecommendError() }}</p>
+          }
+          @let definitionPicks = openSuggestions(definitionSuggestions(), definitionFields());
+          @if (definitionPicks.length) {
+            <ul class="metadata-suggestions">
+              @for (field of definitionPicks; track field.key) {
+                <li class="metadata-suggestion">
+                  <div>
+                    <strong>{{ field.key }}</strong>
+                    <p>{{ field.prompt || 'Whatever fits' }}</p>
+                  </div>
+                  <button
+                    type="button"
+                    class="metadata-add"
+                    [disabled]="!canAccept(definitionFields())"
+                    (click)="acceptDefinitionSuggestion(field)"
+                  >
+                    Add
+                  </button>
+                </li>
+              }
+            </ul>
+          }
         </div>
       }
     </section>
@@ -175,104 +172,104 @@ type MetadataKind = 'definition' | 'example' | 'form';
       </button>
       @if (open() === 'examples') {
         <div class="section-body metadata">
-            <div class="section-head">
-              <p class="section-hint">
-                Asked when fetching examples. The note is what the AI is told for that field.
-                Leave it empty to accept whatever fits.
-              </p>
-              <button
-                type="button"
-                class="reset"
-                [disabled]="!exampleFieldsChanged()"
-                (click)="resetExampleFields()"
-              >
-                Reset
-              </button>
-            </div>
-            <label class="translation-toggle">
-              <input
-                type="checkbox"
-                [checked]="exampleExtraFields()"
-                (change)="setExampleExtraFields($event)"
-              />
-              Let the AI add other relevant example fields
-            </label>
-            @if (exampleFields().length) {
-              <ul class="metadata-list">
-                @for (field of exampleFields(); track $index) {
-                  <li class="metadata-field">
-                    <div class="metadata-key-row">
-                      <input
-                        [attr.aria-label]="'Example metadata key ' + ($index + 1)"
-                        [attr.maxlength]="metadataKeyMax"
-                        placeholder="Key"
-                        [value]="field.key"
-                        (input)="setExampleField($index, 'key', inputValue($event))"
-                      />
-                      <button
-                        type="button"
-                        class="metadata-remove"
-                        [attr.aria-label]="'Remove example metadata ' + ($index + 1)"
-                        (click)="removeExampleField($index)"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <textarea
-                      [attr.aria-label]="'Note for example metadata ' + ($index + 1)"
-                      [attr.maxlength]="metadataPromptMax"
-                      placeholder="Whatever fits"
-                      rows="2"
-                      [value]="field.prompt"
-                      (input)="setExampleField($index, 'prompt', inputValue($event))"
-                    ></textarea>
-                  </li>
-                }
-              </ul>
-            }
-            <div class="metadata-actions">
-              <button
-                type="button"
-                class="metadata-add"
-                [disabled]="exampleFields().length >= metadataFieldMax"
-                (click)="addExampleField()"
-              >
-                Add field
-              </button>
-              <button
-                type="button"
-                class="metadata-add"
-                [disabled]="recommendingExamples()"
-                [attr.aria-busy]="recommendingExamples() ? true : null"
-                (click)="recommendExamples()"
-              >
-                Recommend
-              </button>
-            </div>
-            @if (exampleRecommendError()) {
-              <p class="recommend-error">{{ exampleRecommendError() }}</p>
-            }
-            @let examplePicks = openSuggestions(exampleSuggestions(), exampleFields());
-            @if (examplePicks.length) {
-              <ul class="metadata-suggestions">
-                @for (field of examplePicks; track field.key) {
-                  <li class="metadata-suggestion">
-                    <div>
-                      <strong>{{ field.key }}</strong>
-                      <p>{{ field.prompt || 'Whatever fits' }}</p>
-                    </div>
+          <div class="section-head">
+            <p class="section-hint">
+              Asked when fetching examples. The note is what the AI is told for that field. Leave it
+              empty to accept whatever fits.
+            </p>
+            <button
+              type="button"
+              class="reset"
+              [disabled]="!exampleFieldsChanged()"
+              (click)="resetExampleFields()"
+            >
+              Reset
+            </button>
+          </div>
+          <label class="translation-toggle">
+            <input
+              type="checkbox"
+              [checked]="exampleExtraFields()"
+              (change)="setExampleExtraFields($event)"
+            />
+            Let the AI add other relevant example fields
+          </label>
+          @if (exampleFields().length) {
+            <ul class="metadata-list">
+              @for (field of exampleFields(); track $index) {
+                <li class="metadata-field">
+                  <div class="metadata-key-row">
+                    <input
+                      [attr.aria-label]="'Example metadata key ' + ($index + 1)"
+                      [attr.maxlength]="metadataKeyMax"
+                      placeholder="Key"
+                      [value]="field.key"
+                      (input)="setExampleField($index, 'key', inputValue($event))"
+                    />
                     <button
                       type="button"
-                      class="metadata-add"
-                      [disabled]="!canAccept(exampleFields())"
-                      (click)="acceptExampleSuggestion(field)"
+                      class="metadata-remove"
+                      [attr.aria-label]="'Remove example metadata ' + ($index + 1)"
+                      (click)="removeExampleField($index)"
                     >
-                      Add
+                      ×
                     </button>
-                  </li>
-                }
-              </ul>
-            }
+                  </div>
+                  <textarea
+                    [attr.aria-label]="'Note for example metadata ' + ($index + 1)"
+                    [attr.maxlength]="metadataPromptMax"
+                    placeholder="Whatever fits"
+                    rows="2"
+                    [value]="field.prompt"
+                    (input)="setExampleField($index, 'prompt', inputValue($event))"
+                  ></textarea>
+                </li>
+              }
+            </ul>
+          }
+          <div class="metadata-actions">
+            <button
+              type="button"
+              class="metadata-add"
+              [disabled]="exampleFields().length >= metadataFieldMax"
+              (click)="addExampleField()"
+            >
+              Add field
+            </button>
+            <button
+              type="button"
+              class="metadata-add"
+              [disabled]="recommendingExamples()"
+              [attr.aria-busy]="recommendingExamples() ? true : null"
+              (click)="recommendExamples()"
+            >
+              Recommend
+            </button>
+          </div>
+          @if (exampleRecommendError()) {
+            <p class="recommend-error">{{ exampleRecommendError() }}</p>
+          }
+          @let examplePicks = openSuggestions(exampleSuggestions(), exampleFields());
+          @if (examplePicks.length) {
+            <ul class="metadata-suggestions">
+              @for (field of examplePicks; track field.key) {
+                <li class="metadata-suggestion">
+                  <div>
+                    <strong>{{ field.key }}</strong>
+                    <p>{{ field.prompt || 'Whatever fits' }}</p>
+                  </div>
+                  <button
+                    type="button"
+                    class="metadata-add"
+                    [disabled]="!canAccept(exampleFields())"
+                    (click)="acceptExampleSuggestion(field)"
+                  >
+                    Add
+                  </button>
+                </li>
+              }
+            </ul>
+          }
         </div>
       }
     </section>
@@ -671,12 +668,12 @@ export class LanguageAiSettings {
   private formRecommendJob = 0;
 
   constructor() {
-    this.definitionFields.set(readDefinitionMetadataFields(SETTINGS_SCOPE));
-    this.exampleFields.set(readExampleMetadataFields(SETTINGS_SCOPE));
-    this.formFields.set(readFormMetadataFields(SETTINGS_SCOPE));
-    this.definitionExtraFields.set(readDefinitionExtraFields(SETTINGS_SCOPE));
-    this.exampleExtraFields.set(readExampleExtraFields(SETTINGS_SCOPE));
-    this.formExtraFields.set(readFormExtraFields(SETTINGS_SCOPE));
+    this.definitionFields.set(readDefinitionMetadataFields());
+    this.exampleFields.set(readExampleMetadataFields());
+    this.formFields.set(readFormMetadataFields());
+    this.definitionExtraFields.set(readDefinitionExtraFields());
+    this.exampleExtraFields.set(readExampleExtraFields());
+    this.formExtraFields.set(readFormExtraFields());
   }
 
   toggle(id: string): void {
@@ -702,34 +699,34 @@ export class LanguageAiSettings {
   setDefinitionExtraFields(event: Event): void {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
     this.definitionExtraFields.set(enabled);
-    writeDefinitionExtraFields(SETTINGS_SCOPE, enabled);
+    writeDefinitionExtraFields(enabled);
   }
 
   setExampleExtraFields(event: Event): void {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
     this.exampleExtraFields.set(enabled);
-    writeExampleExtraFields(SETTINGS_SCOPE, enabled);
+    writeExampleExtraFields(enabled);
   }
 
   setFormExtraFields(event: Event): void {
     const enabled = event.target instanceof HTMLInputElement && event.target.checked;
     this.formExtraFields.set(enabled);
-    writeFormExtraFields(SETTINGS_SCOPE, enabled);
+    writeFormExtraFields(enabled);
   }
 
   setDefinitionField(index: number, part: 'key' | 'prompt', value: string): void {
     this.definitionFields.update((fields) => replaceField(fields, index, part, value));
-    writeDefinitionMetadataFields(SETTINGS_SCOPE, this.definitionFields());
+    writeDefinitionMetadataFields(this.definitionFields());
   }
 
   setExampleField(index: number, part: 'key' | 'prompt', value: string): void {
     this.exampleFields.update((fields) => replaceField(fields, index, part, value));
-    writeExampleMetadataFields(SETTINGS_SCOPE, this.exampleFields());
+    writeExampleMetadataFields(this.exampleFields());
   }
 
   setFormField(index: number, part: 'key' | 'prompt', value: string): void {
     this.formFields.update((fields) => replaceField(fields, index, part, value));
-    writeFormMetadataFields(SETTINGS_SCOPE, this.formFields());
+    writeFormMetadataFields(this.formFields());
   }
 
   addDefinitionField(): void {
@@ -782,35 +779,32 @@ export class LanguageAiSettings {
 
   removeDefinitionField(index: number): void {
     this.definitionFields.update((fields) => fields.filter((_, item) => item !== index));
-    writeDefinitionMetadataFields(SETTINGS_SCOPE, this.definitionFields());
+    writeDefinitionMetadataFields(this.definitionFields());
   }
 
   removeExampleField(index: number): void {
     this.exampleFields.update((fields) => fields.filter((_, item) => item !== index));
-    writeExampleMetadataFields(SETTINGS_SCOPE, this.exampleFields());
+    writeExampleMetadataFields(this.exampleFields());
   }
 
   removeFormField(index: number): void {
     this.formFields.update((fields) => fields.filter((_, item) => item !== index));
-    writeFormMetadataFields(SETTINGS_SCOPE, this.formFields());
+    writeFormMetadataFields(this.formFields());
   }
 
   resetDefinitionFields(): void {
-    const language = SETTINGS_SCOPE;
-    resetDefinitionMetadataFields(language);
-    this.definitionFields.set(readDefinitionMetadataFields(language));
+    resetDefinitionMetadataFields();
+    this.definitionFields.set(readDefinitionMetadataFields());
   }
 
   resetExampleFields(): void {
-    const language = SETTINGS_SCOPE;
-    resetExampleMetadataFields(language);
-    this.exampleFields.set(readExampleMetadataFields(language));
+    resetExampleMetadataFields();
+    this.exampleFields.set(readExampleMetadataFields());
   }
 
   resetFormFields(): void {
-    const language = SETTINGS_SCOPE;
-    resetFormMetadataFields(language);
-    this.formFields.set(readFormMetadataFields(language));
+    resetFormMetadataFields();
+    this.formFields.set(readFormMetadataFields());
   }
 
   inputValue(event: Event): string {
@@ -855,8 +849,7 @@ export class LanguageAiSettings {
         error: this.definitionRecommendError,
         suggestions: this.definitionSuggestions,
         fields: this.definitionFields,
-        write: (fields: readonly AiMetadataField[]) =>
-          writeDefinitionMetadataFields(SETTINGS_SCOPE, fields),
+        write: (fields: readonly AiMetadataField[]) => writeDefinitionMetadataFields(fields),
         current: (job: number) => job === this.definitionRecommendJob,
         nextJob: () => ++this.definitionRecommendJob,
       };
@@ -867,8 +860,7 @@ export class LanguageAiSettings {
         error: this.exampleRecommendError,
         suggestions: this.exampleSuggestions,
         fields: this.exampleFields,
-        write: (fields: readonly AiMetadataField[]) =>
-          writeExampleMetadataFields(SETTINGS_SCOPE, fields),
+        write: (fields: readonly AiMetadataField[]) => writeExampleMetadataFields(fields),
         current: (job: number) => job === this.exampleRecommendJob,
         nextJob: () => ++this.exampleRecommendJob,
       };
@@ -878,7 +870,7 @@ export class LanguageAiSettings {
       error: this.formRecommendError,
       suggestions: this.formSuggestions,
       fields: this.formFields,
-      write: (fields: readonly AiMetadataField[]) => writeFormMetadataFields(SETTINGS_SCOPE, fields),
+      write: (fields: readonly AiMetadataField[]) => writeFormMetadataFields(fields),
       current: (job: number) => job === this.formRecommendJob,
       nextJob: () => ++this.formRecommendJob,
     };

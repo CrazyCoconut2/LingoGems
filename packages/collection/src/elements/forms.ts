@@ -87,7 +87,7 @@ function parseForm(source: string): FormAtom[][] | null {
 }
 
 /** Compile one form to a highlight regex fragment, or null if invalid. */
-export function compileForm(source: string): string | null {
+function compileForm(source: string): string | null {
   const parts = parseForm(source);
   if (!parts) return null;
   const body = parts.map(matchToRegex).join('\\s+');

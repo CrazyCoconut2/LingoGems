@@ -5,11 +5,7 @@ export {
   type LearnableLanguage,
 } from './languages/catalog';
 
-export {
-  mergeMetadataCatalog,
-  readMetadataCatalog,
-  replaceMetadataCatalog,
-} from './elements/metadata-catalog';
+export { readMetadataCatalog, replaceMetadataCatalog } from './elements/metadata-catalog';
 
 export {
   addElement,
@@ -24,7 +20,6 @@ export {
   readEditingDraft,
   formTexts,
   elementModeLabel,
-  elementReadyForTranslation,
   saveElement,
   TRANSLATION_GEM_MAX,
   type DefinitionLogBy,
@@ -32,9 +27,7 @@ export {
   type ElementDefinition,
   type ElementForm,
   type ParsedPassage,
-  type PassageTranslation,
   type ElementEquivalent,
-  type ElementExample,
   type ElementMetadata,
   type ElementMode,
   type StoredElement,
@@ -42,7 +35,7 @@ export {
 
 export { formMatchesTerm, isValidForm } from './elements/forms';
 
-export { surfaceSpans, type SurfaceSpan } from './elements/definition-eligibility';
+export { surfaceSpans } from './elements/definition-eligibility';
 
 export {
   highlightDefinitionPassage,
@@ -62,12 +55,10 @@ export {
 export {
   DEFAULT_ELEMENT_SORT,
   compareElements,
-  elementDefinitionCount,
   elementMatchesCountRanges,
   elementMatchesMetadata,
   elementMatchesComfort,
   elementMatchesMode,
-  elementTranslationCount,
   formatMetadataFilter,
   metadataFilterSize,
   parseMetadataFilter,
@@ -80,7 +71,6 @@ export {
 export { requestPersistentStorage, storageIsPersistent } from './persistent-storage';
 
 export {
-  collectMetadataIndexes,
   emptyMetadataIndexes,
   mergeMetadataIndexes,
   mergeMetadataVariability,

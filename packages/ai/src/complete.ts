@@ -75,7 +75,7 @@ export async function completeJson(
 
 const ATTEMPTS_PER_KEY = 2;
 
-export type KeyFallbackTarget = {
+type KeyFallbackTarget = {
   id: string;
   provider: AiProviderId;
   apiKey: string;

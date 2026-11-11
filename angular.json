@@ -5,7 +5,6 @@
     "packageManager": "npm",
     "analytics": false
   },
-  "newProjectRoot": "projects",
   "projects": {
     "lingogem": {
       "projectType": "application",
@@ -40,9 +39,7 @@
             },
             "browser": "src/platforms/pwa/main.ts",
             "index": "src/platforms/pwa/index.html",
-            "polyfills": [
-              "zone.js"
-            ],
+            "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [
@@ -55,9 +52,7 @@
                 "input": "src/platforms/pwa/public"
               }
             ],
-            "styles": [
-              "src/core/styles/styles.scss"
-            ]
+            "styles": ["src/core/styles/styles.scss"]
           },
           "configurations": {
             "production": {

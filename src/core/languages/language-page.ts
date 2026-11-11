@@ -57,7 +57,6 @@ import {
   type ElementSearch,
   type ElementSearchPart,
   type ElementSort,
-  type LearnableLanguage,
   type StoredElement,
 } from 'collection';
 
@@ -1602,15 +1601,15 @@ const MOVE_SLOP_PX = 10;
     }
 
     .card-gem[data-game='translation'] {
-      --exercise-gem: #f05a62;
+      --exercise-gem: var(--gem-translation);
     }
 
     .card-gem[data-game='example'] {
-      --exercise-gem: #f09440;
+      --exercise-gem: var(--gem-example);
     }
 
     .card-gem[data-game='definition'] {
-      --exercise-gem: #48c850;
+      --exercise-gem: var(--gem-definition);
     }
 
     .card-gem .gem {
@@ -2031,15 +2030,15 @@ const MOVE_SLOP_PX = 10;
     }
 
     .mode-choice[data-mode='1'] {
-      --hero-gem: #f05a62;
+      --hero-gem: var(--gem-translation);
     }
 
     .mode-choice[data-mode='2'] {
-      --hero-gem: #f09440;
+      --hero-gem: var(--gem-example);
     }
 
     .mode-choice[data-mode='3'] {
-      --hero-gem: #48c850;
+      --hero-gem: var(--gem-definition);
     }
 
     .mode-choice {

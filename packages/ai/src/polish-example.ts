@@ -4,7 +4,7 @@ import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
 import type { CompleteJsonInput } from './types';
 
-export const CORRECT_EXAMPLE_SYSTEM_PROMPT = `You correct spelling in one learner sentence.
+const CORRECT_EXAMPLE_SYSTEM_PROMPT = `You correct spelling in one learner sentence.
 JSON keys stay in English.
 text is in the language named by writeFieldsIn.
 text and explanation MUST be in that same language. Do not translate text.
@@ -16,17 +16,17 @@ JSON only: {"text":"<corrected sentence>","explanation":"<what was wrong>"}`;
 
 const POLISH_MAX_TOKENS = 1024;
 
-export type PolishExampleInput = {
+type PolishExampleInput = {
   language: string;
   text: string;
 };
 
-export type CorrectedExample = {
+type CorrectedExample = {
   text: string;
   explanation: string;
 };
 
-export function buildPolishExampleUserMessage(input: PolishExampleInput): string {
+function buildPolishExampleUserMessage(input: PolishExampleInput): string {
   const language = input.language.trim().toLowerCase();
   return JSON.stringify({
     writeFieldsIn: languageDisplayName(language) || language,
@@ -40,7 +40,7 @@ function readText(value: unknown): string {
     .trim();
 }
 
-export function parsePolishedExample(parsed: unknown): CorrectedExample | null {
+function parsePolishedExample(parsed: unknown): CorrectedExample | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)

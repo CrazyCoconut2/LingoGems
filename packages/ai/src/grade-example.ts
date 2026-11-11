@@ -4,7 +4,7 @@ import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
 import type { CompleteJsonInput } from './types';
 
-export const GRADE_EXAMPLE_SYSTEM_PROMPT = `You score how well a learner's example shows one dictionary sense.
+const GRADE_EXAMPLE_SYSTEM_PROMPT = `You score how well a learner's example shows one dictionary sense.
 JSON keys stay in English.
 The sentence and the gloss are both in the language named by writeFieldsIn.
 lemma is the headword. The sentence already contains it or one of its forms. Do not score whether the word is present.
@@ -19,19 +19,19 @@ JSON only: {"score":<0-${TRANSLATION_GEM_MAX}>,"explanation":"<text>"}`;
 
 const GRADE_MAX_TOKENS = 1024;
 
-export type GradeExampleInput = {
+type GradeExampleInput = {
   language: string;
   lemma: string;
   gloss: string;
   answer: string;
 };
 
-export type GradedExample = {
+type GradedExample = {
   score: number;
   explanation: string;
 };
 
-export function buildGradeExampleUserMessage(input: GradeExampleInput): string {
+function buildGradeExampleUserMessage(input: GradeExampleInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   return JSON.stringify({
@@ -43,7 +43,7 @@ export function buildGradeExampleUserMessage(input: GradeExampleInput): string {
 }
 
 /** A clamped score and an explanation, or null when the reply is unusable. */
-export function parseGradedExample(parsed: unknown): GradedExample | null {
+function parseGradedExample(parsed: unknown): GradedExample | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)

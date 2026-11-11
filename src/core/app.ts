@@ -46,6 +46,5 @@ export class App implements OnInit {
 
   ngOnInit(): void {
     document.getElementById('lg-boot-splash')?.remove();
-    console.log(`LingoGems v${packageJson.version}`);
   }
 }

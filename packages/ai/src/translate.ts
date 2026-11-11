@@ -4,7 +4,7 @@ import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
 import type { CompleteJsonInput } from './types';
 
-export const TRANSLATE_SYSTEM_PROMPT = `You translate each input string into targetLang.
+const TRANSLATE_SYSTEM_PROMPT = `You translate each input string into targetLang.
 JSON keys stay in English.
 texts is an array of strings. Return exactly one translation per item, same order and count. Do not merge, split, reorder, drop, or invent items. Do not add commentary, quotes, or extra markup.
 When sourceLang is present, treat it as the source language; otherwise detect it.
@@ -14,13 +14,13 @@ JSON only: {"translations":["<text 0>","<text 1>",...]}`;
 
 const TRANSLATE_MAX_TOKENS = 4096;
 
-export type GenerateTranslatePromptInput = {
+type GenerateTranslatePromptInput = {
   texts: string[];
   targetLang: string;
   sourceLang?: string | null;
 };
 
-export function buildTranslateUserMessage(input: GenerateTranslatePromptInput): string {
+function buildTranslateUserMessage(input: GenerateTranslatePromptInput): string {
   const targetLang = languageDisplayName(input.targetLang) || String(input.targetLang || '').trim();
   const sourceRaw = String(input.sourceLang || '').trim();
   const sourceLang = sourceRaw ? languageDisplayName(sourceRaw) || sourceRaw : '';
@@ -32,7 +32,7 @@ export function buildTranslateUserMessage(input: GenerateTranslatePromptInput): 
 }
 
 /** Exact 1:1 translations, or null when the model dropped or added items. */
-export function parseGeneratedTranslations(
+function parseGeneratedTranslations(
   parsed: unknown,
   expectedCount: number,
 ): string[] | null {
@@ -46,7 +46,7 @@ export function parseGeneratedTranslations(
   return list.map((item) => String(item ?? '').trim());
 }
 
-export const EQUIVALENT_SYSTEM_PROMPT = `You give one translation of a headword for a single dictionary sense.
+const EQUIVALENT_SYSTEM_PROMPT = `You give one translation of a headword for a single dictionary sense.
 JSON keys stay in English.
 Return the headword's equivalent in targetLang for this sense only: a word or short phrase a dictionary would list as the translation of the lemma.
 Use the definition to choose the sense. Do not translate the definition sentence itself.
@@ -57,7 +57,7 @@ JSON only: {"translation":"<equivalent>"}`;
 
 const EQUIVALENT_MAX_TOKENS = 512;
 
-export type GenerateEquivalentInput = {
+type GenerateEquivalentInput = {
   lemma: string;
   sourceLang: string;
   definition: string;
@@ -65,7 +65,7 @@ export type GenerateEquivalentInput = {
   targetLang?: string | null;
 };
 
-export function buildEquivalentUserMessage(input: GenerateEquivalentInput): string {
+function buildEquivalentUserMessage(input: GenerateEquivalentInput): string {
   const sourceRaw = String(input.sourceLang || '').trim();
   const sourceLang = sourceRaw ? languageDisplayName(sourceRaw) || sourceRaw : '';
   const targetRaw = String(input.targetLang || '').trim();
@@ -81,7 +81,7 @@ export function buildEquivalentUserMessage(input: GenerateEquivalentInput): stri
 }
 
 /** One headword equivalent, or null when the reply has no translation string. */
-export function parseGeneratedEquivalent(parsed: unknown): string | null {
+function parseGeneratedEquivalent(parsed: unknown): string | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)

@@ -4,7 +4,7 @@ import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
 import type { CompleteJsonInput } from './types';
 
-export const GRADE_DEFINITION_SYSTEM_PROMPT = `You compare a learner's definition to the stored dictionary gloss for one sense.
+const GRADE_DEFINITION_SYSTEM_PROMPT = `You compare a learner's definition to the stored dictionary gloss for one sense.
 JSON keys stay in English.
 The answer and the gloss are both in the language named by writeFieldsIn.
 Score gems from 0 to ${TRANSLATION_GEM_MAX}. Judge meaning, not wording.
@@ -18,19 +18,19 @@ JSON only: {"score":<0-${TRANSLATION_GEM_MAX}>,"explanation":"<text>"}`;
 
 const GRADE_MAX_TOKENS = 1024;
 
-export type GradeDefinitionInput = {
+type GradeDefinitionInput = {
   language: string;
   lemma: string;
   gloss: string;
   answer: string;
 };
 
-export type GradedDefinition = {
+type GradedDefinition = {
   score: number;
   explanation: string;
 };
 
-export function buildGradeDefinitionUserMessage(input: GradeDefinitionInput): string {
+function buildGradeDefinitionUserMessage(input: GradeDefinitionInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   return JSON.stringify({
@@ -42,7 +42,7 @@ export function buildGradeDefinitionUserMessage(input: GradeDefinitionInput): st
 }
 
 /** A clamped score and an explanation, or null when the reply is unusable. */
-export function parseGradedDefinition(parsed: unknown): GradedDefinition | null {
+function parseGradedDefinition(parsed: unknown): GradedDefinition | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)

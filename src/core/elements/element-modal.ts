@@ -3707,19 +3707,19 @@ function writeExampleSuggestions(
     }
 
     .panel[data-mode='1'] {
-      --scintilla: #f05a62;
+      --scintilla: var(--gem-translation);
       --scintilla-rgb: 240, 90, 98;
       --scintilla-hot: #ffb4b6;
     }
 
     .panel[data-mode='2'] {
-      --scintilla: #f09440;
+      --scintilla: var(--gem-example);
       --scintilla-rgb: 240, 148, 64;
       --scintilla-hot: #ffd0a6;
     }
 
     .panel[data-mode='3'] {
-      --scintilla: #48c850;
+      --scintilla: var(--gem-definition);
       --scintilla-rgb: 72, 200, 80;
       --scintilla-hot: #b8f5bc;
     }
@@ -3992,15 +3992,15 @@ function writeExampleSuggestions(
     }
 
     .mode-hero[data-mode='1'] {
-      --hero-gem: #f05a62;
+      --hero-gem: var(--gem-translation);
     }
 
     .mode-hero[data-mode='2'] {
-      --hero-gem: #f09440;
+      --hero-gem: var(--gem-example);
     }
 
     .mode-hero[data-mode='3'] {
-      --hero-gem: #48c850;
+      --hero-gem: var(--gem-definition);
     }
 
     .mode-hero[data-mode] {
@@ -4820,16 +4820,6 @@ function writeExampleSuggestions(
       line-height: 1;
     }
 
-    .form-edit {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-
-    .form-edit input {
-      flex: 1;
-    }
-
     .examples {
       display: flex;
       flex-direction: column;
@@ -4949,12 +4939,12 @@ function writeExampleSuggestions(
       gap: 0.55rem;
     }
 
-    .example-entry svg,
-    .example-line svg {
+    .example-entry svg {
       display: block;
       width: 1.15rem;
       height: 1.15rem;
       flex: none;
+      margin-top: 0.65rem;
       fill: none;
       stroke: var(--accent-text);
       stroke-width: 2;
@@ -4962,23 +4952,9 @@ function writeExampleSuggestions(
       stroke-linejoin: round;
     }
 
-    .example-entry svg {
-      margin-top: 0.65rem;
-    }
-
     .example-entry textarea {
       flex: 1;
       min-width: 0;
-    }
-
-    .example-line {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.45rem;
-    }
-
-    .example-line svg {
-      margin-top: 0.15rem;
     }
 
     .add-choice {
@@ -5013,8 +4989,7 @@ function writeExampleSuggestions(
       resize: none;
     }
 
-    .engineer-forms,
-    .engineer-words {
+    .engineer-forms {
       max-height: 9rem;
       overflow: auto;
     }
@@ -5510,13 +5485,6 @@ function writeExampleSuggestions(
       border-color: #5c6170;
     }
 
-    .compare-score {
-      grid-column: 1 / -1;
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-    }
-
     .equivalent-gloss {
       display: flex;
       flex-direction: column;
@@ -5536,15 +5504,15 @@ function writeExampleSuggestions(
     }
 
     [data-game='translation'] {
-      --exercise-gem: #f05a62;
+      --exercise-gem: var(--gem-translation);
     }
 
     [data-game='example'] {
-      --exercise-gem: #f09440;
+      --exercise-gem: var(--gem-example);
     }
 
     [data-game='definition'] {
-      --exercise-gem: #48c850;
+      --exercise-gem: var(--gem-definition);
     }
 
     .gem-gain {
@@ -5661,17 +5629,6 @@ function writeExampleSuggestions(
       .compare {
         grid-template-columns: 1fr;
       }
-    }
-
-    .play-prompt {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0.45rem;
-    }
-
-    .play-prompt .btn {
-      align-self: flex-start;
     }
 
     .lang {
@@ -7984,29 +7941,6 @@ export class ElementModal {
       selected: [...next.selected],
     });
     writeRelatedDrafts(this.element().id, this.definitionEngineerDrafts);
-  }
-
-  private rekeyDefinitionEngineerDraft(from: string, to: string): void {
-    if (!from || !to || from === to) return;
-    const draft = this.definitionEngineerDrafts.get(from);
-    if (!draft) return;
-    this.definitionEngineerDrafts.delete(from);
-    this.definitionEngineerDrafts.set(to, draft);
-    writeRelatedDrafts(this.element().id, this.definitionEngineerDrafts);
-  }
-
-  private rekeyExampleSuggestions(elementId: string, from: string, to: string): void {
-    if (!from || !to || from === to) return;
-    const current =
-      this.element().id === elementId
-        ? { ...this.exampleSuggestions() }
-        : readExampleSuggestions(elementId);
-    const moving = current[from];
-    if (!moving?.length) return;
-    delete current[from];
-    current[to] = [...(current[to] ?? []), ...moving];
-    writeExampleSuggestions(elementId, current);
-    if (this.element().id === elementId) this.exampleSuggestions.set(current);
   }
 
   /** Examples generated before they were saved immediately. */

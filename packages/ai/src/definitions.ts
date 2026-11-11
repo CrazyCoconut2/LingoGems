@@ -41,7 +41,7 @@ export const VERBATIM_SENSE_TRANSLATION =
 export const VERBATIM_SENSE_TRANSLATION_FIELD =
   'When translateFieldsIn is present, add "translation":"<verbatim translation of the gloss>" on each sense.';
 
-export function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
+function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
   return joinPrompt([
     'You write dictionary senses for one headword.',
     'JSON keys stay in English.',
@@ -65,7 +65,7 @@ export function definitionsSystemPrompt(fields: readonly AiMetadataField[], extr
   ]);
 }
 
-export function elementFromSelectionSystemPrompt(
+function elementFromSelectionSystemPrompt(
   fields: readonly AiMetadataField[],
   extra = false,
 ): string {
@@ -94,7 +94,7 @@ export function elementFromSelectionSystemPrompt(
   ]);
 }
 
-export function definitionFromExampleSystemPrompt(
+function definitionFromExampleSystemPrompt(
   fields: readonly AiMetadataField[],
   extra = false,
 ): string {
@@ -122,16 +122,14 @@ export function definitionFromExampleSystemPrompt(
 }
 
 function metadataIntro(fields: readonly AiMetadataField[], extra = false): string {
-  return fields.length || extra
-    ? METADATA_VALUE_LANGUAGE_RULE
-    : '';
+  return fields.length || extra ? METADATA_VALUE_LANGUAGE_RULE : '';
 }
 
 function joinPrompt(lines: readonly string[]): string {
   return lines.filter((line) => line !== '').join('\n');
 }
 
-export function formsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
+function formsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
   return joinPrompt([
     'You list the inflected forms of one lemma.',
     'JSON keys stay in English.',
@@ -152,7 +150,7 @@ export function formsSystemPrompt(fields: readonly AiMetadataField[], extra = fa
   ]);
 }
 
-export type GenerateDefinitionsInput = {
+type GenerateDefinitionsInput = {
   language: string;
   title: string;
   existingDefinitions: ReadonlyArray<{
@@ -162,7 +160,7 @@ export type GenerateDefinitionsInput = {
   translation?: string;
 };
 
-export type GenerateDefinitionFromExampleInput = GenerateDefinitionsInput & {
+type GenerateDefinitionFromExampleInput = GenerateDefinitionsInput & {
   example: string;
 };
 
@@ -171,14 +169,14 @@ export type GeneratedDefinition = {
   metadata: ElementMetadata;
 };
 
-export type GenerateFormsInput = {
+type GenerateFormsInput = {
   language: string;
   title: string;
   gloss: string;
   existingForms: string[];
 };
 
-export function buildDefinitionsUserMessage(input: GenerateDefinitionsInput): string {
+function buildDefinitionsUserMessage(input: GenerateDefinitionsInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   const translateFieldsIn = translationLanguage(language, input.translation);
@@ -208,8 +206,8 @@ export function parseGeneratedDefinitions(
   if (!Array.isArray(list)) return null;
   const language = input.language.trim().toLowerCase();
   const taken = new Set(
-    describedDefinitions(language, input.existingDefinitions, input.translation ?? '').map((definition) =>
-      definition.gloss.toLowerCase(),
+    describedDefinitions(language, input.existingDefinitions, input.translation ?? '').map(
+      (definition) => definition.gloss.toLowerCase(),
     ),
   );
   const definitions: GeneratedDefinition[] = [];
@@ -220,23 +218,25 @@ export function parseGeneratedDefinitions(
     const gloss = glossText(sense['gloss'] ?? sense['glosses']);
     if (!gloss || taken.has(gloss.toLowerCase())) continue;
     taken.add(gloss.toLowerCase());
-    const english = takenTranslation(language, sense['translation'] ?? sense['english'], input.translation ?? '');
+    const english = takenTranslation(
+      language,
+      sense['translation'] ?? sense['english'],
+      input.translation ?? '',
+    );
     const into = translationTarget(language, input.translation);
     definitions.push({
       text: english && into ? embedTranslation(gloss, into, english) : gloss,
       metadata: pickMetadata(
         sense['metadata'],
-        metadataFieldKeys(readDefinitionMetadataFields(language)),
-        readDefinitionExtraFields(language),
+        metadataFieldKeys(readDefinitionMetadataFields()),
+        readDefinitionExtraFields(),
       ),
     });
   }
   return definitions;
 }
 
-export function buildDefinitionFromExampleUserMessage(
-  input: GenerateDefinitionFromExampleInput,
-): string {
+function buildDefinitionFromExampleUserMessage(input: GenerateDefinitionFromExampleInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   const translateFieldsIn = translationLanguage(language, input.translation);
@@ -255,21 +255,17 @@ export function buildDefinitionFromExampleUserMessage(
 }
 
 /** Where one example sentence belongs: an existing sense, or a new one. */
-export type ExamplePlacement =
-  | { kind: 'existing'; gloss: string }
-  | { kind: 'new'; definition: GeneratedDefinition };
+type ExamplePlacement =
+  { kind: 'existing'; gloss: string } | { kind: 'new'; definition: GeneratedDefinition };
 
-function matchingGloss(
-  gloss: string,
-  existing: ReadonlyArray<{ gloss: string }>,
-): string {
+function matchingGloss(gloss: string, existing: ReadonlyArray<{ gloss: string }>): string {
   const key = gloss.trim().toLowerCase();
   if (!key) return '';
   return existing.find((definition) => definition.gloss.toLowerCase() === key)?.gloss ?? '';
 }
 
 /** An existing sense for the example, a new sense, or null when the reply is unusable. */
-export function parseExamplePlacement(
+function parseExamplePlacement(
   parsed: unknown,
   input: GenerateDefinitionFromExampleInput,
 ): ExamplePlacement | null {
@@ -308,8 +304,8 @@ export async function generateDefinitionFromExample(
   const prepared = { ...request, title, language, example };
   const input: CompleteJsonInput = {
     system: definitionFromExampleSystemPrompt(
-      readDefinitionMetadataFields(language),
-      readDefinitionExtraFields(language),
+      readDefinitionMetadataFields(),
+      readDefinitionExtraFields(),
     ),
     user: buildDefinitionFromExampleUserMessage(prepared),
     maxTokens: 1024,
@@ -328,21 +324,19 @@ export async function generateDefinitionFromExample(
   }
 }
 
-export type GenerateElementFromSelectionInput = {
+type GenerateElementFromSelectionInput = {
   language: string;
   selected: string;
   context: string;
   translation?: string;
 };
 
-export type GeneratedElement = {
+type GeneratedElement = {
   lemma: string;
   definitions: GeneratedDefinition[];
 };
 
-export function buildElementFromSelectionUserMessage(
-  input: GenerateElementFromSelectionInput,
-): string {
+function buildElementFromSelectionUserMessage(input: GenerateElementFromSelectionInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   const translateFieldsIn = translationLanguage(language, input.translation);
@@ -368,8 +362,8 @@ export async function generateElementFromSelection(
   const prepared = { ...request, selected, language, context };
   const input: CompleteJsonInput = {
     system: elementFromSelectionSystemPrompt(
-      readDefinitionMetadataFields(language),
-      readDefinitionExtraFields(language),
+      readDefinitionMetadataFields(),
+      readDefinitionExtraFields(),
     ),
     user: buildElementFromSelectionUserMessage(prepared),
     maxTokens: DEFINITIONS_MAX_TOKENS,
@@ -416,10 +410,7 @@ export async function generateDefinitions(
   const language = request.language.trim().toLowerCase();
   if (!title || !language) return [];
   const input: CompleteJsonInput = {
-    system: definitionsSystemPrompt(
-      readDefinitionMetadataFields(language),
-      readDefinitionExtraFields(language),
-    ),
+    system: definitionsSystemPrompt(readDefinitionMetadataFields(), readDefinitionExtraFields()),
     user: buildDefinitionsUserMessage({ ...request, title, language }),
     maxTokens: DEFINITIONS_MAX_TOKENS,
     temperature: 0,
@@ -461,8 +452,8 @@ function describedDefinitions(
       : '';
     const metadata = pickMetadata(
       definition.metadata,
-      metadataFieldKeys(readDefinitionMetadataFields(language)),
-      readDefinitionExtraFields(language),
+      metadataFieldKeys(readDefinitionMetadataFields()),
+      readDefinitionExtraFields(),
     );
     described.push({
       gloss,
@@ -487,7 +478,7 @@ function takenTranslation(language: string, raw: unknown, translation: string): 
   return plainText(raw).slice(0, META_VALUE_MAX_LENGTH);
 }
 
-export function buildFormsUserMessage(input: GenerateFormsInput): string {
+function buildFormsUserMessage(input: GenerateFormsInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   return JSON.stringify({
@@ -500,10 +491,7 @@ export function buildFormsUserMessage(input: GenerateFormsInput): string {
 }
 
 /** Usable forms, or null when the reply has no forms array. */
-export function parseGeneratedForms(
-  parsed: unknown,
-  input: GenerateFormsInput,
-): ElementForm[] | null {
+function parseGeneratedForms(parsed: unknown, input: GenerateFormsInput): ElementForm[] | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
@@ -514,8 +502,7 @@ export function parseGeneratedForms(
   const taken = new Set(
     input.existingForms.map((form) => form.trim().toLowerCase()).filter(Boolean),
   );
-  const language = input.language.trim().toLowerCase();
-  return parseForms(list, title, taken, language);
+  return parseForms(list, title, taken);
 }
 
 /** Ask the saved model for surface forms of one sense. */
@@ -525,7 +512,7 @@ export async function generateForms(request: GenerateFormsInput): Promise<Elemen
   const gloss = request.gloss.trim();
   if (!title || !language || !gloss) return [];
   const input: CompleteJsonInput = {
-    system: formsSystemPrompt(readFormMetadataFields(language), readFormExtraFields(language)),
+    system: formsSystemPrompt(readFormMetadataFields(), readFormExtraFields()),
     user: buildFormsUserMessage({ ...request, title, language, gloss }),
     maxTokens: FORMS_MAX_TOKENS,
     temperature: 0,
@@ -544,12 +531,7 @@ export async function generateForms(request: GenerateFormsInput): Promise<Elemen
   }
 }
 
-function parseForms(
-  value: unknown,
-  title: string,
-  taken: ReadonlySet<string>,
-  language: string,
-): ElementForm[] {
+function parseForms(value: unknown, title: string, taken: ReadonlySet<string>): ElementForm[] {
   if (!Array.isArray(value)) return [];
   const lemma = title.trim();
   const lemmaKey = lemma.toLowerCase();
@@ -571,8 +553,8 @@ function parseForms(
       item && typeof item === 'object'
         ? pickMetadata(
             (item as { metadata?: unknown }).metadata,
-            metadataFieldKeys(readFormMetadataFields(language)),
-            readFormExtraFields(language),
+            metadataFieldKeys(readFormMetadataFields()),
+            readFormExtraFields(),
           )
         : {};
     forms.push({ text, metadata });

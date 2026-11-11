@@ -8,7 +8,7 @@ function lemmaFormsPattern(lemma: string, forms: readonly string[]): string {
 }
 
 /** One match of the lemma or a form. `surface` is the exact substring. */
-export type SurfaceSpan = {
+type SurfaceSpan = {
   start: number;
   end: number;
   surface: string;

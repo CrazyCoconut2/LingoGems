@@ -21,7 +21,7 @@ function readKey(raw: unknown): StoredAiKey | null {
   };
 }
 
-export function parseStoredAiCredentials(raw: unknown): StoredAiCredentials {
+function parseStoredAiCredentials(raw: unknown): StoredAiCredentials {
   if (!raw || typeof raw !== 'object' || !Array.isArray((raw as { keys?: unknown }).keys)) {
     return emptyStoredAiCredentials();
   }

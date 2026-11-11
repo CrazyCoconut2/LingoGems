@@ -14,7 +14,7 @@ type GoogleGeneratePayload = {
   }>;
 };
 
-export function extractGoogleText(data: unknown): string {
+function extractGoogleText(data: unknown): string {
   const payload = data && typeof data === 'object' ? (data as GoogleGeneratePayload) : {};
   const block = String(payload.promptFeedback?.blockReason || '').trim();
   if (block) {

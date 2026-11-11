@@ -23,20 +23,20 @@ import { readStoredAiCredentials } from './storage';
 import { translationLanguage } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
-export const DISCOVER_COUNT = 5;
+const DISCOVER_COUNT = 5;
 export const MAX_DISCOVER_INSTRUCTION = 200;
-export const MAX_DISCOVER_EXCLUDE = 200;
+const MAX_DISCOVER_EXCLUDE = 200;
 
 const DISCOVER_SENSE_COUNT = 2;
 const DISCOVER_MAX_TOKENS = 4096;
 
-export type DiscoverMetadata = {
+type DiscoverMetadata = {
   definition?: ElementMetadataVariability;
   example?: ElementMetadataVariability;
   form?: ElementMetadataVariability;
 };
 
-export type DiscoverElementsInput = {
+type DiscoverElementsInput = {
   language: string;
   instruction?: string;
   metadata?: DiscoverMetadata;
@@ -49,7 +49,7 @@ export type DiscoveredElement = {
   senses: GeneratedDefinition[];
 };
 
-export function buildDiscoverElementsUserMessage(input: DiscoverElementsInput): string {
+function buildDiscoverElementsUserMessage(input: DiscoverElementsInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   const translateFieldsIn = translationLanguage(language, input.translation);
@@ -69,7 +69,7 @@ export function buildDiscoverElementsUserMessage(input: DiscoverElementsInput): 
 }
 
 /** Elements from a reply, or null when elements is missing or none of them can be used. */
-export function parseDiscoveredElements(
+function parseDiscoveredElements(
   parsed: unknown,
   language: string,
   translation = '',
@@ -110,7 +110,7 @@ export function parseDiscoveredElements(
 export async function discoverElements(input: DiscoverElementsInput): Promise<DiscoveredElement[]> {
   const language = input.language.trim().toLowerCase();
   const request: CompleteJsonInput = {
-    system: discoverSystemPrompt(language),
+    system: discoverSystemPrompt(),
     user: buildDiscoverElementsUserMessage(input),
     maxTokens: DISCOVER_MAX_TOKENS,
     temperature: 0.7,
@@ -131,9 +131,9 @@ export async function discoverElements(input: DiscoverElementsInput): Promise<Di
   }
 }
 
-function discoverSystemPrompt(language: string): string {
-  const fields = readDefinitionMetadataFields(language);
-  const extra = readDefinitionExtraFields(language);
+function discoverSystemPrompt(): string {
+  const fields = readDefinitionMetadataFields();
+  const extra = readDefinitionExtraFields();
   const sense = definitionSenseShape(fields, extra);
   return [
     'You suggest dictionary elements for a language learner to add.',

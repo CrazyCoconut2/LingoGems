@@ -31,7 +31,7 @@ export {
 
 export { recommendMetadataFields } from './recommend-metadata';
 
-export { suggestMetadata, type SuggestMetadataKind } from './suggest-metadata';
+export { suggestMetadata } from './suggest-metadata';
 
 export {
   MAX_DISCOVER_INSTRUCTION,
