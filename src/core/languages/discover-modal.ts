@@ -133,24 +133,22 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
               <button
                 type="button"
                 class="discover-main"
-                [attr.aria-label]="results().length ? 'More' : 'Search'"
-                [attr.title]="results().length ? 'More' : 'Search'"
                 [disabled]="!canSearch() || busy() || adding()"
                 (click)="submit()"
               >
-                @if (results().length) {
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 5v14" />
-                    <path d="M5 12h14" />
-                  </svg>
-                } @else {
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="11" cy="11" r="7" />
-                    <path d="m20 20-3.5-3.5" />
-                  </svg>
-                }
+                {{ results().length ? 'More' : 'Search' }}
                 @if (translationTarget(); as code) {
-                  <span>{{ languageName(code) }}</span>
+                  <span class="discover-translation">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m5 8 6 6" />
+                      <path d="m4 14 6-6 2-3" />
+                      <path d="M2 5h12" />
+                      <path d="M7 2h1" />
+                      <path d="m22 22-5-10-5 10" />
+                      <path d="M14 18h6" />
+                    </svg>
+                    {{ languageName(code) }}
+                  </span>
                 }
               </button>
               <button
@@ -650,9 +648,12 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       flex: none;
       align-items: stretch;
       align-self: flex-end;
-      height: 2.4rem;
       border-radius: 999px;
       background: var(--accent);
+    }
+
+    .discover-split:hover:not(:has(:disabled)) {
+      background: var(--accent-hover);
     }
 
     .discover-main,
@@ -666,20 +667,30 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     }
 
     .discover-main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.12rem;
+      border-radius: 999px 0 0 999px;
+      padding: 0.4rem 1rem 0.42rem;
+      font-size: 0.9375rem;
+      line-height: 1.1;
+    }
+
+    .discover-translation {
       display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
-      border-radius: 999px 0 0 999px;
-      padding: 0 0.75rem 0 0.7rem;
-      font-size: 0.78rem;
+      gap: 0.22rem;
+      color: white;
+      font-size: 0.72rem;
+      font-weight: 650;
       line-height: 1;
     }
 
-    .discover-main svg,
+    .discover-translation svg,
     .discover-chevron svg {
       display: block;
-      width: 1rem;
-      height: 1rem;
       flex: none;
       fill: none;
       stroke: currentColor;
@@ -688,12 +699,22 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       stroke-linejoin: round;
     }
 
+    .discover-translation svg {
+      width: 0.72rem;
+      height: 0.72rem;
+    }
+
+    .discover-chevron svg {
+      width: 1rem;
+      height: 1rem;
+    }
+
     .discover-chevron {
       display: grid;
       place-items: center;
       border-left: 1px solid rgba(255, 255, 255, 0.28);
       border-radius: 0 999px 999px 0;
-      padding: 0 0.55rem;
+      padding: 0 0.75rem;
     }
 
     .discover-chevron svg {
@@ -1161,6 +1182,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       align-items: center;
       flex-wrap: wrap;
       gap: 0.6rem;
+      padding-top: 0.4rem;
     }
 
     .card-scroll {
@@ -1179,6 +1201,19 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
 
     .history-btn {
       margin-left: auto;
+      width: 1.9rem;
+      height: 1.9rem;
+      border-radius: 999px;
+    }
+
+    .history-btn svg {
+      width: 0.8rem;
+      height: 0.8rem;
+    }
+
+    .history-btn .filter-count {
+      top: -0.28rem;
+      right: -0.2rem;
     }
 
     .filter-chip {
