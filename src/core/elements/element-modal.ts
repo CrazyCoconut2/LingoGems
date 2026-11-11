@@ -5114,10 +5114,16 @@ function writeExampleSuggestions(
       gap: 0.4rem;
       min-width: 0;
       margin: 0;
-      padding: 0.1rem 0;
+      padding: 0.1rem 0.45rem 0.1rem 0;
       overflow-x: auto;
       overflow-y: hidden;
       list-style: none;
+    }
+
+    .related-scroll::after {
+      content: '';
+      flex: none;
+      width: 0.2rem;
     }
 
     .related-scroll li {
@@ -7198,7 +7204,6 @@ export class ElementModal {
       const stored = this.appendedEngineerPassage(extra);
       this.seedEditingTranslations(stored);
       this.textDraft.set(passageForEditing(stored, this.translationTarget()));
-      this.definitionEngineer.set(null);
     } catch {
       if (this.element().id === element.id) this.sheetError.set('Could not forge a definition.');
     } finally {
