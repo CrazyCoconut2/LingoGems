@@ -452,7 +452,7 @@ export function parsePassage(value: string): ParsedPassage {
   return { text, translations };
 }
 
-/** The same phrase with markers written as `[English: …]` for editing. */
+/** The same phrase with each marker on its own line, written as `[English: …]`. */
 export function passageForEditing(value: string): string {
   const parsed = parsePassage(value);
   const parts = parsed.translations
@@ -461,7 +461,7 @@ export function passageForEditing(value: string): string {
     .map((item) => `[${languageDisplayName(item.language)}: ${item.text}]`);
   const base = parsed.text.trim();
   if (!parts.length) return base;
-  return base ? `${base} ${parts.join(' ')}` : parts.join(' ');
+  return base ? `${base}\n${parts.join('\n')}` : parts.join('\n');
 }
 
 /** Store a translation on a phrase as `Primary [en: …]`, replacing that language's tag. */
