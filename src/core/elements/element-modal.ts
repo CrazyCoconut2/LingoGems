@@ -5042,7 +5042,7 @@ function writeExampleSuggestions(
       min-width: 0;
       padding: 0.55rem 0.6rem;
       border-radius: 0;
-      background: var(--accent);
+      background: color-mix(in srgb, var(--accent) 34%, var(--bg));
       color: white;
     }
 
@@ -5839,6 +5839,9 @@ export class ElementModal {
     inject(DestroyRef).onDestroy(() => {
       this.alive = false;
       stopSpeaking();
+    });
+    effect(() => {
+      if (!this.definitionEngineer()) this.editorSheetHeight.set(null);
     });
     effect(() => {
       const id = this.element().id;
@@ -7016,6 +7019,8 @@ export class ElementModal {
       selected: [],
     };
     const known = new Set(draft.words.map((word) => word.text.toLowerCase()));
+    const sheet = this.editorSheet()?.nativeElement;
+    if (sheet) this.editorSheetHeight.set(sheet.offsetHeight);
     this.sheetError.set('');
     this.definitionEngineer.set({
       definitionIndex: editor.index,
