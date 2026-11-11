@@ -1203,7 +1203,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       margin-left: auto;
       width: 1.9rem;
       height: 1.9rem;
-      border-radius: 999px;
+      border-radius: 0.55rem;
     }
 
     .history-btn svg {
