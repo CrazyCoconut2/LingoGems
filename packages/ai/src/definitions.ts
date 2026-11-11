@@ -133,11 +133,15 @@ function joinPrompt(lines: readonly string[]): string {
 
 export function formsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
   return joinPrompt([
-    'You list the surface forms of one dictionary sense.',
+    'You list the inflected forms of one lemma.',
     'JSON keys stay in English.',
     METADATA_VALUE_LANGUAGE_RULE,
     'Rules:',
-    '- forms lists every distinct inflected surface form of this sense, not one example. For a verb, cover person, number, tense, and mood, plus the participle and gerund when they exist. For a noun or adjective, cover gender and number. Keep going until that paradigm is covered. Omit a form you cannot spell correctly',
+    '- Each form is only a spelling of the lemma itself. Vary that one element. Do not add any other word around it',
+    '- Do not include pronouns, articles, auxiliaries, clitics, prepositions, or any word that is not part of the lemma.',
+    '- Person, number, tense, and mood belong in metadata, not as extra words in the form',
+    '- A separable lemma may split into its own parts, as in "rufe an" for anrufen, and still must not add a subject or any other word',
+    '- forms lists every distinct inflected form of this lemma, not one example and not a phrase. For a verb, cover person, number, tense, and mood, plus the participle and gerund when they exist. For a noun or adjective, cover gender and number. Keep going until that paradigm is covered. Omit a form you cannot spell correctly',
     '- The forms array in the shape shows the fields. It is not a limit of one form',
     '- Include the headword itself as one form. Do not repeat a form listed in existingForms',
     '- No wildcards, regex, parentheses, or asterisks in a form',

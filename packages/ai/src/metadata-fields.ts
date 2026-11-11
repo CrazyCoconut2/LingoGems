@@ -236,7 +236,7 @@ export function exampleSentenceShape(fields: readonly AiMetadataField[], extra =
 }
 
 export function formEntryShape(fields: readonly AiMetadataField[], extra = false): string {
-  return `{"text":"<surface form>"${metadataSuffix(fields, extra)}`;
+  return `{"text":"<inflected lemma only>"${metadataSuffix(fields, extra)}`;
 }
 
 /** Keep values for the configured keys. When extra is set, also keep other relevant keys. */
