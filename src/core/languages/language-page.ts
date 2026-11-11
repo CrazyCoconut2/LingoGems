@@ -14,7 +14,7 @@ import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { DiscoverModal } from './discover-modal';
 import { readSelectedLanguage, writeSelectedLanguage } from './selected-language';
-import { rememberTranslationInto, translationInto } from './translation-language';
+import { translationInto } from './translation-language';
 import { Settings } from '../settings/settings';
 import { generateElementFromSelection } from 'ai';
 import {
@@ -141,27 +141,11 @@ const MOVE_SLOP_PX = 10;
           />
           @if (query().trim()) {
             <div class="search-actions">
-              <label class="translate-switch">
-                Translation
-                <select
-                  aria-label="Translation language"
-                  [value]="translationTarget()"
-                  [disabled]="asking()"
-                  (change)="setTranslationInto($event)"
-                >
-                  <option value="" [selected]="!translationTarget()">No translation</option>
-                  @for (code of translationLanguages(); track code) {
-                    <option [value]="code" [selected]="code === translationTarget()">
-                      {{ languageName(code) }}
-                    </option>
-                  }
-                </select>
-              </label>
               <button
                 type="button"
                 class="search-add"
-                aria-label="Ask AI"
-                title="Ask AI"
+                [attr.aria-label]="askLabel()"
+                [attr.title]="askLabel()"
                 [disabled]="asking() || playing()"
                 [attr.aria-busy]="asking() ? true : null"
                 (click)="askFromSearch()"
@@ -1509,28 +1493,6 @@ const MOVE_SLOP_PX = 10;
       align-items: center;
       gap: 0.15rem;
       flex-shrink: 0;
-    }
-
-    .translate-switch {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      margin-right: 0.25rem;
-      color: var(--text);
-      font-size: 0.78rem;
-      font-weight: 650;
-      white-space: nowrap;
-    }
-
-    .translate-switch select {
-      max-width: 9rem;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      font-size: 0.78rem;
-      padding: 0.15rem 0.4rem;
     }
 
     .search-add {
@@ -3268,14 +3230,10 @@ export class LanguagePage {
     return languageDisplayName(code);
   }
 
-  translationLanguages(): string[] {
-    const learning = this.code().trim().toLowerCase();
-    return this.languageOptions.filter((code) => code !== learning);
-  }
-
-  setTranslationInto(event: Event): void {
-    const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
-    rememberTranslationInto(value);
+  askLabel(): string {
+    const into = this.translationTarget();
+    if (!into) return 'Ask AI';
+    return `Ask AI with a ${this.languageName(into)} translation`;
   }
 
   private translationTarget(): string {
