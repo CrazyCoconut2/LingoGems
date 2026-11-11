@@ -598,7 +598,12 @@ function writeExampleSuggestions(
                   @if (translationGame()) {
                     <span>{{ text }}</span>
                   } @else {
-                    <app-reveal [text]="text" [locked]="headerTranslationsLocked()" />
+                    <app-reveal
+                      [text]="text"
+                      [locked]="headerTranslationsLocked()"
+                      [open]="equivalentUnveiled(text)"
+                      (unveiled)="unveilEquivalent(text)"
+                    />
                   }
                 }
               </p>
@@ -849,7 +854,12 @@ function writeExampleSuggestions(
                                   <path d="m22 22-5-10-5 10" />
                                   <path d="M14 18h6" />
                                 </svg>
-                                <app-reveal [text]="equivalent" [locked]="inPlay()" />
+                                <app-reveal
+                                  [text]="equivalent"
+                                  [locked]="inPlay()"
+                                  [open]="equivalentUnveiled(equivalent)"
+                                  (unveiled)="unveilEquivalent(equivalent)"
+                                />
                               }
                             </li>
                           }
@@ -1588,23 +1598,8 @@ function writeExampleSuggestions(
               <div class="meta">
                 <div class="section-heading">
                   <h3>Metadata</h3>
-                  @if (!metaEdit()) {
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Add metadata"
-                      title="Add metadata"
-                      [disabled]="busy()"
-                      (click)="openMetadata(null)"
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <path d="M5 12h14" />
-                        <path d="M12 5v14" />
-                      </svg>
-                    </button>
-                  }
                 </div>
-                @if (metaEdit(); as editing) {
+                @if (metaEdit()) {
                   <div class="meta-edit">
                     <input
                       #metaKeyField
@@ -1627,7 +1622,7 @@ function writeExampleSuggestions(
                       type="button"
                       class="icon-btn"
                       [disabled]="busy() || !metaKey().trim() || !metaValue().trim()"
-                      [attr.aria-label]="editing.previousKey ? 'Save metadata' : 'Add metadata'"
+                      aria-label="Save metadata"
                       (click)="saveMetadata()"
                     >
                       <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
@@ -1645,37 +1640,57 @@ function writeExampleSuggestions(
                     </button>
                   </div>
                 }
-                @if (entries(sheetMetadata()); as meta) {
-                  @if (meta.length) {
-                    <ul class="pills">
-                      @for (entry of meta; track entry.key) {
-                        @if (metaEdit()?.previousKey !== entry.key) {
-                          @let color = sheetMetaColor(current.kind, entry.key);
-                          <li [class.colored]="color" [style.--meta-color]="color">
-                            <button
-                              type="button"
-                              [disabled]="busy()"
-                              [attr.aria-label]="'Edit metadata ' + entry.key"
-                              (click)="openMetadata(entry.key)"
-                            >
-                              <span class="sense-meta-key">{{ entry.key }}</span>
-                              <span class="sense-meta-value">{{ entry.value }}</span>
-                            </button>
-                            <button
-                              type="button"
-                              class="tag-remove"
-                              [disabled]="busy()"
-                              [attr.aria-label]="'Remove metadata ' + entry.key"
-                              (click)="removeMetadata(entry.key)"
-                            >
-                              ×
-                            </button>
-                          </li>
-                        }
-                      }
-                    </ul>
+                <ul class="pills">
+                  @for (entry of entries(sheetMetadata()); track entry.key) {
+                    @if (metaEdit()?.previousKey !== entry.key) {
+                      @let color = sheetMetaColor(current.kind, entry.key);
+                      <li [class.colored]="color" [style.--meta-color]="color">
+                        <button
+                          type="button"
+                          [disabled]="busy()"
+                          [attr.aria-label]="'Edit metadata ' + entry.key"
+                          (click)="openMetadata(entry.key)"
+                        >
+                          <span class="sense-meta-key">{{ entry.key }}</span>
+                          <span class="sense-meta-value">{{ entry.value }}</span>
+                        </button>
+                        <button
+                          type="button"
+                          class="tag-remove"
+                          [disabled]="busy()"
+                          [attr.aria-label]="'Remove metadata ' + entry.key"
+                          (click)="removeMetadata(entry.key)"
+                        >
+                          ×
+                        </button>
+                      </li>
+                    }
                   }
-                }
+                  @if (!metaEdit()) {
+                    <li class="meta-entry">
+                      <input
+                        [value]="metaKey()"
+                        [attr.maxlength]="metaKeyMaxLength"
+                        [style.width]="metaEntryWidth(metaKey(), 'Key')"
+                        placeholder="Key"
+                        aria-label="Metadata key"
+                        autocomplete="off"
+                        (input)="metaKey.set(inputValue($event))"
+                        (keydown.enter)="commitNewMetadata()"
+                      />
+                      <input
+                        [value]="metaValue()"
+                        [attr.maxlength]="metaValueMaxLength"
+                        [style.width]="metaEntryWidth(metaValue(), 'Value')"
+                        placeholder="Value"
+                        aria-label="Metadata value"
+                        autocomplete="off"
+                        (input)="metaValue.set(inputValue($event))"
+                        (keydown.enter)="commitNewMetadata()"
+                      />
+                    </li>
+                  }
+                </ul>
               </div>
               <div class="sheet-actions">
                 <button
@@ -2049,23 +2064,8 @@ function writeExampleSuggestions(
               <div class="meta">
                 <div class="section-heading">
                   <h3>Metadata</h3>
-                  @if (!formFeatureEdit()) {
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Add metadata"
-                      title="Add metadata"
-                      [disabled]="busy()"
-                      (click)="openFormFeature(null)"
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <path d="M5 12h14" />
-                        <path d="M12 5v14" />
-                      </svg>
-                    </button>
-                  }
                 </div>
-                @if (formFeatureEdit(); as feature) {
+                @if (formFeatureEdit()) {
                   <div class="meta-edit">
                     <input
                       #formFeatureField
@@ -2088,7 +2088,7 @@ function writeExampleSuggestions(
                       type="button"
                       class="icon-btn"
                       [disabled]="busy() || !formFeatureKey().trim() || !formFeatureValue().trim()"
-                      [attr.aria-label]="feature.previousKey ? 'Save metadata' : 'Add metadata'"
+                      aria-label="Save metadata"
                       (click)="saveFormFeature()"
                     >
                       <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
@@ -2106,37 +2106,57 @@ function writeExampleSuggestions(
                     </button>
                   </div>
                 }
-                @if (entries(formFeatures()); as features) {
-                  @if (features.length) {
-                    <ul class="pills">
-                      @for (entry of features; track entry.key) {
-                        @if (formFeatureEdit()?.previousKey !== entry.key) {
-                          @let color = metaColor('forms', entry.key);
-                          <li [class.colored]="color" [style.--meta-color]="color">
-                            <button
-                              type="button"
-                              [disabled]="busy()"
-                              [attr.aria-label]="'Edit metadata ' + entry.key"
-                              (click)="openFormFeature(entry.key)"
-                            >
-                              <span class="sense-meta-key">{{ entry.key }}</span>
-                              <span class="sense-meta-value">{{ entry.value }}</span>
-                            </button>
-                            <button
-                              type="button"
-                              class="tag-remove"
-                              [disabled]="busy()"
-                              [attr.aria-label]="'Remove metadata ' + entry.key"
-                              (click)="removeFormFeature(entry.key)"
-                            >
-                              ×
-                            </button>
-                          </li>
-                        }
-                      }
-                    </ul>
+                <ul class="pills">
+                  @for (entry of entries(formFeatures()); track entry.key) {
+                    @if (formFeatureEdit()?.previousKey !== entry.key) {
+                      @let color = metaColor('forms', entry.key);
+                      <li [class.colored]="color" [style.--meta-color]="color">
+                        <button
+                          type="button"
+                          [disabled]="busy()"
+                          [attr.aria-label]="'Edit metadata ' + entry.key"
+                          (click)="openFormFeature(entry.key)"
+                        >
+                          <span class="sense-meta-key">{{ entry.key }}</span>
+                          <span class="sense-meta-value">{{ entry.value }}</span>
+                        </button>
+                        <button
+                          type="button"
+                          class="tag-remove"
+                          [disabled]="busy()"
+                          [attr.aria-label]="'Remove metadata ' + entry.key"
+                          (click)="removeFormFeature(entry.key)"
+                        >
+                          ×
+                        </button>
+                      </li>
+                    }
                   }
-                }
+                  @if (!formFeatureEdit()) {
+                    <li class="meta-entry">
+                      <input
+                        [value]="formFeatureKey()"
+                        [attr.maxlength]="metaKeyMaxLength"
+                        [style.width]="metaEntryWidth(formFeatureKey(), 'Key')"
+                        placeholder="Key"
+                        aria-label="Metadata key"
+                        autocomplete="off"
+                        (input)="formFeatureKey.set(inputValue($event))"
+                        (keydown.enter)="commitNewFormFeature()"
+                      />
+                      <input
+                        [value]="formFeatureValue()"
+                        [attr.maxlength]="metaValueMaxLength"
+                        [style.width]="metaEntryWidth(formFeatureValue(), 'Value')"
+                        placeholder="Value"
+                        aria-label="Metadata value"
+                        autocomplete="off"
+                        (input)="formFeatureValue.set(inputValue($event))"
+                        (keydown.enter)="commitNewFormFeature()"
+                      />
+                    </li>
+                  }
+                </ul>
               </div>
               <div class="sheet-actions">
                 <button
@@ -4848,6 +4868,35 @@ function writeExampleSuggestions(
       gap: 0.4rem;
     }
 
+    .pills li.meta-entry {
+      flex: none;
+      max-width: 100%;
+      gap: 0.15rem;
+      padding: 0 0.2rem;
+      border: 1px dashed var(--border);
+      background: transparent;
+    }
+
+    .pills li.meta-entry:focus-within {
+      border-style: solid;
+      border-color: rgba(var(--accent-rgb), 0.55);
+    }
+
+    .pills li.meta-entry input {
+      width: auto;
+      max-width: 14rem;
+      padding: 0.28rem 0.35rem;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      font-size: 0.8125rem;
+      line-height: 1.2;
+    }
+
+    .pills li.meta-entry input:focus {
+      outline: none;
+    }
+
     .sheet-backdrop {
       position: absolute;
       inset: 0;
@@ -5673,6 +5722,7 @@ export class ElementModal {
   readonly missingTranslationOpen = signal(false);
   readonly definitionExampleTranslationOpen = signal(false);
   readonly expandedForms = signal<ReadonlySet<number>>(new Set());
+  readonly unveiledEquivalents = signal<ReadonlySet<string>>(new Set());
   readonly addingDefinitions = signal<'missing' | 'example' | null>(null);
   readonly definitionExample = signal('');
   readonly askingForms = signal<number | null>(null);
@@ -5757,6 +5807,7 @@ export class ElementModal {
       this.examplePrompt.set(-1);
       this.closeDefinitionPrompts();
       this.expandedForms.set(new Set());
+      this.unveiledEquivalents.set(new Set());
       this.modeOpen.set(false);
       this.helpOpen.set(false);
       this.exerciseLog.set(-1);
@@ -6127,6 +6178,21 @@ export class ElementModal {
     const id = definition.equivalentId;
     if (!id) return '';
     return this.element().equivalents.find((item) => item.id === id)?.text ?? '';
+  }
+
+  equivalentUnveiled(text: string): boolean {
+    return this.unveiledEquivalents().has(text);
+  }
+
+  unveilEquivalent(text: string): void {
+    const value = text.trim();
+    if (!value) return;
+    this.unveiledEquivalents.update((current) => {
+      if (current.has(value)) return current;
+      const next = new Set(current);
+      next.add(value);
+      return next;
+    });
   }
 
   entries(metadata: ElementMetadata): Array<{ key: string; value: string }> {
@@ -6692,6 +6758,8 @@ export class ElementModal {
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
+    this.metaKey.set('');
+    this.metaValue.set('');
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.closeDefinitionPrompts();
@@ -6718,6 +6786,8 @@ export class ElementModal {
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
+    this.metaKey.set('');
+    this.metaValue.set('');
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.closeDefinitionPrompts();
@@ -7089,6 +7159,8 @@ export class ElementModal {
     this.metaEdit.set(null);
     this.formError.set('');
     this.formFeatureEdit.set(null);
+    this.formFeatureKey.set('');
+    this.formFeatureValue.set('');
     this.formFeatures.set(form ? { ...form.metadata } : {});
     this.formDraft.set(form?.text ?? '');
     this.formEdit.set({ definitionIndex, originalText: form?.text ?? null });
@@ -7116,14 +7188,28 @@ export class ElementModal {
 
   cancelFormFeature(): void {
     this.formFeatureEdit.set(null);
+    this.formFeatureKey.set('');
+    this.formFeatureValue.set('');
   }
 
   private formFeaturesToStore(): ElementMetadata {
     const editing = this.formFeatureEdit();
     const key = this.formFeatureKey().trim().slice(0, META_KEY_MAX_LENGTH);
     const value = this.formFeatureValue().trim().slice(0, META_VALUE_MAX_LENGTH);
-    if (!editing || !key || !value) return { ...this.formFeatures() };
-    return writeMetadata(this.formFeatures(), editing.previousKey, key, value);
+    if (key && value) {
+      return writeMetadata(this.formFeatures(), editing?.previousKey ?? null, key, value);
+    }
+    return { ...this.formFeatures() };
+  }
+
+  commitNewFormFeature(): void {
+    if (this.formFeatureEdit() || this.busy()) return;
+    const key = this.formFeatureKey().trim().slice(0, META_KEY_MAX_LENGTH);
+    const value = this.formFeatureValue().trim().slice(0, META_VALUE_MAX_LENGTH);
+    if (!key || !value) return;
+    this.formFeatures.set(writeMetadata(this.formFeatures(), null, key, value));
+    this.formFeatureKey.set('');
+    this.formFeatureValue.set('');
   }
 
   saveFormFeature(): void {
@@ -7158,6 +7244,8 @@ export class ElementModal {
 
   cancelMetadata(): void {
     this.metaEdit.set(null);
+    this.metaKey.set('');
+    this.metaValue.set('');
   }
 
   highlightPassage(text: string): DefinitionHighlightPart[] {
@@ -7481,8 +7569,23 @@ export class ElementModal {
     const editing = this.metaEdit();
     const key = this.metaKey().trim().slice(0, META_KEY_MAX_LENGTH);
     const value = this.metaValue().trim().slice(0, META_VALUE_MAX_LENGTH);
-    if (!editing || !key || !value) return { ...this.sheetMetadata() };
-    return writeMetadata(this.sheetMetadata(), editing.previousKey, key, value);
+    if (key && value) return writeMetadata(this.sheetMetadata(), editing?.previousKey ?? null, key, value);
+    return { ...this.sheetMetadata() };
+  }
+
+  metaEntryWidth(value: string, placeholder: string): string {
+    const length = Math.max((value || placeholder).length, 1);
+    return `calc(${length}ch + 0.9rem)`;
+  }
+
+  commitNewMetadata(): void {
+    if (this.metaEdit() || this.busy()) return;
+    const key = this.metaKey().trim().slice(0, META_KEY_MAX_LENGTH);
+    const value = this.metaValue().trim().slice(0, META_VALUE_MAX_LENGTH);
+    if (!key || !value) return;
+    this.sheetMetadata.set(writeMetadata(this.sheetMetadata(), null, key, value));
+    this.metaKey.set('');
+    this.metaValue.set('');
   }
 
   saveMetadata(): void {
