@@ -100,6 +100,7 @@ type PassageSelection = {
 
 type PreparedElement = {
   title: string;
+  language: string;
   definitions: ElementDefinition[];
   example: string;
 };
@@ -886,19 +887,6 @@ function writeExampleSuggestions(
                           </svg>
                           Add
                         </button>
-                        <select
-                          class="lookup-chip"
-                          aria-label="Translation language"
-                          [value]="translationTarget()"
-                          [disabled]="aiBusy()"
-                          (pointerdown)="$event.stopPropagation()"
-                          (change)="setTranslationInto($event)"
-                        >
-                          <option value="" [selected]="!translationTarget()">Translation</option>
-                          @for (code of translationLanguages(); track code) {
-                            <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
-                          }
-                        </select>
                         <button
                           type="button"
                           class="lookup-chip"
@@ -1175,19 +1163,6 @@ function writeExampleSuggestions(
                                     </svg>
                                     Add
                                   </button>
-                                  <select
-                                    class="lookup-chip"
-                                    aria-label="Translation language"
-                                    [value]="translationTarget()"
-                                    [disabled]="aiBusy() || exampleGame()"
-                                    (pointerdown)="$event.stopPropagation()"
-                                    (change)="setTranslationInto($event)"
-                                  >
-                                    <option value="" [selected]="!translationTarget()">Translation</option>
-                                    @for (code of translationLanguages(); track code) {
-                                      <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
-                                    }
-                                  </select>
                                   <button
                                     type="button"
                                     class="lookup-chip"
@@ -4399,8 +4374,7 @@ function writeExampleSuggestions(
     }
 
     .translate-switch select,
-    .translate-language,
-    select.lookup-chip {
+    .translate-language {
       max-width: 10rem;
       border: 1px solid var(--border);
       border-radius: 999px;
@@ -4410,11 +4384,6 @@ function writeExampleSuggestions(
       font-size: 0.78rem;
       font-weight: 650;
       padding: 0.15rem 0.45rem;
-    }
-
-    select.lookup-chip {
-      height: 1.7rem;
-      cursor: pointer;
     }
 
     .body {
@@ -5647,7 +5616,7 @@ export class ElementModal {
   readonly deleted = output<void>();
   readonly visit = output<string>();
   readonly back = output<void>();
-  readonly addSelection = output<string>();
+  readonly addSelection = output<{ title: string; language: string }>();
   readonly addPrepared = output<PreparedElement>();
 
   readonly gemScores = Array.from({ length: TRANSLATION_GEM_MAX + 1 }, (_, gems) => gems);
@@ -7330,7 +7299,7 @@ export class ElementModal {
     window.getSelection()?.removeAllRanges();
     if (!ai) {
       this.passageSelection.set(null);
-      this.addSelection.emit(title);
+      this.addSelection.emit({ title, language: this.element().language });
       return;
     }
     void this.askSelectionElement(title, this.passageSelection());
@@ -7360,6 +7329,7 @@ export class ElementModal {
       this.passageSelection.set(null);
       this.addPrepared.emit({
         title: generated.lemma,
+        language: element.language,
         example,
         definitions: generated.definitions.map((sense, index) => ({
           text: sense.text,

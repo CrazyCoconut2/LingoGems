@@ -2820,12 +2820,12 @@ export class LanguagePage {
     this.showElement(next[next.length - 1] ?? '');
   }
 
-  async addFromSelection(title: string): Promise<void> {
-    const name = title.replace(/\s+/g, ' ').trim();
-    const code = this.code();
+  async addFromSelection(pick: { title: string; language: string }): Promise<void> {
+    const name = pick.title.replace(/\s+/g, ' ').trim();
+    const code = pick.language.trim().toLowerCase();
     if (!name || !code) return;
     const created = await addElement(code, name);
-    this.elements.set(await readElements(code));
+    if (code === this.code()) this.elements.set(await readElements(code));
     if (created.id === this.elementId()) return;
     this.visitElement(created.id);
   }
@@ -2833,13 +2833,14 @@ export class LanguagePage {
   async addPrepared(
     prepared: {
       title: string;
+      language?: string;
       definitions: ElementDefinition[];
       example?: string;
     },
     fromSearch = false,
   ): Promise<void> {
     const name = prepared.title.replace(/\s+/g, ' ').trim();
-    const code = this.code();
+    const code = (prepared.language || this.code()).trim().toLowerCase();
     if (!name || !code) return;
     const example = prepared.example?.replace(/\s+/g, ' ').trim() ?? '';
     let created = await addElement(code, name);
@@ -2856,7 +2857,7 @@ export class LanguagePage {
       );
       created = await saveElement({ ...created, definitions });
     }
-    this.elements.set(await readElements(code));
+    if (this.code() === code) this.elements.set(await readElements(code));
     if (this.code() === code) {
       this.metadataCatalog.update((current) => mergeMetadataIndexes(current, created));
     }

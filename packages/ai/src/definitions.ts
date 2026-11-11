@@ -76,7 +76,9 @@ export function elementFromSelectionSystemPrompt(
     'Do not use English for a gloss unless writeFieldsIn is English.',
     metadataIntro(fields, extra),
     'Rules:',
-    "- lemma is the citation form of the selection, the root headword, in the selection's language. When the selection is already that form, lemma is the selection. Do not choose a different word",
+    '- selected is written in writeFieldsIn. When it is copied from a definition or an example, that text is in the language of the definition or example, which is writeFieldsIn. It is not written in translateFieldsIn',
+    '- context, when present, is that definition or example, also written in writeFieldsIn',
+    '- lemma is the citation form of selected in writeFieldsIn. When selected is already that form, lemma is selected. Do not translate selected into another language and do not choose a different word',
     '- One sense per distinct meaning of that lemma',
     `- Return at most ${MAX_SENSES} senses`,
     '- One short dictionary-style gloss per sense',
@@ -344,9 +346,10 @@ export function buildElementFromSelectionUserMessage(
   return JSON.stringify({
     language,
     writeFieldsIn,
+    selectedIn: writeFieldsIn,
     ...(translateFieldsIn ? { translateFieldsIn } : {}),
     selected: input.selected.trim(),
-    ...(context ? { context } : {}),
+    ...(context ? { context, contextIn: writeFieldsIn } : {}),
   });
 }
 
