@@ -219,13 +219,21 @@ export async function saveElement(
   if (!id) throw new Error('Id is required');
   const createdAtValue = element?.createdAt;
   const content = normalizeContent(element?.equivalents, element?.definitions);
-  const indexes = collectMetadataIndexes(content.definitions);
+  const definitions = content.definitions.map((definition) => ({
+    ...definition,
+    text: capitalizePassage(definition.text),
+    examples: definition.examples.map((example) => ({
+      ...example,
+      text: capitalizePassage(example.text),
+    })),
+  }));
+  const indexes = collectMetadataIndexes(definitions);
   const saved: StoredElement = {
     id,
     language,
     title,
     equivalents: content.equivalents,
-    definitions: content.definitions,
+    definitions,
     mode: storedMode(element?.mode, content.definitions),
     comfort: normalizeComfort(element?.comfort),
     clicks: normalizeClicks(element?.clicks),
@@ -417,9 +425,19 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
 
 const TRANSLATION_MARKER = /\[([^\[\]:\n]+):\s*([^\]]*)]/g;
 
-/** First letter of a translation phrase, leaving the rest of the wording alone. */
+/** First letter of a phrase, leaving the rest of the wording alone. */
 function capitalizePhrase(value: string): string {
   return value.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase('en'));
+}
+
+/** Capitalize the gloss or example. Translation markers stay attached and unchanged. */
+function capitalizePassage(value: string): string {
+  const parsed = parsePassage(value);
+  const text = capitalizePhrase(parsed.text);
+  return parsed.translations.reduce(
+    (raw, item) => embedTranslation(raw, item.language, item.text),
+    text,
+  );
 }
 
 export type PassageTranslation = {

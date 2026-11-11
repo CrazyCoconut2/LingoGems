@@ -595,10 +595,10 @@ function writeExampleSuggestions(
                   @if ($index > 0) {
                     <span class="sep" aria-hidden="true">·</span>
                   }
-                  @if (headerTranslationsLocked()) {
-                    <span class="locked-translation">{{ text }}</span>
-                  } @else {
+                  @if (translationGame()) {
                     <span>{{ text }}</span>
+                  } @else {
+                    <app-reveal [text]="text" [locked]="headerTranslationsLocked()" />
                   }
                 }
               </p>
@@ -849,11 +849,7 @@ function writeExampleSuggestions(
                                   <path d="m22 22-5-10-5 10" />
                                   <path d="M14 18h6" />
                                 </svg>
-                                @if (inPlay()) {
-                                  <app-reveal [text]="equivalent" [locked]="true" />
-                                } @else {
-                                  <span class="equivalent-text">{{ equivalent }}</span>
-                                }
+                                <app-reveal [text]="equivalent" [locked]="inPlay()" />
                               }
                             </li>
                           }
@@ -4049,12 +4045,6 @@ function writeExampleSuggestions(
       color: var(--text-muted);
     }
 
-    .locked-translation {
-      filter: blur(0.55em);
-      pointer-events: none;
-      user-select: none;
-    }
-
     .equivalent-choices {
       display: flex;
       flex-wrap: wrap;
@@ -4556,8 +4546,7 @@ function writeExampleSuggestions(
     }
 
     .sense-meta li.sense-equivalent app-reveal,
-    .sense-meta li.sense-equivalent .guess-answer,
-    .sense-meta li.sense-equivalent .equivalent-text {
+    .sense-meta li.sense-equivalent .guess-answer {
       color: var(--text);
     }
 
