@@ -57,6 +57,7 @@ import {
   gradeExample,
   polishDefinition,
   polishExample,
+  suggestMetadata,
   type PolishDefinitionTask,
   sentenceUsesForm,
   translateTexts,
@@ -133,6 +134,18 @@ function writeMetadata(
     next[currentKey] = currentValue;
   }
   if (!placed) next[key] = value;
+  return next;
+}
+
+function mergeMetadata(current: ElementMetadata, extra: ElementMetadata): ElementMetadata {
+  const taken = new Set(Object.keys(current).map((key) => key.toLowerCase()));
+  const next = { ...current };
+  for (const [key, value] of Object.entries(extra)) {
+    const id = key.toLowerCase();
+    if (!value || taken.has(id)) continue;
+    taken.add(id);
+    next[key] = value;
+  }
   return next;
 }
 
@@ -1580,7 +1593,7 @@ function writeExampleSuggestions(
                         </button>
                       </li>
                     }
-                    <li>
+                    <li class="entry-pill">
                       <input
                         id="definition-equivalent"
                         class="equivalent-entry"
@@ -1590,14 +1603,45 @@ function writeExampleSuggestions(
                         autocomplete="off"
                         placeholder="New equivalent"
                         aria-label="New equivalent"
+                        (keydown.enter)="confirmEquivalent()"
                       />
+                      <button
+                        type="button"
+                        class="entry-confirm"
+                        aria-label="Add equivalent"
+                        [disabled]="busy() || !equivalentDraft().trim()"
+                        (click)="confirmEquivalent()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      </button>
                     </li>
                   </ul>
                 </div>
               }
               <div class="meta">
-                <div class="section-heading">
-                  <h3>Metadata</h3>
+                <div class="field-heading">
+                  <span class="field-label">Metadata</span>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    [attr.aria-label]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
+                    [attr.title]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
+                    [attr.aria-busy]="askingMetadata() ? true : null"
+                    [disabled]="!canAskMetadata()"
+                    (click)="askMetadata()"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                      />
+                      <path d="M5 3v4" />
+                      <path d="M3 5h4" />
+                      <path d="M19 17v4" />
+                      <path d="M17 19h4" />
+                    </svg>
+                  </button>
                 </div>
                 @if (metaEdit()) {
                   <div class="meta-edit">
@@ -1688,6 +1732,17 @@ function writeExampleSuggestions(
                         (input)="metaValue.set(inputValue($event))"
                         (keydown.enter)="commitNewMetadata()"
                       />
+                      <button
+                        type="button"
+                        class="entry-confirm"
+                        aria-label="Add metadata"
+                        [disabled]="busy() || !metaKey().trim() || !metaValue().trim()"
+                        (click)="commitNewMetadata()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      </button>
                     </li>
                   }
                 </ul>
@@ -2062,8 +2117,27 @@ function writeExampleSuggestions(
                 <p class="error">{{ formError() }}</p>
               }
               <div class="meta">
-                <div class="section-heading">
-                  <h3>Metadata</h3>
+                <div class="field-heading">
+                  <span class="field-label">Metadata</span>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    [attr.aria-label]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
+                    [attr.title]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
+                    [attr.aria-busy]="askingMetadata() ? true : null"
+                    [disabled]="!canAskFormMetadata()"
+                    (click)="askFormMetadata()"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                      />
+                      <path d="M5 3v4" />
+                      <path d="M3 5h4" />
+                      <path d="M19 17v4" />
+                      <path d="M17 19h4" />
+                    </svg>
+                  </button>
                 </div>
                 @if (formFeatureEdit()) {
                   <div class="meta-edit">
@@ -2154,6 +2228,17 @@ function writeExampleSuggestions(
                         (input)="formFeatureValue.set(inputValue($event))"
                         (keydown.enter)="commitNewFormFeature()"
                       />
+                      <button
+                        type="button"
+                        class="entry-confirm"
+                        aria-label="Add metadata"
+                        [disabled]="busy() || !formFeatureKey().trim() || !formFeatureValue().trim()"
+                        (click)="commitNewFormFeature()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      </button>
                     </li>
                   }
                 </ul>
@@ -4132,15 +4217,26 @@ function writeExampleSuggestions(
       line-height: 1;
     }
 
-    .equivalent-choices li:has(.equivalent-entry) {
+    .equivalent-choices li.entry-pill {
+      display: inline-flex;
+      align-items: center;
       flex: none;
       max-width: 100%;
+      border: 1px dashed var(--border);
+      border-radius: 999px;
+      background: transparent;
+    }
+
+    .equivalent-choices li.entry-pill:focus-within {
+      border-style: solid;
+      border-color: rgba(var(--accent-rgb), 0.55);
     }
 
     .equivalent-choices .equivalent-entry {
+      width: auto;
       max-width: 100%;
-      padding: 0.28rem 0.7rem;
-      border-style: dashed;
+      padding: 0.28rem 0.15rem 0.28rem 0.7rem;
+      border: 0;
       border-radius: 999px;
       background: transparent;
       font-size: 0.8125rem;
@@ -4148,9 +4244,45 @@ function writeExampleSuggestions(
     }
 
     .equivalent-choices .equivalent-entry:focus {
-      border-style: solid;
-      border-color: rgba(var(--accent-rgb), 0.55);
       outline: none;
+    }
+
+    .entry-confirm {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 1.35rem;
+      height: 1.35rem;
+      margin-right: 0.15rem;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--accent-text);
+      cursor: pointer;
+    }
+
+    .equivalent-choices button.entry-confirm,
+    .pills button.entry-confirm {
+      border: 0;
+      background: transparent;
+      padding: 0;
+    }
+
+    .entry-confirm svg {
+      width: 0.85rem;
+      height: 0.85rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .entry-confirm:disabled {
+      color: var(--text-muted);
+      opacity: 0.4;
+      cursor: not-allowed;
     }
 
     .equivalent-block {
@@ -5696,6 +5828,7 @@ export class ElementModal {
   readonly sheetTranslationOpen = signal(false);
   readonly translating = signal(false);
   readonly askingEquivalent = signal(false);
+  readonly askingMetadata = signal(false);
   readonly sheetError = signal('');
   readonly formEdit = signal<FormEdit | null>(null);
   readonly formDraft = signal('');
@@ -5817,6 +5950,7 @@ export class ElementModal {
       this.addingDefinitions.set(null);
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
+      this.askingMetadata.set(false);
       this.askingGrade.set(null);
       this.askingEquivalentGrade.set(null);
       this.askingPolish.set(null);
@@ -6058,6 +6192,21 @@ export class ElementModal {
     return this.equivalentIdDraft() === id;
   }
 
+  async confirmEquivalent(): Promise<void> {
+    const typed = this.equivalentDraft().trim();
+    if (!typed || this.busy() || this.askingEquivalent()) return;
+    const linked = assignEquivalent(this.element().equivalents, typed);
+    const known = this.element().equivalents.some((item) => item.id === linked.equivalentId);
+    this.equivalentIdDraft.set(linked.equivalentId);
+    this.equivalentDraft.set('');
+    if (known) return;
+    const saved = await this.persist(this.copyDefinitions(), linked.equivalents);
+    if (!saved) {
+      this.equivalentDraft.set(typed);
+      this.equivalentIdDraft.set(null);
+    }
+  }
+
   chooseEquivalent(id: string): void {
     const selected = this.equivalentSelected(id);
     this.equivalentDraft.set('');
@@ -6171,6 +6320,75 @@ export class ElementModal {
       this.sheetError.set('Could not find an equivalent.');
     } finally {
       if (ticket === this.equivalentTicket) this.askingEquivalent.set(false);
+    }
+  }
+
+  canAskMetadata(): boolean {
+    const editor = this.editor();
+    return (
+      !!editor &&
+      this.draftGloss().length > 0 &&
+      !this.askingMetadata() &&
+      !this.aiBusy() &&
+      !this.translating() &&
+      !this.askingEquivalent()
+    );
+  }
+
+  async askMetadata(): Promise<void> {
+    const editor = this.editor();
+    if (!editor || !this.canAskMetadata()) return;
+    const existing = this.metadataToStore();
+    this.askingMetadata.set(true);
+    this.sheetError.set('');
+    try {
+      const suggested = await suggestMetadata({
+        kind: editor.kind,
+        lemma: this.element().title,
+        language: this.element().language,
+        text: this.draftGloss(),
+        existing,
+      });
+      if (!this.alive || this.editor() !== editor) return;
+      this.sheetMetadata.set(mergeMetadata(this.sheetMetadata(), suggested));
+    } catch {
+      if (!this.alive) return;
+      this.sheetError.set('Could not add metadata.');
+    } finally {
+      this.askingMetadata.set(false);
+    }
+  }
+
+  canAskFormMetadata(): boolean {
+    return (
+      !!this.formEdit() &&
+      this.formDraft().trim().length > 0 &&
+      !this.askingMetadata() &&
+      !this.aiBusy()
+    );
+  }
+
+  async askFormMetadata(): Promise<void> {
+    const editing = this.formEdit();
+    const text = this.formDraft().trim();
+    if (!editing || !this.canAskFormMetadata()) return;
+    this.askingMetadata.set(true);
+    this.formError.set('');
+    try {
+      const suggested = await suggestMetadata({
+        kind: 'form',
+        lemma: this.element().title,
+        language: this.element().language,
+        text,
+        existing: this.formFeaturesToStore(),
+      });
+      if (!this.alive || this.formEdit() !== editing) return;
+      this.formFeatures.set(mergeMetadata(this.formFeatures(), suggested));
+    } catch {
+      if (!this.alive) return;
+      this.formError.set('Could not add metadata.');
+    } finally {
+      this.askingMetadata.set(false);
     }
   }
 
@@ -7935,6 +8153,7 @@ export class ElementModal {
     this.translateTicket += 1;
     this.equivalentTicket += 1;
     this.askingEquivalent.set(false);
+    this.askingMetadata.set(false);
     this.textDraft.set(passageForEditing(text));
     this.sheetTranslationOpen.set(false);
     this.sheetError.set('');
