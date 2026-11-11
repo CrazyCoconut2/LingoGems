@@ -1438,67 +1438,85 @@ function writeExampleSuggestions(
                   {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
                 </label>
                 <span class="header-actions">
-                  <span class="translate-pair">
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
-                      [attr.title]="translating() ? 'Translating…' : 'Translate'"
-                      [attr.aria-busy]="translating() ? true : null"
-                      [disabled]="!canTranslate()"
-                      (click)="translateDraft()"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m5 8 6 6" />
-                        <path d="m4 14 6-6 2-3" />
-                        <path d="M2 5h12" />
-                        <path d="M7 2h1" />
-                        <path d="m22 22-5-10-5 10" />
-                        <path d="M14 18h6" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      [class.open]="sheetTranslationOpen()"
-                      [attr.aria-expanded]="sheetTranslationOpen()"
-                      [attr.aria-label]="'Translation language'"
-                      [attr.title]="translationTarget() ? languageName(translationTarget()) : 'Translation language'"
-                      [disabled]="translating() || askingEquivalent() || busy()"
-                      (click)="toggleSheetTranslation()"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </button>
-                    @if (sheetTranslationOpen()) {
-                      <ul class="translation-menu down" role="listbox" aria-label="Translation language">
-                        <li>
-                          <button
-                            type="button"
-                            role="option"
-                            [class.selected]="!translationTarget()"
-                            [attr.aria-selected]="!translationTarget()"
-                            (click)="chooseSheetTranslation('')"
-                          >
-                            No translation
-                          </button>
-                        </li>
-                        @for (code of translationLanguages(); track code) {
+                  <span class="generate-bundle translate-split">
+                    <div class="generate-split">
+                      <button
+                        type="button"
+                        class="generate-main"
+                        [attr.aria-label]="
+                          translating()
+                            ? 'Translating…'
+                            : translationTarget()
+                              ? 'Translate into ' + languageName(translationTarget())
+                              : 'Translate'
+                        "
+                        [attr.title]="
+                          translating()
+                            ? 'Translating…'
+                            : translationTarget()
+                              ? 'Translate into ' + languageName(translationTarget())
+                              : 'Translate'
+                        "
+                        [attr.aria-busy]="translating() ? true : null"
+                        [disabled]="!canTranslate()"
+                        (click)="translateDraft()"
+                      >
+                        <span class="generate-translation">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
+                          @if (translationTarget(); as code) {
+                            {{ languageName(code) }}
+                          }
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        class="generate-chevron"
+                        [class.open]="sheetTranslationOpen()"
+                        [attr.aria-expanded]="sheetTranslationOpen()"
+                        aria-label="Translation language"
+                        [disabled]="translating() || askingEquivalent() || busy()"
+                        (click)="toggleSheetTranslation()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </button>
+                      @if (sheetTranslationOpen()) {
+                        <ul class="translation-menu down" role="listbox" aria-label="Translation language">
                           <li>
                             <button
                               type="button"
                               role="option"
-                              [class.selected]="code === translationTarget()"
-                              [attr.aria-selected]="code === translationTarget()"
-                              (click)="chooseSheetTranslation(code)"
+                              [class.selected]="!translationTarget()"
+                              [attr.aria-selected]="!translationTarget()"
+                              (click)="chooseSheetTranslation('')"
                             >
-                              {{ languageName(code) }}
+                              No translation
                             </button>
                           </li>
-                        }
-                      </ul>
-                    }
+                          @for (code of translationLanguages(); track code) {
+                            <li>
+                              <button
+                                type="button"
+                                role="option"
+                                [class.selected]="code === translationTarget()"
+                                [attr.aria-selected]="code === translationTarget()"
+                                (click)="chooseSheetTranslation(code)"
+                              >
+                                {{ languageName(code) }}
+                              </button>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </div>
                   </span>
                   @if (current.kind === 'definition' && current.index != null) {
                     <button
@@ -1539,17 +1557,10 @@ function writeExampleSuggestions(
               @if (current.kind === 'definition') {
                 <div class="equivalent-block" [class.missing]="equivalentMissing()">
                   <div class="field-heading">
-                    @if (element().equivalents.length) {
-                      <p class="field-label game-label">
-                        <app-mode-icon [mode]="1" />
-                        Equivalent
-                      </p>
-                    } @else {
-                      <label class="game-label" for="definition-equivalent">
-                        <app-mode-icon [mode]="1" />
-                        Equivalent
-                      </label>
-                    }
+                    <label class="game-label" for="definition-equivalent">
+                      <app-mode-icon [mode]="1" />
+                      Equivalent
+                    </label>
                     @if (supportAvailable()) {
                       <button
                         type="button"
@@ -1576,32 +1587,42 @@ function writeExampleSuggestions(
                       </button>
                     }
                   </div>
-                  @if (element().equivalents.length) {
-                    <ul class="equivalent-choices">
-                      @for (item of element().equivalents; track item.id) {
-                        <li>
-                          <button
-                            type="button"
-                            [class.selected]="equivalentSelected(item.id)"
-                            [attr.aria-pressed]="equivalentSelected(item.id)"
-                            [disabled]="busy()"
-                            [attr.aria-label]="item.text"
-                            (click)="chooseEquivalent(item.id)"
-                          >
-                            {{ item.text }}
-                          </button>
-                        </li>
-                      }
-                    </ul>
-                    <label for="definition-equivalent">New equivalent</label>
-                  }
-                  <input
-                    id="definition-equivalent"
-                    [value]="equivalentDraft()"
-                    (input)="equivalentDraft.set(inputValue($event))"
-                    autocomplete="off"
-                    placeholder="Type a new equivalent"
-                  />
+                  <ul class="equivalent-choices equivalent-pills">
+                    @for (item of element().equivalents; track item.id) {
+                      <li [class.selected]="equivalentSelected(item.id)">
+                        <button
+                          type="button"
+                          [attr.aria-pressed]="equivalentSelected(item.id)"
+                          [disabled]="busy()"
+                          [attr.aria-label]="item.text"
+                          (click)="chooseEquivalent(item.id)"
+                        >
+                          {{ item.text }}
+                        </button>
+                        <button
+                          type="button"
+                          class="tag-remove"
+                          [disabled]="busy()"
+                          [attr.aria-label]="'Remove equivalent ' + item.text"
+                          (click)="removeEquivalent(item.id)"
+                        >
+                          ×
+                        </button>
+                      </li>
+                    }
+                    <li>
+                      <input
+                        id="definition-equivalent"
+                        class="equivalent-entry"
+                        [value]="equivalentDraft()"
+                        (input)="equivalentDraft.set(inputValue($event))"
+                        [style.width]="equivalentEntryWidth()"
+                        autocomplete="off"
+                        placeholder="New equivalent"
+                        aria-label="New equivalent"
+                      />
+                    </li>
+                  </ul>
                 </div>
               }
               <div class="meta">
@@ -4101,6 +4122,63 @@ function writeExampleSuggestions(
       cursor: not-allowed;
     }
 
+    .equivalent-pills > li:not(:has(.equivalent-entry)) {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 0.8125rem;
+    }
+
+    .equivalent-pills > li.selected {
+      color: var(--accent-text);
+      border-color: rgba(var(--accent-rgb), 0.45);
+      background: rgba(var(--accent-rgb), 0.12);
+    }
+
+    .equivalent-pills > li:not(:has(.equivalent-entry)) > button:first-child {
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      padding: 0.28rem 0.2rem 0.28rem 0.7rem;
+    }
+
+    .equivalent-pills > li:not(:has(.equivalent-entry)) > button.tag-remove {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      align-self: stretch;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      padding: 0.12rem 0.55rem 0 0;
+      line-height: 1;
+    }
+
+    .equivalent-choices li:has(.equivalent-entry) {
+      flex: none;
+      max-width: 100%;
+    }
+
+    .equivalent-choices .equivalent-entry {
+      max-width: 100%;
+      padding: 0.28rem 0.7rem;
+      border-style: dashed;
+      border-radius: 999px;
+      background: transparent;
+      font-size: 0.8125rem;
+      line-height: 1.2;
+    }
+
+    .equivalent-choices .equivalent-entry:focus {
+      border-style: solid;
+      border-color: rgba(var(--accent-rgb), 0.55);
+      outline: none;
+    }
+
     .equivalent-block {
       display: flex;
       flex-direction: column;
@@ -5247,14 +5325,41 @@ function writeExampleSuggestions(
       bottom: auto;
     }
 
-    .translate-pair {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
+    .field-heading .header-actions {
+      gap: 0.4rem;
     }
 
-    .translate-pair .icon-btn.open svg {
-      transform: rotate(180deg);
+    .translate-split .generate-split:has(:disabled) {
+      opacity: 1;
+    }
+
+    .translate-split .generate-split:has(.generate-chevron:disabled) {
+      opacity: 0.45;
+    }
+
+    .translate-split .generate-main {
+      flex-direction: row;
+      gap: 0.35rem;
+      padding: 0.22rem 0.65rem;
+      font-size: 0.78rem;
+    }
+
+    .translate-split .generate-main:disabled,
+    .translate-split .generate-main:disabled .generate-translation {
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .translate-split .generate-translation {
+      font-size: inherit;
+    }
+
+    .translate-split .generate-translation svg {
+      width: 0.95rem;
+      height: 0.95rem;
+    }
+
+    .translate-split .generate-chevron {
+      padding: 0 0.5rem;
     }
 
     .translation-menu {
@@ -5948,6 +6053,24 @@ export class ElementModal {
       .map((item) => item.text);
   }
 
+  async removeEquivalent(id: string): Promise<void> {
+    if (this.busy() || this.askingEquivalent()) return;
+    const current = this.element().equivalents.find((item) => item.id === id);
+    if (!current) return;
+    const equivalents = this.element().equivalents.filter((item) => item.id !== id);
+    const definitions = this.copyDefinitions().map((definition) =>
+      definition.equivalentId === id ? { ...definition, equivalentId: null } : definition,
+    );
+    if (this.equivalentIdDraft() === id) this.equivalentIdDraft.set(null);
+    if (this.equivalentDraft().trim() === current.text) this.equivalentDraft.set('');
+    await this.persist(definitions, equivalents);
+  }
+
+  equivalentEntryWidth(): string {
+    const length = Math.max((this.equivalentDraft() || 'New equivalent').length, 1);
+    return `calc(${length}ch + 1.5rem)`;
+  }
+
   equivalentSelected(id: string): boolean {
     const typed = this.equivalentDraft().trim();
     if (typed) {
@@ -6000,7 +6123,7 @@ export class ElementModal {
   onEditorSheetClick(event: MouseEvent): void {
     event.stopPropagation();
     const target = event.target instanceof Element ? event.target : null;
-    if (!target?.closest('.translate-pair')) this.sheetTranslationOpen.set(false);
+    if (!target?.closest('.translate-split')) this.sheetTranslationOpen.set(false);
   }
 
   toggleSheetTranslation(): void {
