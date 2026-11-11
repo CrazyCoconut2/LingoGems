@@ -736,21 +736,10 @@ function writeExampleSuggestions(
           @if (element().definitions.length) {
             <ol class="definitions">
               @for (definition of element().definitions; track $index; let index = $index) {
-                <li class="sense">
+                <li class="sense" [class.fresh]="definitionIsNew(definition.text)">
                   <div class="sense-main">
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
-                      @if (definitionIsNew(definition.text)) {
-                        <button
-                          type="button"
-                          class="new-definition"
-                          aria-label="Dismiss new definition"
-                          [disabled]="inPlay()"
-                          (click)="dismissNew(definition.text)"
-                        >
-                          New
-                        </button>
-                      }
                       <ng-container [ngTemplateOutlet]="definitionPassage" />
                       <ng-template #definitionPassage>
                         @if (passage.text) {
@@ -4545,28 +4534,9 @@ function writeExampleSuggestions(
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
     }
 
-    .new-definition {
-      align-self: flex-start;
-      border: 0;
-      border-radius: 999px;
-      background: rgba(255, 92, 122, 0.18);
-      color: var(--danger);
-      padding: 0.15rem 0.5rem;
-      font: inherit;
-      font-size: 0.72rem;
-      font-weight: 750;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      cursor: pointer;
-    }
-
-    .new-definition:hover:not(:disabled) {
-      background: rgba(255, 92, 122, 0.28);
-    }
-
-    .new-definition:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
+    .sense.fresh {
+      border-left-color: #ff5c7a;
+      border-left-width: 3px;
     }
 
     .sense-meta {
@@ -6776,6 +6746,7 @@ export class ElementModal {
     this.equivalentIdDraft.set(known);
     this.equivalentDraft.set('');
     this.beginSheet(definition?.text ?? '');
+    if (definition) this.dismissNew(definition.text);
     this.editor.set({ kind: 'definition', index });
     this.focusDraft();
   }
