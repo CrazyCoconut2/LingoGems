@@ -1560,26 +1560,28 @@ function writeExampleSuggestions(
                           </button>
                         </li>
                       }
+                      <li>
+                        <button
+                          type="button"
+                          class="related-more"
+                          aria-label="Find related"
+                          title="Find related"
+                          [disabled]="definitionSheetBusy()"
+                          [attr.aria-busy]="askingRelated() !== null ? true : null"
+                          (click)="findRelatedWords()"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                            />
+                            <path d="M5 3v4" />
+                            <path d="M3 5h4" />
+                            <path d="M19 17v4" />
+                            <path d="M17 19h4" />
+                          </svg>
+                        </button>
+                      </li>
                     </ul>
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Find related"
-                      title="Find related"
-                      [disabled]="definitionSheetBusy()"
-                      [attr.aria-busy]="askingRelated() !== null ? true : null"
-                      (click)="findRelatedWords()"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                        />
-                        <path d="M5 3v4" />
-                        <path d="M3 5h4" />
-                        <path d="M19 17v4" />
-                        <path d="M17 19h4" />
-                      </svg>
-                    </button>
                   </div>
                 </div>
               }
@@ -5070,15 +5072,6 @@ function writeExampleSuggestions(
       color: rgba(255, 255, 255, 0.4);
     }
 
-    .definition-ai .icon-btn {
-      color: white;
-    }
-
-    .definition-ai .icon-btn:hover:not(:disabled) {
-      color: white;
-      background: rgba(255, 255, 255, 0.16);
-    }
-
     .instruct-field {
       display: flex;
       align-items: center;
@@ -5117,6 +5110,7 @@ function writeExampleSuggestions(
     .related-scroll {
       display: flex;
       flex: 1;
+      align-items: center;
       gap: 0.4rem;
       min-width: 0;
       margin: 0;
@@ -5128,6 +5122,12 @@ function writeExampleSuggestions(
 
     .related-scroll li {
       flex: none;
+    }
+
+    .related-scroll .related-chip,
+    .related-scroll .related-more {
+      box-sizing: border-box;
+      height: calc(0.8125rem * 1.2 + 0.56rem);
     }
 
     .related-scroll .related-chip {
@@ -5173,6 +5173,39 @@ function writeExampleSuggestions(
     .related-scroll .related-chip.selected .relation,
     .related-scroll .related-chip.selected .related-word {
       color: var(--accent);
+    }
+
+    .related-scroll .related-more {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(0.8125rem * 1.2 + 0.56rem);
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+    }
+
+    .related-scroll .related-more svg {
+      display: block;
+      width: 0.95rem;
+      height: 0.95rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .related-scroll .related-more:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .related-scroll .related-more:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .sheet h3 {
