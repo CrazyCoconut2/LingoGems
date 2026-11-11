@@ -5222,33 +5222,35 @@ function writeExampleSuggestions(
       position: absolute;
       z-index: 6;
       right: 0;
-      bottom: calc(100% + 0.4rem);
+      bottom: calc(100% + 0.3rem);
       display: flex;
       flex-direction: column;
-      gap: 0.1rem;
+      gap: 0;
       width: max-content;
-      min-width: 11rem;
-      max-height: min(18rem, 70vh);
+      min-width: 8.25rem;
+      max-height: min(8.25rem, calc(40dvh - 5.5rem));
       margin: 0;
-      padding: 0.35rem;
+      padding: 0.2rem;
       overflow: auto;
+      overscroll-behavior: contain;
       list-style: none;
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 10px;
       background: var(--surface);
-      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
     }
 
     .translation-menu button {
       width: 100%;
       border: 0;
-      border-radius: 8px;
+      border-radius: 6px;
       background: transparent;
       color: var(--text);
       font: inherit;
-      font-size: 0.88rem;
+      font-size: 0.78rem;
+      line-height: 1.2;
       text-align: left;
-      padding: 0.4rem 0.6rem;
+      padding: 0.22rem 0.5rem;
       cursor: pointer;
     }
 
