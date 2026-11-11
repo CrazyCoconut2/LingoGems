@@ -1374,10 +1374,12 @@ function writeExampleSuggestions(
         @if (editor(); as current) {
           <div class="sheet-backdrop" (click)="closeSheet($event)">
             <section
+              #editorSheet
               class="sheet"
               role="dialog"
               aria-modal="true"
               [attr.aria-label]="sheetTitle(current)"
+              [style.height.px]="editorSheetHeight()"
               (click)="onEditorSheetClick($event)"
             >
               <div class="sheet-head">
@@ -1489,9 +1491,11 @@ function writeExampleSuggestions(
                       class="icon-btn"
                       aria-label="Engineer definition"
                       title="Engineer definition"
+                      [class.active]="definitionEngineerOpen()"
+                      [attr.aria-pressed]="definitionEngineerOpen()"
                       [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
-                      [disabled]="aiBusy()"
-                      (click)="openDefinitionEngineer(current.index)"
+                      [disabled]="aiBusy() && !definitionEngineerOpen()"
+                      (click)="toggleDefinitionEngineer()"
                     >
                       <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path
@@ -1506,13 +1510,87 @@ function writeExampleSuggestions(
                   }
                 </span>
               </div>
-              <textarea
-                #draftField
-                [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
-                rows="3"
-                [value]="textDraft()"
-                (input)="textDraft.set(inputValue($event))"
-              ></textarea>
+              <div
+                class="definition-slot"
+                [class.engineering]="current.kind === 'definition' && !!definitionEngineer()"
+              >
+              @if (current.kind === 'definition' && definitionEngineer(); as engineer) {
+                <div class="definition-ai">
+                  <div class="instruct-field">
+                    <input
+                      id="definition-note"
+                      [value]="engineer.instruction"
+                      [attr.maxlength]="definitionInstructionMax"
+                      [disabled]="definitionSheetBusy()"
+                      placeholder="Instruct AI on how to modify this definition"
+                      aria-label="Instruct AI on how to modify this definition"
+                      (input)="onDefinitionEngineerInstruction($event)"
+                      (keydown.enter)="$event.preventDefault(); generateEngineeredDefinition()"
+                    />
+                    <button
+                      type="button"
+                      class="entry-confirm"
+                      aria-label="Modify definition"
+                      [disabled]="
+                        definitionSheetBusy() ||
+                        (!engineer.instruction.trim() && !engineer.selected.length)
+                      "
+                      [attr.aria-busy]="askingWording() !== null ? true : null"
+                      (click)="generateEngineeredDefinition()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div class="related-row">
+                    <ul class="related-scroll">
+                      @for (word of engineer.words; track word.text) {
+                        <li>
+                          <button
+                            type="button"
+                            class="related-chip"
+                            [class.selected]="relatedWordChosen(word)"
+                            [attr.aria-pressed]="relatedWordChosen(word)"
+                            [disabled]="definitionSheetBusy()"
+                            (click)="toggleRelatedWord(word)"
+                          >
+                            <span class="relation">{{ label(word.relation) }}</span>
+                            <span class="related-word">{{ word.text }}</span>
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Find related"
+                      title="Find related"
+                      [disabled]="definitionSheetBusy()"
+                      [attr.aria-busy]="askingRelated() !== null ? true : null"
+                      (click)="findRelatedWords()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                        />
+                        <path d="M5 3v4" />
+                        <path d="M3 5h4" />
+                        <path d="M19 17v4" />
+                        <path d="M17 19h4" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              }
+                <textarea
+                  #draftField
+                  [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
+                  rows="3"
+                  [value]="textDraft()"
+                  (input)="textDraft.set(inputValue($event))"
+                ></textarea>
+              </div>
               @if (current.kind === 'definition' && definitionWarning(draftGloss()); as warning) {
                 <p class="warning" role="status">{{ warning }}</p>
               }
@@ -1550,7 +1628,7 @@ function writeExampleSuggestions(
                     }
                   </div>
                   <ul class="equivalent-choices equivalent-pills">
-                    @for (item of element().equivalents; track item.id) {
+                    @for (item of sheetEquivalents(); track item.id) {
                       <li [class.selected]="equivalentSelected(item.id)">
                         <button
                           type="button"
@@ -1894,216 +1972,6 @@ function writeExampleSuggestions(
                   class="btn btn-secondary"
                   [disabled]="askingExamples() !== null"
                   (click)="exampleEngineer.set(null)"
-                >
-                  Cancel
-                </button>
-              </div>
-            </section>
-          </div>
-        }
-
-        @if (definitionEngineer(); as engineer) {
-          <div class="sheet-backdrop definition-layer" (click)="closeDefinitionEngineer($event)">
-            <section
-              class="sheet definition-engineer"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Engineer definition"
-              (click)="onDefinitionEngineerClick($event)"
-            >
-              <div class="sheet-head">
-                <div class="sheet-title">
-                  <h3>Engineer definition</h3>
-                  <p class="hint">{{ shownTitle() }}</p>
-                </div>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  [disabled]="definitionSheetBusy()"
-                  (click)="closeDefinitionEngineer()"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div class="field-heading">
-                <label for="engineer-gloss">Definition</label>
-                <span class="header-actions">
-                  <span class="generate-bundle translate-split">
-                    <div class="generate-split">
-                      <button
-                        type="button"
-                        class="generate-main"
-                        [attr.aria-label]="
-                          translating()
-                            ? 'Translating…'
-                            : translationTarget()
-                              ? 'Translate into ' + languageName(translationTarget())
-                              : 'Translate'
-                        "
-                        [attr.title]="
-                          translating()
-                            ? 'Translating…'
-                            : translationTarget()
-                              ? 'Translate into ' + languageName(translationTarget())
-                              : 'Translate'
-                        "
-                        [attr.aria-busy]="translating() ? true : null"
-                        [disabled]="!canTranslateEngineer()"
-                        (click)="translateEngineer()"
-                      >
-                        <span class="generate-translation">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                          @if (translationTarget(); as code) {
-                            {{ languageName(code) }}
-                          }
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        class="generate-chevron"
-                        [class.open]="sheetTranslationOpen()"
-                        [attr.aria-expanded]="sheetTranslationOpen()"
-                        aria-label="Translation language"
-                        [disabled]="translating() || definitionSheetBusy() || busy()"
-                        (click)="toggleEngineerTranslation()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </button>
-                      @if (sheetTranslationOpen()) {
-                        <ul class="translation-menu down" role="listbox" aria-label="Translation language">
-                          <li>
-                            <button
-                              type="button"
-                              role="option"
-                              [class.selected]="!translationTarget()"
-                              [attr.aria-selected]="!translationTarget()"
-                              (click)="chooseSheetTranslation('')"
-                            >
-                              No translation
-                            </button>
-                          </li>
-                          @for (code of translationLanguages(); track code) {
-                            <li>
-                              <button
-                                type="button"
-                                role="option"
-                                [class.selected]="code === translationTarget()"
-                                [attr.aria-selected]="code === translationTarget()"
-                                (click)="chooseSheetTranslation(code)"
-                              >
-                                {{ languageName(code) }}
-                              </button>
-                            </li>
-                          }
-                        </ul>
-                      }
-                    </div>
-                  </span>
-                </span>
-              </div>
-              <textarea
-                id="engineer-gloss"
-                rows="3"
-                [value]="engineerDraft()"
-                [disabled]="definitionSheetBusy()"
-                aria-label="Definition"
-                (input)="onEngineerDraft($event)"
-              ></textarea>
-              @if (definitionWarning(engineerGlossText()); as warning) {
-                <p class="warning" role="status">{{ warning }}</p>
-              }
-              <label class="field-label" for="definition-note">Instructions</label>
-              <textarea
-                id="definition-note"
-                class="instruction-note"
-                rows="1"
-                [value]="engineer.instruction"
-                [attr.maxlength]="definitionInstructionMax"
-                [disabled]="definitionSheetBusy()"
-                placeholder="How this word sits among the others"
-                aria-label="Instructions"
-                (input)="onDefinitionEngineerInstruction($event)"
-              ></textarea>
-              <div class="related-block">
-                <div class="section-heading">
-                  <span class="field-label">Related</span>
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    [disabled]="definitionSheetBusy()"
-                    [attr.aria-busy]="askingRelated() !== null ? true : null"
-                    (click)="findRelatedWords()"
-                  >
-                    Find related
-                  </button>
-                </div>
-                @if (engineer.words.length) {
-                  <p class="hint">Optional. Select up to four.</p>
-                  <div class="engineer-words">
-                    <ul class="equivalent-choices">
-                      @for (word of engineer.words; track word.text) {
-                        <li>
-                          <button
-                            type="button"
-                            class="related-chip"
-                            [class.selected]="relatedWordChosen(word)"
-                            [attr.aria-pressed]="relatedWordChosen(word)"
-                            [disabled]="definitionSheetBusy()"
-                            (click)="toggleRelatedWord(word)"
-                          >
-                            <span class="related-word">{{ word.text }}</span>
-                            <span class="relation">{{ label(word.relation) }}</span>
-                          </button>
-                        </li>
-                      }
-                    </ul>
-                  </div>
-                } @else {
-                  <p class="hint">Words tied to this definition show up here.</p>
-                }
-              </div>
-              @if (error()) {
-                <p class="error">{{ error() }}</p>
-              }
-              <div class="sheet-actions">
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  [disabled]="
-                    definitionSheetBusy() ||
-                    (!engineer.instruction.trim() && !engineer.selected.length)
-                  "
-                  [attr.aria-busy]="askingWording() !== null ? true : null"
-                  (click)="generateEngineeredDefinition()"
-                >
-                  Append
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  [disabled]="aiBusy() || !engineerGlossText()"
-                  (click)="saveEngineeredDefinition()"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  [disabled]="definitionSheetBusy()"
-                  (click)="closeDefinitionEngineer()"
                 >
                   Cancel
                 </button>
@@ -5159,90 +5027,129 @@ function writeExampleSuggestions(
       overflow: auto;
     }
 
-    .definition-layer {
-      overflow: hidden;
-      align-items: stretch;
-      justify-content: stretch;
-      padding: 0;
-      background: transparent;
-    }
-
-    .definition-engineer {
-      flex: 1 1 auto;
-      width: 100%;
-      max-width: none;
-      height: auto;
-      min-height: 0;
-      overflow: hidden;
-      border: 0;
-      border-radius: inherit;
-      box-shadow: none;
-      padding: 0.9rem 1.15rem 1rem;
-    }
-
-    .definition-engineer textarea {
-      flex: none;
-      height: auto;
-    }
-
-    .definition-engineer .instruction-note {
-      resize: none;
-    }
-
-    .definition-engineer .sheet-title {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .definition-engineer .sheet-title h3,
-    .definition-engineer .sheet-title .hint {
-      margin: 0;
-    }
-
-    .definition-engineer .sheet-title .hint {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .definition-engineer .field-heading,
-    .definition-engineer .sheet-actions,
-    .definition-engineer .error {
-      flex: none;
-    }
-
-    .definition-engineer .section-heading .btn {
-      padding: 0.4rem 0.8rem;
-      font-size: 0.8125rem;
-    }
-
-    .related-block {
+    .definition-slot {
       display: flex;
-      flex: 1 1 auto;
       flex-direction: column;
       gap: 0.45rem;
       min-width: 0;
-      min-height: 0;
     }
 
-    .definition-engineer .engineer-words {
-      flex: 1 1 auto;
-      min-height: 0;
-      max-height: none;
-    }
-
-    .engineer-words .equivalent-choices li {
-      max-width: 100%;
-      min-width: 0;
-    }
-
-    .engineer-words .related-chip {
+    .definition-ai {
+      display: flex;
+      flex: none;
       flex-direction: column;
+      gap: 0.45rem;
+      min-width: 0;
+      padding: 0.55rem 0.6rem;
+      border-radius: 0;
+      background: var(--accent);
+      color: white;
+    }
+
+    .definition-ai .instruct-field {
+      border: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      color: white;
+    }
+
+    .definition-ai .instruct-field input {
+      padding: 0.45rem 0.75rem;
+      color: white;
+    }
+
+    .definition-ai .instruct-field input::placeholder {
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .definition-ai .entry-confirm {
+      color: white;
+    }
+
+    .definition-ai .entry-confirm:disabled {
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .definition-ai .icon-btn {
+      color: white;
+    }
+
+    .definition-ai .icon-btn:hover:not(:disabled) {
+      color: white;
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .instruct-field {
+      display: flex;
       align-items: center;
-      gap: 0.05rem;
-      padding: 0.32rem 0.75rem 0.28rem;
-      text-align: center;
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-2);
+      padding-right: 0.2rem;
+    }
+
+    .instruct-field input {
+      flex: 1;
+      width: auto;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    .instruct-field input:focus {
+      outline: none;
+    }
+
+    .related-row {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .related-row .icon-btn {
+      flex: none;
+    }
+
+    .related-scroll {
+      display: flex;
+      flex: 1;
+      gap: 0.4rem;
+      min-width: 0;
+      margin: 0;
+      padding: 0.1rem 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      list-style: none;
+    }
+
+    .related-scroll li {
+      flex: none;
+    }
+
+    .related-scroll .related-chip {
+      display: inline-flex;
+      flex-direction: row;
+      align-items: baseline;
+      gap: 0.35rem;
+      padding: 0.28rem 0.7rem;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      color: white;
+      font: inherit;
+      font-size: 0.8125rem;
       line-height: 1.2;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .related-scroll .related-chip.selected {
+      background: white;
+      color: var(--accent);
     }
 
     .related-chip {
@@ -5251,18 +5158,21 @@ function writeExampleSuggestions(
       white-space: normal;
     }
 
-    .related-word {
-      min-width: 0;
-      overflow-wrap: anywhere;
+    .related-scroll .relation {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 0.75rem;
+      font-weight: 600;
     }
 
-    .engineer-words .relation {
-      color: var(--text-muted);
-      font-size: 0.72rem;
+    .related-scroll .related-word {
+      color: white;
+      font-weight: 650;
+      white-space: nowrap;
     }
 
-    .engineer-words button.selected .relation {
-      color: var(--accent-text);
+    .related-scroll .related-chip.selected .relation,
+    .related-scroll .related-chip.selected .related-word {
+      color: var(--accent);
     }
 
     .sheet h3 {
@@ -5840,6 +5750,7 @@ export class ElementModal {
   readonly editor = signal<Editor | null>(null);
   readonly equivalentDraft = signal('');
   readonly equivalentIdDraft = signal<string | null>(null);
+  readonly sheetEquivalents = signal<ElementEquivalent[]>([]);
   readonly textDraft = signal('');
   readonly sheetTranslationOpen = signal(false);
   readonly translating = signal(false);
@@ -5889,7 +5800,6 @@ export class ElementModal {
   readonly exerciseLog = signal(-1);
   readonly exerciseEntry = signal(-1);
   readonly comfortOpen = signal(false);
-  readonly engineerDraft = signal('');
   readonly error = signal('');
   readonly speaking = signal<string | null>(null);
 
@@ -5902,6 +5812,8 @@ export class ElementModal {
   private trackedElementId = '';
   private engineerDrafts = new Map<string, EngineerDraft>();
   private definitionEngineerDrafts = new Map<string, DefinitionEngineerDraft>();
+  private readonly editorSheet = viewChild<ElementRef<HTMLElement>>('editorSheet');
+  readonly editorSheetHeight = signal<number | null>(null);
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly draftField = viewChild<ElementRef<HTMLTextAreaElement>>('draftField');
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
@@ -6182,17 +6094,13 @@ export class ElementModal {
       .map((item) => item.text);
   }
 
-  async removeEquivalent(id: string): Promise<void> {
+  removeEquivalent(id: string): void {
     if (this.busy() || this.askingEquivalent()) return;
-    const current = this.element().equivalents.find((item) => item.id === id);
+    const current = this.sheetEquivalents().find((item) => item.id === id);
     if (!current) return;
-    const equivalents = this.element().equivalents.filter((item) => item.id !== id);
-    const definitions = this.copyDefinitions().map((definition) =>
-      definition.equivalentId === id ? { ...definition, equivalentId: null } : definition,
-    );
+    this.sheetEquivalents.update((list) => list.filter((item) => item.id !== id));
     if (this.equivalentIdDraft() === id) this.equivalentIdDraft.set(null);
     if (this.equivalentDraft().trim() === current.text) this.equivalentDraft.set('');
-    await this.persist(definitions, equivalents);
   }
 
   equivalentEntryWidth(): string {
@@ -6203,24 +6111,18 @@ export class ElementModal {
   equivalentSelected(id: string): boolean {
     const typed = this.equivalentDraft().trim();
     if (typed) {
-      return this.element().equivalents.some((item) => item.id === id && item.text === typed);
+      return this.sheetEquivalents().some((item) => item.id === id && item.text === typed);
     }
     return this.equivalentIdDraft() === id;
   }
 
-  async confirmEquivalent(): Promise<void> {
+  confirmEquivalent(): void {
     const typed = this.equivalentDraft().trim();
     if (!typed || this.busy() || this.askingEquivalent()) return;
-    const linked = assignEquivalent(this.element().equivalents, typed);
-    const known = this.element().equivalents.some((item) => item.id === linked.equivalentId);
+    const linked = assignEquivalent(this.sheetEquivalents(), typed);
+    this.sheetEquivalents.set(linked.equivalents);
     this.equivalentIdDraft.set(linked.equivalentId);
     this.equivalentDraft.set('');
-    if (known) return;
-    const saved = await this.persist(this.copyDefinitions(), linked.equivalents);
-    if (!saved) {
-      this.equivalentDraft.set(typed);
-      this.equivalentIdDraft.set(null);
-    }
   }
 
   chooseEquivalent(id: string): void {
@@ -6279,16 +6181,12 @@ export class ElementModal {
 
   chooseSheetTranslation(code: string): void {
     const previous = this.translationTarget();
-    const gloss = this.editor()
-      ? this.captureEditingDraft(this.textDraft(), previous)
-      : this.definitionEngineer()
-        ? this.captureEditingDraft(this.engineerDraft(), previous)
-        : '';
+    const gloss = this.editor() ? this.captureEditingDraft(this.textDraft(), previous) : '';
     rememberTranslationInto(code);
     const next = this.translationTarget();
-    const shown = passageForEditing(this.storedFromTranslations(gloss), next);
-    if (this.editor()) this.textDraft.set(shown);
-    if (this.definitionEngineer()) this.engineerDraft.set(shown);
+    if (this.editor()) {
+      this.textDraft.set(passageForEditing(this.storedFromTranslations(gloss), next));
+    }
     this.sheetTranslationOpen.set(false);
   }
 
@@ -6333,7 +6231,7 @@ export class ElementModal {
         return;
       }
       const folded = translation.toLocaleLowerCase();
-      const match = this.element().equivalents.find(
+      const match = this.sheetEquivalents().find(
         (item) => item.text.toLocaleLowerCase() === folded,
       );
       if (match) {
@@ -7017,6 +6915,7 @@ export class ElementModal {
         : null;
     this.equivalentIdDraft.set(known);
     this.equivalentDraft.set('');
+    this.sheetEquivalents.set(this.element().equivalents.map((item) => ({ ...item })));
     this.beginSheet(definition?.text ?? '');
     if (definition) this.dismissNew(definition.text);
     this.editor.set({ kind: 'definition', index });
@@ -7090,32 +6989,36 @@ export class ElementModal {
     return this.askingRelated() !== null || this.askingWording() !== null;
   }
 
-  openDefinitionEngineer(index: number): void {
+  definitionEngineerOpen(): boolean {
+    const editor = this.editor();
+    const engineer = this.definitionEngineer();
+    return (
+      editor?.kind === 'definition' &&
+      editor.index != null &&
+      engineer?.definitionIndex === editor.index
+    );
+  }
+
+  toggleDefinitionEngineer(): void {
+    const editor = this.editor();
+    if (!editor || editor.kind !== 'definition' || editor.index == null) return;
+    if (this.definitionEngineerOpen()) {
+      this.closeDefinitionEngineer();
+      return;
+    }
     if (this.aiBusy()) return;
-    const definition = this.element().definitions[index];
+    const definition = this.element().definitions[editor.index];
     const key = senseKey(definition?.text ?? '');
     if (!definition || !key) return;
-    const editor = this.editor();
-    const editing = editor?.kind === 'definition' && editor.index === index;
-    this.editor.set(null);
-    this.formEdit.set(null);
-    this.formFeatureEdit.set(null);
-    this.metaEdit.set(null);
-    this.confirm.set(null);
-    this.closeDefinitionPrompts();
-    this.exampleEngineer.set(null);
     const draft = this.definitionEngineerDrafts.get(key) ?? {
       instruction: '',
       words: [],
       selected: [],
     };
-    const source = editing ? this.phraseToStore() : definition.text;
-    this.seedEditingTranslations(source);
-    this.engineerDraft.set(passageForEditing(source, this.translationTarget()));
-    this.sheetTranslationOpen.set(false);
     const known = new Set(draft.words.map((word) => word.text.toLowerCase()));
+    this.sheetError.set('');
     this.definitionEngineer.set({
-      definitionIndex: index,
+      definitionIndex: editor.index,
       instruction: draft.instruction,
       words: draft.words,
       selected: draft.selected.filter((text) => known.has(text.toLowerCase())),
@@ -7135,71 +7038,9 @@ export class ElementModal {
     });
   }
 
-  onEngineerDraft(event: Event): void {
-    this.engineerDraft.set(this.inputValue(event));
-  }
-
-  engineerGlossText(): string {
-    return readEditingDraft(this.engineerDraft()).text.replace(/\s+/g, ' ').trim();
-  }
-
-  canTranslateEngineer(): boolean {
-    return (
-      this.supportAvailable() &&
-      this.engineerGlossText().length > 0 &&
-      !this.translating() &&
-      !this.definitionSheetBusy() &&
-      !this.busy()
-    );
-  }
-
-  toggleEngineerTranslation(): void {
-    if (this.translating() || this.definitionSheetBusy() || this.busy()) return;
-    this.sheetTranslationOpen.update((open) => !open);
-  }
-
-  onDefinitionEngineerClick(event: MouseEvent): void {
-    event.stopPropagation();
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target?.closest('.translate-split')) this.sheetTranslationOpen.set(false);
-  }
-
-  async translateEngineer(): Promise<void> {
-    if (!this.canTranslateEngineer()) return;
-    const text = this.engineerGlossText();
-    const source = this.element().language;
-    const ticket = this.translateTicket;
-    this.translating.set(true);
-    this.error.set('');
-    this.sheetTranslationOpen.set(false);
-    try {
-      const translated = await translatePhrase(text, source, this.translationTarget());
-      if (ticket !== this.translateTicket) return;
-      const gloss = readEditingDraft(this.engineerDraft()).text;
-      this.captureEditingDraft(this.engineerDraft(), this.translationTarget());
-      const stored = embedTranslation(this.storedFromTranslations(gloss), this.translationTarget(), translated);
-      this.seedEditingTranslations(stored);
-      this.engineerDraft.set(passageForEditing(stored, this.translationTarget()));
-    } catch {
-      if (ticket !== this.translateTicket) return;
-      this.error.set('Could not translate this.');
-    } finally {
-      if (ticket === this.translateTicket) this.translating.set(false);
-    }
-  }
-
-  async saveEngineeredDefinition(): Promise<void> {
-    if (this.aiBusy()) return;
-    await this.commitEngineeredDefinition();
-  }
-
-  private engineerPassageToStore(): string {
-    return this.editingPassage(this.engineerDraft());
-  }
-
   private appendedEngineerPassage(extra: ReturnType<typeof parsePassage>): string {
-    const current = readEditingDraft(this.engineerDraft());
-    this.captureEditingDraft(this.engineerDraft(), this.translationTarget());
+    const current = readEditingDraft(this.textDraft());
+    this.captureEditingDraft(this.textDraft(), this.translationTarget());
     const target = this.translationTarget();
     const addition = extra.translations.find((item) => item.language === target)?.text ?? '';
     if (target) {
@@ -7213,28 +7054,6 @@ export class ElementModal {
       this.editingTranslations.set(item.language, existing ? joinPhrase(existing, item.text) : item.text);
     }
     return this.storedFromTranslations(joinPhrase(current.text, extra.text));
-  }
-
-  private async commitEngineeredDefinition(): Promise<boolean> {
-    if (this.busy()) return false;
-    const engineer = this.definitionEngineer();
-    const gloss = this.engineerGlossText();
-    if (!engineer || !gloss) return false;
-    const element = this.element();
-    const definitions = this.copyDefinitions();
-    const target = definitions[engineer.definitionIndex];
-    if (!target) return false;
-    const oldSense = senseKey(target.text);
-    const nextText = this.engineerPassageToStore();
-    if (nextText === target.text) return true;
-    const nextSense = senseKey(nextText);
-    target.text = nextText;
-    if (!(await this.persist(definitions, element.equivalents))) return false;
-    if (oldSense && nextSense && oldSense !== nextSense) {
-      this.rekeyDefinitionEngineerDraft(oldSense, nextSense);
-      this.rekeyExampleSuggestions(element.id, oldSense, nextSense);
-    }
-    return true;
   }
 
   relatedWordChosen(word: RelatedWord): boolean {
@@ -7259,13 +7078,13 @@ export class ElementModal {
     if (!engineer || this.aiBusy()) return;
     const element = this.element();
     const definition = element.definitions[engineer.definitionIndex];
-    const gloss = parsePassage(definition?.text ?? '').text.trim();
-    const sense = senseKey(gloss);
-    if (!definition || !sense) return;
+    const gloss = this.draftGloss();
+    const sense = senseKey(definition?.text ?? '');
+    if (!definition || !gloss || !sense) return;
     const job = ++this.relatedJob;
     const index = engineer.definitionIndex;
     this.askingRelated.set(index);
-    this.error.set('');
+    this.sheetError.set('');
     try {
       const words = await generateRelatedWords({
         language: element.language,
@@ -7283,12 +7102,12 @@ export class ElementModal {
       const seen = new Set(current.words.map((word) => word.text.toLowerCase()));
       const added = words.filter((word) => !seen.has(word.text.toLowerCase()));
       if (!added.length) {
-        this.error.set('No further related words.');
+        this.sheetError.set('No further related words.');
         return;
       }
       this.patchDefinitionEngineer({ words: [...current.words, ...added] });
     } catch {
-      if (this.element().id === element.id) this.error.set('Could not ask for related words.');
+      if (this.element().id === element.id) this.sheetError.set('Could not ask for related words.');
     } finally {
       if (this.relatedJob === job && this.element().id === element.id) this.askingRelated.set(null);
     }
@@ -7300,7 +7119,7 @@ export class ElementModal {
     if (!engineer || this.aiBusy() || (!instruction && !engineer.selected.length)) return;
     const element = this.element();
     const definition = element.definitions[engineer.definitionIndex];
-    const gloss = this.engineerGlossText();
+    const gloss = this.draftGloss();
     const sense = senseKey(definition?.text ?? '');
     if (!definition) return;
     const picked = engineer.selected.flatMap((text) => {
@@ -7311,7 +7130,7 @@ export class ElementModal {
     const job = ++this.wordingJob;
     const index = engineer.definitionIndex;
     this.askingWording.set(index);
-    this.error.set('');
+    this.sheetError.set('');
     try {
       const phrases = await verbalizeDefinition({
         language: element.language,
@@ -7324,26 +7143,26 @@ export class ElementModal {
       const phrase = phrases[0];
       const showing = this.element().id === element.id;
       if (!phrase) {
-        if (showing) this.error.set('Could not forge a definition.');
+        if (showing) this.sheetError.set('Could not forge a definition.');
         return;
       }
       const extra = parsePassage(phrase.text);
       if (!extra.text) {
-        if (showing) this.error.set('Could not forge a definition.');
+        if (showing) this.sheetError.set('Could not forge a definition.');
         return;
       }
       if (picked.some((word) => !sentenceUsesForm(extra.text, word.text))) {
-        if (showing) this.error.set('The phrase did not use every chosen word.');
+        if (showing) this.sheetError.set('The phrase did not use every chosen word.');
         return;
       }
       if (!showing) return;
       if (sense && senseKey(this.element().definitions[index]?.text ?? '') !== sense) return;
       const stored = this.appendedEngineerPassage(extra);
       this.seedEditingTranslations(stored);
-      this.engineerDraft.set(passageForEditing(stored, this.translationTarget()));
-      await this.commitEngineeredDefinition();
+      this.textDraft.set(passageForEditing(stored, this.translationTarget()));
+      this.definitionEngineer.set(null);
     } catch {
-      if (this.element().id === element.id) this.error.set('Could not forge a definition.');
+      if (this.element().id === element.id) this.sheetError.set('Could not forge a definition.');
     } finally {
       if (this.wordingJob === job && this.element().id === element.id) this.askingWording.set(null);
     }
@@ -7807,14 +7626,20 @@ export class ElementModal {
       const typed = this.equivalentDraft().trim();
       const selectedId = this.equivalentIdDraft();
       const linked = typed
-        ? assignEquivalent(this.element().equivalents, typed)
+        ? assignEquivalent(this.sheetEquivalents(), typed)
         : {
-            equivalents: this.element().equivalents,
+            equivalents: this.sheetEquivalents(),
             equivalentId:
-              selectedId && this.element().equivalents.some((item) => item.id === selectedId)
+              selectedId && this.sheetEquivalents().some((item) => item.id === selectedId)
                 ? selectedId
                 : null,
           };
+      const kept = new Set(linked.equivalents.map((item) => item.id));
+      const unlinked = definitions.map((definition) =>
+        definition.equivalentId && !kept.has(definition.equivalentId)
+          ? { ...definition, equivalentId: null }
+          : definition,
+      );
       const next: ElementDefinition = {
         text,
         equivalentId: linked.equivalentId,
@@ -7823,9 +7648,9 @@ export class ElementModal {
         metadata: this.metadataToStore(),
         log: current?.log.map((entry) => ({ ...entry })) ?? [],
       };
-      if (editor.index == null) definitions.push(next);
-      else definitions[editor.index] = next;
-      if (await this.persist(definitions, linked.equivalents)) this.editor.set(null);
+      if (editor.index == null) unlinked.push(next);
+      else unlinked[editor.index] = next;
+      if (await this.persist(unlinked, linked.equivalents)) this.editor.set(null);
       return;
     }
     const definition = definitions[editor.definitionIndex];
