@@ -1540,10 +1540,7 @@ function writeExampleSuggestions(
               @if (current.kind === 'definition') {
                 <div class="equivalent-block" [class.missing]="equivalentMissing()">
                   <div class="field-heading">
-                    <label class="game-label" for="definition-equivalent">
-                      <app-mode-icon [mode]="1" />
-                      Equivalent
-                    </label>
+                    <label class="field-label" for="definition-equivalent">Equivalent</label>
                     @if (supportAvailable()) {
                       <button
                         type="button"
@@ -5249,18 +5246,6 @@ function writeExampleSuggestions(
       align-items: center;
       justify-content: space-between;
       gap: 0.5rem;
-    }
-
-    .game-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-
-    .game-label app-mode-icon {
-      width: 1.1rem;
-      height: 1.1rem;
-      flex: none;
     }
 
     label,
