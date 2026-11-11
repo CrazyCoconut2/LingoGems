@@ -35,6 +35,12 @@ const MAX_FORMS = 80;
 
 const NO_SELF_MENTION = '- A gloss MUST NOT contain the lemma or any inflected form of the lemma';
 
+export const VERBATIM_SENSE_TRANSLATION =
+  'translateFieldsIn, when present, names the translation language. Then each sense MUST include "translation", a verbatim translation of that sense\'s gloss. Translate the gloss text itself, in the same order and with the same wording. Do not paraphrase, shorten, or replace it with a different gloss. Capitalize the first letter. When translateFieldsIn is absent, omit "translation".';
+
+export const VERBATIM_SENSE_TRANSLATION_FIELD =
+  'When translateFieldsIn is present, add "translation":"<verbatim translation of the gloss>" on each sense.';
+
 export function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
   return joinPrompt([
     'You write dictionary senses for one headword.',
@@ -50,12 +56,12 @@ export function definitionsSystemPrompt(fields: readonly AiMetadataField[], extr
     NO_SELF_MENTION,
     '- Do not include examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
-    '- Spelling MUST be correct in every gloss and English gloss',
+    '- Spelling MUST be correct in every gloss and its translation',
     ...metadataRuleLines('definition', fields, extra),
-    'translateFieldsIn, when present, names the translation language. Then each sense MUST include "translation", a faithful gloss in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
+    VERBATIM_SENSE_TRANSLATION,
     'Return JSON only with this shape:',
     `{"senses":[${definitionSenseShape(fields, extra)}]}`,
-    'When translateFieldsIn is present, add "translation":"<gloss in translateFieldsIn>" on each sense.',
+    VERBATIM_SENSE_TRANSLATION_FIELD,
   ]);
 }
 
@@ -77,12 +83,12 @@ export function elementFromSelectionSystemPrompt(
     NO_SELF_MENTION,
     '- Do not include examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
-    '- Spelling MUST be correct in the lemma, every gloss, and every English gloss',
+    '- Spelling MUST be correct in the lemma, every gloss, and every translation',
     ...metadataRuleLines('definition', fields, extra),
-    'translateFieldsIn, when present, names the translation language. Then each sense MUST include "translation", a faithful gloss in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
+    VERBATIM_SENSE_TRANSLATION,
     'Return JSON only with this shape:',
     `{"lemma":"<root lemma>","senses":[${definitionSenseShape(fields, extra)}]}`,
-    'When translateFieldsIn is present, add "translation":"<gloss in translateFieldsIn>" on each sense.',
+    VERBATIM_SENSE_TRANSLATION_FIELD,
   ]);
 }
 
@@ -104,12 +110,12 @@ export function definitionFromExampleSystemPrompt(
     NO_SELF_MENTION,
     '- Do not include the example, other examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
-    '- Spelling MUST be correct in the gloss and the English gloss',
+    '- Spelling MUST be correct in the gloss and its translation',
     ...metadataRuleLines('definition', fields, extra),
-    'translateFieldsIn, when present, names the translation language. A new sense MUST include "translation", a faithful gloss in that language, with its first letter capitalized. A match does not include a translation. When translateFieldsIn is absent, omit "translation".',
+    'translateFieldsIn, when present, names the translation language. A new sense MUST include "translation", a verbatim translation of that sense\'s gloss. Translate the gloss text itself, in the same order and with the same wording. Do not paraphrase, shorten, or replace it with a different gloss. Capitalize the first letter. A match does not include a translation. When translateFieldsIn is absent, omit "translation".',
     'A new sense uses this shape:',
     `{"senses":[${definitionSenseShape(fields, extra)}]}`,
-    'When translateFieldsIn is present, add "translation":"<gloss in translateFieldsIn>" on the new sense.',
+    'When translateFieldsIn is present, add "translation":"<verbatim translation of the gloss>" on the new sense.',
   ]);
 }
 

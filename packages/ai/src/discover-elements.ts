@@ -5,7 +5,12 @@ import {
   type ElementMetadataVariability,
 } from 'collection';
 import { completeJson, runWithKeyFallback } from './complete';
-import { parseGeneratedDefinitions, type GeneratedDefinition } from './definitions';
+import {
+  parseGeneratedDefinitions,
+  VERBATIM_SENSE_TRANSLATION,
+  VERBATIM_SENSE_TRANSLATION_FIELD,
+  type GeneratedDefinition,
+} from './definitions';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import {
   METADATA_VALUE_LANGUAGE_RULE,
@@ -152,14 +157,14 @@ function discoverSystemPrompt(language: string): string {
     '- A gloss MUST NOT contain the lemma or any inflected form of the lemma',
     '- Do not include examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
-    '- Spelling MUST be correct in every title, gloss, and English gloss',
+    '- Spelling MUST be correct in every title, gloss, and translation',
     '- Return at most count elements',
     '- Omit a title you cannot define',
     ...metadataRuleLines('definition', fields, extra),
-    'translateFieldsIn, when present, names the translation language. Then each sense MUST include "translation", a faithful gloss in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
+    VERBATIM_SENSE_TRANSLATION,
     'Return JSON only with this shape:',
     `{"elements":[{"title":"<citation form>","senses":[${sense}]}]}`,
-    'When translateFieldsIn is present, add "translation":"<gloss in translateFieldsIn>" on each sense.',
+    VERBATIM_SENSE_TRANSLATION_FIELD,
   ]
     .filter((line) => line !== '')
     .join('\n');

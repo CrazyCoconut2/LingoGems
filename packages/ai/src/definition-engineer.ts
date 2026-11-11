@@ -65,10 +65,10 @@ Rules:
 - Do not add citations or bracket tags such as [en:…]
 - Keep the phrase at most ${MAX_DEFINITION_WORDING} characters
 - Spelling MUST be correct
-translateFieldsIn, when present, names the translation language. Then the phrase MUST include "translation", a faithful translation of the phrase in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".
+translateFieldsIn, when present, names the translation language. Then the phrase MUST include "translation", a verbatim translation of the phrase. Translate the phrase text itself, in the same order and with the same wording. Do not paraphrase, shorten, or replace it with a different phrase. Capitalize the first letter. When translateFieldsIn is absent, omit "translation".
 Return JSON only with this shape:
 {"phrases":[${PHRASE_SHAPE}]}
-When translateFieldsIn is present, add "translation":"<phrase in translateFieldsIn>" on the phrase.`;
+When translateFieldsIn is present, add "translation":"<verbatim translation of the phrase>" on the phrase.`;
 
 export type RelatedWord = {
   text: string;
