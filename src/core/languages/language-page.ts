@@ -13,7 +13,7 @@ import { ScoreGauge } from '../elements/score-gauge';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { DiscoverModal } from './discover-modal';
-import { readSelectedLanguage, writeSelectedLanguage } from './selected-language';
+import { ensureSelectedLanguage, writeSelectedLanguage } from './selected-language';
 import { translationInto } from './translation-language';
 import { Settings } from '../settings/settings';
 import { generateElementFromSelection } from 'ai';
@@ -2440,7 +2440,7 @@ export class LanguagePage {
       if (this.overlayOpen()) this.unlockScroll(true);
     });
     void this.loadCatalog();
-    void this.load(readSelectedLanguage() ?? '');
+    void this.load(ensureSelectedLanguage() ?? '');
     effect(() => {
       if (!this.playing()) return;
       const dismissed = this.dismissed();

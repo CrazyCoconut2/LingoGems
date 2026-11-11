@@ -3528,7 +3528,7 @@ function writeExampleSuggestions(
         }
 
         @if (formsConfirm(); as choice) {
-          @if (formsConfirmDetail(choice.index); as pending) {
+          @if (formsConfirmDetail(choice.index)) {
           <div class="sheet-backdrop" (click)="closeFormsConfirm($event)">
             <section
               class="sheet confirm"
@@ -3538,7 +3538,7 @@ function writeExampleSuggestions(
               (click)="$event.stopPropagation()"
             >
               <h3>Generate forms?</h3>
-              <p>The AI will add the missing inflected forms of “{{ pending.gloss }}”.</p>
+              <p>We'll generate the missing forms.</p>
               <div class="sheet-actions">
                 <button type="button" class="btn btn-secondary" (click)="formsConfirm.set(null)">
                   Cancel
