@@ -42,13 +42,7 @@ export {
 
 export { formMatchesTerm, isValidForm } from './elements/forms';
 
-export {
-  definitionEligibleForGames,
-  definitionSelfMentionWarningFor,
-  elementHasInvalidDefinition,
-  surfaceSpans,
-  type SurfaceSpan,
-} from './elements/definition-eligibility';
+export { surfaceSpans, type SurfaceSpan } from './elements/definition-eligibility';
 
 export {
   highlightDefinitionPassage,

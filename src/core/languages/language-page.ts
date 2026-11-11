@@ -21,10 +21,8 @@ import {
   addElement,
   compareElements,
   DEFAULT_ELEMENT_SORT,
-  definitionEligibleForGames,
   deleteElement,
   displayTitle,
-  elementHasInvalidDefinition,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
   elementMatchesCountRanges,
@@ -372,19 +370,6 @@ const MOVE_SLOP_PX = 10;
                     }
                   } @else {
                     <span class="title-line">
-                      @if (needsDefinitionEdit(element)) {
-                        <span
-                          class="definition-flag"
-                          role="img"
-                          aria-label="A definition needs editing"
-                          title="A definition needs editing"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path class="pole" d="M6 21V3.5" />
-                            <path class="cloth" d="M6 4.2h11.2L14.6 8.4 17.2 12.6H6z" />
-                          </svg>
-                        </span>
-                      }
                       <span class="title">
                         @for (part of highlight(element.title); track $index) {
                           @if (part.hit) {
@@ -1661,31 +1646,6 @@ const MOVE_SLOP_PX = 10;
       min-width: 0;
     }
 
-    .definition-flag {
-      display: grid;
-      flex: none;
-      width: 0.95rem;
-      height: 0.95rem;
-      color: var(--danger);
-    }
-
-    .definition-flag svg {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
-
-    .definition-flag .pole {
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.4;
-      stroke-linecap: round;
-    }
-
-    .definition-flag .cloth {
-      fill: currentColor;
-    }
-
     .title {
       min-width: 0;
       font-size: 1.05rem;
@@ -2313,7 +2273,6 @@ export class LanguagePage {
   readonly modeLabel = elementModeLabel;
   readonly comfortRates = COMFORT_RATES;
   readonly comfortColor = comfortColor;
-  readonly needsDefinitionEdit = elementHasInvalidDefinition;
   readonly asking = signal(false);
   readonly translationInto = translationInto;
   readonly discoverOpen = signal(false);
@@ -2436,7 +2395,7 @@ export class LanguagePage {
   });
   readonly playable = computed(() =>
     this.visible().filter(
-      (element) => element.mode !== null && !elementHasInvalidDefinition(element),
+      (element) => element.mode !== null,
     ),
   );
   readonly shown = computed(() => {
@@ -2983,13 +2942,7 @@ export class LanguagePage {
     if (!this.playing() || !id) return;
     this.dismissCard(id);
     const element = this.elements().find((item) => item.id === id);
-    const eligible =
-      !!element &&
-      element.definitions.some((definition) =>
-        definitionEligibleForGames(definition.text, element),
-      );
-    const playable =
-      !!element && element.mode !== null && eligible && element.definitions.length > 0;
+    const playable = !!element && element.mode !== null && element.definitions.length > 0;
     this.playId.set(playable ? id : '');
     this.openElement(id);
   }

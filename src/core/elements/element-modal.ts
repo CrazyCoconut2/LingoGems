@@ -15,8 +15,6 @@ import {
 } from '@angular/core';
 import {
   assignEquivalent,
-  definitionEligibleForGames,
-  definitionSelfMentionWarningFor,
   deleteElement,
   displayTitle,
   embedTranslation,
@@ -867,9 +865,6 @@ function writeExampleSuggestions(
                           }
                         </ul>
                       }
-                      @if (definitionWarning(definition.text); as warning) {
-                        <p class="warning" role="status">{{ warning }}</p>
-                      }
                     </div>
                   </div>
                   <div class="item-actions">
@@ -1593,9 +1588,6 @@ function writeExampleSuggestions(
                   (input)="textDraft.set(inputValue($event))"
                 ></textarea>
               </div>
-              @if (current.kind === 'definition' && definitionWarning(draftGloss()); as warning) {
-                <p class="warning" role="status">{{ warning }}</p>
-              }
               @if (sheetError()) {
                 <p class="error">{{ sheetError() }}</p>
               }
@@ -4510,14 +4502,12 @@ function writeExampleSuggestions(
 
     .empty,
     .hint,
-    .error,
-    .warning {
+    .error {
       color: var(--text-muted);
       font-size: 0.82rem;
     }
 
-    .error,
-    .warning {
+    .error {
       color: var(--danger);
     }
 
@@ -6113,10 +6103,6 @@ export class ElementModal {
     } finally {
       if (this.element().id === element.id) this.busy.set(false);
     }
-  }
-
-  definitionWarning(text: string): string {
-    return definitionSelfMentionWarningFor(text, this.element());
   }
 
   shownTitle(title = this.element().title): string {
@@ -8199,7 +8185,7 @@ export class ElementModal {
     let prompted = 0;
     for (let index = 0; index < definitions.length; index += 1) {
       const definition = definitions[index];
-      if (!definition || !definitionEligibleForGames(definition.text, this.element())) continue;
+      if (!definition) continue;
       prompted += 1;
       if (!this.definitionRewardAt(index)) return false;
     }
@@ -8250,9 +8236,7 @@ export class ElementModal {
   headerTranslationsLocked(): boolean {
     if (!this.definitionGame()) return false;
     const definitions = this.element().definitions;
-    const prompted = definitions.some((definition) =>
-      definitionEligibleForGames(definition.text, this.element()),
-    );
+    const prompted = definitions.length > 0;
     if (!prompted) return true;
     return definitions.some((_, index) => this.definitionConcealed(index));
   }
@@ -8517,8 +8501,7 @@ export class ElementModal {
   definitionConcealed(index: number): boolean {
     if (!this.definitionGame()) return false;
     if (this.definitionRewardAt(index) && this.definitionPrompt() !== index) return false;
-    const text = this.element().definitions[index]?.text ?? '';
-    return definitionEligibleForGames(text, this.element());
+    return index < this.element().definitions.length;
   }
 
   definitionPromptOpen(): boolean {
@@ -8718,7 +8701,7 @@ export class ElementModal {
   async giveUpDefinition(index: number): Promise<void> {
     if (!this.definitionGame() || this.aiBusy() || this.definitionSubmitted(index)) return;
     const definition = this.element().definitions[index];
-    if (!definition || !definitionEligibleForGames(definition.text, this.element())) return;
+    if (!definition) return;
     this.error.set('');
     const logIndex = await this.recordDefinitionReward(index, { gems: 0, by: 'user', answer: '' });
     if (!this.alive) return;
@@ -8764,7 +8747,7 @@ export class ElementModal {
     const element = this.element();
     const definition = element.definitions[index];
     const gloss = parsePassage(definition?.text ?? '').text.trim();
-    if (!definition || !gloss || !definitionEligibleForGames(definition.text, element)) return;
+    if (!definition || !gloss) return;
     const answer = this.definitionDraftAt(index).trim();
     const job = ++this.gradeJob;
     this.askingGrade.set(index);
