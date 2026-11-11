@@ -99,8 +99,8 @@ const MODE_GEM: Record<ElementMode, GemFace> = {
         <polygon points="67.6,92.5 32.4,92.5 40.82,72.17 59.18,72.17" />
       </g>
       <g
+        class="mark"
         fill="none"
-        [attr.stroke]="gem().ink"
         stroke-width="1.7"
         stroke-linecap="round"
         stroke-linejoin="round"
@@ -151,7 +151,37 @@ const MODE_GEM: Record<ElementMode, GemFace> = {
       stroke-width: 1.35;
       stroke-linejoin: round;
     }
+
+    .mark {
+      stroke: var(--gem-ink);
+    }
+
+    :host(.scintillate) .mark {
+      animation: mark-scintillate 1s linear infinite;
+    }
+
+    @keyframes mark-scintillate {
+      0%,
+      62%,
+      100% {
+        stroke: var(--gem-ink);
+      }
+
+      74%,
+      86% {
+        stroke: #fff;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      :host(.scintillate) .mark {
+        animation: none;
+      }
+    }
   `,
+  host: {
+    '[style.--gem-ink]': 'gem().ink',
+  },
 })
 export class ModeIcon {
   readonly mode = input.required<ElementMode>();

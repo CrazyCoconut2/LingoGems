@@ -57,3 +57,17 @@ export function languageDisplayName(code: string): string {
   if (!isLearnableLanguage(normalized)) return normalized.toUpperCase();
   return LANGUAGE_NATIVE_NAMES[normalized];
 }
+
+/** A two-letter code or a language's own name, such as `en` or `English`. */
+export function languageCodeFromLabel(label: string): LearnableLanguage | null {
+  const trimmed = label.trim();
+  if (!trimmed) return null;
+  const code = trimmed.toLowerCase();
+  if (isLearnableLanguage(code)) return code;
+  const folded = trimmed.toLocaleLowerCase();
+  return (
+    LEARNABLE_LANGUAGES.find(
+      (item) => LANGUAGE_NATIVE_NAMES[item].toLocaleLowerCase() === folded,
+    ) ?? null
+  );
+}

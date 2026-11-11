@@ -20,6 +20,7 @@ export {
   assignEquivalent,
   embedTranslation,
   parsePassage,
+  passageForEditing,
   formTexts,
   elementModeLabel,
   elementReadyForTranslation,

@@ -1,5 +1,10 @@
 import { ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
-import { isLearnableLanguage, type LearnableLanguage } from '../languages/catalog';
+import {
+  isLearnableLanguage,
+  languageCodeFromLabel,
+  languageDisplayName,
+  type LearnableLanguage,
+} from '../languages/catalog';
 import { mergeMetadataCatalog } from './metadata-catalog';
 import {
   collectMetadataIndexes,
@@ -410,7 +415,7 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   return entry;
 }
 
-const TRANSLATION_MARKER = /\[([a-z]{2}):\s*([^\]]*)]/gi;
+const TRANSLATION_MARKER = /\[([^\[\]:\n]+):\s*([^\]]*)]/g;
 
 /** First letter of a translation phrase, leaving the rest of the wording alone. */
 function capitalizePhrase(value: string): string {
@@ -427,17 +432,16 @@ export type ParsedPassage = {
   translations: PassageTranslation[];
 };
 
-/** Split `[en: …]` markers out of definition or example text for display. */
+/** Split `[en: …]` or `[English: …]` markers out of definition or example text. */
 export function parsePassage(value: string): ParsedPassage {
   const translations: PassageTranslation[] = [];
   const text = value
-    .replace(TRANSLATION_MARKER, (_match, language: string, body: string) => {
+    .replace(TRANSLATION_MARKER, (match, label: string, body: string) => {
+      const language = languageCodeFromLabel(label);
       const translation = body.trim();
-      if (translation)
-        translations.push({
-          language: language.toLowerCase(),
-          text: capitalizePhrase(translation),
-        });
+      if (!language) return match;
+      if (!translation) return '';
+      translations.push({ language, text: capitalizePhrase(translation) });
       return '';
     })
     .replace(/[ \t]+\n/g, '\n')
@@ -446,6 +450,18 @@ export function parsePassage(value: string): ParsedPassage {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   return { text, translations };
+}
+
+/** The same phrase with markers written as `[English: …]` for editing. */
+export function passageForEditing(value: string): string {
+  const parsed = parsePassage(value);
+  const parts = parsed.translations
+    .slice()
+    .sort((left, right) => left.language.localeCompare(right.language))
+    .map((item) => `[${languageDisplayName(item.language)}: ${item.text}]`);
+  const base = parsed.text.trim();
+  if (!parts.length) return base;
+  return base ? `${base} ${parts.join(' ')}` : parts.join(' ');
 }
 
 /** Store a translation on a phrase as `Primary [en: …]`, replacing that language's tag. */

@@ -20,6 +20,8 @@ import {
   deleteElement,
   displayTitle,
   embedTranslation,
+  parsePassage,
+  passageForEditing,
   elementModeLabel,
   type ElementMode,
   formTexts,
@@ -28,7 +30,6 @@ import {
   languageDisplayName,
   LEARNABLE_LANGUAGES,
   isLearnableLanguage,
-  parsePassage,
   saveElement,
   TRANSLATION_GEM_MAX,
   type DefinitionHighlightMatch,
@@ -37,7 +38,6 @@ import {
   type ElementDefinition,
   type ElementEquivalent,
   type ElementMetadata,
-  type PassageTranslation,
   type StoredElement,
 } from 'collection';
 import {
@@ -561,7 +561,10 @@ function writeExampleSuggestions(
                 (click)="openMode()"
               >
                 @if (mode) {
-                  <app-mode-icon [mode]="mode" />
+                  <app-mode-icon
+                    [mode]="mode"
+                    [class.scintillate]="translationGame() || exampleGame() || definitionCue()"
+                  />
                 } @else {
                   <svg class="empty-stone" viewBox="0 0 100 100" aria-hidden="true">
                     <polygon
@@ -1410,7 +1413,7 @@ function writeExampleSuggestions(
               role="dialog"
               aria-modal="true"
               [attr.aria-label]="sheetTitle(current)"
-              (click)="$event.stopPropagation()"
+              (click)="onEditorSheetClick($event)"
             >
               <div class="sheet-head">
                 <h3>{{ sheetTitle(current) }}</h3>
@@ -1434,27 +1437,91 @@ function writeExampleSuggestions(
                 >
                   {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
                 </label>
-                @if (current.kind === 'definition' && current.index != null) {
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Engineer definition"
-                    title="Engineer definition"
-                    [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
-                    [disabled]="aiBusy()"
-                    (click)="openDefinitionEngineer(current.index)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                      />
-                      <path d="M5 3v4" />
-                      <path d="M3 5h4" />
-                      <path d="M19 17v4" />
-                      <path d="M17 19h4" />
-                    </svg>
-                  </button>
-                }
+                <span class="header-actions">
+                  <span class="translate-pair">
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
+                      [attr.title]="translating() ? 'Translating…' : 'Translate'"
+                      [attr.aria-busy]="translating() ? true : null"
+                      [disabled]="!canTranslate()"
+                      (click)="translateDraft()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m5 8 6 6" />
+                        <path d="m4 14 6-6 2-3" />
+                        <path d="M2 5h12" />
+                        <path d="M7 2h1" />
+                        <path d="m22 22-5-10-5 10" />
+                        <path d="M14 18h6" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      [class.open]="sheetTranslationOpen()"
+                      [attr.aria-expanded]="sheetTranslationOpen()"
+                      [attr.aria-label]="'Translation language'"
+                      [attr.title]="translationTarget() ? languageName(translationTarget()) : 'Translation language'"
+                      [disabled]="translating() || askingEquivalent() || busy()"
+                      (click)="toggleSheetTranslation()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+                    @if (sheetTranslationOpen()) {
+                      <ul class="translation-menu down" role="listbox" aria-label="Translation language">
+                        <li>
+                          <button
+                            type="button"
+                            role="option"
+                            [class.selected]="!translationTarget()"
+                            [attr.aria-selected]="!translationTarget()"
+                            (click)="chooseSheetTranslation('')"
+                          >
+                            No translation
+                          </button>
+                        </li>
+                        @for (code of translationLanguages(); track code) {
+                          <li>
+                            <button
+                              type="button"
+                              role="option"
+                              [class.selected]="code === translationTarget()"
+                              [attr.aria-selected]="code === translationTarget()"
+                              (click)="chooseSheetTranslation(code)"
+                            >
+                              {{ languageName(code) }}
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                    }
+                  </span>
+                  @if (current.kind === 'definition' && current.index != null) {
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Engineer definition"
+                      title="Engineer definition"
+                      [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
+                      [disabled]="aiBusy()"
+                      (click)="openDefinitionEngineer(current.index)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                        />
+                        <path d="M5 3v4" />
+                        <path d="M3 5h4" />
+                        <path d="M19 17v4" />
+                        <path d="M17 19h4" />
+                      </svg>
+                    </button>
+                  }
+                </span>
               </div>
               <textarea
                 #draftField
@@ -1465,49 +1532,6 @@ function writeExampleSuggestions(
               ></textarea>
               @if (current.kind === 'definition' && definitionWarning(textDraft()); as warning) {
                 <p class="warning" role="status">{{ warning }}</p>
-              }
-              <label class="translate-switch">
-                Translation
-                <select
-                  aria-label="Translation language"
-                  [value]="translationTarget()"
-                  [disabled]="translating() || askingEquivalent() || busy()"
-                  (change)="setTranslationInto($event)"
-                >
-                  <option value="" [selected]="!translationTarget()">No translation</option>
-                  @for (code of translationLanguages(); track code) {
-                    <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
-                  }
-                </select>
-              </label>
-              @if (supportAvailable()) {
-                <div class="field-heading">
-                  <label for="translation-text">{{ translationLanguageName() }}</label>
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
-                    [attr.title]="translating() ? 'Translating…' : 'Translate'"
-                    [disabled]="!canTranslate()"
-                    (click)="translateDraft()"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m5 8 6 6" />
-                      <path d="m4 14 6-6 2-3" />
-                      <path d="M2 5h12" />
-                      <path d="M7 2h1" />
-                      <path d="m22 22-5-10-5 10" />
-                      <path d="M14 18h6" />
-                    </svg>
-                  </button>
-                </div>
-                <textarea
-                  id="translation-text"
-                  rows="2"
-                  [value]="translationDraft()"
-                  (input)="setTranslationDraft(inputValue($event))"
-                  [attr.placeholder]="translationLanguageName()"
-                ></textarea>
               }
               @if (sheetError()) {
                 <p class="error">{{ sheetError() }}</p>
@@ -1676,7 +1700,7 @@ function writeExampleSuggestions(
                 <button
                   type="button"
                   class="btn btn-primary"
-                  [disabled]="busy() || translating() || askingEquivalent() || !textDraft().trim()"
+                  [disabled]="busy() || translating() || askingEquivalent() || !draftGloss()"
                   (click)="saveEditor()"
                 >
                   Save
@@ -5218,6 +5242,21 @@ function writeExampleSuggestions(
       stroke-linejoin: round;
     }
 
+    .translation-menu.down {
+      top: calc(100% + 0.3rem);
+      bottom: auto;
+    }
+
+    .translate-pair {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .translate-pair .icon-btn.open svg {
+      transform: rotate(180deg);
+    }
+
     .translation-menu {
       position: absolute;
       z-index: 6;
@@ -5572,7 +5611,7 @@ export class ElementModal {
   readonly equivalentDraft = signal('');
   readonly equivalentIdDraft = signal<string | null>(null);
   readonly textDraft = signal('');
-  readonly sheetTranslations = signal<PassageTranslation[]>([]);
+  readonly sheetTranslationOpen = signal(false);
   readonly translating = signal(false);
   readonly askingEquivalent = signal(false);
   readonly sheetError = signal('');
@@ -5788,6 +5827,10 @@ export class ElementModal {
       return;
     }
     if (this.editor()) {
+      if (this.sheetTranslationOpen()) {
+        this.sheetTranslationOpen.set(false);
+        return;
+      }
       this.editor.set(null);
       return;
     }
@@ -5954,6 +5997,22 @@ export class ElementModal {
     if (!target?.closest('.generate-bundle')) this.exampleTranslationOpen.set(false);
   }
 
+  onEditorSheetClick(event: MouseEvent): void {
+    event.stopPropagation();
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest('.translate-pair')) this.sheetTranslationOpen.set(false);
+  }
+
+  toggleSheetTranslation(): void {
+    if (this.translating() || this.askingEquivalent() || this.busy()) return;
+    this.sheetTranslationOpen.update((open) => !open);
+  }
+
+  chooseSheetTranslation(code: string): void {
+    rememberTranslationInto(code);
+    this.sheetTranslationOpen.set(false);
+  }
+
   private translationTarget(): string {
     const learning = this.element().language.trim().toLowerCase();
     const into = this.translationInto().trim().toLowerCase();
@@ -5964,7 +6023,7 @@ export class ElementModal {
   canAskEquivalent(): boolean {
     return (
       this.supportAvailable() &&
-      this.textDraft().trim().length > 0 &&
+      this.draftGloss().length > 0 &&
       !this.translating() &&
       !this.askingEquivalent() &&
       !this.aiBusy()
@@ -5974,10 +6033,10 @@ export class ElementModal {
   async askEquivalent(): Promise<void> {
     if (!this.canAskEquivalent()) return;
     const element = this.element();
-    const definition = this.textDraft().trim();
+    const parsed = parsePassage(this.textDraft());
+    const definition = parsed.text.trim();
     const english =
-      this.sheetTranslations().find((item) => item.language === this.translationTarget())
-        ?.text ?? '';
+      parsed.translations.find((item) => item.language === this.translationTarget())?.text ?? '';
     const ticket = ++this.equivalentTicket;
     this.askingEquivalent.set(true);
     this.sheetError.set('');
@@ -6685,11 +6744,7 @@ export class ElementModal {
     const passage = parsePassage(editing ? this.textDraft() : definition.text);
     this.engineerGloss.set(passage.text);
     this.engineerEnglish.set(
-      editing
-        ? this.translationDraft()
-        : (passage.translations.find((item) => item.language === this.translationTarget())
-            ?.text ??
-          ''),
+      passage.translations.find((item) => item.language === this.translationTarget())?.text ?? '',
     );
     const known = new Set(draft.words.map((word) => word.text.toLowerCase()));
     this.definitionEngineer.set({
@@ -7258,28 +7313,14 @@ export class ElementModal {
     this.passageSelection.set(null);
   };
 
-  translationDraft(): string {
-    return (
-      this.sheetTranslations().find(
-        (item) => item.language === this.translationTarget(),
-      )?.text ??
-      ''
-    );
-  }
-
-  setTranslationDraft(value: string): void {
-    const target = this.translationTarget();
-    if (!target) return;
-    const rest = this.sheetTranslations().filter((item) => item.language !== target);
-    const text = value.replace(/]/g, '');
-    this.sheetTranslations.set(text.trim() ? [...rest, { language: target, text }] : rest);
+  draftGloss(): string {
+    return parsePassage(this.textDraft()).text.trim();
   }
 
   canTranslate(): boolean {
-    const draft = this.textDraft().trim();
     return (
       this.supportAvailable() &&
-      draft.length > 0 &&
+      this.draftGloss().length > 0 &&
       !this.translating() &&
       !this.askingEquivalent() &&
       !this.busy()
@@ -7288,17 +7329,16 @@ export class ElementModal {
 
   async translateDraft(): Promise<void> {
     if (!this.canTranslate()) return;
-    const text = this.textDraft().trim();
+    const text = this.draftGloss();
     const source = this.element().language;
     const ticket = this.translateTicket;
     this.translating.set(true);
     this.sheetError.set('');
+    this.sheetTranslationOpen.set(false);
     try {
       const translated = await translatePhrase(text, source, this.translationTarget());
       if (ticket !== this.translateTicket) return;
-      const target = this.translationTarget();
-      const rest = this.sheetTranslations().filter((item) => item.language !== target);
-      this.sheetTranslations.set([...rest, { language: target, text: translated }]);
+      this.writeTranslation(this.translationTarget(), translated);
     } catch {
       if (ticket !== this.translateTicket) return;
       this.sheetError.set('Could not translate this.');
@@ -7309,7 +7349,7 @@ export class ElementModal {
 
   async saveEditor(): Promise<void> {
     const editor = this.editor();
-    const primary = this.textDraft().trim();
+    const primary = this.draftGloss();
     if (!editor || !primary || this.busy() || this.translating() || this.askingEquivalent()) return;
     const text = this.phraseToStore();
     const definitions = this.copyDefinitions();
@@ -7739,18 +7779,22 @@ export class ElementModal {
     this.translateTicket += 1;
     this.equivalentTicket += 1;
     this.askingEquivalent.set(false);
-    const passage = parsePassage(text);
-    this.textDraft.set(passage.text);
-    this.sheetTranslations.set(passage.translations);
+    this.textDraft.set(passageForEditing(text));
+    this.sheetTranslationOpen.set(false);
     this.sheetError.set('');
     this.translating.set(false);
   }
 
   private phraseToStore(): string {
-    return this.sheetTranslations().reduce(
+    const parsed = parsePassage(this.textDraft());
+    return parsed.translations.reduce(
       (raw, item) => embedTranslation(raw, item.language, item.text),
-      this.textDraft().trim(),
+      parsed.text,
     );
+  }
+
+  private writeTranslation(language: string, text: string): void {
+    this.textDraft.set(passageForEditing(embedTranslation(this.textDraft(), language, text)));
   }
 
   private focusDraft(): void {
