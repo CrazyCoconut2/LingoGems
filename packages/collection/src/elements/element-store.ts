@@ -103,6 +103,8 @@ export type StoredElement = {
   /** Distinct metadata values across this element's forms. */
   formMetadata: ElementMetadataVariability;
   createdAt: number;
+  /** Set when the element was removed from the collection. The record stays. */
+  deletedAt: number | null;
 };
 
 /** Empty text clears the link. An exact text match reuses that equivalent. */
@@ -158,7 +160,9 @@ async function materializeElements(
     .map(normalizeElement)
     .filter(
       (element): element is StoredElement =>
-        element !== null && (!language || element.language === language),
+        element !== null &&
+        element.deletedAt == null &&
+        (!language || element.language === language),
     )
     .sort(
       (left, right) => left.createdAt - right.createdAt || left.title.localeCompare(right.title),
@@ -197,6 +201,7 @@ export async function addElement(language: string, title: string): Promise<Store
     clicks: 0,
     ...emptyMetadataIndexes(),
     createdAt: Date.now(),
+    deletedAt: null,
   };
   await putElement(created);
   return created;
@@ -239,6 +244,7 @@ export async function saveElement(
     ...indexes,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
+    deletedAt: deletedAtOf(element?.deletedAt),
   };
   await putElement(saved);
   if (options?.syncCatalog !== false && !metadataIndexesEmpty(indexes)) {
@@ -251,9 +257,12 @@ export async function deleteElement(id: string): Promise<void> {
   const key = id.trim();
   if (!key || typeof indexedDB === 'undefined') return;
   const db = await openDatabase();
-  await idbRequest(
-    db.transaction(ELEMENTS_STORE, 'readwrite').objectStore(ELEMENTS_STORE).delete(key),
+  const raw = await idbRequest(
+    db.transaction(ELEMENTS_STORE, 'readonly').objectStore(ELEMENTS_STORE).get(key),
   );
+  const element = normalizeElement(raw);
+  if (!element || element.deletedAt != null) return;
+  await putElement({ ...element, deletedAt: Date.now() });
 }
 
 function sameTitle(left: string, right: string): boolean {
@@ -284,7 +293,12 @@ function normalizeElement(raw: unknown): StoredElement | null {
     ...collectMetadataIndexes(content.definitions),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
+    deletedAt: deletedAtOf(source.deletedAt),
   };
+}
+
+function deletedAtOf(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 }
 
 /** Missing or unknown values are unset. */
