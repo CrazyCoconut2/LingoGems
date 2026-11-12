@@ -986,26 +986,24 @@ const MOVE_SLOP_PX = 10;
 
       <footer class="app-bar">
         <div class="app-bar-row">
-          <div class="app-bar-slot">
-            <button
-              type="button"
-              class="app-bar-btn"
-              [class.active]="statsOpen()"
-              aria-label="Stats"
-              title="Stats"
-              (click)="openStats()"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 3v16a2 2 0 0 0 2 2h16" />
-                <path d="M18 17V9" />
-                <path d="M13 17V5" />
-                <path d="M8 17v-3" />
-              </svg>
-            </button>
-          </div>
           <button
             type="button"
             class="app-bar-btn"
+            [class.active]="statsOpen()"
+            aria-label="Stats"
+            title="Stats"
+            (click)="openStats()"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+              <path d="M18 17V9" />
+              <path d="M13 17V5" />
+              <path d="M8 17v-3" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="app-bar-btn mode"
             [class.active]="playing()"
             [disabled]="!code()"
             [attr.aria-pressed]="playing()"
@@ -1026,23 +1024,21 @@ const MOVE_SLOP_PX = 10;
               </svg>
             }
           </button>
-          <div class="app-bar-slot end">
-            <button
-              type="button"
-              class="app-bar-btn"
-              [class.active]="settingsOpen()"
-              aria-label="Settings"
-              title="Settings"
-              (click)="openSettings()"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
-                />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </button>
-          </div>
+          <button
+            type="button"
+            class="app-bar-btn"
+            [class.active]="settingsOpen()"
+            aria-label="Settings"
+            title="Settings"
+            (click)="openSettings()"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+              />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
         </div>
       </footer>
     </main>
@@ -1096,19 +1092,10 @@ const MOVE_SLOP_PX = 10;
     }
 
     .app-bar-row {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      min-height: 3.25rem;
-    }
-
-    .app-bar-slot {
       display: flex;
-      align-items: center;
-    }
-
-    .app-bar-slot.end {
-      justify-content: flex-end;
+      justify-content: center;
+      align-items: flex-end;
+      min-height: 3.7rem;
     }
 
     .app-bar-btn {
@@ -1122,6 +1109,12 @@ const MOVE_SLOP_PX = 10;
       background: transparent;
       color: var(--text-muted);
       cursor: pointer;
+    }
+
+    .app-bar-btn.mode {
+      width: 3.25rem;
+      height: 3.25rem;
+      margin-bottom: 0.35rem;
     }
 
     .app-bar-btn:hover:not(:disabled) {
@@ -1147,6 +1140,11 @@ const MOVE_SLOP_PX = 10;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .app-bar-btn.mode svg {
+      width: 1.65rem;
+      height: 1.65rem;
     }
 
     .entries-toolbar {
