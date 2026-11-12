@@ -61,18 +61,6 @@ const EMPTY_DAY: DayStats = {
                 {{ error() ? 'Could not count stats.' : 'One day at a time.' }}
               </p>
             }
-            <ul class="totals">
-              @for (row of games; track row.game) {
-                <li
-                  [attr.data-game]="row.game"
-                  [attr.aria-label]="gemsLabel(row.label, gemTotals()[row.game], true)"
-                  [attr.title]="gemsLabel(row.label, gemTotals()[row.game], true)"
-                >
-                  <span class="gem" aria-hidden="true"></span>
-                  <span class="count">{{ gemTotals()[row.game] }}</span>
-                </li>
-              }
-            </ul>
           </div>
           <div class="actions">
             <button
@@ -129,11 +117,22 @@ const EMPTY_DAY: DayStats = {
             @for (row of games; track row.game) {
               <li
                 [attr.data-game]="row.game"
-                [attr.aria-label]="gemsLabel(row.label, shown().gems[row.game])"
-                [attr.title]="gemsLabel(row.label, shown().gems[row.game])"
+                [attr.aria-label]="
+                  gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
+                "
+                [attr.title]="
+                  gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
+                "
               >
                 <span class="gem" aria-hidden="true"></span>
-                <span class="count">{{ shown().gems[row.game] }}</span>
+                <span class="count">{{ formatCount(gemTotals()[row.game]) }}</span>
+                <span class="caption">{{ row.label }}</span>
+                <span class="delta" [class.quiet]="shown().gems[row.game] === 0">
+                  +{{ formatCount(shown().gems[row.game]) }}
+                  @if (dayBadge()) {
+                    {{ dayBadge() }}
+                  }
+                </span>
               </li>
             }
           </ul>
@@ -407,68 +406,69 @@ const EMPTY_DAY: DayStats = {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.15rem;
-      padding: 0.7rem 0.3rem 0.55rem;
+      gap: 0.12rem;
+      padding: 0.75rem 0.35rem 0.6rem;
+      border: 1px solid color-mix(in srgb, var(--exercise-gem) 28%, transparent);
       border-radius: var(--radius);
-      background: color-mix(in srgb, var(--exercise-gem) 14%, transparent);
+      background: color-mix(in srgb, var(--exercise-gem) 16%, transparent);
     }
 
-    .totals {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.7rem 0.9rem;
-      margin: 0.45rem 0 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .totals li {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.28rem;
-    }
-
-    .totals li[data-game='translation'],
     .gems li[data-game='translation'],
     .bit[data-game='translation'] {
       --exercise-gem: var(--gem-translation);
     }
 
-    .totals li[data-game='example'],
     .gems li[data-game='example'],
     .bit[data-game='example'] {
       --exercise-gem: var(--gem-example);
     }
 
-    .totals li[data-game='definition'],
     .gems li[data-game='definition'],
     .bit[data-game='definition'] {
       --exercise-gem: var(--gem-definition);
     }
 
-    .totals .gem {
-      --gem-size: 0.85rem;
-      background: var(--exercise-gem);
-    }
-
-    .totals .count {
-      color: var(--exercise-gem);
-      font-size: 0.84rem;
-      font-weight: 720;
-      font-variant-numeric: tabular-nums;
-    }
-
     .gems .gem {
-      --gem-size: 1.2rem;
+      --gem-size: 1.35rem;
+      margin-bottom: 0.15rem;
       background: var(--exercise-gem);
     }
 
     .gems .count {
-      color: var(--exercise-gem);
-      font-size: 1.35rem;
+      color: var(--text);
+      font-size: 1.45rem;
       font-weight: 750;
       font-variant-numeric: tabular-nums;
-      line-height: 1.1;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .gems .caption {
+      color: var(--text-muted);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      line-height: 1.2;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .gems .delta {
+      margin-top: 0.35rem;
+      padding: 0.18rem 0.45rem;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.28);
+      color: var(--exercise-gem);
+      font-size: 0.68rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+      text-align: center;
+    }
+
+    .gems .delta.quiet {
+      color: var(--text-muted);
+      font-weight: 650;
     }
 
     .activity {
@@ -638,6 +638,10 @@ export class GemStatsModal implements OnDestroy {
     const current = this.day();
     return current ? formatDay(current.day) : '';
   });
+  readonly dayBadge = computed(() => {
+    const current = this.day();
+    return current ? formatDayBadge(current.day) : '';
+  });
   readonly computedLabel = computed(() => {
     const at = this.snapshot()?.computedAt;
     return at ? formatComputed(at) : '';
@@ -716,10 +720,21 @@ export class GemStatsModal implements OnDestroy {
     return displayTitle(element.title, this.language());
   }
 
-  gemsLabel(game: string, count: number, total = false): string {
+  gemsLabel(game: string, count: number): string {
     const amount = count === 1 ? '1 gem' : `${count} gems`;
+    return `${amount}, ${game.toLowerCase()}`;
+  }
+
+  gemCardLabel(game: string, total: number, day: number): string {
     const name = game.toLowerCase();
-    return total ? `${amount} ${name} in total` : `${amount}, ${name}`;
+    const overall = total === 1 ? '1 gem' : `${total} gems`;
+    const gained = day === 1 ? '1 gem' : `${day} gems`;
+    const when = this.dayBadge() || 'this day';
+    return `${overall} ${name} in total, ${gained} ${when}`;
+  }
+
+  formatCount(count: number): string {
+    return new Intl.NumberFormat(undefined).format(count);
   }
 
   activityLabel(label: string, count: number): string {
@@ -769,6 +784,12 @@ function formatDay(day: string): string {
   };
   if (year !== today.getFullYear()) options.year = 'numeric';
   return new Intl.DateTimeFormat(undefined, options).format(value);
+}
+
+function formatDayBadge(day: string): string {
+  const label = formatDay(day);
+  if (label === 'Today' || label === 'Yesterday') return label;
+  return 'that day';
 }
 
 function formatComputed(at: number): string {
