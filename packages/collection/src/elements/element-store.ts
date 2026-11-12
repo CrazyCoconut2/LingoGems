@@ -258,6 +258,13 @@ export async function saveElement(
   return saved;
 }
 
+let elementWriteListener: ((language: string) => void) | null = null;
+
+/** Notified with the language after an element is written. */
+export function setElementWriteListener(listener: ((language: string) => void) | null): void {
+  elementWriteListener = listener;
+}
+
 export async function deleteElement(id: string): Promise<void> {
   const key = id.trim();
   if (!key || typeof indexedDB === 'undefined') return;
@@ -637,6 +644,7 @@ async function putElement(element: StoredElement): Promise<void> {
   await idbRequest(
     db.transaction(ELEMENTS_STORE, 'readwrite').objectStore(ELEMENTS_STORE).put(element),
   );
+  elementWriteListener?.(element.language);
 }
 
 /** First letter of a title, for display. The stored title is unchanged. */

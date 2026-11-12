@@ -2,32 +2,98 @@ import type { DayStats, ElementDayStats, GemCounts } from './gem-stats.worker';
 
 const KEY_PREFIX = 'lingogem.stats.v2.';
 
+export type StatsPhase = 'empty' | 'pending' | 'ready' | 'error';
+
 export type StatsSnapshot = {
   computedAt: number;
   days: DayStats[];
 };
 
+export type StatsView = {
+  phase: StatsPhase;
+  snapshot: StatsSnapshot | null;
+};
+
+const EMPTY_VIEW: StatsView = { phase: 'empty', snapshot: null };
+
 export function readStatsSnapshot(language: string): StatsSnapshot | null {
+  const view = readStatsView(language);
+  return view.phase === 'ready' ? view.snapshot : null;
+}
+
+export function readStatsView(language: string): StatsView {
+  const record = readRecord(language);
+  if (!record) return EMPTY_VIEW;
+  if (record.status === 'pending') return { phase: 'pending', snapshot: null };
+  if (record.status === 'error') return { phase: 'error', snapshot: null };
+  return { phase: 'ready', snapshot: { computedAt: record.computedAt, days: record.days } };
+}
+
+export function writeStatsSnapshot(language: string, snapshot: StatsSnapshot): void {
+  writeRecord(language, { status: 'ready', ...snapshot });
+}
+
+export function writeStatsPending(language: string): void {
+  writeRecord(language, { status: 'pending' });
+}
+
+export function writeStatsError(language: string): void {
+  writeRecord(language, { status: 'error' });
+}
+
+/** Languages left pending when a compile was still running. */
+export function pendingStatsLanguages(): string[] {
+  if (typeof localStorage === 'undefined') return [];
+  const languages: string[] = [];
+  try {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith(KEY_PREFIX)) continue;
+      const language = key.slice(KEY_PREFIX.length);
+      if (readStatsView(language).phase === 'pending') languages.push(language);
+    }
+  } catch {
+    return languages;
+  }
+  return languages;
+}
+
+type StatsRecord =
+  | { status: 'pending' }
+  | { status: 'error' }
+  | { status: 'ready'; computedAt: number; days: DayStats[] };
+
+function readRecord(language: string): StatsRecord | null {
   if (typeof localStorage === 'undefined') return null;
   const key = cacheKey(language);
   if (!key) return null;
   try {
     const parsed = JSON.parse(localStorage.getItem(key) ?? '');
-    return isSnapshot(parsed) ? parsed : null;
+    return recordOf(parsed);
   } catch {
     return null;
   }
 }
 
-export function writeStatsSnapshot(language: string, snapshot: StatsSnapshot): void {
+function writeRecord(language: string, record: StatsRecord): void {
   if (typeof localStorage === 'undefined') return;
   const key = cacheKey(language);
   if (!key) return;
   try {
-    localStorage.setItem(key, JSON.stringify(snapshot));
+    localStorage.setItem(key, JSON.stringify(record));
   } catch {
-    // The in-memory snapshot still shows for this visit.
+    // The in-memory view still shows for this visit.
   }
+}
+
+function recordOf(value: unknown): StatsRecord | null {
+  if (!value || typeof value !== 'object') return null;
+  const status = (value as { status?: unknown }).status;
+  if (status === 'pending') return { status: 'pending' };
+  if (status === 'error') return { status: 'error' };
+  if (status !== undefined && status !== 'ready') return null;
+  if (!isSnapshot(value)) return null;
+  return { status: 'ready', computedAt: value.computedAt, days: value.days };
 }
 
 function cacheKey(language: string): string {

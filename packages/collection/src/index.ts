@@ -21,6 +21,7 @@ export {
   formTexts,
   elementModeLabel,
   saveElement,
+  setElementWriteListener,
   TRANSLATION_GEM_MAX,
   type DefinitionGame,
   type DefinitionGameLog,

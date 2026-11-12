@@ -1,8 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
-  NgZone,
-  OnDestroy,
   computed,
   effect,
   inject,
@@ -12,7 +10,6 @@ import {
   untracked,
 } from '@angular/core';
 import { displayTitle, languageDisplayName } from 'collection';
-import { readStatsSnapshot, writeStatsSnapshot, type StatsSnapshot } from './gem-stats-cache';
 import {
   emptyDailyGoals,
   readDailyGoals,
@@ -20,6 +17,7 @@ import {
   writeDailyGoals,
   type DailyGoals,
 } from './gem-stats-goals';
+import { GemStatsJob } from './gem-stats-job';
 import { comfortColor } from './comfort-palette';
 import { GemIcon } from './gem-icon';
 import type { DayStats, ElementDayStats, GemCounts } from './gem-stats.worker';
@@ -40,7 +38,8 @@ const ACTIVITIES: readonly { key: 'opened' | 'reworked' | 'revealed'; label: str
 
 type GoalKind = keyof DailyGoals;
 
-type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
+const LOADING_CARDS = [0, 1, 2];
+const LOADING_ROWS = [0, 1, 2, 3];
 
 const EMPTY_DAY: DayStats = {
   day: '',
@@ -61,7 +60,7 @@ const EMPTY_DAY: DayStats = {
       role="dialog"
       aria-modal="true"
       aria-label="Stats"
-      [attr.aria-busy]="computing() ? true : null"
+      [attr.aria-busy]="pending() ? true : null"
       (click)="closeOnBackdrop($event)"
     >
       <section class="panel" (click)="$event.stopPropagation()">
@@ -92,22 +91,6 @@ const EMPTY_DAY: DayStats = {
                   <circle cx="12" cy="12" r="3" />
                 </svg>
               </button>
-              <button
-                type="button"
-                class="icon-btn"
-                [class.spin]="computing()"
-                [attr.aria-label]="snapshot() ? 'Recompute stats' : 'Compute stats'"
-                [disabled]="computing() || !language().trim()"
-                [attr.aria-busy]="computing() ? true : null"
-                (click)="compute()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                  <path d="M21 3v5h-5" />
-                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                  <path d="M8 16H3v5" />
-                </svg>
-              </button>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closed.emit()">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M18 6 6 18" />
@@ -121,19 +104,23 @@ const EMPTY_DAY: DayStats = {
               type="button"
               class="icon-btn"
               aria-label="Older day"
-              [disabled]="!canGoOlder()"
+              [disabled]="pending() || !canGoOlder()"
               (click)="older()"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m15 18-6-6 6-6" />
               </svg>
             </button>
-            <p class="day">{{ dayLabel() || '—' }}</p>
+            @if (pending()) {
+              <p class="day"><span class="bone bone-day"></span></p>
+            } @else {
+              <p class="day">{{ dayLabel() || '—' }}</p>
+            }
             <button
               type="button"
               class="icon-btn"
               aria-label="Newer day"
-              [disabled]="!canGoNewer()"
+              [disabled]="pending() || !canGoNewer()"
               (click)="newer()"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -143,203 +130,257 @@ const EMPTY_DAY: DayStats = {
           </div>
         </header>
         <div class="body">
-          <div
-            class="hero"
-            [style.--comfort]="comfortTone(shown().comfort)"
-            [attr.aria-label]="comfortLabel(shown().comfort)"
-            [attr.title]="comfortLabel(shown().comfort)"
-          >
-            <div class="hero-top">
-              <div class="hero-copy">
-                <p class="eyebrow">Comfort</p>
-                <p class="hero-value">{{ formatSigned(shown().comfort) }}</p>
+          @if (pending()) {
+            <div class="loading" aria-hidden="true">
+              <div class="hero hero-loading">
+                <div class="hero-top">
+                  <div class="hero-copy">
+                    <span class="bone bone-label"></span>
+                    <span class="bone bone-hero"></span>
+                  </div>
+                  <span class="bone bone-badge"></span>
+                </div>
               </div>
-              @if (dayBadge()) {
-                <span class="hero-badge">{{ dayBadge() }}</span>
+              <section class="block">
+                <div class="block-head">
+                  <h3>Gems</h3>
+                </div>
+                <ul class="gems">
+                  @for (item of loadingCards; track item) {
+                    <li class="loading-card">
+                      <span class="bone bone-stone"></span>
+                      <span class="bone bone-count"></span>
+                      <span class="bone bone-caption"></span>
+                    </li>
+                  }
+                </ul>
+              </section>
+              <section class="block">
+                <div class="block-head">
+                  <h3>Activity</h3>
+                </div>
+                <ul class="activity">
+                  @for (item of loadingCards; track item) {
+                    <li class="loading-card">
+                      <span class="bone bone-stone"></span>
+                      <span class="bone bone-count"></span>
+                      <span class="bone bone-caption"></span>
+                    </li>
+                  }
+                </ul>
+              </section>
+              <section class="block deck">
+                <div class="block-head">
+                  <h3>Elements</h3>
+                </div>
+                <ul class="elements">
+                  @for (item of loadingRows; track item) {
+                    <li class="row">
+                      <span class="bone bone-title"></span>
+                    </li>
+                  }
+                </ul>
+              </section>
+            </div>
+          } @else if (ready()) {
+            <div
+              class="hero"
+              [style.--comfort]="comfortTone(shown().comfort)"
+              [attr.aria-label]="comfortLabel(shown().comfort)"
+              [attr.title]="comfortLabel(shown().comfort)"
+            >
+              <div class="hero-top">
+                <div class="hero-copy">
+                  <p class="eyebrow">Comfort</p>
+                  <p class="hero-value">{{ formatSigned(shown().comfort) }}</p>
+                </div>
+                @if (dayBadge()) {
+                  <span class="hero-badge">{{ dayBadge() }}</span>
+                }
+              </div>
+              @if (goalsOpen()) {
+                <div class="goal-edit">
+                  <span class="goal-edit-label">Daily goal</span>
+                  <ng-container
+                    *ngTemplateOutlet="goalStepper; context: { kind: 'comfort', label: 'comfort' }"
+                  />
+                </div>
+              }
+              @if (goals().comfort; as goal) {
+                <div
+                  class="meter"
+                  role="progressbar"
+                  aria-valuemin="0"
+                  [attr.aria-valuenow]="meterNow(comfortGain(), goal)"
+                  [attr.aria-valuemax]="goal"
+                  [attr.aria-label]="comfortMeterLabel(goal)"
+                >
+                  <span class="meter-track">
+                    <span
+                      class="meter-fill"
+                      [style.width.%]="meterPercent(comfortGain(), goal)"
+                    ></span>
+                  </span>
+                  <span class="meter-label">{{ meterText(comfortGain(), goal) }}</span>
+                </div>
               }
             </div>
-            @if (goalsOpen()) {
-              <div class="goal-edit">
-                <span class="goal-edit-label">Daily goal</span>
-                <ng-container
-                  *ngTemplateOutlet="goalStepper; context: { kind: 'comfort', label: 'comfort' }"
-                />
+            <section class="block">
+              <div class="block-head">
+                <h3>Gems</h3>
               </div>
-            }
-            @if (goals().comfort; as goal) {
-              <div
-                class="meter"
-                role="progressbar"
-                aria-valuemin="0"
-                [attr.aria-valuenow]="meterNow(comfortGain(), goal)"
-                [attr.aria-valuemax]="goal"
-                [attr.aria-label]="comfortMeterLabel(goal)"
-              >
-                <span class="meter-track">
-                  <span
-                    class="meter-fill"
-                    [style.width.%]="meterPercent(comfortGain(), goal)"
-                  ></span>
-                </span>
-                <span class="meter-label">{{ meterText(comfortGain(), goal) }}</span>
-              </div>
-            }
-          </div>
-          <section class="block">
-            <div class="block-head">
-              <h3>Gems</h3>
-            </div>
-            <ul class="gems">
-              @for (row of games; track row.game) {
-                <li
-                  [attr.data-game]="row.game"
-                  [attr.aria-label]="
-                    gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
-                  "
-                  [attr.title]="
-                    gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
-                  "
-                >
-                  <span class="stone" aria-hidden="true">
-                    <app-gem-icon class="stone-icon" [game]="row.game" />
-                  </span>
-                  <span class="count">{{ formatCount(gemTotals()[row.game]) }}</span>
-                  <span class="caption">{{ row.label }}</span>
-                  @if (shown().gems[row.game] > 0) {
-                    <span class="delta">
-                      +{{ formatCount(shown().gems[row.game]) }}
-                      @if (dayBadge()) {
-                        {{ dayBadge() }}
-                      }
+              <ul class="gems">
+                @for (row of games; track row.game) {
+                  <li
+                    [attr.data-game]="row.game"
+                    [attr.aria-label]="
+                      gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
+                    "
+                    [attr.title]="
+                      gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
+                    "
+                  >
+                    <span class="stone" aria-hidden="true">
+                      <app-gem-icon class="stone-icon" [game]="row.game" />
                     </span>
-                  }
-                  @if (goalsOpen() || goals()[row.game] !== null) {
-                    <div class="card-foot">
-                      @if (goalsOpen()) {
-                        <span class="card-goal-label">Goal</span>
-                        <ng-container
-                          *ngTemplateOutlet="
-                            goalStepper;
-                            context: { kind: row.game, label: row.label.toLowerCase() }
-                          "
-                        />
-                      }
-                      @if (goals()[row.game]; as goal) {
-                        <div
-                          class="meter"
-                          role="progressbar"
-                          aria-valuemin="0"
-                          [attr.aria-valuenow]="meterNow(shown().gems[row.game], goal)"
-                          [attr.aria-valuemax]="goal"
-                          [attr.aria-label]="gemMeterLabel(row.label, shown().gems[row.game], goal)"
-                        >
-                          <span class="meter-track">
-                            <span
-                              class="meter-fill"
-                              [style.width.%]="meterPercent(shown().gems[row.game], goal)"
-                            ></span>
-                          </span>
-                          <span class="meter-label">{{
-                            meterText(shown().gems[row.game], goal)
-                          }}</span>
-                        </div>
-                      }
-                    </div>
-                  }
-                </li>
-              }
-            </ul>
-          </section>
-          <section class="block">
-            <div class="block-head">
-              <h3>Activity</h3>
-            </div>
-            <ul class="activity">
-              @for (row of activities; track row.key) {
-                <li
-                  [attr.aria-label]="activityCardLabel(row.label, shown()[row.key])"
-                  [attr.title]="activityCardLabel(row.label, shown()[row.key])"
-                >
-                  <span class="well" aria-hidden="true">
-                    <ng-container
-                      *ngTemplateOutlet="activityIcon; context: { $implicit: row.key }"
-                    />
-                  </span>
-                  <span class="count">{{ formatCount(shown()[row.key]) }}</span>
-                  <span class="caption">{{ row.label }}</span>
-                </li>
-              }
-            </ul>
-          </section>
-          <section class="block deck">
-            <div class="block-head">
-              <h3>Elements</h3>
-            </div>
-            <ul class="elements">
-              @if (day(); as current) {
-                @for (element of current.elements; track element.id) {
-                  <li class="row">
-                    @if (element.comfort !== 0) {
-                      <span
-                        class="badge"
-                        [attr.data-sign]="element.comfort > 0 ? 'up' : 'down'"
-                        [attr.aria-label]="comfortLabel(element.comfort)"
-                        [attr.title]="comfortLabel(element.comfort)"
-                      >
-                        {{ formatSigned(element.comfort) }}
+                    <span class="count">{{ formatCount(gemTotals()[row.game]) }}</span>
+                    <span class="caption">{{ row.label }}</span>
+                    @if (shown().gems[row.game] > 0) {
+                      <span class="delta">
+                        +{{ formatCount(shown().gems[row.game]) }}
+                        @if (dayBadge()) {
+                          {{ dayBadge() }}
+                        }
                       </span>
                     }
-                    <div class="row-main">
-                      <span class="title" [attr.title]="titleOf(element)">{{
-                        titleOf(element)
-                      }}</span>
-                      @if (hasBits(element)) {
-                        <span class="bits">
-                          @for (row of games; track row.game) {
-                            @if (element.gems[row.game] > 0) {
+                    @if (goalsOpen() || goals()[row.game] !== null) {
+                      <div class="card-foot">
+                        @if (goalsOpen()) {
+                          <span class="card-goal-label">Goal</span>
+                          <ng-container
+                            *ngTemplateOutlet="
+                              goalStepper;
+                              context: { kind: row.game, label: row.label.toLowerCase() }
+                            "
+                          />
+                        }
+                        @if (goals()[row.game]; as goal) {
+                          <div
+                            class="meter"
+                            role="progressbar"
+                            aria-valuemin="0"
+                            [attr.aria-valuenow]="meterNow(shown().gems[row.game], goal)"
+                            [attr.aria-valuemax]="goal"
+                            [attr.aria-label]="
+                              gemMeterLabel(row.label, shown().gems[row.game], goal)
+                            "
+                          >
+                            <span class="meter-track">
                               <span
-                                class="bit"
-                                [attr.data-game]="row.game"
-                                [attr.aria-label]="gemsLabel(row.label, element.gems[row.game])"
-                                [attr.title]="gemsLabel(row.label, element.gems[row.game])"
-                              >
-                                <app-gem-icon class="stone-icon" [game]="row.game" />
-                                <span>{{ element.gems[row.game] }}</span>
-                              </span>
-                            }
-                          }
-                          @for (row of activities; track row.key) {
-                            @if (element[row.key] > 0) {
-                              <span
-                                class="bit"
-                                [attr.aria-label]="activityLabel(row.label, element[row.key])"
-                                [attr.title]="activityLabel(row.label, element[row.key])"
-                              >
-                                <ng-container
-                                  *ngTemplateOutlet="activityIcon; context: { $implicit: row.key }"
-                                />
-                                <span>{{ element[row.key] }}</span>
-                              </span>
-                            }
-                          }
-                        </span>
-                      }
-                    </div>
+                                class="meter-fill"
+                                [style.width.%]="meterPercent(shown().gems[row.game], goal)"
+                              ></span>
+                            </span>
+                            <span class="meter-label">{{
+                              meterText(shown().gems[row.game], goal)
+                            }}</span>
+                          </div>
+                        }
+                      </div>
+                    }
                   </li>
                 }
-              } @else {
-                <li class="placeholder">
-                  <p class="hint">{{ emptyLabel() }}</p>
-                </li>
-              }
-            </ul>
-          </section>
+              </ul>
+            </section>
+            <section class="block">
+              <div class="block-head">
+                <h3>Activity</h3>
+              </div>
+              <ul class="activity">
+                @for (row of activities; track row.key) {
+                  <li
+                    [attr.aria-label]="activityCardLabel(row.label, shown()[row.key])"
+                    [attr.title]="activityCardLabel(row.label, shown()[row.key])"
+                  >
+                    <span class="well" aria-hidden="true">
+                      <ng-container
+                        *ngTemplateOutlet="activityIcon; context: { $implicit: row.key }"
+                      />
+                    </span>
+                    <span class="count">{{ formatCount(shown()[row.key]) }}</span>
+                    <span class="caption">{{ row.label }}</span>
+                  </li>
+                }
+              </ul>
+            </section>
+            <section class="block deck">
+              <div class="block-head">
+                <h3>Elements</h3>
+              </div>
+              <ul class="elements">
+                @if (day(); as current) {
+                  @for (element of current.elements; track element.id) {
+                    <li class="row">
+                      @if (element.comfort !== 0) {
+                        <span
+                          class="badge"
+                          [attr.data-sign]="element.comfort > 0 ? 'up' : 'down'"
+                          [attr.aria-label]="comfortLabel(element.comfort)"
+                          [attr.title]="comfortLabel(element.comfort)"
+                        >
+                          {{ formatSigned(element.comfort) }}
+                        </span>
+                      }
+                      <div class="row-main">
+                        <span class="title" [attr.title]="titleOf(element)">{{
+                          titleOf(element)
+                        }}</span>
+                        @if (hasBits(element)) {
+                          <span class="bits">
+                            @for (row of games; track row.game) {
+                              @if (element.gems[row.game] > 0) {
+                                <span
+                                  class="bit"
+                                  [attr.data-game]="row.game"
+                                  [attr.aria-label]="gemsLabel(row.label, element.gems[row.game])"
+                                  [attr.title]="gemsLabel(row.label, element.gems[row.game])"
+                                >
+                                  <app-gem-icon class="stone-icon" [game]="row.game" />
+                                  <span>{{ element.gems[row.game] }}</span>
+                                </span>
+                              }
+                            }
+                            @for (row of activities; track row.key) {
+                              @if (element[row.key] > 0) {
+                                <span
+                                  class="bit"
+                                  [attr.aria-label]="activityLabel(row.label, element[row.key])"
+                                  [attr.title]="activityLabel(row.label, element[row.key])"
+                                >
+                                  <ng-container
+                                    *ngTemplateOutlet="
+                                      activityIcon;
+                                      context: { $implicit: row.key }
+                                    "
+                                  />
+                                  <span>{{ element[row.key] }}</span>
+                                </span>
+                              }
+                            }
+                          </span>
+                        }
+                      </div>
+                    </li>
+                  }
+                } @else {
+                  <li class="placeholder">
+                    <p class="hint">Nothing recorded yet.</p>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
         </div>
-        @if (computedLabel(); as computed) {
-          <footer class="panel-footer">
-            <p>{{ computed }}</p>
-          </footer>
-        }
       </section>
     </div>
     <ng-template #goalStepper let-kind="kind" let-label="label">
@@ -480,19 +521,6 @@ const EMPTY_DAY: DayStats = {
       color: var(--danger);
     }
 
-    .panel-footer {
-      flex-shrink: 0;
-      padding: 0.55rem 1rem 0.7rem;
-      border-top: 1px solid var(--border);
-    }
-
-    .panel-footer p {
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      line-height: 1.4;
-      text-align: center;
-    }
-
     .actions {
       display: flex;
       gap: 0.35rem;
@@ -541,16 +569,6 @@ const EMPTY_DAY: DayStats = {
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
-    }
-
-    .icon-btn.spin svg {
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
     }
 
     .body {
@@ -1155,6 +1173,70 @@ const EMPTY_DAY: DayStats = {
       margin: 0;
     }
 
+    .hero-loading {
+      --comfort: var(--text-muted);
+      border-color: var(--border);
+      background: color-mix(in srgb, var(--text) 4%, transparent);
+    }
+
+    .bone {
+      display: block;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--text) 10%, transparent);
+    }
+
+    .bone-day {
+      width: 9.5rem;
+      height: 0.9rem;
+      margin-inline: auto;
+    }
+
+    .bone-label {
+      width: 4.4rem;
+      height: 0.55rem;
+    }
+
+    .bone-hero {
+      width: 5.5rem;
+      height: 2.4rem;
+      margin-top: 0.45rem;
+      border-radius: 0.7rem;
+    }
+
+    .bone-badge {
+      width: 4.4rem;
+      height: 1.4rem;
+    }
+
+    .gems li.loading-card,
+    .activity li.loading-card {
+      border-color: var(--border);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .bone-stone {
+      width: 2.35rem;
+      height: 2.35rem;
+      margin-bottom: 0.28rem;
+      border-radius: 0.7rem;
+    }
+
+    .bone-count {
+      width: 2.6rem;
+      height: 1.2rem;
+    }
+
+    .bone-caption {
+      width: 4.2rem;
+      height: 0.5rem;
+      margin-top: 0.2rem;
+    }
+
+    .loading .bone-title {
+      width: 58%;
+      height: 1.05rem;
+    }
+
     @media (max-width: 720px) {
       .backdrop {
         align-items: flex-end;
@@ -1172,18 +1254,27 @@ const EMPTY_DAY: DayStats = {
     }
   `,
 })
-export class GemStatsModal implements OnDestroy {
+export class GemStatsModal {
   readonly language = input.required<string>();
   readonly closed = output<void>();
   readonly games = GAMES;
   readonly activities = ACTIVITIES;
-  readonly snapshot = signal<StatsSnapshot | null>(null);
+  readonly loadingCards = LOADING_CARDS;
+  readonly loadingRows = LOADING_ROWS;
   readonly goalsOpen = signal(false);
   readonly goals = signal<DailyGoals>(emptyDailyGoals());
   readonly dayIndex = signal(0);
-  readonly computing = signal(false);
-  readonly error = signal(false);
 
+  private readonly job = inject(GemStatsJob);
+
+  readonly stats = computed(() => this.job.view(this.language()));
+  readonly pending = computed(() => {
+    const phase = this.stats().phase;
+    return phase === 'pending' || (phase === 'empty' && this.language().trim().length > 0);
+  });
+  readonly ready = computed(() => this.stats().phase === 'ready');
+  readonly error = computed(() => this.stats().phase === 'error');
+  readonly snapshot = computed(() => this.stats().snapshot);
   readonly day = computed(() => this.snapshot()?.days[this.dayIndex()] ?? null);
   readonly shown = computed(() => this.day() ?? EMPTY_DAY);
   readonly comfortGain = computed(() => Math.max(this.shown().comfort, 0));
@@ -1196,9 +1287,6 @@ export class GemStatsModal implements OnDestroy {
     }
     return totals;
   });
-  readonly emptyLabel = computed(() =>
-    this.snapshot() ? 'Nothing recorded yet.' : "Compute the day's stats when you want them.",
-  );
   readonly canGoOlder = computed(() => {
     const total = this.snapshot()?.days.length ?? 0;
     return this.dayIndex() < total - 1;
@@ -1212,70 +1300,21 @@ export class GemStatsModal implements OnDestroy {
     const current = this.day();
     return current ? formatDayBadge(current.day) : '';
   });
-  readonly computedLabel = computed(() => {
-    const at = this.snapshot()?.computedAt;
-    return at ? formatComputed(at) : '';
-  });
-
-  private readonly zone = inject(NgZone);
-  private worker: Worker | null = null;
-  private request = 0;
 
   constructor() {
     effect(() => {
       const language = this.language();
       untracked(() => {
-        this.retireWorker();
-        this.computing.set(false);
-        this.error.set(false);
         this.dayIndex.set(0);
         this.goalsOpen.set(false);
-        this.snapshot.set(readStatsSnapshot(language));
         this.goals.set(readDailyGoals(language));
+        this.job.ensure(language);
       });
     });
   }
 
-  ngOnDestroy(): void {
-    this.retireWorker();
-  }
-
   closeOnBackdrop(event: MouseEvent): void {
     if (event.target === event.currentTarget) this.closed.emit();
-  }
-
-  compute(): void {
-    if (this.computing()) return;
-    const language = this.language().trim().toLowerCase();
-    if (!language) return;
-    this.retireWorker();
-    const request = this.request;
-    this.error.set(false);
-    this.computing.set(true);
-    let worker: Worker;
-    try {
-      worker = new Worker(new URL('./gem-stats.worker.ts', import.meta.url), { type: 'module' });
-    } catch {
-      this.computing.set(false);
-      this.error.set(true);
-      return;
-    }
-    this.worker = worker;
-    worker.onmessage = (event: MessageEvent<StatsMessage>) => {
-      this.zone.run(() => {
-        if (request !== this.request) return;
-        this.finish(event.data, language);
-      });
-    };
-    worker.onerror = () => {
-      this.zone.run(() => {
-        if (request !== this.request) return;
-        this.computing.set(false);
-        this.error.set(true);
-        this.retireWorker();
-      });
-    };
-    worker.postMessage({ type: 'compile', language });
   }
 
   older(): void {
@@ -1412,32 +1451,6 @@ export class GemStatsModal implements OnDestroy {
     this.goals.set(next);
     writeDailyGoals(this.language(), next);
   }
-
-  private finish(message: StatsMessage, language: string): void {
-    this.computing.set(false);
-    this.retireWorker();
-    if (!message?.ok || !Array.isArray(message.days)) {
-      this.error.set(true);
-      return;
-    }
-    const previous = this.day()?.day ?? null;
-    const snapshot: StatsSnapshot = { computedAt: Date.now(), days: message.days };
-    writeStatsSnapshot(language, snapshot);
-    this.snapshot.set(snapshot);
-    this.error.set(false);
-    if (!previous) {
-      this.dayIndex.set(0);
-      return;
-    }
-    const index = message.days.findIndex((day) => day.day === previous);
-    this.dayIndex.set(index >= 0 ? index : 0);
-  }
-
-  private retireWorker(): void {
-    this.request += 1;
-    this.worker?.terminate();
-    this.worker = null;
-  }
 }
 
 function formatDay(day: string): string {
@@ -1477,19 +1490,4 @@ function calendarDay(day: string): Date | null {
 function dayDistance(value: Date, today: Date): number {
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   return Math.round((todayStart - value.getTime()) / 86_400_000);
-}
-
-function formatComputed(at: number): string {
-  const date = new Date(at);
-  const now = new Date();
-  const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(
-    date,
-  );
-  const sameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
-  if (sameDay) return `Computed at ${time}`;
-  const day = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
-  return `Computed ${day} at ${time}`;
 }
