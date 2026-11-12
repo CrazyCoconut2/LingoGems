@@ -11,7 +11,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { displayTitle } from 'collection';
+import { displayTitle, languageDisplayName } from 'collection';
 import { readStatsSnapshot, writeStatsSnapshot, type StatsSnapshot } from './gem-stats-cache';
 import { comfortColor } from './comfort-palette';
 import type { DayStats, ElementDayStats, GemCounts } from './gem-stats.worker';
@@ -56,40 +56,41 @@ const EMPTY_DAY: DayStats = {
     >
       <section class="panel" (click)="$event.stopPropagation()">
         <header class="panel-header">
-          <div>
-            <h2>Stats</h2>
-            @if (error() || !computedLabel()) {
-              <p [class.failed]="error()">
-                {{ error() ? 'Could not count stats.' : 'One day at a time.' }}
+          <div class="header-bar">
+            <div>
+              <h2>Stats</h2>
+              <p class="language">
+                <span>{{ languageName() }}</span>
+                @if (error()) {
+                  <span class="failed">Could not count stats.</span>
+                }
               </p>
-            }
+            </div>
+            <div class="actions">
+              <button
+                type="button"
+                class="icon-btn"
+                [class.spin]="computing()"
+                [attr.aria-label]="snapshot() ? 'Recompute stats' : 'Compute stats'"
+                [disabled]="computing() || !language().trim()"
+                [attr.aria-busy]="computing() ? true : null"
+                (click)="compute()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                  <path d="M21 3v5h-5" />
+                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                  <path d="M8 16H3v5" />
+                </svg>
+              </button>
+              <button type="button" class="icon-btn" aria-label="Close" (click)="closed.emit()">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
-          <div class="actions">
-            <button
-              type="button"
-              class="icon-btn"
-              [class.spin]="computing()"
-              [attr.aria-label]="snapshot() ? 'Recompute stats' : 'Compute stats'"
-              [disabled]="computing() || !language().trim()"
-              [attr.aria-busy]="computing() ? true : null"
-              (click)="compute()"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                <path d="M8 16H3v5" />
-              </svg>
-            </button>
-            <button type="button" class="icon-btn" aria-label="Close" (click)="closed.emit()">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </svg>
-            </button>
-          </div>
-        </header>
-        <div class="body">
           <div class="day-nav">
             <button
               type="button"
@@ -115,116 +116,140 @@ const EMPTY_DAY: DayStats = {
               </svg>
             </button>
           </div>
-          <ul class="gems">
-            @for (row of games; track row.game) {
-              <li
-                [attr.data-game]="row.game"
-                [attr.aria-label]="
-                  gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
-                "
-                [attr.title]="
-                  gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
-                "
-              >
-                <span class="stone" aria-hidden="true">
-                  <ng-container *ngTemplateOutlet="gemIcon; context: { $implicit: row.game }" />
-                </span>
-                <span class="count">{{ formatCount(gemTotals()[row.game]) }}</span>
-                <span class="caption">{{ row.label }}</span>
-                <span class="delta" [class.quiet]="shown().gems[row.game] === 0">
-                  +{{ formatCount(shown().gems[row.game]) }}
-                  @if (dayBadge()) {
-                    {{ dayBadge() }}
-                  }
-                </span>
-              </li>
-            }
-          </ul>
-          <div class="orbit">
-            <div
-              class="comfort"
-              [style.--comfort]="comfortTone(shown().comfort)"
-              [attr.aria-label]="comfortLabel(shown().comfort)"
-              [attr.title]="comfortLabel(shown().comfort)"
-            >
-              <svg class="comfort-mark" viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="6" />
-                <circle cx="12" cy="12" r="2" />
-              </svg>
-              <span class="comfort-value">{{ formatSigned(shown().comfort) }}</span>
+        </header>
+        <div class="body">
+          <div
+            class="hero"
+            [style.--comfort]="comfortTone(shown().comfort)"
+            [attr.aria-label]="comfortLabel(shown().comfort)"
+            [attr.title]="comfortLabel(shown().comfort)"
+          >
+            <div class="hero-copy">
+              <p class="eyebrow">Comfort</p>
+              <p class="hero-value">{{ formatSigned(shown().comfort) }}</p>
             </div>
-            @for (row of activities; track row.key) {
-              <div
-                class="orbit-stat"
-                [attr.data-key]="row.key"
-                [attr.aria-label]="activityLabel(row.label, shown()[row.key])"
-                [attr.title]="activityLabel(row.label, shown()[row.key])"
-              >
-                <ng-container *ngTemplateOutlet="activityIcon; context: { $implicit: row.key }" />
-                <span class="count">{{ shown()[row.key] }}</span>
-              </div>
+            @if (dayBadge()) {
+              <span class="hero-badge">{{ dayBadge() }}</span>
             }
           </div>
-          <ul class="elements">
-            @if (day(); as current) {
-              @for (element of current.elements; track element.id) {
-                <li class="pill">
-                  <span class="title">{{ titleOf(element) }}</span>
-                  <span class="bits">
+          <section class="block">
+            <div class="block-head">
+              <h3>Gems</h3>
+            </div>
+            <ul class="gems">
+              @for (row of games; track row.game) {
+                <li
+                  [attr.data-game]="row.game"
+                  [attr.aria-label]="
+                    gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
+                  "
+                  [attr.title]="
+                    gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
+                  "
+                >
+                  <span class="stone" aria-hidden="true">
+                    <ng-container *ngTemplateOutlet="gemIcon; context: { $implicit: row.game }" />
+                  </span>
+                  <span class="count">{{ formatCount(gemTotals()[row.game]) }}</span>
+                  <span class="caption">{{ row.label }}</span>
+                  @if (shown().gems[row.game] > 0) {
+                    <span class="delta">
+                      +{{ formatCount(shown().gems[row.game]) }}
+                      @if (dayBadge()) {
+                        {{ dayBadge() }}
+                      }
+                    </span>
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+          <section class="block">
+            <div class="block-head">
+              <h3>Activity</h3>
+            </div>
+            <ul class="activity">
+              @for (row of activities; track row.key) {
+                <li
+                  [attr.aria-label]="activityCardLabel(row.label, shown()[row.key])"
+                  [attr.title]="activityCardLabel(row.label, shown()[row.key])"
+                >
+                  <span class="well" aria-hidden="true">
+                    <ng-container
+                      *ngTemplateOutlet="activityIcon; context: { $implicit: row.key }"
+                    />
+                  </span>
+                  <span class="count">{{ formatCount(shown()[row.key]) }}</span>
+                  <span class="caption">{{ row.label }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+          <section class="block deck">
+            <div class="block-head">
+              <h3>Elements</h3>
+            </div>
+            <ul class="elements">
+              @if (day(); as current) {
+                @for (element of current.elements; track element.id) {
+                  <li class="row">
                     @if (element.comfort !== 0) {
                       <span
-                        class="bit comfort-bit"
-                        [style.color]="comfortTone(element.comfort)"
+                        class="badge"
+                        [attr.data-sign]="element.comfort > 0 ? 'up' : 'down'"
                         [attr.aria-label]="comfortLabel(element.comfort)"
                         [attr.title]="comfortLabel(element.comfort)"
                       >
-                        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-                          <circle cx="12" cy="12" r="10" />
-                          <circle cx="12" cy="12" r="6" />
-                          <circle cx="12" cy="12" r="2" />
-                        </svg>
-                        <span>{{ formatSigned(element.comfort) }}</span>
+                        {{ formatSigned(element.comfort) }}
                       </span>
                     }
-                    @for (row of games; track row.game) {
-                      @if (element.gems[row.game] > 0) {
-                        <span
-                          class="bit"
-                          [attr.data-game]="row.game"
-                          [attr.aria-label]="gemsLabel(row.label, element.gems[row.game])"
-                          [attr.title]="gemsLabel(row.label, element.gems[row.game])"
-                        >
-                          <ng-container
-                            *ngTemplateOutlet="gemIcon; context: { $implicit: row.game }"
-                          />
-                          <span>{{ element.gems[row.game] }}</span>
+                    <div class="row-main">
+                      <span class="title" [attr.title]="titleOf(element)">{{
+                        titleOf(element)
+                      }}</span>
+                      @if (hasBits(element)) {
+                        <span class="bits">
+                          @for (row of games; track row.game) {
+                            @if (element.gems[row.game] > 0) {
+                              <span
+                                class="bit"
+                                [attr.data-game]="row.game"
+                                [attr.aria-label]="gemsLabel(row.label, element.gems[row.game])"
+                                [attr.title]="gemsLabel(row.label, element.gems[row.game])"
+                              >
+                                <ng-container
+                                  *ngTemplateOutlet="gemIcon; context: { $implicit: row.game }"
+                                />
+                                <span>{{ element.gems[row.game] }}</span>
+                              </span>
+                            }
+                          }
+                          @for (row of activities; track row.key) {
+                            @if (element[row.key] > 0) {
+                              <span
+                                class="bit"
+                                [attr.aria-label]="activityLabel(row.label, element[row.key])"
+                                [attr.title]="activityLabel(row.label, element[row.key])"
+                              >
+                                <ng-container
+                                  *ngTemplateOutlet="activityIcon; context: { $implicit: row.key }"
+                                />
+                                <span>{{ element[row.key] }}</span>
+                              </span>
+                            }
+                          }
                         </span>
                       }
-                    }
-                    @for (row of activities; track row.key) {
-                      @if (element[row.key] > 0) {
-                        <span
-                          class="bit"
-                          [attr.aria-label]="activityLabel(row.label, element[row.key])"
-                          [attr.title]="activityLabel(row.label, element[row.key])"
-                        >
-                          <ng-container
-                            *ngTemplateOutlet="activityIcon; context: { $implicit: row.key }"
-                          />
-                          <span>{{ element[row.key] }}</span>
-                        </span>
-                      }
-                    }
-                  </span>
+                    </div>
+                  </li>
+                }
+              } @else {
+                <li class="placeholder">
+                  <p class="hint">{{ emptyLabel() }}</p>
                 </li>
               }
-            } @else {
-              <li class="placeholder">
-                <p class="hint">{{ emptyLabel() }}</p>
-              </li>
-            }
-          </ul>
+            </ul>
+          </section>
         </div>
         @if (computedLabel(); as computed) {
           <footer class="panel-footer">
@@ -307,8 +332,12 @@ const EMPTY_DAY: DayStats = {
       backdrop-filter: blur(6px);
     }
 
-    .panel {
+    .panel,
+    .panel * {
       box-sizing: border-box;
+    }
+
+    .panel {
       width: min(36rem, 100%);
       height: min(40rem, calc(100dvh - 2.5rem));
       max-height: min(40rem, calc(100dvh - 2.5rem));
@@ -328,11 +357,19 @@ const EMPTY_DAY: DayStats = {
 
     .panel-header {
       display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      flex-shrink: 0;
+      padding: 0.9rem 0.7rem 0.45rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-bar {
+      display: flex;
       align-items: flex-start;
       justify-content: space-between;
       gap: 1rem;
-      flex-shrink: 0;
-      padding: 0.9rem 1rem 0.35rem;
+      padding: 0 0.3rem;
     }
 
     h2,
@@ -347,13 +384,20 @@ const EMPTY_DAY: DayStats = {
     }
 
     .panel-header p {
-      margin-top: 0.3rem;
+      margin-top: 0.15rem;
       color: var(--text-muted);
       font-size: 0.84rem;
       line-height: 1.45;
     }
 
-    .panel-header p.failed {
+    .language {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.35rem 0.6rem;
+    }
+
+    .language .failed {
       color: var(--danger);
     }
 
@@ -428,9 +472,11 @@ const EMPTY_DAY: DayStats = {
     .body {
       display: flex;
       flex-direction: column;
+      min-width: 0;
       min-height: 0;
       flex: 1;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
     .hint {
@@ -445,40 +491,130 @@ const EMPTY_DAY: DayStats = {
       grid-template-columns: auto minmax(0, 1fr) auto;
       align-items: center;
       gap: 0.25rem;
-      flex-shrink: 0;
-      padding: 0.1rem 0.7rem 0.15rem;
+      padding: 0.15rem 0 0.1rem;
     }
 
-    .day {
+    .panel-header .day {
+      margin: 0;
+      color: var(--text);
       text-align: center;
       font-size: 1.05rem;
       font-weight: 720;
+      line-height: 1.2;
       letter-spacing: -0.02em;
     }
 
+    .hero {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-shrink: 0;
+      min-width: 0;
+      margin: 0.7rem 1rem 0;
+      padding: 1rem 1.05rem 0.95rem;
+      border: 1px solid color-mix(in srgb, var(--comfort) 36%, transparent);
+      border-radius: 1.05rem;
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--comfort) 18%, transparent),
+        color-mix(in srgb, var(--comfort) 7%, rgba(8, 10, 18, 0.35))
+      );
+      color: var(--comfort);
+    }
+
+    .hero-copy {
+      min-width: 0;
+    }
+
+    .hero-badge {
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+      padding: 0.28rem 0.62rem;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.32);
+      font-size: 0.75rem;
+      font-weight: 750;
+      line-height: 1.2;
+    }
+
+    .eyebrow,
+    .block h3 {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .hero .eyebrow {
+      color: var(--text-muted);
+    }
+
+    .hero-value {
+      margin-top: 0.28rem;
+      font-size: 2.7rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.045em;
+      line-height: 0.95;
+    }
+
+    .block {
+      flex-shrink: 0;
+      min-width: 0;
+      padding: 0.95rem 1rem 0;
+    }
+
+    .block-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      min-width: 0;
+      margin-bottom: 0.5rem;
+    }
+
+    .block-note {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 650;
+      line-height: 1.2;
+      text-align: right;
+    }
+
     .gems,
+    .activity,
     .elements {
       margin: 0;
+      padding: 0;
       list-style: none;
     }
 
-    .gems {
+    .gems,
+    .activity {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 0.45rem;
-      flex-shrink: 0;
-      padding: 0.45rem 1rem 0;
+    }
+
+    .gems li,
+    .activity li {
+      min-width: 0;
     }
 
     .gems li {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.12rem;
-      padding: 0.75rem 0.35rem 0.6rem;
-      border: 1px solid color-mix(in srgb, var(--exercise-gem) 28%, transparent);
-      border-radius: var(--radius);
-      background: color-mix(in srgb, var(--exercise-gem) 16%, transparent);
+      gap: 0.15rem;
+      padding: 0.85rem 0.4rem 0.7rem;
+      border: 1px solid color-mix(in srgb, var(--exercise-gem) 32%, transparent);
+      border-radius: 1.05rem;
+      background: color-mix(in srgb, var(--exercise-gem) 13%, rgba(8, 10, 18, 0.55));
     }
 
     .gems li[data-game='translation'],
@@ -496,16 +632,28 @@ const EMPTY_DAY: DayStats = {
       --exercise-gem: var(--gem-definition);
     }
 
-    .gems .stone {
+    .gems .stone,
+    .activity .well {
       display: grid;
       place-items: center;
-      width: 2.55rem;
-      height: 2.55rem;
-      margin-bottom: 0.22rem;
-      border-radius: 0.72rem;
-      background: color-mix(in srgb, var(--exercise-gem) 14%, rgba(6, 8, 16, 0.72));
+      margin-bottom: 0.28rem;
+      border-radius: 0.7rem;
+    }
+
+    .gems .stone {
+      width: 2.35rem;
+      height: 2.35rem;
+      background: color-mix(in srgb, var(--exercise-gem) 16%, rgba(6, 8, 16, 0.82));
       color: var(--exercise-gem);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--exercise-gem) 34%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--exercise-gem) 38%, transparent);
+    }
+
+    .activity .well {
+      width: 2.15rem;
+      height: 2.15rem;
+      background: rgba(8, 10, 18, 0.45);
+      color: var(--text-muted);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
     }
 
     .stone-icon {
@@ -522,34 +670,39 @@ const EMPTY_DAY: DayStats = {
 
     .gems .count {
       color: var(--text);
-      font-size: 1.45rem;
+      font-size: 1.65rem;
       font-weight: 750;
       font-variant-numeric: tabular-nums;
       letter-spacing: -0.03em;
       line-height: 1;
     }
 
-    .gems .caption {
+    .gems .caption,
+    .activity .caption {
+      max-width: 100%;
       color: var(--text-muted);
-      font-size: 0.62rem;
+      font-size: 0.6rem;
       font-weight: 700;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.06em;
       line-height: 1.2;
       text-align: center;
       text-transform: uppercase;
+      overflow-wrap: anywhere;
     }
 
     .gems .delta {
+      max-width: 100%;
       margin-top: 0.35rem;
-      padding: 0.18rem 0.45rem;
+      padding: 0.2rem 0.5rem;
       border-radius: 999px;
-      background: rgba(0, 0, 0, 0.28);
+      background: rgba(0, 0, 0, 0.32);
       color: var(--exercise-gem);
       font-size: 0.68rem;
       font-weight: 750;
       font-variant-numeric: tabular-nums;
       line-height: 1.2;
       text-align: center;
+      overflow-wrap: anywhere;
     }
 
     .gems .delta.quiet {
@@ -557,79 +710,25 @@ const EMPTY_DAY: DayStats = {
       font-weight: 650;
     }
 
-    .orbit {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-      grid-template-areas:
-        'opened comfort reworked'
-        '. revealed .';
-      gap: 0.45rem 0.65rem;
-      align-items: center;
-      justify-items: center;
-      flex-shrink: 0;
-      padding: 0.7rem 1rem 0;
-    }
-
-    .comfort {
-      grid-area: comfort;
+    .activity li {
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 0.15rem;
-      width: 5.8rem;
-      height: 5.8rem;
-      border: 1px solid color-mix(in srgb, var(--comfort) 42%, transparent);
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--comfort) 14%, transparent);
-      color: var(--comfort);
+      gap: 0.12rem;
+      padding: 0.8rem 0.4rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 1.05rem;
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--text-muted);
     }
 
-    .comfort-mark {
-      width: 0.95rem;
-      height: 0.95rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-    }
-
-    .comfort-value {
+    .activity .count {
+      color: var(--text);
       font-size: 1.55rem;
       font-weight: 750;
       font-variant-numeric: tabular-nums;
       letter-spacing: -0.03em;
       line-height: 1;
-    }
-
-    .orbit-stat {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.22rem;
-      min-width: 3.5rem;
-      padding: 0.45rem 0.55rem 0.38rem;
-      border-radius: 10px;
-      background: rgba(127, 127, 127, 0.06);
-      color: var(--text-muted);
-    }
-
-    .orbit-stat[data-key='opened'] {
-      grid-area: opened;
-    }
-
-    .orbit-stat[data-key='reworked'] {
-      grid-area: reworked;
-    }
-
-    .orbit-stat[data-key='revealed'] {
-      grid-area: revealed;
-    }
-
-    .orbit-stat .count {
-      color: var(--text);
-      font-size: 0.95rem;
-      font-weight: 720;
-      font-variant-numeric: tabular-nums;
     }
 
     .mark {
@@ -644,26 +743,30 @@ const EMPTY_DAY: DayStats = {
       stroke-linejoin: round;
     }
 
+    .deck {
+      display: flex;
+      flex: 1 0 auto;
+      flex-direction: column;
+      padding-bottom: 1rem;
+    }
+
     .elements {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
       align-content: flex-start;
-      gap: 0.45rem;
-      min-height: 0;
-      flex: 1 1 auto;
-      margin-top: 0.75rem;
-      padding: 0.75rem 1rem 1rem;
-      overflow: auto;
-      border-top: 1px solid var(--border);
+      gap: 0.4rem;
+      flex: 1 0 auto;
+      margin: 0;
+      padding: 0 0 0.35rem;
     }
 
     .placeholder {
       display: flex;
-      flex: 1 0 100%;
+      flex: 1 0 auto;
       align-items: center;
       justify-content: center;
       align-self: stretch;
-      min-height: 100%;
+      min-height: 6rem;
       padding: 0;
       border: 0;
       background: none;
@@ -674,48 +777,95 @@ const EMPTY_DAY: DayStats = {
       text-align: center;
     }
 
-    .pill {
+    .row {
       display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      max-width: 100%;
+      padding: 0.7rem 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 0.95rem;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .badge {
+      display: grid;
+      place-items: center;
+      min-width: 2.35rem;
+      height: 2.15rem;
+      flex: none;
+      padding: 0 0.4rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .badge[data-sign='up'] {
+      border: 1px solid color-mix(in srgb, #e6b325 42%, transparent);
+      background: color-mix(in srgb, #e6b325 18%, transparent);
+      color: #f0c14a;
+    }
+
+    .badge[data-sign='down'] {
+      border: 1px solid color-mix(in srgb, var(--danger) 42%, transparent);
+      background: color-mix(in srgb, var(--danger) 16%, transparent);
+      color: var(--danger);
+    }
+
+    .row-main {
+      display: flex;
+      flex: 1;
       flex-direction: column;
       align-items: flex-start;
+      justify-content: center;
       gap: 0.28rem;
-      max-width: 100%;
-      padding: 0.45rem 0.75rem 0.4rem;
-      border: 1px solid var(--border);
-      border-radius: 1rem;
-      background: var(--surface-2);
+      min-width: 0;
     }
 
     .title {
-      font-size: 0.88rem;
-      font-weight: 650;
-      overflow-wrap: anywhere;
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      font-size: 0.92rem;
+      font-weight: 680;
+      line-height: 1;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .bits {
       display: flex;
-      flex-wrap: wrap;
+      flex: none;
+      flex-flow: row nowrap;
       align-items: center;
-      gap: 0.4rem 0.55rem;
+      gap: 0.45rem;
+      line-height: 1;
     }
 
     .bit {
       display: inline-flex;
       align-items: center;
-      gap: 0.22rem;
+      gap: 0.14rem;
       color: var(--text-muted);
-      font-size: 0.75rem;
+      font-size: 0.78rem;
       font-weight: 650;
       font-variant-numeric: tabular-nums;
+      line-height: 1;
     }
 
     .bit[data-game] {
       color: var(--exercise-gem);
     }
 
-    .bit .mark {
-      width: 0.8rem;
-      height: 0.8rem;
+    .bit .mark,
+    .bit .stone-icon {
+      display: block;
+      width: 0.92rem;
+      height: 0.92rem;
+      flex: none;
+      margin: 0;
     }
 
     @media (max-width: 720px) {
@@ -850,6 +1000,22 @@ export class GemStatsModal implements OnDestroy {
     return displayTitle(element.title, this.language());
   }
 
+  hasBits(element: ElementDayStats): boolean {
+    return (
+      element.gems.translation +
+        element.gems.example +
+        element.gems.definition +
+        element.opened +
+        element.reworked +
+        element.revealed >
+      0
+    );
+  }
+
+  languageName(): string {
+    return languageDisplayName(this.language());
+  }
+
   gemsLabel(game: string, count: number): string {
     const amount = count === 1 ? '1 gem' : `${count} gems`;
     return `${amount}, ${game.toLowerCase()}`;
@@ -890,6 +1056,13 @@ export class GemStatsModal implements OnDestroy {
     return `${count} ${label.toLowerCase()}`;
   }
 
+  activityCardLabel(label: string, day: number): string {
+    const name = label.toLowerCase();
+    const when = this.dayBadge() || 'this day';
+    const gained = day === 1 ? `1 ${name}` : `${day} ${name}`;
+    return `${gained} ${when}`;
+  }
+
   private finish(message: StatsMessage, language: string): void {
     this.computing.set(false);
     this.retireWorker();
@@ -918,27 +1091,42 @@ export class GemStatsModal implements OnDestroy {
 }
 
 function formatDay(day: string): string {
-  const [year, month, date] = day.split('-').map(Number);
-  if (!year || !month || !date) return day;
-  const value = new Date(year, month - 1, date);
+  const value = calendarDay(day);
+  if (!value) return day;
   const today = new Date();
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const diff = Math.round((todayStart - value.getTime()) / 86_400_000);
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Yesterday';
+  const diff = dayDistance(value, today);
+  const short = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(
+    value,
+  );
+  if (diff === 0) return `Today, ${short}`;
+  if (diff === 1) return `Yesterday, ${short}`;
   const options: Intl.DateTimeFormatOptions = {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
   };
-  if (year !== today.getFullYear()) options.year = 'numeric';
+  if (value.getFullYear() !== today.getFullYear()) options.year = 'numeric';
   return new Intl.DateTimeFormat(undefined, options).format(value);
 }
 
 function formatDayBadge(day: string): string {
-  const label = formatDay(day);
-  if (label === 'Today' || label === 'Yesterday') return label;
+  const value = calendarDay(day);
+  if (!value) return 'that day';
+  const diff = dayDistance(value, new Date());
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
   return 'that day';
+}
+
+function calendarDay(day: string): Date | null {
+  const [year, month, date] = day.split('-').map(Number);
+  if (!year || !month || !date) return null;
+  return new Date(year, month - 1, date);
+}
+
+function dayDistance(value: Date, today: Date): number {
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  return Math.round((todayStart - value.getTime()) / 86_400_000);
 }
 
 function formatComputed(at: number): string {
