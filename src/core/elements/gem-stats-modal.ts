@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
   NgZone,
@@ -30,8 +31,18 @@ const ACTIVITIES: readonly { key: 'opened' | 'reworked' | 'revealed'; label: str
 
 type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
 
+const EMPTY_DAY: DayStats = {
+  day: '',
+  gems: { translation: 0, example: 0, definition: 0 },
+  opened: 0,
+  reworked: 0,
+  revealed: 0,
+  elements: [],
+};
+
 @Component({
   selector: 'app-gem-stats',
+  imports: [NgTemplateOutlet],
   template: `
     <div
       class="backdrop"
@@ -45,27 +56,37 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
         <header class="panel-header">
           <div>
             <h2>Stats</h2>
-            <p>{{ computedLabel() || 'One day at a time.' }}</p>
+            <p [class.failed]="error()">{{ statusLabel() }}</p>
+            <ul class="totals">
+              @for (row of games; track row.game) {
+                <li
+                  [attr.data-game]="row.game"
+                  [attr.aria-label]="gemsLabel(row.label, gemTotals()[row.game], true)"
+                  [attr.title]="gemsLabel(row.label, gemTotals()[row.game], true)"
+                >
+                  <span class="gem" aria-hidden="true"></span>
+                  <span class="count">{{ gemTotals()[row.game] }}</span>
+                </li>
+              }
+            </ul>
           </div>
           <div class="actions">
-            @if (snapshot()) {
-              <button
-                type="button"
-                class="icon-btn"
-                [class.spin]="computing()"
-                aria-label="Recompute stats"
-                [disabled]="computing() || !language().trim()"
-                [attr.aria-busy]="computing() ? true : null"
-                (click)="compute()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                  <path d="M21 3v5h-5" />
-                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                  <path d="M8 16H3v5" />
-                </svg>
-              </button>
-            }
+            <button
+              type="button"
+              class="icon-btn"
+              [class.spin]="computing()"
+              [attr.aria-label]="snapshot() ? 'Recompute stats' : 'Compute stats'"
+              [disabled]="computing() || !language().trim()"
+              [attr.aria-busy]="computing() ? true : null"
+              (click)="compute()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                <path d="M8 16H3v5" />
+              </svg>
+            </button>
             <button type="button" class="icon-btn" aria-label="Close" (click)="closed.emit()">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M18 6 6 18" />
@@ -74,106 +95,122 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
             </button>
           </div>
         </header>
-        @if (snapshot()) {
-          <div class="body">
-            @if (error()) {
-              <p class="banner">Could not count stats.</p>
-            }
-            @if (day(); as current) {
-              <div class="day-nav">
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Older day"
-                  [disabled]="!canGoOlder()"
-                  (click)="older()"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m15 18-6-6 6-6" />
-                  </svg>
-                </button>
-                <p class="day">{{ dayLabel() }}</p>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Newer day"
-                  [disabled]="!canGoNewer()"
-                  (click)="newer()"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m9 18 6-6-6-6" />
-                  </svg>
-                </button>
-              </div>
-              <ul class="gems">
-                @for (row of games; track row.game) {
-                  <li
-                    [attr.data-game]="row.game"
-                    [attr.aria-label]="gemsLabel(row.label, current.gems[row.game])"
-                  >
-                    <span class="gem" aria-hidden="true"></span>
-                    <span class="count">{{ current.gems[row.game] }}</span>
-                    <span class="caption">{{ row.label }}</span>
-                  </li>
-                }
-              </ul>
-              <ul class="activity">
-                @for (row of activities; track row.key) {
-                  <li [attr.aria-label]="row.label + ' ' + current[row.key]">
-                    <span class="count">{{ current[row.key] }}</span>
-                    <span class="caption">{{ row.label }}</span>
-                  </li>
-                }
-              </ul>
-              <ul class="elements">
-                @for (element of current.elements; track element.id) {
-                  <li class="pill">
-                    <span class="title">{{ titleOf(element) }}</span>
-                    <span class="bits">
-                      @for (row of games; track row.game) {
-                        @if (element.gems[row.game] > 0) {
-                          <span
-                            class="bit"
-                            [attr.data-game]="row.game"
-                            [attr.aria-label]="gemsLabel(row.label, element.gems[row.game])"
-                          >
-                            <span class="gem" aria-hidden="true"></span>
-                            <span>{{ element.gems[row.game] }}</span>
-                          </span>
-                        }
-                      }
-                      @for (row of activities; track row.key) {
-                        @if (element[row.key] > 0) {
-                          <span class="bit">{{ row.label }} {{ element[row.key] }}</span>
-                        }
-                      }
-                    </span>
-                  </li>
-                }
-              </ul>
-            } @else {
-              <p class="hint">Nothing recorded yet.</p>
-            }
-          </div>
-        } @else {
-          <div class="empty">
-            <p class="hint">
-              {{
-                error() ? 'Could not count stats.' : "Compute the day's stats when you want them."
-              }}
-            </p>
+        <div class="body">
+          <div class="day-nav">
             <button
               type="button"
-              class="btn btn-primary"
-              [disabled]="computing() || !language().trim()"
-              (click)="compute()"
+              class="icon-btn"
+              aria-label="Older day"
+              [disabled]="!canGoOlder()"
+              (click)="older()"
             >
-              {{ computing() ? 'Computing…' : 'Compute' }}
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </button>
+            <p class="day">{{ dayLabel() || '—' }}</p>
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Newer day"
+              [disabled]="!canGoNewer()"
+              (click)="newer()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
             </button>
           </div>
-        }
+          <ul class="gems">
+            @for (row of games; track row.game) {
+              <li
+                [attr.data-game]="row.game"
+                [attr.aria-label]="gemsLabel(row.label, shown().gems[row.game])"
+                [attr.title]="gemsLabel(row.label, shown().gems[row.game])"
+              >
+                <span class="gem" aria-hidden="true"></span>
+                <span class="count">{{ shown().gems[row.game] }}</span>
+              </li>
+            }
+          </ul>
+          <ul class="activity">
+            @for (row of activities; track row.key) {
+              <li
+                [attr.aria-label]="activityLabel(row.label, shown()[row.key])"
+                [attr.title]="activityLabel(row.label, shown()[row.key])"
+              >
+                <ng-container *ngTemplateOutlet="activityIcon; context: { $implicit: row.key }" />
+                <span class="count">{{ shown()[row.key] }}</span>
+              </li>
+            }
+          </ul>
+          <ul class="elements">
+            @if (day(); as current) {
+              @for (element of current.elements; track element.id) {
+                <li class="pill">
+                  <span class="title">{{ titleOf(element) }}</span>
+                  <span class="bits">
+                    @for (row of games; track row.game) {
+                      @if (element.gems[row.game] > 0) {
+                        <span
+                          class="bit"
+                          [attr.data-game]="row.game"
+                          [attr.aria-label]="gemsLabel(row.label, element.gems[row.game])"
+                          [attr.title]="gemsLabel(row.label, element.gems[row.game])"
+                        >
+                          <span class="gem" aria-hidden="true"></span>
+                          <span>{{ element.gems[row.game] }}</span>
+                        </span>
+                      }
+                    }
+                    @for (row of activities; track row.key) {
+                      @if (element[row.key] > 0) {
+                        <span
+                          class="bit"
+                          [attr.aria-label]="activityLabel(row.label, element[row.key])"
+                          [attr.title]="activityLabel(row.label, element[row.key])"
+                        >
+                          <ng-container
+                            *ngTemplateOutlet="activityIcon; context: { $implicit: row.key }"
+                          />
+                          <span>{{ element[row.key] }}</span>
+                        </span>
+                      }
+                    }
+                  </span>
+                </li>
+              }
+            } @else {
+              <li class="placeholder">
+                <p class="hint">{{ emptyLabel() }}</p>
+              </li>
+            }
+          </ul>
+        </div>
       </section>
     </div>
+    <ng-template #activityIcon let-key>
+      @switch (key) {
+        @case ('opened') {
+          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
+            />
+          </svg>
+        }
+        @case ('reworked') {
+          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+          </svg>
+        }
+        @case ('revealed') {
+          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        }
+      }
+    </ng-template>
   `,
   styles: `
     :host {
@@ -196,6 +233,7 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
     .panel {
       box-sizing: border-box;
       width: min(36rem, 100%);
+      height: min(40rem, calc(100dvh - 2.5rem));
       max-height: min(40rem, calc(100dvh - 2.5rem));
       margin-top: auto;
       margin-bottom: auto;
@@ -236,6 +274,10 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
       color: var(--text-muted);
       font-size: 0.84rem;
       line-height: 1.45;
+    }
+
+    .panel-header p.failed {
+      color: var(--danger);
     }
 
     .actions {
@@ -301,38 +343,11 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
       overflow: hidden;
     }
 
-    .banner,
     .hint {
       margin: 0;
       color: var(--text-muted);
       font-size: 0.84rem;
       line-height: 1.45;
-    }
-
-    .banner {
-      flex-shrink: 0;
-      padding: 0.15rem 1rem 0.2rem;
-      color: var(--danger);
-    }
-
-    .hint {
-      padding: 0.35rem 1rem 1rem;
-    }
-
-    .empty {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.15rem;
-      padding-bottom: 1rem;
-    }
-
-    .empty .hint {
-      padding-bottom: 0.75rem;
-    }
-
-    .empty .btn {
-      margin-left: 1rem;
     }
 
     .day-nav {
@@ -376,19 +391,49 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
       background: color-mix(in srgb, var(--exercise-gem) 14%, transparent);
     }
 
+    .totals {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.7rem 0.9rem;
+      margin: 0.45rem 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .totals li {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+    }
+
+    .totals li[data-game='translation'],
     .gems li[data-game='translation'],
     .bit[data-game='translation'] {
       --exercise-gem: var(--gem-translation);
     }
 
+    .totals li[data-game='example'],
     .gems li[data-game='example'],
     .bit[data-game='example'] {
       --exercise-gem: var(--gem-example);
     }
 
+    .totals li[data-game='definition'],
     .gems li[data-game='definition'],
     .bit[data-game='definition'] {
       --exercise-gem: var(--gem-definition);
+    }
+
+    .totals .gem {
+      --gem-size: 0.85rem;
+      background: var(--exercise-gem);
+    }
+
+    .totals .count {
+      color: var(--exercise-gem);
+      font-size: 0.84rem;
+      font-weight: 720;
+      font-variant-numeric: tabular-nums;
     }
 
     .gems .gem {
@@ -404,12 +449,6 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
       line-height: 1.1;
     }
 
-    .caption {
-      color: var(--text-muted);
-      font-size: 0.7rem;
-      font-weight: 650;
-    }
-
     .activity {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -422,20 +461,30 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.02rem;
-      padding: 0.38rem 0.25rem 0.32rem;
+      gap: 0.22rem;
+      padding: 0.45rem 0.25rem 0.38rem;
       border-radius: 10px;
       background: rgba(127, 127, 127, 0.06);
+      color: var(--text-muted);
     }
 
     .activity .count {
+      color: var(--text);
       font-size: 0.95rem;
       font-weight: 720;
       font-variant-numeric: tabular-nums;
     }
 
-    .activity .caption {
-      font-size: 0.66rem;
+    .mark {
+      display: block;
+      width: 0.95rem;
+      height: 0.95rem;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .elements {
@@ -451,15 +500,32 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
       border-top: 1px solid var(--border);
     }
 
+    .placeholder {
+      display: flex;
+      flex: 1 0 100%;
+      align-items: center;
+      justify-content: center;
+      align-self: stretch;
+      min-height: 100%;
+      padding: 0;
+      border: 0;
+      background: none;
+    }
+
+    .placeholder .hint {
+      max-width: 16rem;
+      text-align: center;
+    }
+
     .pill {
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.3rem 0.5rem;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.28rem;
       max-width: 100%;
-      padding: 0.38rem 0.7rem;
+      padding: 0.45rem 0.75rem 0.4rem;
       border: 1px solid var(--border);
-      border-radius: 999px;
+      border-radius: 1rem;
       background: var(--surface-2);
     }
 
@@ -470,10 +536,10 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
     }
 
     .bits {
-      display: inline-flex;
+      display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 0.35rem 0.45rem;
+      gap: 0.4rem 0.55rem;
     }
 
     .bit {
@@ -495,6 +561,11 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
       background: var(--exercise-gem);
     }
 
+    .bit .mark {
+      width: 0.8rem;
+      height: 0.8rem;
+    }
+
     @media (max-width: 720px) {
       .backdrop {
         align-items: flex-end;
@@ -503,6 +574,7 @@ type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
 
       .panel {
         width: 100%;
+        height: min(40rem, calc(100dvh - 1.3rem));
         max-height: min(40rem, calc(100dvh - 1.3rem));
         margin-top: auto;
         margin-bottom: 0;
@@ -522,6 +594,23 @@ export class GemStatsModal implements OnDestroy {
   readonly error = signal(false);
 
   readonly day = computed(() => this.snapshot()?.days[this.dayIndex()] ?? null);
+  readonly shown = computed(() => this.day() ?? EMPTY_DAY);
+  readonly gemTotals = computed(() => {
+    const totals: GemCounts = { translation: 0, example: 0, definition: 0 };
+    for (const day of this.snapshot()?.days ?? []) {
+      totals.translation += day.gems.translation;
+      totals.example += day.gems.example;
+      totals.definition += day.gems.definition;
+    }
+    return totals;
+  });
+  readonly statusLabel = computed(() => {
+    if (this.error()) return 'Could not count stats.';
+    return this.computedLabel() || 'One day at a time.';
+  });
+  readonly emptyLabel = computed(() =>
+    this.snapshot() ? 'Nothing recorded yet.' : "Compute the day's stats when you want them.",
+  );
   readonly canGoOlder = computed(() => {
     const total = this.snapshot()?.days.length ?? 0;
     return this.dayIndex() < total - 1;
@@ -609,9 +698,14 @@ export class GemStatsModal implements OnDestroy {
     return displayTitle(element.title, this.language());
   }
 
-  gemsLabel(game: string, count: number): string {
+  gemsLabel(game: string, count: number, total = false): string {
     const amount = count === 1 ? '1 gem' : `${count} gems`;
-    return `${amount}, ${game.toLowerCase()}`;
+    const name = game.toLowerCase();
+    return total ? `${amount} ${name} in total` : `${amount}, ${name}`;
+  }
+
+  activityLabel(label: string, count: number): string {
+    return `${count} ${label.toLowerCase()}`;
   }
 
   private finish(message: StatsMessage, language: string): void {
