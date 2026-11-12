@@ -1,4 +1,4 @@
-import { ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
+import { CATALOG_ID, CATALOG_STORE, ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
 import {
   isLearnableLanguage,
   languageCodeFromLabel,
@@ -9,6 +9,8 @@ import {
   collectMetadataIndexes,
   emptyMetadataIndexes,
   metadataIndexesEmpty,
+  normalizeMetadataVariability,
+  type ElementMetadataIndexes,
   type ElementMetadataVariability,
 } from './metadata-variability';
 
@@ -265,6 +267,34 @@ export function setElementWriteListener(listener: ((language: string) => void) |
   elementWriteListener = listener;
 }
 
+/** Replaces every element and the metadata catalog, then notifies once per language. */
+export async function replaceCollection(
+  elements: readonly unknown[],
+  catalog: unknown,
+): Promise<string[]> {
+  if (typeof indexedDB === 'undefined') return [];
+  const saved: StoredElement[] = [];
+  const seen = new Set<string>();
+  for (const raw of elements) {
+    const element = normalizeElement(raw);
+    if (!element || element.deletedAt != null || seen.has(element.id)) continue;
+    seen.add(element.id);
+    saved.push(element);
+  }
+  const indexes = catalogIndexes(catalog);
+  const db = await openDatabase();
+  const tx = db.transaction([ELEMENTS_STORE, CATALOG_STORE], 'readwrite');
+  const done = transactionDone(tx);
+  const store = tx.objectStore(ELEMENTS_STORE);
+  store.clear();
+  for (const element of saved) store.put(element);
+  tx.objectStore(CATALOG_STORE).put({ id: CATALOG_ID, ...indexes });
+  await done;
+  const languages = [...new Set(saved.map((element) => element.language))];
+  for (const language of languages) elementWriteListener?.(language);
+  return languages;
+}
+
 export async function deleteElement(id: string): Promise<void> {
   const key = id.trim();
   if (!key || typeof indexedDB === 'undefined') return;
@@ -275,6 +305,37 @@ export async function deleteElement(id: string): Promise<void> {
   const element = normalizeElement(raw);
   if (!element || element.deletedAt != null) return;
   await putElement({ ...element, deletedAt: Date.now() });
+}
+
+function catalogIndexes(raw: unknown): ElementMetadataIndexes {
+  if (!raw || typeof raw !== 'object') return emptyMetadataIndexes();
+  const source = raw as Partial<ElementMetadataIndexes>;
+  return {
+    definitionMetadata: normalizeMetadataVariability(source.definitionMetadata),
+    exampleMetadata: normalizeMetadataVariability(source.exampleMetadata),
+    formMetadata: normalizeMetadataVariability(source.formMetadata),
+  };
+}
+
+function transactionDone(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      reject(tx.error ?? new Error('IndexedDB transaction failed'));
+    };
+    tx.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    tx.onerror = (event) => {
+      event.preventDefault();
+      fail();
+    };
+    tx.onabort = fail;
+  });
 }
 
 function sameTitle(left: string, right: string): boolean {

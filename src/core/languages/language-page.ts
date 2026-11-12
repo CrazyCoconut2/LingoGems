@@ -963,7 +963,7 @@ const MOVE_SLOP_PX = 10;
       }
 
       @if (settingsOpen()) {
-        <app-settings (closed)="closeSettings()" />
+        <app-settings (closed)="closeSettings()" (changed)="onCollectionReplaced()" />
       }
 
       @if (statsOpen()) {
@@ -3287,6 +3287,11 @@ export class LanguagePage {
     if (!this.settingsOpen()) return;
     this.settingsOpen.set(false);
     this.unlockScroll();
+  }
+
+  onCollectionReplaced(): void {
+    if (this.elementId()) this.closeElement();
+    void this.reloadElements();
   }
 
   openStats(): void {

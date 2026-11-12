@@ -13,6 +13,7 @@ export {
   displayTitle,
   readAllElements,
   readElements,
+  replaceCollection,
   assignEquivalent,
   embedTranslation,
   parsePassage,

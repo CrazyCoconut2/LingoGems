@@ -58,6 +58,21 @@ export function pendingStatsLanguages(): string[] {
   return languages;
 }
 
+/** Removes compiled stats only. Goals and other settings stay. */
+export function clearStatsCache(): void {
+  if (typeof localStorage === 'undefined') return;
+  const keys: string[] = [];
+  try {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(KEY_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {
+    // The in-memory view is already cleared.
+  }
+}
+
 type StatsRecord =
   | { status: 'pending' }
   | { status: 'error' }

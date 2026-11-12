@@ -1,4 +1,4 @@
-import { Component, computed, output, signal } from '@angular/core';
+import { Component, computed, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import packageJson from '../../../package.json';
 import {
@@ -7,6 +7,7 @@ import {
   writeStoredAiCredentials,
   type AiProviderId,
 } from 'ai';
+import { emptyMetadataIndexes, replaceCollection } from 'collection';
 import {
   COMFORT_RATES,
   DEFAULT_COMFORT_PALETTE,
@@ -15,7 +16,9 @@ import {
   writeComfortColor,
   type ComfortRate,
 } from '../elements/comfort-palette';
+import { GemStatsJob } from '../elements/gem-stats-job';
 import { LanguageAiSettings } from '../languages/language-ai-settings';
+import { buildDataFile, downloadDataFile, readDataFile } from './data-file';
 
 type ProviderOption = {
   id: AiProviderId;
@@ -44,7 +47,7 @@ const AI_PROVIDERS: ProviderOption[] = [
         <header class="panel-header">
           <div>
             <h2>Settings</h2>
-            <p>Provider, metadata, and comfort colors.</p>
+            <p>Provider, metadata, comfort colors, and your data.</p>
           </div>
           <button type="button" class="icon-btn" aria-label="Close" (click)="back()">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -123,7 +126,9 @@ const AI_PROVIDERS: ProviderOption[] = [
             </button>
             @if (expanded() === 'comfort') {
               <div class="section-body">
-                <p class="section-hint">Each score icon is colored by its comfort rate, from 1 to 10.</p>
+                <p class="section-hint">
+                  Each score icon is colored by its comfort rate, from 1 to 10.
+                </p>
                 <div class="comfort-colors">
                   @for (rate of comfortRates; track rate) {
                     <label>
@@ -147,6 +152,110 @@ const AI_PROVIDERS: ProviderOption[] = [
                     Reset colors
                   </button>
                 </div>
+              </div>
+            }
+          </section>
+
+          <section class="settings-section" [class.expanded]="expanded() === 'data'">
+            <button
+              type="button"
+              class="section-header"
+              [attr.aria-expanded]="expanded() === 'data'"
+              (click)="toggle('data')"
+            >
+              <span class="section-title">Your data</span>
+              <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            @if (expanded() === 'data') {
+              <div class="section-body">
+                <input
+                  #dataFile
+                  class="file-input"
+                  type="file"
+                  accept=".gz,.json.gz,application/gzip"
+                  (change)="chooseImport($event)"
+                />
+                <p class="section-hint">
+                  A compressed file of your elements. AI settings stay on this device.
+                </p>
+                @if (confirm() === 'delete') {
+                  <p class="section-hint">This deletes every element on this device.</p>
+                  <div class="actions">
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [disabled]="busy()"
+                      (click)="cancelConfirm()"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-danger"
+                      [disabled]="busy()"
+                      (click)="confirmDelete()"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                } @else if (confirm() === 'import') {
+                  <p class="section-hint">
+                    This replaces every element with {{ importName() || 'that file' }}.
+                  </p>
+                  <div class="actions">
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [disabled]="busy()"
+                      (click)="cancelConfirm()"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      [disabled]="busy()"
+                      (click)="confirmImport()"
+                    >
+                      Import
+                    </button>
+                  </div>
+                } @else {
+                  <div class="data-actions">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      [disabled]="busy()"
+                      (click)="download()"
+                    >
+                      Download
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [disabled]="busy()"
+                      (click)="dataFile.click()"
+                    >
+                      Import
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-danger"
+                      [disabled]="busy()"
+                      (click)="askDelete()"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                }
+                @if (note()) {
+                  <p class="saved">{{ note() }}</p>
+                }
+                @if (error()) {
+                  <p class="data-error">{{ error() }}</p>
+                }
               </div>
             }
           </section>
@@ -367,6 +476,39 @@ const AI_PROVIDERS: ProviderOption[] = [
       font-size: 0.875rem;
     }
 
+    .data-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      filter: brightness(1.06);
+    }
+
+    .data-error {
+      margin: 0;
+      color: var(--danger);
+      font-size: 0.84rem;
+    }
+
+    .file-input {
+      position: fixed;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     .comfort-colors {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -435,8 +577,11 @@ const AI_PROVIDERS: ProviderOption[] = [
 export class Settings {
   readonly version = packageJson.version;
   readonly closed = output<void>();
+  readonly changed = output<void>();
   readonly expanded = signal<string | null>(null);
   private readonly stored = readStoredAiCredentials().keys[0];
+  private readonly job = inject(GemStatsJob);
+  private importFile: File | null = null;
 
   readonly providers = AI_PROVIDERS;
   readonly comfortRates = COMFORT_RATES;
@@ -444,6 +589,11 @@ export class Settings {
   readonly apiKey = signal(this.stored?.apiKey ?? '');
   readonly saved = signal(false);
   readonly ready = computed(() => this.apiKey().trim().length > 0);
+  readonly busy = signal(false);
+  readonly confirm = signal<'delete' | 'import' | null>(null);
+  readonly importName = signal('');
+  readonly note = signal('');
+  readonly error = signal('');
   private keyId = this.stored?.id ?? '';
   private rememberedProvider = this.stored?.provider;
   private rememberedModel = this.stored?.model ?? '';
@@ -486,6 +636,93 @@ export class Settings {
 
   resetPalette(): void {
     resetComfortPalette();
+  }
+
+  async download(): Promise<void> {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.confirm.set(null);
+    this.error.set('');
+    this.note.set('');
+    try {
+      downloadDataFile(await buildDataFile());
+    } catch {
+      this.error.set('Could not save a copy.');
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  chooseImport(event: Event): void {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file || this.busy()) return;
+    this.importFile = file;
+    this.importName.set(file.name);
+    this.error.set('');
+    this.note.set('');
+    this.confirm.set('import');
+  }
+
+  askDelete(): void {
+    if (this.busy()) return;
+    this.error.set('');
+    this.note.set('');
+    this.confirm.set('delete');
+  }
+
+  cancelConfirm(): void {
+    if (this.busy()) return;
+    this.importFile = null;
+    this.importName.set('');
+    this.confirm.set(null);
+  }
+
+  async confirmImport(): Promise<void> {
+    const file = this.importFile;
+    if (!file || this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.note.set('');
+    try {
+      const data = await readDataFile(file);
+      try {
+        const languages = await replaceCollection(data.elements, data.catalog);
+        this.job.forget();
+        for (const language of languages) this.job.invalidate(language);
+        this.importFile = null;
+        this.importName.set('');
+        this.confirm.set(null);
+        this.note.set('Imported.');
+        this.changed.emit();
+      } catch {
+        this.error.set('Could not save your data.');
+      }
+    } catch {
+      this.error.set('Could not read that file.');
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async confirmDelete(): Promise<void> {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.note.set('');
+    try {
+      await replaceCollection([], emptyMetadataIndexes());
+      this.job.forget();
+      this.confirm.set(null);
+      this.note.set('Deleted.');
+      this.changed.emit();
+    } catch {
+      this.error.set('Could not delete your data.');
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   save(event?: Event): void {

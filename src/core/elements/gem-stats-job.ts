@@ -1,5 +1,6 @@
 import { Injectable, NgZone, inject, signal } from '@angular/core';
 import {
+  clearStatsCache,
   pendingStatsLanguages,
   readStatsView,
   writeStatsError,
@@ -72,6 +73,18 @@ export class GemStatsJob {
       if (this.isActive(language)) continue;
       this.compile(language, this.generation.get(language) ?? 0);
     }
+  }
+
+  /** Drop every compiled snapshot and stop a run that is still going. */
+  forget(): void {
+    for (const timer of this.timers.values()) clearTimeout(timer);
+    this.timers.clear();
+    this.queued.clear();
+    this.memory.clear();
+    this.generation.clear();
+    this.retireWorker();
+    clearStatsCache();
+    this.publish();
   }
 
   private arm(language: string, generation: number): void {
