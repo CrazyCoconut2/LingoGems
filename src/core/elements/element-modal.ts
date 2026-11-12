@@ -7338,6 +7338,7 @@ export class ElementModal {
         return;
       }
       target.examples.push({ text: sentence.text, metadata: sentence.metadata });
+      this.appendRework(target);
       if (!(await this.persist(definitions, this.element().equivalents))) return;
       if (this.element().id === element.id) this.exampleEngineer.set(null);
     } catch {
@@ -7885,7 +7886,11 @@ export class ElementModal {
     const removed =
       pending.kind === 'definition' ? senseKey(definitions[pending.index]?.text ?? '') : '';
     if (pending.kind === 'definition') definitions.splice(pending.index, 1);
-    else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
+    else {
+      const definition = definitions[pending.definitionIndex];
+      const removedExample = definition?.examples.splice(pending.exampleIndex, 1) ?? [];
+      if (definition && removedExample.length) this.appendRework(definition);
+    }
     if (!(await this.persist(definitions, this.element().equivalents))) return;
     if (pending.kind === 'definition') {
       if (removed && !definitions.some((definition) => senseKey(definition.text) === removed)) {
@@ -8060,6 +8065,7 @@ export class ElementModal {
         const key = senseKey(item.text);
         if (!key || saved.has(key)) continue;
         definition.examples.push({ text: item.text, metadata: {} });
+        this.appendRework(definition);
         saved.add(key);
         changed = true;
       }
@@ -8115,6 +8121,11 @@ export class ElementModal {
     const log = current?.log.map((entry) => ({ ...entry })) ?? [];
     if (current && text !== current.text) log.push({ event: 'rework', at: Date.now() });
     return log;
+  }
+
+  /** A generated example is one rework of the definition it was added to. */
+  private appendRework(definition: ElementDefinition): void {
+    definition.log = [...definition.log, { event: 'rework', at: Date.now() }];
   }
 
   noteReveal(index: number): void {
