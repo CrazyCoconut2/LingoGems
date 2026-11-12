@@ -13,6 +13,7 @@ import {
 } from '@angular/core';
 import { displayTitle } from 'collection';
 import { readStatsSnapshot, writeStatsSnapshot, type StatsSnapshot } from './gem-stats-cache';
+import { comfortColor } from './comfort-palette';
 import type { DayStats, ElementDayStats, GemCounts } from './gem-stats.worker';
 
 type GemGame = keyof GemCounts;
@@ -37,6 +38,7 @@ const EMPTY_DAY: DayStats = {
   opened: 0,
   reworked: 0,
   revealed: 0,
+  comfort: 0,
   elements: [],
 };
 
@@ -138,23 +140,53 @@ const EMPTY_DAY: DayStats = {
               </li>
             }
           </ul>
-          <ul class="activity">
+          <div class="orbit">
+            <div
+              class="comfort"
+              [style.--comfort]="comfortTone(shown().comfort)"
+              [attr.aria-label]="comfortLabel(shown().comfort)"
+              [attr.title]="comfortLabel(shown().comfort)"
+            >
+              <svg class="comfort-mark" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="12" r="6" />
+                <circle cx="12" cy="12" r="2" />
+              </svg>
+              <span class="comfort-value">{{ formatSigned(shown().comfort) }}</span>
+            </div>
             @for (row of activities; track row.key) {
-              <li
+              <div
+                class="orbit-stat"
+                [attr.data-key]="row.key"
                 [attr.aria-label]="activityLabel(row.label, shown()[row.key])"
                 [attr.title]="activityLabel(row.label, shown()[row.key])"
               >
                 <ng-container *ngTemplateOutlet="activityIcon; context: { $implicit: row.key }" />
                 <span class="count">{{ shown()[row.key] }}</span>
-              </li>
+              </div>
             }
-          </ul>
+          </div>
           <ul class="elements">
             @if (day(); as current) {
               @for (element of current.elements; track element.id) {
                 <li class="pill">
                   <span class="title">{{ titleOf(element) }}</span>
                   <span class="bits">
+                    @if (element.comfort !== 0) {
+                      <span
+                        class="bit comfort-bit"
+                        [style.color]="comfortTone(element.comfort)"
+                        [attr.aria-label]="comfortLabel(element.comfort)"
+                        [attr.title]="comfortLabel(element.comfort)"
+                      >
+                        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10" />
+                          <circle cx="12" cy="12" r="6" />
+                          <circle cx="12" cy="12" r="2" />
+                        </svg>
+                        <span>{{ formatSigned(element.comfort) }}</span>
+                      </span>
+                    }
                     @for (row of games; track row.game) {
                       @if (element.gems[row.game] > 0) {
                         <span
@@ -425,7 +457,6 @@ const EMPTY_DAY: DayStats = {
     }
 
     .gems,
-    .activity,
     .elements {
       margin: 0;
       list-style: none;
@@ -526,26 +557,75 @@ const EMPTY_DAY: DayStats = {
       font-weight: 650;
     }
 
-    .activity {
+    .orbit {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.45rem;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      grid-template-areas:
+        'opened comfort reworked'
+        '. revealed .';
+      gap: 0.45rem 0.65rem;
+      align-items: center;
+      justify-items: center;
       flex-shrink: 0;
-      padding: 0.4rem 1rem 0;
+      padding: 0.7rem 1rem 0;
     }
 
-    .activity li {
+    .comfort {
+      grid-area: comfort;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.15rem;
+      width: 5.8rem;
+      height: 5.8rem;
+      border: 1px solid color-mix(in srgb, var(--comfort) 42%, transparent);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--comfort) 14%, transparent);
+      color: var(--comfort);
+    }
+
+    .comfort-mark {
+      width: 0.95rem;
+      height: 0.95rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+    }
+
+    .comfort-value {
+      font-size: 1.55rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .orbit-stat {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 0.22rem;
-      padding: 0.45rem 0.25rem 0.38rem;
+      min-width: 3.5rem;
+      padding: 0.45rem 0.55rem 0.38rem;
       border-radius: 10px;
       background: rgba(127, 127, 127, 0.06);
       color: var(--text-muted);
     }
 
-    .activity .count {
+    .orbit-stat[data-key='opened'] {
+      grid-area: opened;
+    }
+
+    .orbit-stat[data-key='reworked'] {
+      grid-area: reworked;
+    }
+
+    .orbit-stat[data-key='revealed'] {
+      grid-area: revealed;
+    }
+
+    .orbit-stat .count {
       color: var(--text);
       font-size: 0.95rem;
       font-weight: 720;
@@ -785,6 +865,25 @@ export class GemStatsModal implements OnDestroy {
 
   formatCount(count: number): string {
     return new Intl.NumberFormat(undefined).format(count);
+  }
+
+  formatSigned(count: number): string {
+    const amount = this.formatCount(Math.abs(count));
+    if (count > 0) return `+${amount}`;
+    if (count < 0) return `−${amount}`;
+    return amount;
+  }
+
+  comfortTone(delta: number): string {
+    if (delta > 0) return comfortColor(10);
+    if (delta < 0) return comfortColor(1);
+    return 'var(--text-muted)';
+  }
+
+  comfortLabel(delta: number): string {
+    if (delta > 0) return `Comfort up ${this.formatCount(delta)}`;
+    if (delta < 0) return `Comfort down ${this.formatCount(Math.abs(delta))}`;
+    return 'Comfort unchanged';
   }
 
   activityLabel(label: string, count: number): string {

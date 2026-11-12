@@ -13,6 +13,7 @@ export type ElementDayStats = {
   opened: number;
   reworked: number;
   revealed: number;
+  comfort: number;
 };
 
 export type DayStats = {
@@ -21,6 +22,7 @@ export type DayStats = {
   opened: number;
   reworked: number;
   revealed: number;
+  comfort: number;
   elements: ElementDayStats[];
 };
 
@@ -35,6 +37,7 @@ type MutableDay = {
   opened: number;
   reworked: number;
   revealed: number;
+  comfort: number;
   elements: Map<string, MutableElement>;
 };
 
@@ -93,6 +96,7 @@ function tally(records: unknown[], language: string): DayStats[] {
         day.opened += 1;
         elementOf(day, id, title).opened += 1;
       }
+      applyComfort(days, source.log, id, title);
     }
 
     if (!Array.isArray(source.definitions)) continue;
@@ -139,6 +143,7 @@ function tally(records: unknown[], language: string): DayStats[] {
       opened: stats.opened,
       reworked: stats.reworked,
       revealed: stats.revealed,
+      comfort: stats.comfort,
       elements,
     });
   }
@@ -156,6 +161,7 @@ function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {
       opened: 0,
       reworked: 0,
       revealed: 0,
+      comfort: 0,
       elements: new Map(),
     };
     days.set(key, day);
@@ -173,10 +179,38 @@ function elementOf(day: MutableDay, id: string, title: string): MutableElement {
       opened: 0,
       reworked: 0,
       revealed: 0,
+      comfort: 0,
     };
     day.elements.set(id, element);
   }
   return element;
+}
+
+function applyComfort(
+  days: Map<string, MutableDay>,
+  log: unknown[],
+  id: string,
+  title: string,
+): void {
+  const points: { at: number; comfort: number }[] = [];
+  for (const entry of log) {
+    if (!isRecord(entry) || entry.event !== 'comfort') continue;
+    const comfort = Math.round(Number(entry.comfort));
+    if (!Number.isInteger(comfort) || comfort < 1 || comfort > 10) continue;
+    if (typeof entry.at !== 'number' || !Number.isFinite(entry.at)) continue;
+    points.push({ at: entry.at, comfort });
+  }
+  points.sort((left, right) => left.at - right.at);
+  let previous = 1;
+  for (const point of points) {
+    const delta = point.comfort - previous;
+    previous = point.comfort;
+    if (delta === 0) continue;
+    const day = bucket(days, point.at);
+    if (!day) continue;
+    day.comfort += delta;
+    elementOf(day, id, title).comfort += delta;
+  }
 }
 
 function dayKey(at: number): string {
@@ -187,12 +221,18 @@ function dayKey(at: number): string {
 }
 
 function hasActivity(element: ElementDayStats): boolean {
-  return gemTotal(element.gems) > 0 || element.opened + element.reworked + element.revealed > 0;
+  return (
+    gemTotal(element.gems) > 0 ||
+    element.opened + element.reworked + element.revealed > 0 ||
+    element.comfort !== 0
+  );
 }
 
 function compareElements(left: ElementDayStats, right: ElementDayStats, language: string): number {
   const gems = gemTotal(right.gems) - gemTotal(left.gems);
   if (gems) return gems;
+  const comfort = Math.abs(right.comfort) - Math.abs(left.comfort);
+  if (comfort) return comfort;
   const activity =
     right.opened + right.reworked + right.revealed - (left.opened + left.reworked + left.revealed);
   if (activity) return activity;
@@ -208,6 +248,7 @@ function isRecord(value: unknown): value is {
   at?: unknown;
   game?: unknown;
   gems?: unknown;
+  comfort?: unknown;
   log?: unknown;
 } {
   return !!value && typeof value === 'object';

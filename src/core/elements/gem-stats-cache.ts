@@ -1,6 +1,6 @@
 import type { DayStats, ElementDayStats, GemCounts } from './gem-stats.worker';
 
-const KEY_PREFIX = 'lingogem.stats.v1.';
+const KEY_PREFIX = 'lingogem.stats.v2.';
 
 export type StatsSnapshot = {
   computedAt: number;
@@ -51,6 +51,7 @@ function isDay(value: unknown): value is DayStats {
     isCount(source.opened) &&
     isCount(source.reworked) &&
     isCount(source.revealed) &&
+    isDelta(source.comfort) &&
     Array.isArray(source.elements) &&
     source.elements.every(isElementDay)
   );
@@ -67,7 +68,8 @@ function isElementDay(value: unknown): value is ElementDayStats {
     isGemCounts(source.gems) &&
     isCount(source.opened) &&
     isCount(source.reworked) &&
-    isCount(source.revealed)
+    isCount(source.revealed) &&
+    isDelta(source.comfort)
   );
 }
 
@@ -79,4 +81,8 @@ function isGemCounts(value: unknown): value is GemCounts {
 
 function isCount(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isDelta(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }
