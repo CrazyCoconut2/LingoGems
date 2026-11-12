@@ -1,5 +1,6 @@
 import { Component, computed, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import packageJson from '../../../package.json';
 import {
   isAiProvider,
   readStoredAiCredentials,
@@ -152,6 +153,7 @@ const AI_PROVIDERS: ProviderOption[] = [
         </div>
 
         <footer class="panel-footer">
+          <p class="version">v{{ version }}</p>
           <button type="button" class="done-btn" (click)="back()">Done</button>
         </footer>
       </section>
@@ -386,9 +388,16 @@ const AI_PROVIDERS: ProviderOption[] = [
     }
 
     .panel-footer {
-      justify-content: flex-end;
+      align-items: center;
+      justify-content: space-between;
       padding: 0.85rem 1.15rem 1.15rem;
       border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    }
+
+    .version {
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      line-height: 1.2;
     }
 
     .done-btn {
@@ -424,6 +433,7 @@ const AI_PROVIDERS: ProviderOption[] = [
   `,
 })
 export class Settings {
+  readonly version = packageJson.version;
   readonly closed = output<void>();
   readonly expanded = signal<string | null>(null);
   private readonly stored = readStoredAiCredentials().keys[0];

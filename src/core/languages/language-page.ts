@@ -7,7 +7,6 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import packageJson from '../../../package.json';
 import { ElementModal } from '../elements/element-modal';
 import { ModeIcon } from '../elements/mode-icon';
 import { ScoreGauge } from '../elements/score-gauge';
@@ -1024,7 +1023,6 @@ const MOVE_SLOP_PX = 10;
             </button>
           </div>
         </div>
-        <p class="app-bar-version">v{{ version }}</p>
       </footer>
     </main>
   `,
@@ -1051,7 +1049,7 @@ const MOVE_SLOP_PX = 10;
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      padding: calc(0.75rem + env(safe-area-inset-top, 0px)) 1.25rem 0.85rem;
+      padding: calc(0.75rem + env(safe-area-inset-top, 0px)) 1.25rem 0.55rem;
     }
 
     .collection {
@@ -1060,7 +1058,7 @@ const MOVE_SLOP_PX = 10;
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      padding: 0 1.25rem 1.25rem;
+      padding: 0.15rem 1.25rem 1.25rem;
       overscroll-behavior: contain;
     }
 
@@ -1124,15 +1122,6 @@ const MOVE_SLOP_PX = 10;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
-    }
-
-    .app-bar-version {
-      margin: 0;
-      color: var(--text-muted);
-      font-size: 0.68rem;
-      line-height: 1.2;
-      text-align: center;
-      pointer-events: none;
     }
 
     .entries-toolbar {
@@ -1264,7 +1253,7 @@ const MOVE_SLOP_PX = 10;
       display: flex;
       align-items: baseline;
       gap: 0.65rem;
-      margin: -0.3rem 0 0;
+      margin: 0;
       font-size: 0.78rem;
       line-height: 1.15rem;
       color: var(--text-muted);
@@ -1281,8 +1270,8 @@ const MOVE_SLOP_PX = 10;
       align-items: center;
       justify-content: space-between;
       gap: 0.75rem;
-      height: 1.15rem;
-      margin: -0.3rem 0 0;
+      min-height: 1.15rem;
+      margin: 0;
     }
 
     .list-toolbar .list-count {
@@ -2295,7 +2284,6 @@ const MOVE_SLOP_PX = 10;
   `,
 })
 export class LanguagePage {
-  readonly version = packageJson.version;
   private loadId = 0;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   private pressTimer: ReturnType<typeof setTimeout> | null = null;
