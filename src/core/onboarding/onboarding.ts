@@ -81,11 +81,13 @@ const AI_PROVIDERS: ProviderOption<AiProviderId>[] = [
   styles: `
     :host {
       display: block;
-      min-height: 100%;
+      height: 100%;
+      min-height: 0;
     }
 
     .screen {
-      min-height: 100dvh;
+      height: 100%;
+      min-height: 0;
       box-sizing: border-box;
       display: flex;
       align-items: center;

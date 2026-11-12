@@ -14,13 +14,21 @@ import { KeepStorageBar } from './storage/keep-storage-bar';
       <app-language-page />
     } @else {
       <app-onboarding (finished)="onboarded.set(true)" />
+      <p class="version">v{{ version }}</p>
     }
-    <p class="version">v{{ version }}</p>
   `,
   styles: `
     :host {
-      display: block;
-      min-height: 100%;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    app-language-page,
+    app-onboarding {
+      min-height: 0;
     }
 
     .version {

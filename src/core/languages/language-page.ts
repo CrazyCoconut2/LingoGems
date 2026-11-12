@@ -7,6 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import packageJson from '../../../package.json';
 import { ElementModal } from '../elements/element-modal';
 import { ModeIcon } from '../elements/mode-icon';
 import { ScoreGauge } from '../elements/score-gauge';
@@ -61,13 +62,7 @@ import {
 } from 'collection';
 
 type FilterSection =
-  | 'language'
-  | 'mode'
-  | 'comfort'
-  | 'translations'
-  | 'definitions'
-  | 'examples'
-  | 'forms';
+  'language' | 'mode' | 'comfort' | 'translations' | 'definitions' | 'examples' | 'forms';
 
 type MetadataKind = 'definitions' | 'examples' | 'forms';
 
@@ -88,369 +83,338 @@ const MOVE_SLOP_PX = 10;
   imports: [ElementModal, ModeIcon, ScoreGauge, DiscoverModal, Settings],
   template: `
     <main>
-      <header>
-        <h1>LingoGems</h1>
-        <div class="header-actions">
-          <button
-            type="button"
-            class="settings"
-            [class.active]="playing()"
-            [disabled]="!code()"
-            [attr.aria-pressed]="playing()"
-            [attr.aria-label]="playing() ? 'Edition' : 'Play'"
-            [attr.title]="playing() ? 'Edition' : 'Play'"
-            (click)="togglePlay()"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <polygon points="8 5 19 12 8 19 8 5" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="settings"
-            [class.active]="settingsOpen()"
-            aria-label="Settings"
-            title="Settings"
-            (click)="openSettings()"
-          >
-            <svg viewBox="0 0 24 24">
-              <path
-                d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
-              />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          </button>
-        </div>
-      </header>
-
-      <section class="entries-toolbar" aria-label="Search">
-        <form class="search-bar" autocomplete="off" (submit)="lookup($event)">
-          <input
-            class="entry-input"
-            type="search"
-            autocomplete="off"
-            [value]="query()"
-            [attr.maxlength]="maxSearchLength"
-            [disabled]="playing() || !code()"
-            (input)="onSearch(inputValue($event))"
-            placeholder="Search lemmas or forms…"
-            aria-label="Search lemmas or forms"
-          />
-          @if (query().trim()) {
-            <div class="search-actions">
-              <button
-                type="button"
-                class="search-add"
-                [attr.aria-label]="askLabel()"
-                [attr.title]="askLabel()"
-                [disabled]="asking() || playing()"
-                [attr.aria-busy]="asking() ? true : null"
-                (click)="askFromSearch()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                  />
-                </svg>
-              </button>
-              <button
-                type="submit"
-                class="search-add"
-                aria-label="Add entry"
-                [disabled]="asking() || playing()"
-              >
-                <svg viewBox="0 0 24 24">
-                  <path d="M5 12h14" />
-                  <path d="M12 5v14" />
-                </svg>
-              </button>
-            </div>
-          }
-        </form>
-
-        <div class="toolbar-actions">
-          <button
-            type="button"
-            class="toolbar-icon-btn"
-            [class.active]="discoverOpen()"
-            [disabled]="playing() || !code()"
-            aria-label="Discover"
-            title="Discover"
-            (click)="openDiscover($event)"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="toolbar-icon-btn"
-            [class.active]="filtersOpen() || filterCount() > 0"
-            [attr.aria-expanded]="filtersOpen()"
-            aria-label="Filter collection"
-            title="Filter"
-            (click)="openFilters($event)"
-          >
-            <svg viewBox="0 0 24 24">
-              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-            </svg>
-            @if (filterCount() > 0) {
-              <span class="toolbar-filter-count">{{ filterCount() }}</span>
+      <div class="page-top">
+        <section class="entries-toolbar" aria-label="Search">
+          <form class="search-bar" autocomplete="off" (submit)="lookup($event)">
+            <input
+              class="entry-input"
+              type="search"
+              autocomplete="off"
+              [value]="query()"
+              [attr.maxlength]="maxSearchLength"
+              [disabled]="playing() || !code()"
+              (input)="onSearch(inputValue($event))"
+              placeholder="Search lemmas or forms…"
+              aria-label="Search lemmas or forms"
+            />
+            @if (query().trim()) {
+              <div class="search-actions">
+                <button
+                  type="button"
+                  class="search-add"
+                  [attr.aria-label]="askLabel()"
+                  [attr.title]="askLabel()"
+                  [disabled]="asking() || playing()"
+                  [attr.aria-busy]="asking() ? true : null"
+                  (click)="askFromSearch()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                    />
+                  </svg>
+                </button>
+                <button
+                  type="submit"
+                  class="search-add"
+                  aria-label="Add entry"
+                  [disabled]="asking() || playing()"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M5 12h14" />
+                    <path d="M12 5v14" />
+                  </svg>
+                </button>
+              </div>
             }
-          </button>
+          </form>
 
-          <div class="toolbar-menu">
+          <div class="toolbar-actions">
             <button
               type="button"
               class="toolbar-icon-btn"
-              [class.active]="sortOpen() || sortActive()"
-              [attr.aria-expanded]="sortOpen()"
+              [class.active]="discoverOpen()"
               [disabled]="playing() || !code()"
-              aria-label="Sort collection"
-              title="Sort"
-              (click)="toggleSort($event)"
+              aria-label="Discover"
+              title="Discover"
+              (click)="openDiscover($event)"
             >
-              <svg viewBox="0 0 24 24">
-                <path d="m3 8 4-4 4 4" />
-                <path d="M7 4v16" />
-                <path d="m21 16-4 4-4-4" />
-                <path d="M17 20V4" />
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
               </svg>
             </button>
-            @if (sortOpen() && !playing()) {
-              <div
-                class="toolbar-popover"
-                role="listbox"
+            <button
+              type="button"
+              class="toolbar-icon-btn"
+              [class.active]="filtersOpen() || filterCount() > 0"
+              [attr.aria-expanded]="filtersOpen()"
+              aria-label="Filter collection"
+              title="Filter"
+              (click)="openFilters($event)"
+            >
+              <svg viewBox="0 0 24 24">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
+              @if (filterCount() > 0) {
+                <span class="toolbar-filter-count">{{ filterCount() }}</span>
+              }
+            </button>
+
+            <div class="toolbar-menu">
+              <button
+                type="button"
+                class="toolbar-icon-btn"
+                [class.active]="sortOpen() || sortActive()"
+                [attr.aria-expanded]="sortOpen()"
+                [disabled]="playing() || !code()"
                 aria-label="Sort collection"
-                (click)="$event.stopPropagation()"
+                title="Sort"
+                (click)="toggleSort($event)"
               >
-                @for (option of sortOptions(); track option.value) {
+                <svg viewBox="0 0 24 24">
+                  <path d="m3 8 4-4 4 4" />
+                  <path d="M7 4v16" />
+                  <path d="m21 16-4 4-4-4" />
+                  <path d="M17 20V4" />
+                </svg>
+              </button>
+              @if (sortOpen() && !playing()) {
+                <div
+                  class="toolbar-popover"
+                  role="listbox"
+                  aria-label="Sort collection"
+                  (click)="$event.stopPropagation()"
+                >
+                  @for (option of sortOptions(); track option.value) {
+                    <button
+                      type="button"
+                      class="popover-option"
+                      role="option"
+                      [class.selected]="sort() === option.value"
+                      [attr.aria-selected]="sort() === option.value"
+                      (click)="chooseSort(option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        </section>
+
+        @if (lookupError()) {
+          <p class="lookup-error">{{ lookupError() }}</p>
+        }
+      </div>
+
+      <div class="collection">
+        @if (ready()) {
+          <div class="list-toolbar">
+            <p class="list-count">
+              @if (code()) {
+                <span class="list-language">{{ name() }}</span>
+              }
+              <span>{{ countLabel() }}</span>
+            </p>
+            @if (selecting()) {
+              <div class="list-toolbar-actions">
+                @if (selectedIds().size) {
                   <button
                     type="button"
-                    class="popover-option"
-                    role="option"
-                    [class.selected]="sort() === option.value"
-                    [attr.aria-selected]="sort() === option.value"
-                    (click)="chooseSort(option.value)"
+                    class="list-action"
+                    [class.active]="comfortOpen()"
+                    aria-label="Set comfort"
+                    title="Set comfort"
+                    [disabled]="selectionBusy()"
+                    (click)="openSelectionComfort()"
                   >
-                    {{ option.label }}
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" />
+                      <circle cx="12" cy="12" r="6" />
+                      <circle cx="12" cy="12" r="2" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="list-action danger"
+                    aria-label="Delete selected"
+                    title="Delete selected"
+                    [disabled]="selectionBusy()"
+                    (click)="askDeleteSelection()"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
                   </button>
                 }
-              </div>
-            }
-          </div>
-        </div>
-      </section>
-
-      @if (lookupError()) {
-        <p class="lookup-error">{{ lookupError() }}</p>
-      }
-
-      @if (ready()) {
-        <div class="list-toolbar">
-          <p class="list-count">
-            @if (code()) {
-              <span class="list-language">{{ name() }}</span>
-            }
-            <span>{{ countLabel() }}</span>
-          </p>
-          @if (selecting()) {
-            <div class="list-toolbar-actions">
-              @if (selectedIds().size) {
                 <button
                   type="button"
                   class="list-action"
-                  [class.active]="comfortOpen()"
-                  aria-label="Set comfort"
-                  title="Set comfort"
-                  [disabled]="selectionBusy()"
-                  (click)="openSelectionComfort()"
+                  aria-label="Select all"
+                  title="Select all"
+                  [disabled]="selectionBusy() || !shown().length || allShownSelected()"
+                  (click)="selectAll()"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" />
-                    <circle cx="12" cy="12" r="6" />
-                    <circle cx="12" cy="12" r="2" />
+                    <path d="M20 6 9 17l-5-5" />
                   </svg>
                 </button>
                 <button
                   type="button"
-                  class="list-action danger"
-                  aria-label="Delete selected"
-                  title="Delete selected"
+                  class="list-action"
+                  aria-label="Clear selection"
+                  title="Clear selection"
                   [disabled]="selectionBusy()"
-                  (click)="askDeleteSelection()"
+                  (click)="clearSelection()"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M3 6h18" />
-                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                    <path d="M10 11v6" />
-                    <path d="M14 11v6" />
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
                   </svg>
                 </button>
-              }
-              <button
-                type="button"
-                class="list-action"
-                aria-label="Select all"
-                title="Select all"
-                [disabled]="selectionBusy() || !shown().length || allShownSelected()"
-                (click)="selectAll()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="list-action"
-                aria-label="Clear selection"
-                title="Clear selection"
-                [disabled]="selectionBusy()"
-                (click)="clearSelection()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M18 6 6 18" />
-                  <path d="m6 6 12 12" />
-                </svg>
-              </button>
-            </div>
-          }
-        </div>
-        @if (selectionError()) {
-          <p class="selection-error">{{ selectionError() }}</p>
-        }
-      } @else {
-        <p class="list-count" aria-hidden="true"><span class="bone bone-count"></span></p>
-      }
-
-      @if (!ready()) {
-        <ul class="elements" aria-hidden="true">
-          @for (item of skeletons; track item) {
-            <li>
-              <div class="element skeleton">
-                <div class="element-body">
-                  <span class="bone bone-title"></span>
-                </div>
-                <span class="bone bone-icons"></span>
-                <span class="bone bone-track"></span>
               </div>
-            </li>
+            }
+          </div>
+          @if (selectionError()) {
+            <p class="selection-error">{{ selectionError() }}</p>
           }
-        </ul>
-      } @else if (shown().length) {
-        <ul class="elements">
-          @for (element of shown(); track element.id) {
-            <li>
-              <button
-                type="button"
-                class="element"
-                [class.playing]="playing()"
-                [class.selected]="isSelected(element.id)"
-                [style.--score-color]="comfortColor(element.comfort)"
-                [attr.aria-pressed]="selecting() ? isSelected(element.id) : null"
-                (click)="onCardClick(element.id)"
-                (contextmenu)="onCardContextMenu($event, element.id)"
-                (pointerdown)="onCardPointerDown($event, element.id)"
-                (pointermove)="onCardPointerMove($event)"
-                (pointerup)="onCardPointerUp()"
-                (pointercancel)="onCardPointerUp()"
-                (pointerleave)="onCardPointerUp()"
-              >
-                <div class="element-body">
-                  @if (playing()) {
-                    @if (element.mode; as mode) {
-                      <span class="play-mark">
-                        <span class="play-icon" [attr.aria-label]="modeLabel(mode)">
-                          <app-mode-icon [mode]="mode" />
+        } @else {
+          <p class="list-count" aria-hidden="true"><span class="bone bone-count"></span></p>
+        }
+
+        @if (!ready()) {
+          <ul class="elements" aria-hidden="true">
+            @for (item of skeletons; track item) {
+              <li>
+                <div class="element skeleton">
+                  <div class="element-body">
+                    <span class="bone bone-title"></span>
+                  </div>
+                  <span class="bone bone-icons"></span>
+                  <span class="bone bone-track"></span>
+                </div>
+              </li>
+            }
+          </ul>
+        } @else if (shown().length) {
+          <ul class="elements">
+            @for (element of shown(); track element.id) {
+              <li>
+                <button
+                  type="button"
+                  class="element"
+                  [class.playing]="playing()"
+                  [class.selected]="isSelected(element.id)"
+                  [style.--score-color]="comfortColor(element.comfort)"
+                  [attr.aria-pressed]="selecting() ? isSelected(element.id) : null"
+                  (click)="onCardClick(element.id)"
+                  (contextmenu)="onCardContextMenu($event, element.id)"
+                  (pointerdown)="onCardPointerDown($event, element.id)"
+                  (pointermove)="onCardPointerMove($event)"
+                  (pointerup)="onCardPointerUp()"
+                  (pointercancel)="onCardPointerUp()"
+                  (pointerleave)="onCardPointerUp()"
+                >
+                  <div class="element-body">
+                    @if (playing()) {
+                      @if (element.mode; as mode) {
+                        <span class="play-mark">
+                          <span class="play-icon" [attr.aria-label]="modeLabel(mode)">
+                            <app-mode-icon [mode]="mode" />
+                          </span>
+                        </span>
+                      }
+                    } @else {
+                      <span class="title-line">
+                        <span class="title">
+                          @for (part of highlight(element.title); track $index) {
+                            @if (part.hit) {
+                              <mark class="hit">{{ part.text }}</mark>
+                            } @else {
+                              <span>{{ part.text }}</span>
+                            }
+                          }
                         </span>
                       </span>
                     }
-                  } @else {
-                    <span class="title-line">
-                      <span class="title">
-                        @for (part of highlight(element.title); track $index) {
-                          @if (part.hit) {
-                            <mark class="hit">{{ part.text }}</mark>
-                          } @else {
-                            <span>{{ part.text }}</span>
-                          }
-                        }
-                      </span>
-                    </span>
-                  }
-                </div>
-                <div class="card-icons">
-                  <span
-                    class="stat"
-                    [class.quiet]="!element.equivalents.length"
-                    [attr.aria-label]="
-                      element.equivalents.length === 1
-                        ? '1 translation'
-                        : element.equivalents.length + ' translations'
-                    "
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m5 8 6 6" />
-                      <path d="m4 14 6-6 2-3" />
-                      <path d="M2 5h12" />
-                      <path d="M7 2h1" />
-                      <path d="m22 22-5-10-5 10" />
-                      <path d="M14 18h6" />
-                    </svg>
-                    <span>{{ element.equivalents.length }}</span>
-                  </span>
-                  <span
-                    class="stat"
-                    [class.quiet]="!element.definitions.length"
-                    [attr.aria-label]="definitionsLabel(element.definitions.length)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
-                      />
-                      <path d="m8 13 4-7 4 7" />
-                      <path d="M9.1 11h5.7" />
-                    </svg>
-                    <span>{{ element.definitions.length }}</span>
-                  </span>
-                  @if (element.clicks > 0) {
-                    <span class="stat" [attr.aria-label]="clicksLabel(element.clicks)">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                      <span>{{ element.clicks }}</span>
-                    </span>
-                  }
-                  @if (modeGem(element); as total) {
+                  </div>
+                  <div class="card-icons">
                     <span
-                      class="card-gem"
-                      [attr.data-game]="total.game"
-                      [attr.aria-label]="gemsLabel(total.game, total.gems)"
+                      class="stat"
+                      [class.quiet]="!element.equivalents.length"
+                      [attr.aria-label]="
+                        element.equivalents.length === 1
+                          ? '1 translation'
+                          : element.equivalents.length + ' translations'
+                      "
                     >
-                      <span class="gem" aria-hidden="true"></span>
-                      <span>{{ total.gems }}</span>
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m5 8 6 6" />
+                        <path d="m4 14 6-6 2-3" />
+                        <path d="M2 5h12" />
+                        <path d="M7 2h1" />
+                        <path d="m22 22-5-10-5 10" />
+                        <path d="M14 18h6" />
+                      </svg>
+                      <span>{{ element.equivalents.length }}</span>
                     </span>
-                  }
-                </div>
-                <div
-                  class="comfort-track"
-                  role="img"
-                  [attr.aria-label]="'Comfort ' + element.comfort + ' of 10'"
-                >
-                  @for (rate of comfortRates; track rate) {
-                    <span class="comfort-mark" [class.filled]="rate <= element.comfort"></span>
-                  }
-                </div>
-              </button>
-            </li>
-          }
-        </ul>
-      } @else {
-        <p class="empty">{{ emptyMessage() }}</p>
-      }
+                    <span
+                      class="stat"
+                      [class.quiet]="!element.definitions.length"
+                      [attr.aria-label]="definitionsLabel(element.definitions.length)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
+                        />
+                        <path d="m8 13 4-7 4 7" />
+                        <path d="M9.1 11h5.7" />
+                      </svg>
+                      <span>{{ element.definitions.length }}</span>
+                    </span>
+                    @if (element.clicks > 0) {
+                      <span class="stat" [attr.aria-label]="clicksLabel(element.clicks)">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        <span>{{ element.clicks }}</span>
+                      </span>
+                    }
+                    @if (modeGem(element); as total) {
+                      <span
+                        class="card-gem"
+                        [attr.data-game]="total.game"
+                        [attr.aria-label]="gemsLabel(total.game, total.gems)"
+                      >
+                        <span class="gem" aria-hidden="true"></span>
+                        <span>{{ total.gems }}</span>
+                      </span>
+                    }
+                  </div>
+                  <div
+                    class="comfort-track"
+                    role="img"
+                    [attr.aria-label]="'Comfort ' + element.comfort + ' of 10'"
+                  >
+                    @for (rate of comfortRates; track rate) {
+                      <span class="comfort-mark" [class.filled]="rate <= element.comfort"></span>
+                    }
+                  </div>
+                </button>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="empty">{{ emptyMessage() }}</p>
+        }
+      </div>
 
       @if (discoverOpen() && code()) {
         <app-discover-modal
@@ -1015,85 +979,160 @@ const MOVE_SLOP_PX = 10;
           (addPrepared)="addPrepared($event)"
         />
       }
+
+      <footer class="app-bar">
+        <div class="app-bar-row">
+          <div class="app-bar-slot"></div>
+          <button
+            type="button"
+            class="app-bar-btn"
+            [class.active]="playing()"
+            [disabled]="!code()"
+            [attr.aria-pressed]="playing()"
+            [attr.aria-label]="playing() ? 'Playing, switch to working' : 'Working, switch to play'"
+            [attr.title]="playing() ? 'Playing, switch to working' : 'Working, switch to play'"
+            (click)="togglePlay()"
+          >
+            @if (playing()) {
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <polygon points="8 5 19 12 8 19 8 5" />
+              </svg>
+            } @else {
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"
+                />
+                <path d="m15 5 4 4" />
+              </svg>
+            }
+          </button>
+          <div class="app-bar-slot end">
+            <button
+              type="button"
+              class="app-bar-btn"
+              [class.active]="settingsOpen()"
+              aria-label="Settings"
+              title="Settings"
+              (click)="openSettings()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+                />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <p class="app-bar-version">v{{ version }}</p>
+      </footer>
     </main>
   `,
   styles: `
     :host {
       display: block;
-      min-height: 100%;
+      height: 100%;
+      min-height: 0;
     }
 
     main {
-      min-height: 100dvh;
+      height: 100%;
+      min-height: 0;
       box-sizing: border-box;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr);
+      overflow: hidden;
+    }
+
+    .page-top {
+      position: relative;
+      z-index: 2;
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      padding: 1rem 1.25rem calc(1.85rem + env(safe-area-inset-bottom));
+      padding: calc(0.75rem + env(safe-area-inset-top, 0px)) 1.25rem 0.85rem;
     }
 
-    header {
+    .collection {
+      min-height: 0;
+      overflow: auto;
       display: flex;
-      align-items: center;
-      gap: 0.35rem;
+      flex-direction: column;
+      gap: 0.85rem;
+      padding: 0 1.25rem 1.25rem;
+      overscroll-behavior: contain;
     }
 
-    h1 {
-      flex: 1;
-      margin: 0;
-      min-width: 0;
-      overflow: hidden;
-      font-size: 1.15rem;
-      font-weight: 650;
-      letter-spacing: -0.03em;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .header-actions {
+    .app-bar {
+      position: relative;
+      z-index: 2;
       display: flex;
-      flex: none;
-      align-items: center;
-      gap: 0.2rem;
+      flex-direction: column;
+      padding: 0.35rem max(0.85rem, env(safe-area-inset-right, 0px))
+        calc(0.15rem + env(safe-area-inset-bottom, 0px))
+        max(0.85rem, env(safe-area-inset-left, 0px));
+      border-top: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 92%, transparent);
     }
 
-    .settings {
+    .app-bar-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      min-height: 3.25rem;
+    }
+
+    .app-bar-slot.end {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .app-bar-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 2.25rem;
-      height: 2.25rem;
+      width: 2.75rem;
+      height: 2.75rem;
       border: 0;
       border-radius: 999px;
       background: transparent;
       color: var(--text-muted);
-      text-decoration: none;
       cursor: pointer;
     }
 
-    .settings:hover:not(:disabled) {
+    .app-bar-btn:hover:not(:disabled) {
       color: var(--text);
       background: rgba(139, 144, 165, 0.16);
     }
 
-    .settings:disabled {
+    .app-bar-btn:disabled {
       opacity: 0.4;
       cursor: default;
     }
 
-    .settings.active {
+    .app-bar-btn.active {
       color: var(--accent-text);
       background: rgba(var(--accent-rgb), 0.16);
     }
 
-    .settings svg {
-      width: 1.15rem;
-      height: 1.15rem;
+    .app-bar-btn svg {
+      width: 1.35rem;
+      height: 1.35rem;
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .app-bar-version {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      line-height: 1.2;
+      text-align: center;
+      pointer-events: none;
     }
 
     .entries-toolbar {
@@ -2256,6 +2295,7 @@ const MOVE_SLOP_PX = 10;
   `,
 })
 export class LanguagePage {
+  readonly version = packageJson.version;
   private loadId = 0;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   private pressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -2392,11 +2432,7 @@ export class LanguagePage {
     });
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
   });
-  readonly playable = computed(() =>
-    this.visible().filter(
-      (element) => element.mode !== null,
-    ),
-  );
+  readonly playable = computed(() => this.visible().filter((element) => element.mode !== null));
   readonly shown = computed(() => {
     const visible = this.visible();
     if (!this.playing()) return visible;
@@ -2679,7 +2715,9 @@ export class LanguagePage {
   private dismissSelectionFromOutside(target: Element | null): void {
     if (this.selectionBusy() || !this.selecting()) return;
     if (this.comfortOpen() || this.deleteConfirm()) return;
-    if (target?.closest('.element, .list-toolbar-actions, .selection-backdrop, app-element-modal')) {
+    if (
+      target?.closest('.element, .list-toolbar-actions, .selection-backdrop, app-element-modal')
+    ) {
       return;
     }
     this.clearSelection();
@@ -3288,9 +3326,7 @@ export class LanguagePage {
   }
 
   private overlayOpen(): boolean {
-    return (
-      this.filtersOpen() || this.settingsOpen() || this.discoverOpen()
-    );
+    return this.filtersOpen() || this.settingsOpen() || this.discoverOpen();
   }
 
   private lockScroll(): void {

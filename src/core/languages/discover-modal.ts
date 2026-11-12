@@ -501,6 +501,10 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     </div>
   `,
   styles: `
+    :host {
+      display: contents;
+    }
+
     .backdrop {
       position: fixed;
       inset: 0;
