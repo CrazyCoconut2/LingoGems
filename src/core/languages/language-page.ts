@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { ElementModal } from '../elements/element-modal';
+import { GemStatsModal } from '../elements/gem-stats-modal';
 import { ModeIcon } from '../elements/mode-icon';
 import { ScoreGauge } from '../elements/score-gauge';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
@@ -79,7 +80,7 @@ const MOVE_SLOP_PX = 10;
 
 @Component({
   selector: 'app-language-page',
-  imports: [ElementModal, ModeIcon, ScoreGauge, DiscoverModal, Settings],
+  imports: [ElementModal, ModeIcon, ScoreGauge, DiscoverModal, Settings, GemStatsModal],
   template: `
     <main>
       <div class="page-top">
@@ -963,6 +964,10 @@ const MOVE_SLOP_PX = 10;
         <app-settings (closed)="closeSettings()" />
       }
 
+      @if (statsOpen()) {
+        <app-gem-stats (closed)="closeStats()" />
+      }
+
       @if (opened(); as element) {
         <app-element-modal
           [element]="element"
@@ -981,7 +986,23 @@ const MOVE_SLOP_PX = 10;
 
       <footer class="app-bar">
         <div class="app-bar-row">
-          <div class="app-bar-slot"></div>
+          <div class="app-bar-slot">
+            <button
+              type="button"
+              class="app-bar-btn"
+              [class.active]="statsOpen()"
+              aria-label="Stats"
+              title="Stats"
+              (click)="openStats()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+                <path d="M18 17V9" />
+                <path d="M13 17V5" />
+                <path d="M8 17v-3" />
+              </svg>
+            </button>
+          </div>
           <button
             type="button"
             class="app-bar-btn"
@@ -1081,8 +1102,12 @@ const MOVE_SLOP_PX = 10;
       min-height: 3.25rem;
     }
 
-    .app-bar-slot.end {
+    .app-bar-slot {
       display: flex;
+      align-items: center;
+    }
+
+    .app-bar-slot.end {
       justify-content: flex-end;
     }
 
@@ -2374,6 +2399,7 @@ export class LanguagePage {
   readonly sortOpen = signal(false);
   readonly filtersOpen = signal(false);
   readonly settingsOpen = signal(false);
+  readonly statsOpen = signal(false);
   readonly playing = signal(false);
   readonly playId = signal('');
   readonly playOrder = signal<readonly string[]>([]);
@@ -2489,6 +2515,10 @@ export class LanguagePage {
   closeMenusOnEscape(): void {
     if (this.settingsOpen()) {
       this.closeSettings();
+      return;
+    }
+    if (this.statsOpen()) {
+      this.closeStats();
       return;
     }
     if (this.discoverOpen()) {
@@ -3016,6 +3046,7 @@ export class LanguagePage {
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.settingsOpen()) this.closeSettings();
+    if (this.statsOpen()) this.closeStats();
     if (this.discoverOpen()) return;
     this.discoverOpen.set(true);
     this.lockScroll();
@@ -3041,6 +3072,7 @@ export class LanguagePage {
     this.sortOpen.set(false);
     if (this.discoverOpen()) this.closeDiscover();
     if (this.settingsOpen()) this.closeSettings();
+    if (this.statsOpen()) this.closeStats();
     this.expanded.set(this.code() ? 'translations' : 'language');
     this.filtersOpen.set(true);
     this.lockScroll();
@@ -3232,6 +3264,7 @@ export class LanguagePage {
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.discoverOpen()) this.closeDiscover();
+    if (this.statsOpen()) this.closeStats();
     if (this.settingsOpen()) return;
     this.settingsOpen.set(true);
     this.lockScroll();
@@ -3240,6 +3273,22 @@ export class LanguagePage {
   closeSettings(): void {
     if (!this.settingsOpen()) return;
     this.settingsOpen.set(false);
+    this.unlockScroll();
+  }
+
+  openStats(): void {
+    this.sortOpen.set(false);
+    if (this.filtersOpen()) this.closeFilters();
+    if (this.discoverOpen()) this.closeDiscover();
+    if (this.settingsOpen()) this.closeSettings();
+    if (this.statsOpen()) return;
+    this.statsOpen.set(true);
+    this.lockScroll();
+  }
+
+  closeStats(): void {
+    if (!this.statsOpen()) return;
+    this.statsOpen.set(false);
     this.unlockScroll();
   }
 
@@ -3314,7 +3363,7 @@ export class LanguagePage {
   }
 
   private overlayOpen(): boolean {
-    return this.filtersOpen() || this.settingsOpen() || this.discoverOpen();
+    return this.filtersOpen() || this.settingsOpen() || this.statsOpen() || this.discoverOpen();
   }
 
   private lockScroll(): void {

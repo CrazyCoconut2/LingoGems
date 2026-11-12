@@ -68,6 +68,8 @@ export {
   type ElementSort,
 } from './elements/browse';
 
+export { ELEMENTS_STORE, idbRequest, openDatabase } from './database';
+
 export { requestPersistentStorage, storageIsPersistent } from './persistent-storage';
 
 export {
