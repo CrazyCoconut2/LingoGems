@@ -74,6 +74,7 @@ import {
 import { Reveal } from './reveal';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { rememberTranslationInto, translationInto } from '../languages/translation-language';
+import { GemIcon } from './gem-icon';
 import { ModeIcon } from './mode-icon';
 import { comfortColor } from './comfort-palette';
 import { ScoreGauge } from './score-gauge';
@@ -476,7 +477,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [NgTemplateOutlet, Reveal, ModeIcon, ScoreGauge],
+  imports: [NgTemplateOutlet, Reveal, ModeIcon, ScoreGauge, GemIcon],
   template: `
     <div
       class="backdrop"
@@ -968,7 +969,7 @@ function writeExampleSuggestions(
                           >
                             @for (total of totals; track total.game) {
                               <span class="gem-gain" [attr.data-game]="total.game">
-                                <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                                <app-gem-icon class="gem-gain-stone" [game]="total.game" />
                                 <span class="gem-gain-count">x{{ total.gems }}</span>
                               </span>
                             }
@@ -2522,7 +2523,7 @@ function writeExampleSuggestions(
                               [disabled]="aiBusy()"
                               (click)="awardEquivalent(prompt, gems)"
                             >
-                              <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                              <app-gem-icon class="gem-gain-stone" game="translation" />
                             </button>
                           }
                         }
@@ -2716,7 +2717,7 @@ function writeExampleSuggestions(
                             [disabled]="aiBusy()"
                             (click)="awardDefinition(prompt, gems)"
                           >
-                            <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                            <app-gem-icon class="gem-gain-stone" game="definition" />
                           </button>
                         }
                       }
@@ -3032,7 +3033,7 @@ function writeExampleSuggestions(
                         @for (gems of gemScores; track gems) {
                           @if (gems > 0) {
                             <span class="gem-pick-stone" [class.on]="reward.gems >= gems">
-                              <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                              <app-gem-icon class="gem-gain-stone" game="example" />
                             </span>
                           }
                         }
@@ -3408,7 +3409,7 @@ function writeExampleSuggestions(
                           @for (gems of gemScores; track gems) {
                             @if (gems > 0) {
                               <span class="gem-pick-stone" [class.on]="entry.gems >= gems">
-                                <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                                <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
                               </span>
                             }
                           }
@@ -3518,7 +3519,7 @@ function writeExampleSuggestions(
                       @for (gems of gemScores; track gems) {
                         @if (gems > 0) {
                           <span class="gem-pick-stone" [class.on]="entry.gems >= gems">
-                            <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                            <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
                           </span>
                         }
                       }
@@ -5671,7 +5672,6 @@ function writeExampleSuggestions(
 
     .gem-gain-stone {
       --gem-size: 0.85rem;
-      background: var(--exercise-gem);
     }
 
     .gem-pick-stone {

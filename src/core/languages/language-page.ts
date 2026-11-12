@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { ElementModal } from '../elements/element-modal';
 import { GemStatsModal } from '../elements/gem-stats-modal';
+import { GemIcon } from '../elements/gem-icon';
 import { ModeIcon } from '../elements/mode-icon';
 import { ScoreGauge } from '../elements/score-gauge';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
@@ -81,7 +82,7 @@ const MOVE_SLOP_PX = 10;
 
 @Component({
   selector: 'app-language-page',
-  imports: [ElementModal, ModeIcon, ScoreGauge, DiscoverModal, Settings, GemStatsModal],
+  imports: [ElementModal, ModeIcon, ScoreGauge, DiscoverModal, Settings, GemStatsModal, GemIcon],
   template: `
     <main>
       <div class="page-top">
@@ -394,7 +395,7 @@ const MOVE_SLOP_PX = 10;
                         [attr.data-game]="total.game"
                         [attr.aria-label]="gemsLabel(total.game, total.gems)"
                       >
-                        <span class="gem" aria-hidden="true"></span>
+                        <app-gem-icon [game]="total.game" />
                         <span>{{ total.gems }}</span>
                       </span>
                     }
@@ -1664,9 +1665,8 @@ const MOVE_SLOP_PX = 10;
       --exercise-gem: var(--gem-definition);
     }
 
-    .card-gem .gem {
+    .card-gem app-gem-icon {
       --gem-size: 0.85rem;
-      background: var(--exercise-gem);
     }
 
     .comfort-track {
