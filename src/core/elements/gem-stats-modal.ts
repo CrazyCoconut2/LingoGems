@@ -13,6 +13,13 @@ import {
 } from '@angular/core';
 import { displayTitle, languageDisplayName } from 'collection';
 import { readStatsSnapshot, writeStatsSnapshot, type StatsSnapshot } from './gem-stats-cache';
+import {
+  emptyDailyGoals,
+  readDailyGoals,
+  readGoalInput,
+  writeDailyGoals,
+  type DailyGoals,
+} from './gem-stats-goals';
 import { comfortColor } from './comfort-palette';
 import { GemIcon } from './gem-icon';
 import type { DayStats, ElementDayStats, GemCounts } from './gem-stats.worker';
@@ -30,6 +37,8 @@ const ACTIVITIES: readonly { key: 'opened' | 'reworked' | 'revealed'; label: str
   { key: 'reworked', label: 'Reworked' },
   { key: 'revealed', label: 'Revealed' },
 ];
+
+type GoalKind = keyof DailyGoals;
 
 type StatsMessage = { ok: true; days: DayStats[] } | { ok: false };
 
@@ -68,6 +77,21 @@ const EMPTY_DAY: DayStats = {
               </p>
             </div>
             <div class="actions">
+              <button
+                type="button"
+                class="icon-btn"
+                [class.on]="goalsOpen()"
+                aria-label="Daily goals"
+                [attr.aria-expanded]="goalsOpen()"
+                (click)="toggleGoals()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+                  />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
               <button
                 type="button"
                 class="icon-btn"
@@ -125,12 +149,40 @@ const EMPTY_DAY: DayStats = {
             [attr.aria-label]="comfortLabel(shown().comfort)"
             [attr.title]="comfortLabel(shown().comfort)"
           >
-            <div class="hero-copy">
-              <p class="eyebrow">Comfort</p>
-              <p class="hero-value">{{ formatSigned(shown().comfort) }}</p>
+            <div class="hero-top">
+              <div class="hero-copy">
+                <p class="eyebrow">Comfort</p>
+                <p class="hero-value">{{ formatSigned(shown().comfort) }}</p>
+              </div>
+              @if (dayBadge()) {
+                <span class="hero-badge">{{ dayBadge() }}</span>
+              }
             </div>
-            @if (dayBadge()) {
-              <span class="hero-badge">{{ dayBadge() }}</span>
+            @if (goalsOpen()) {
+              <div class="goal-edit">
+                <span class="goal-edit-label">Daily goal</span>
+                <ng-container
+                  *ngTemplateOutlet="goalStepper; context: { kind: 'comfort', label: 'comfort' }"
+                />
+              </div>
+            }
+            @if (goals().comfort; as goal) {
+              <div
+                class="meter"
+                role="progressbar"
+                aria-valuemin="0"
+                [attr.aria-valuenow]="meterNow(comfortGain(), goal)"
+                [attr.aria-valuemax]="goal"
+                [attr.aria-label]="comfortMeterLabel(goal)"
+              >
+                <span class="meter-track">
+                  <span
+                    class="meter-fill"
+                    [style.width.%]="meterPercent(comfortGain(), goal)"
+                  ></span>
+                </span>
+                <span class="meter-label">{{ meterText(comfortGain(), goal) }}</span>
+              </div>
             }
           </div>
           <section class="block">
@@ -160,6 +212,39 @@ const EMPTY_DAY: DayStats = {
                         {{ dayBadge() }}
                       }
                     </span>
+                  }
+                  @if (goalsOpen() || goals()[row.game] !== null) {
+                    <div class="card-foot">
+                      @if (goalsOpen()) {
+                        <span class="card-goal-label">Goal</span>
+                        <ng-container
+                          *ngTemplateOutlet="
+                            goalStepper;
+                            context: { kind: row.game, label: row.label.toLowerCase() }
+                          "
+                        />
+                      }
+                      @if (goals()[row.game]; as goal) {
+                        <div
+                          class="meter"
+                          role="progressbar"
+                          aria-valuemin="0"
+                          [attr.aria-valuenow]="meterNow(shown().gems[row.game], goal)"
+                          [attr.aria-valuemax]="goal"
+                          [attr.aria-label]="gemMeterLabel(row.label, shown().gems[row.game], goal)"
+                        >
+                          <span class="meter-track">
+                            <span
+                              class="meter-fill"
+                              [style.width.%]="meterPercent(shown().gems[row.game], goal)"
+                            ></span>
+                          </span>
+                          <span class="meter-label">{{
+                            meterText(shown().gems[row.game], goal)
+                          }}</span>
+                        </div>
+                      }
+                    </div>
                   }
                 </li>
               }
@@ -257,6 +342,34 @@ const EMPTY_DAY: DayStats = {
         }
       </section>
     </div>
+    <ng-template #goalStepper let-kind="kind" let-label="label">
+      <div class="count-stepper">
+        <button
+          type="button"
+          [attr.aria-label]="'Decrease ' + label + ' goal'"
+          [disabled]="!goalSet(kind)"
+          (click)="stepGoal(kind, -1)"
+        >
+          −
+        </button>
+        <input
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          [attr.aria-label]="label + ' daily goal'"
+          placeholder="–"
+          [value]="goalValue(kind)"
+          (change)="commitGoal(kind, $event)"
+        />
+        <button
+          type="button"
+          [attr.aria-label]="'Increase ' + label + ' goal'"
+          (click)="stepGoal(kind, 1)"
+        >
+          +
+        </button>
+      </div>
+    </ng-template>
     <ng-template #activityIcon let-key>
       @switch (key) {
         @case ('opened') {
@@ -405,6 +518,11 @@ const EMPTY_DAY: DayStats = {
       color: var(--text);
     }
 
+    .icon-btn.on {
+      background: rgba(var(--accent-rgb), 0.18);
+      color: var(--accent-text);
+    }
+
     .icon-btn:disabled {
       opacity: 0.35;
       cursor: not-allowed;
@@ -470,10 +588,66 @@ const EMPTY_DAY: DayStats = {
       letter-spacing: -0.02em;
     }
 
+    .count-stepper {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex: none;
+    }
+
+    .count-stepper button {
+      display: grid;
+      place-items: center;
+      width: 1.8rem;
+      height: 1.8rem;
+      border: 0;
+      border-radius: 0.55rem;
+      background: color-mix(in srgb, var(--surface) 80%, transparent);
+      color: var(--text);
+      font: inherit;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+    }
+
+    .count-stepper button:hover:not(:disabled) {
+      background: rgba(127, 127, 127, 0.1);
+    }
+
+    .count-stepper button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .count-stepper input {
+      width: 2.7rem;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.84rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      padding: 0;
+    }
+
+    .count-stepper input::placeholder {
+      color: var(--text-muted);
+      font-weight: 650;
+    }
+
+    .count-stepper input:focus {
+      outline: 2px solid rgba(var(--accent-rgb), 0.55);
+      outline-offset: 2px;
+      border-radius: 0.2rem;
+    }
+
     .hero {
       display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
+      flex-direction: column;
+      align-items: stretch;
       gap: 0.75rem;
       flex-shrink: 0;
       min-width: 0;
@@ -489,8 +663,83 @@ const EMPTY_DAY: DayStats = {
       color: var(--comfort);
     }
 
+    .hero-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+
     .hero-copy {
       min-width: 0;
+    }
+
+    .goal-edit {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .goal-edit-label {
+      color: var(--text-muted);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .hero .count-stepper button {
+      background: rgba(0, 0, 0, 0.28);
+      color: inherit;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 42%, transparent);
+    }
+
+    .hero .count-stepper button:hover:not(:disabled) {
+      background: rgba(0, 0, 0, 0.42);
+    }
+
+    .hero .count-stepper input {
+      width: 2.2rem;
+      color: inherit;
+    }
+
+    .hero .count-stepper input::placeholder {
+      color: color-mix(in srgb, currentColor 48%, transparent);
+    }
+
+    .meter {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      min-width: 0;
+    }
+
+    .meter-track {
+      flex: 1;
+      height: 0.45rem;
+      min-width: 0;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.32);
+    }
+
+    .meter-fill {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: currentColor;
+      transition: width 0.2s ease;
+    }
+
+    .meter-label {
+      flex: none;
+      font-size: 0.72rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
     }
 
     .hero-badge {
@@ -577,7 +826,7 @@ const EMPTY_DAY: DayStats = {
       flex-direction: column;
       align-items: center;
       gap: 0.15rem;
-      padding: 0.85rem 0.4rem 0.7rem;
+      padding: 0.85rem 0.55rem 0.7rem;
       border: 1px solid color-mix(in srgb, var(--exercise-gem) 32%, transparent);
       border-radius: 1.05rem;
       background: color-mix(in srgb, var(--exercise-gem) 13%, rgba(8, 10, 18, 0.55));
@@ -596,6 +845,78 @@ const EMPTY_DAY: DayStats = {
     .gems li[data-game='definition'],
     .bit[data-game='definition'] {
       --exercise-gem: var(--gem-definition);
+    }
+
+    .card-foot {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.4rem;
+      align-self: stretch;
+      width: 100%;
+      margin-top: auto;
+      padding-top: 0.45rem;
+    }
+
+    .card-goal-label {
+      display: block;
+      color: var(--text-muted);
+      font-size: 0.58rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      line-height: 1;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .card-foot .count-stepper {
+      justify-content: center;
+      gap: 0.12rem;
+    }
+
+    .card-foot .count-stepper button {
+      width: 1.4rem;
+      height: 1.4rem;
+      border-radius: 0.4rem;
+      background: color-mix(in srgb, var(--exercise-gem) 18%, rgba(6, 8, 16, 0.72));
+      color: var(--exercise-gem);
+      font-size: 0.85rem;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--exercise-gem) 42%, transparent);
+    }
+
+    .card-foot .count-stepper button:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--exercise-gem) 30%, rgba(6, 8, 16, 0.72));
+    }
+
+    .card-foot .count-stepper input {
+      width: 1.7rem;
+      color: var(--exercise-gem);
+      font-size: 0.78rem;
+    }
+
+    .card-foot .count-stepper input::placeholder {
+      color: color-mix(in srgb, var(--exercise-gem) 50%, transparent);
+    }
+
+    .gems .meter {
+      align-self: stretch;
+      width: 100%;
+      gap: 0.35rem;
+      color: var(--exercise-gem);
+    }
+
+    .gems .meter-track {
+      height: 0.42rem;
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    .gems .meter-fill {
+      background: var(--exercise-gem);
+    }
+
+    .gems .meter-label {
+      color: var(--exercise-gem);
+      font-size: 0.62rem;
     }
 
     .gems .stone,
@@ -857,12 +1178,15 @@ export class GemStatsModal implements OnDestroy {
   readonly games = GAMES;
   readonly activities = ACTIVITIES;
   readonly snapshot = signal<StatsSnapshot | null>(null);
+  readonly goalsOpen = signal(false);
+  readonly goals = signal<DailyGoals>(emptyDailyGoals());
   readonly dayIndex = signal(0);
   readonly computing = signal(false);
   readonly error = signal(false);
 
   readonly day = computed(() => this.snapshot()?.days[this.dayIndex()] ?? null);
   readonly shown = computed(() => this.day() ?? EMPTY_DAY);
+  readonly comfortGain = computed(() => Math.max(this.shown().comfort, 0));
   readonly gemTotals = computed(() => {
     const totals: GemCounts = { translation: 0, example: 0, definition: 0 };
     for (const day of this.snapshot()?.days ?? []) {
@@ -905,7 +1229,9 @@ export class GemStatsModal implements OnDestroy {
         this.computing.set(false);
         this.error.set(false);
         this.dayIndex.set(0);
+        this.goalsOpen.set(false);
         this.snapshot.set(readStatsSnapshot(language));
+        this.goals.set(readDailyGoals(language));
       });
     });
   }
@@ -960,6 +1286,58 @@ export class GemStatsModal implements OnDestroy {
   newer(): void {
     if (!this.canGoNewer()) return;
     this.dayIndex.update((index) => index - 1);
+  }
+
+  toggleGoals(): void {
+    this.goalsOpen.update((open) => !open);
+  }
+
+  goalSet(kind: GoalKind): boolean {
+    return this.goals()[kind] != null;
+  }
+
+  goalValue(kind: GoalKind): string {
+    const value = this.goals()[kind];
+    return value == null ? '' : String(value);
+  }
+
+  stepGoal(kind: GoalKind, by: number): void {
+    const current = this.goals()[kind] ?? 0;
+    const next = current + by;
+    if (!Number.isSafeInteger(next)) return;
+    this.saveGoal(kind, next > 0 ? next : null);
+  }
+
+  commitGoal(kind: GoalKind, event: Event): void {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    const parsed = readGoalInput(input.value);
+    if (!parsed.ok) {
+      input.value = this.goalValue(kind);
+      return;
+    }
+    this.saveGoal(kind, parsed.value);
+  }
+
+  meterNow(gain: number, goal: number): number {
+    return Math.min(Math.max(gain, 0), goal);
+  }
+
+  meterPercent(gain: number, goal: number): number {
+    if (goal <= 0) return 0;
+    return (this.meterNow(gain, goal) / goal) * 100;
+  }
+
+  meterText(gain: number, goal: number): string {
+    return `${this.formatCount(Math.max(gain, 0))} / ${this.formatCount(goal)}`;
+  }
+
+  comfortMeterLabel(goal: number): string {
+    return `Comfort increase ${this.meterText(this.comfortGain(), goal)}`;
+  }
+
+  gemMeterLabel(label: string, gain: number, goal: number): string {
+    return `${label} gems gained ${this.meterText(gain, goal)}`;
   }
 
   titleOf(element: ElementDayStats): string {
@@ -1027,6 +1405,12 @@ export class GemStatsModal implements OnDestroy {
     const when = this.dayBadge() || 'this day';
     const gained = day === 1 ? `1 ${name}` : `${day} ${name}`;
     return `${gained} ${when}`;
+  }
+
+  private saveGoal(kind: GoalKind, value: number | null): void {
+    const next: DailyGoals = { ...this.goals(), [kind]: value };
+    this.goals.set(next);
+    writeDailyGoals(this.language(), next);
   }
 
   private finish(message: StatsMessage, language: string): void {
