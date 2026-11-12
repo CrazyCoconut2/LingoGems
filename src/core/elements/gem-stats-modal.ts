@@ -56,7 +56,11 @@ const EMPTY_DAY: DayStats = {
         <header class="panel-header">
           <div>
             <h2>Stats</h2>
-            <p [class.failed]="error()">{{ statusLabel() }}</p>
+            @if (error() || !computedLabel()) {
+              <p [class.failed]="error()">
+                {{ error() ? 'Could not count stats.' : 'One day at a time.' }}
+              </p>
+            }
             <ul class="totals">
               @for (row of games; track row.game) {
                 <li
@@ -187,6 +191,11 @@ const EMPTY_DAY: DayStats = {
             }
           </ul>
         </div>
+        @if (computedLabel(); as computed) {
+          <footer class="panel-footer">
+            <p>{{ computed }}</p>
+          </footer>
+        }
       </section>
     </div>
     <ng-template #activityIcon let-key>
@@ -278,6 +287,19 @@ const EMPTY_DAY: DayStats = {
 
     .panel-header p.failed {
       color: var(--danger);
+    }
+
+    .panel-footer {
+      flex-shrink: 0;
+      padding: 0.55rem 1rem 0.7rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .panel-footer p {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      line-height: 1.4;
+      text-align: center;
     }
 
     .actions {
@@ -603,10 +625,6 @@ export class GemStatsModal implements OnDestroy {
       totals.definition += day.gems.definition;
     }
     return totals;
-  });
-  readonly statusLabel = computed(() => {
-    if (this.error()) return 'Could not count stats.';
-    return this.computedLabel() || 'One day at a time.';
   });
   readonly emptyLabel = computed(() =>
     this.snapshot() ? 'Nothing recorded yet.' : "Compute the day's stats when you want them.",
