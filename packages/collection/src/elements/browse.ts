@@ -83,7 +83,10 @@ export function elementMatchesMode(element: StoredElement, modes: readonly Eleme
 }
 
 /** Keep an element at one of the chosen comfort rates. An empty list keeps every element. */
-export function elementMatchesComfort(element: StoredElement, comforts: readonly number[]): boolean {
+export function elementMatchesComfort(
+  element: StoredElement,
+  comforts: readonly number[],
+): boolean {
   return comforts.length === 0 || comforts.includes(element.comfort);
 }
 
@@ -163,7 +166,7 @@ function elementModeGems(element: StoredElement): number {
   let gems = 0;
   for (const definition of element.definitions) {
     for (const entry of definition.log) {
-      if (entry.game === game) gems += entry.gems;
+      if (entry.event === 'game' && entry.game === game) gems += entry.gems;
     }
   }
   return gems;

@@ -34,15 +34,26 @@ export const TRANSLATION_GEM_MAX = 5;
 
 export type DefinitionLogBy = 'user' | 'ai';
 
-/** One scored answer in a game, kept on the definition it belongs to. */
-export type DefinitionLogEntry = {
-  game: 'translation' | 'example' | 'definition';
+export type DefinitionGame = 'translation' | 'example' | 'definition';
+
+/** A scored answer. `game` through `explanation` is the metadata for that answer. */
+export type DefinitionGameLog = {
+  event: 'game';
+  game: DefinitionGame;
   gems: number;
   by: DefinitionLogBy;
   at: number;
   answer: string;
   explanation?: string;
 };
+
+/** One interaction on a definition: a scored game, a rework, or a reveal. */
+export type DefinitionLogEntry =
+  DefinitionGameLog | { event: 'rework'; at: number } | { event: 'reveal'; at: number };
+
+/** A comfort change or an open. `at` is when it happened. */
+export type ElementLogEntry =
+  { event: 'comfort'; comfort: number; at: number } | { event: 'click'; at: number };
 
 export type ElementDefinition = {
   text: string;
@@ -86,6 +97,8 @@ export type StoredElement = {
   comfort: number;
   /** Times this card was opened from the edition list. Missing values are 0. */
   clicks: number;
+  /** Dated comfort changes and opens. Missing values are an empty log. */
+  log: ElementLogEntry[];
   /** Distinct metadata values across this element's definitions. */
   definitionMetadata: ElementMetadataVariability;
   /** Distinct metadata values across this element's examples. */
@@ -189,6 +202,7 @@ export async function addElement(language: string, title: string): Promise<Store
     mode: null,
     comfort: MIN_COMFORT,
     clicks: 0,
+    log: [],
     ...emptyMetadataIndexes(),
     createdAt: Date.now(),
     deletedAt: null,
@@ -231,6 +245,7 @@ export async function saveElement(
     mode: normalizeElementMode(element?.mode),
     comfort: normalizeComfort(element?.comfort),
     clicks: normalizeClicks(element?.clicks),
+    log: normalizeElementLog(element?.log),
     ...indexes,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
@@ -280,6 +295,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     mode: normalizeElementMode(source.mode),
     comfort: normalizeComfort(source.comfort),
     clicks: normalizeClicks(source.clicks),
+    log: normalizeElementLog(source.log),
     ...collectMetadataIndexes(content.definitions),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
@@ -296,6 +312,27 @@ function normalizeElementMode(value: unknown): ElementMode | null {
   const mode = Math.round(Number(value));
   if (mode === 1 || mode === 2 || mode === 3) return mode;
   return null;
+}
+
+function normalizeElementLog(value: unknown): ElementLogEntry[] {
+  if (!Array.isArray(value)) return [];
+  const log: ElementLogEntry[] = [];
+  for (const raw of value) {
+    const entry = normalizeElementLogEntry(raw);
+    if (entry) log.push(entry);
+  }
+  return log;
+}
+
+function normalizeElementLogEntry(raw: unknown): ElementLogEntry | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const source = raw as { event?: unknown; at?: unknown; comfort?: unknown };
+  if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
+  if (source.event === 'click') return { event: 'click', at: source.at };
+  if (source.event !== 'comfort') return null;
+  const comfort = Math.round(Number(source.comfort));
+  if (!Number.isInteger(comfort) || comfort < MIN_COMFORT || comfort > MAX_COMFORT) return null;
+  return { event: 'comfort', comfort, at: source.at };
 }
 
 /** Missing or invalid values are 0. */
@@ -396,7 +433,20 @@ function normalizeLog(value: unknown): DefinitionLogEntry[] {
 
 function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   if (!raw || typeof raw !== 'object') return null;
-  const source = raw as Partial<DefinitionLogEntry>;
+  const source = raw as {
+    event?: unknown;
+    game?: unknown;
+    gems?: unknown;
+    by?: unknown;
+    at?: unknown;
+    answer?: unknown;
+    explanation?: unknown;
+  };
+  if (source.event === 'rework' || source.event === 'reveal') {
+    if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
+    return { event: source.event, at: source.at };
+  }
+  if (source.event != null && source.event !== 'game') return null;
   if (source.game !== 'translation' && source.game !== 'example' && source.game !== 'definition') {
     return null;
   }
@@ -407,7 +457,8 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   const answer = typeof source.answer === 'string' ? source.answer : '';
   const explanation =
     typeof source.explanation === 'string' ? source.explanation.replace(/\s+/g, ' ').trim() : '';
-  const entry: DefinitionLogEntry = {
+  const entry: DefinitionGameLog = {
+    event: 'game',
     game: source.game,
     gems,
     by: source.by,

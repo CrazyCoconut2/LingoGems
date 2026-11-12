@@ -52,6 +52,7 @@ import {
   stepCountRange,
   type ElementCountRange,
   type ElementDefinition,
+  type ElementLogEntry,
   type ElementMetadataIndexes,
   type ElementMetadataVariability,
   type ElementMode,
@@ -2653,7 +2654,15 @@ export class LanguagePage {
   async stepSelectionComfort(delta: number): Promise<void> {
     const rate = Math.min(10, Math.max(1, this.comfortDraft() + delta));
     if (rate === this.comfortDraft() || this.selectionBusy()) return;
-    const saved = await this.writeSelected((element) => ({ ...element, comfort: rate }));
+    const saved = await this.writeSelected((element) =>
+      element.comfort === rate
+        ? element
+        : {
+            ...element,
+            comfort: rate,
+            log: [...element.log, { event: 'comfort', comfort: rate, at: Date.now() }],
+          },
+    );
     if (!saved) return;
     this.comfortDraft.set(rate);
     this.comfortApplied = true;
@@ -2773,7 +2782,12 @@ export class LanguagePage {
   private recordClick(id: string): void {
     const current = this.elements().find((element) => element.id === id);
     if (!current) return;
-    const next = { ...current, clicks: current.clicks + 1 };
+    const opened: ElementLogEntry = { event: 'click', at: Date.now() };
+    const next: StoredElement = {
+      ...current,
+      clicks: current.clicks + 1,
+      log: [...current.log, opened],
+    };
     this.elements.update((list) => list.map((item) => (item.id === id ? next : item)));
     void saveElement(next).then((saved) => {
       if (this.elements().some((item) => item.id === saved.id)) this.replaceElement(saved);
@@ -2891,6 +2905,7 @@ export class LanguagePage {
     let definition = 0;
     for (const item of element.definitions) {
       for (const entry of item.log) {
+        if (entry.event !== 'game') continue;
         if (entry.game === 'translation') translation += entry.gems;
         else if (entry.game === 'example') example += entry.gems;
         else definition += entry.gems;

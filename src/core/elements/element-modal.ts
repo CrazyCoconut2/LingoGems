@@ -31,9 +31,9 @@ import {
   isLearnableLanguage,
   saveElement,
   TRANSLATION_GEM_MAX,
+  type DefinitionGameLog,
   type DefinitionHighlightMatch,
   type DefinitionHighlightPart,
-  type DefinitionLogEntry,
   type ElementDefinition,
   type ElementEquivalent,
   type ElementMetadata,
@@ -742,53 +742,51 @@ function writeExampleSuggestions(
                       <ng-container [ngTemplateOutlet]="definitionPassage" />
                       <ng-template #definitionPassage>
                         @if (passage.text) {
-                        @if (definitionGame() && definitionConcealed(index)) {
-                          <button
-                            type="button"
-                            class="definition-cue"
-                            aria-label="Write the definition"
-                            (click)="openDefinitionPrompt(index)"
-                          >
-                            <span class="definition-cue-text" aria-hidden="true">{{
-                              shownDefinition(passage.text)
-                            }}</span>
-                          </button>
-                        } @else {
-                        <p
-                          class="passage sense-selectable"
-                          [attr.data-definition-index]="index"
-                        >
-                          @for (part of highlightPassage(passage.text); track $index) {
-                            @if (part.matches.length > 1) {
-                              <button
-                                type="button"
-                                class="linguagem-highlighted"
-                                [style.--score-color]="part.color || null"
-                                [textContent]="part.text"
-                                (click)="showCollision($event, part.matches)"
-                              ></button>
-                            } @else if (part.matches.length === 1 && !part.current) {
-                              <button
-                                type="button"
-                                class="linguagem-highlighted"
-                                [style.--score-color]="part.color || null"
-                                [textContent]="part.text"
-                                (click)="visitHighlight(part.matches[0].elementId)"
-                              ></button>
-                            } @else if (part.current) {
-                              <span
-                                class="linguagem-highlighted linguagem-highlighted--current"
-                                [style.--score-color]="part.color || null"
-                                [textContent]="part.text"
-                              ></span>
-                            } @else {
-                              <span
-                                [textContent]="part.text"
-                              ></span>
-                            }
+                          @if (definitionGame() && definitionConcealed(index)) {
+                            <button
+                              type="button"
+                              class="definition-cue"
+                              aria-label="Write the definition"
+                              (click)="openDefinitionPrompt(index)"
+                            >
+                              <span class="definition-cue-text" aria-hidden="true">{{
+                                shownDefinition(passage.text)
+                              }}</span>
+                            </button>
+                          } @else {
+                            <p
+                              class="passage sense-selectable"
+                              [attr.data-definition-index]="index"
+                            >
+                              @for (part of highlightPassage(passage.text); track $index) {
+                                @if (part.matches.length > 1) {
+                                  <button
+                                    type="button"
+                                    class="linguagem-highlighted"
+                                    [style.--score-color]="part.color || null"
+                                    [textContent]="part.text"
+                                    (click)="showCollision($event, part.matches)"
+                                  ></button>
+                                } @else if (part.matches.length === 1 && !part.current) {
+                                  <button
+                                    type="button"
+                                    class="linguagem-highlighted"
+                                    [style.--score-color]="part.color || null"
+                                    [textContent]="part.text"
+                                    (click)="visitHighlight(part.matches[0].elementId)"
+                                  ></button>
+                                } @else if (part.current) {
+                                  <span
+                                    class="linguagem-highlighted linguagem-highlighted--current"
+                                    [style.--score-color]="part.color || null"
+                                    [textContent]="part.text"
+                                  ></span>
+                                } @else {
+                                  <span [textContent]="part.text"></span>
+                                }
+                              }
+                            </p>
                           }
-                        </p>
-                        }
                         }
                       </ng-template>
                       @let equivalent = equivalentText(definition);
@@ -797,7 +795,11 @@ function writeExampleSuggestions(
                         <ul class="equivalents">
                           @for (translation of passage.translations; track $index) {
                             <li>
-                              <app-reveal [text]="translation.text" [locked]="inPlay()" />
+                              <app-reveal
+                                [text]="translation.text"
+                                [locked]="inPlay()"
+                                (unveiled)="noteReveal(index)"
+                              />
                             </li>
                           }
                         </ul>
@@ -919,7 +921,9 @@ function writeExampleSuggestions(
                             class="icon-btn"
                             aria-label="Move definition down"
                             title="Move definition down"
-                            [disabled]="inPlay() || aiBusy() || index === element().definitions.length - 1"
+                            [disabled]="
+                              inPlay() || aiBusy() || index === element().definitions.length - 1
+                            "
                             (click)="moveDefinition(index, 1)"
                           >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -929,6 +933,31 @@ function writeExampleSuggestions(
                         </span>
                       }
                       <span class="item-actions-main">
+                        @if (!inPlay() && reworkCount(definition); as reworks) {
+                          <span
+                            class="activity-stat"
+                            [attr.aria-label]="reworkLabel(reworks)"
+                            [attr.title]="reworkLabel(reworks)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            </svg>
+                            <span>{{ reworks }}</span>
+                          </span>
+                        }
+                        @if (!inPlay() && revealCount(definition); as reveals) {
+                          <span
+                            class="activity-stat"
+                            [attr.aria-label]="revealLabel(reveals)"
+                            [attr.title]="revealLabel(reveals)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                            <span>{{ reveals }}</span>
+                          </span>
+                        }
                         @if (!inPlay() && exerciseTotals(definition); as totals) {
                           <button
                             type="button"
@@ -1037,7 +1066,9 @@ function writeExampleSuggestions(
                           class="icon-btn"
                           aria-label="Generate an example"
                           title="Generate an example"
-                          [disabled]="(inPlay() && !translationGame() && !definitionGame()) || aiBusy()"
+                          [disabled]="
+                            (inPlay() && !translationGame() && !definitionGame()) || aiBusy()
+                          "
                           [attr.aria-busy]="askingExamples() === index ? true : null"
                           (click)="generateExample(index)"
                         >
@@ -1111,9 +1142,7 @@ function writeExampleSuggestions(
                                         [textContent]="part.text"
                                       ></span>
                                     } @else {
-                                      <span
-                                        [textContent]="part.text"
-                                      ></span>
+                                      <span [textContent]="part.text"></span>
                                     }
                                   }
                                 </p>
@@ -1122,7 +1151,11 @@ function writeExampleSuggestions(
                                 <ul class="equivalents">
                                   @for (translation of passage.translations; track $index) {
                                     <li>
-                                      <app-reveal [text]="translation.text" [locked]="inPlay()" />
+                                      <app-reveal
+                                        [text]="translation.text"
+                                        [locked]="inPlay()"
+                                        (unveiled)="noteReveal(index)"
+                                      />
                                     </li>
                                   }
                                 </ul>
@@ -1198,10 +1231,7 @@ function writeExampleSuggestions(
                                           : 'Hear example'
                                       "
                                       (click)="
-                                        hear(
-                                          'example:' + index + ':' + exampleIndex,
-                                          example.text
-                                        )
+                                        hear('example:' + index + ':' + exampleIndex, example.text)
                                       "
                                     >
                                       @if (speaking() === 'example:' + index + ':' + exampleIndex) {
@@ -1233,9 +1263,7 @@ function writeExampleSuggestions(
                                     (click)="openExample(index, exampleIndex)"
                                   >
                                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                                      <path
-                                        d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
-                                      />
+                                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                                     </svg>
                                   </button>
                                   <button
@@ -1451,7 +1479,11 @@ function writeExampleSuggestions(
                         </svg>
                       </button>
                       @if (sheetTranslationOpen()) {
-                        <ul class="translation-menu down" role="listbox" aria-label="Translation language">
+                        <ul
+                          class="translation-menu down"
+                          role="listbox"
+                          aria-label="Translation language"
+                        >
                           <li>
                             <button
                               type="button"
@@ -1509,77 +1541,77 @@ function writeExampleSuggestions(
                 class="definition-slot"
                 [class.engineering]="current.kind === 'definition' && !!definitionEngineer()"
               >
-              @if (current.kind === 'definition' && definitionEngineer(); as engineer) {
-                <div class="definition-ai">
-                  <div class="instruct-field">
-                    <input
-                      id="definition-note"
-                      [value]="engineer.instruction"
-                      [attr.maxlength]="definitionInstructionMax"
-                      [disabled]="definitionSheetBusy()"
-                      placeholder="Instruct AI on how to modify this definition"
-                      aria-label="Instruct AI on how to modify this definition"
-                      (input)="onDefinitionEngineerInstruction($event)"
-                      (keydown.enter)="$event.preventDefault(); generateEngineeredDefinition()"
-                    />
-                    <button
-                      type="button"
-                      class="entry-confirm"
-                      aria-label="Modify definition"
-                      [disabled]="
-                        definitionSheetBusy() ||
-                        (!engineer.instruction.trim() && !engineer.selected.length)
-                      "
-                      [attr.aria-busy]="askingWording() !== null ? true : null"
-                      (click)="generateEngineeredDefinition()"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div class="related-row">
-                    <ul class="related-scroll">
-                      @for (word of engineer.words; track word.text) {
+                @if (current.kind === 'definition' && definitionEngineer(); as engineer) {
+                  <div class="definition-ai">
+                    <div class="instruct-field">
+                      <input
+                        id="definition-note"
+                        [value]="engineer.instruction"
+                        [attr.maxlength]="definitionInstructionMax"
+                        [disabled]="definitionSheetBusy()"
+                        placeholder="Instruct AI on how to modify this definition"
+                        aria-label="Instruct AI on how to modify this definition"
+                        (input)="onDefinitionEngineerInstruction($event)"
+                        (keydown.enter)="$event.preventDefault(); generateEngineeredDefinition()"
+                      />
+                      <button
+                        type="button"
+                        class="entry-confirm"
+                        aria-label="Modify definition"
+                        [disabled]="
+                          definitionSheetBusy() ||
+                          (!engineer.instruction.trim() && !engineer.selected.length)
+                        "
+                        [attr.aria-busy]="askingWording() !== null ? true : null"
+                        (click)="generateEngineeredDefinition()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="related-row">
+                      <ul class="related-scroll">
+                        @for (word of engineer.words; track word.text) {
+                          <li>
+                            <button
+                              type="button"
+                              class="related-chip"
+                              [class.selected]="relatedWordChosen(word)"
+                              [attr.aria-pressed]="relatedWordChosen(word)"
+                              [disabled]="definitionSheetBusy()"
+                              (click)="toggleRelatedWord(word)"
+                            >
+                              <span class="relation">{{ label(word.relation) }}</span>
+                              <span class="related-word">{{ word.text }}</span>
+                            </button>
+                          </li>
+                        }
                         <li>
                           <button
                             type="button"
-                            class="related-chip"
-                            [class.selected]="relatedWordChosen(word)"
-                            [attr.aria-pressed]="relatedWordChosen(word)"
+                            class="related-more"
+                            aria-label="Find related"
+                            title="Find related"
                             [disabled]="definitionSheetBusy()"
-                            (click)="toggleRelatedWord(word)"
+                            [attr.aria-busy]="askingRelated() !== null ? true : null"
+                            (click)="findRelatedWords()"
                           >
-                            <span class="relation">{{ label(word.relation) }}</span>
-                            <span class="related-word">{{ word.text }}</span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path
+                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                              />
+                              <path d="M5 3v4" />
+                              <path d="M3 5h4" />
+                              <path d="M19 17v4" />
+                              <path d="M17 19h4" />
+                            </svg>
                           </button>
                         </li>
-                      }
-                      <li>
-                        <button
-                          type="button"
-                          class="related-more"
-                          aria-label="Find related"
-                          title="Find related"
-                          [disabled]="definitionSheetBusy()"
-                          [attr.aria-busy]="askingRelated() !== null ? true : null"
-                          (click)="findRelatedWords()"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                            />
-                            <path d="M5 3v4" />
-                            <path d="M3 5h4" />
-                            <path d="M19 17v4" />
-                            <path d="M17 19h4" />
-                          </svg>
-                        </button>
-                      </li>
-                    </ul>
+                      </ul>
+                    </div>
                   </div>
-                </div>
-              }
+                }
                 <textarea
                   #draftField
                   [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
@@ -1677,7 +1709,9 @@ function writeExampleSuggestions(
                   <button
                     type="button"
                     class="icon-btn"
-                    [attr.aria-label]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
+                    [attr.aria-label]="
+                      askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'
+                    "
                     [attr.title]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
                     [attr.aria-busy]="askingMetadata() ? true : null"
                     [disabled]="!canAskMetadata()"
@@ -2018,7 +2052,9 @@ function writeExampleSuggestions(
                   <button
                     type="button"
                     class="icon-btn"
-                    [attr.aria-label]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
+                    [attr.aria-label]="
+                      askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'
+                    "
                     [attr.title]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
                     [attr.aria-busy]="askingMetadata() ? true : null"
                     [disabled]="!canAskFormMetadata()"
@@ -2128,7 +2164,9 @@ function writeExampleSuggestions(
                         type="button"
                         class="entry-confirm"
                         aria-label="Add metadata"
-                        [disabled]="busy() || !formFeatureKey().trim() || !formFeatureValue().trim()"
+                        [disabled]="
+                          busy() || !formFeatureKey().trim() || !formFeatureValue().trim()
+                        "
                         (click)="commitNewFormFeature()"
                       >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2177,7 +2215,10 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <p>This sentence is added to a definition that already fits, or a new definition is written.</p>
+              <p>
+                This sentence is added to a definition that already fits, or a new definition is
+                written.
+              </p>
               <div class="add-example">
                 <div class="example-entry">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2376,78 +2417,56 @@ function writeExampleSuggestions(
         @if (equivalentPromptOpen()) {
           @let prompt = equivalentPrompt();
           @if (element().definitions[prompt]; as definition) {
-          @let answer = equivalentText(definition);
-          @if (answer) {
-            <div class="sheet-backdrop" (click)="closeEquivalentPrompt($event)">
-              <section
-                class="sheet"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Equivalent"
-                (click)="$event.stopPropagation()"
-              >
-                <div class="sheet-head">
-                  <h3>Equivalent</h3>
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Close"
-                    [disabled]="equivalentAwaitingScore(prompt)"
-                    (click)="closeEquivalentPrompt()"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
-                    </svg>
-                  </button>
-                </div>
-                @if (equivalentSubmitted(prompt)) {
-                  @let passage = parsePassage(definition.text);
-                  @let gloss = passage.text;
-                  @let reward = equivalentRewardAt(prompt);
-                  @let gaveUp = !equivalentDraftAt(prompt).trim();
-                  @if (gloss && !gaveUp) {
-                    <div class="equivalent-gloss">
-                      <p class="field-label">Definition</p>
-                      <p>{{ shownDefinition(gloss) }}</p>
-                      @if (passage.translations.length) {
-                        <ul class="equivalents">
-                          @for (translation of passage.translations; track $index) {
-                            <li>
-                              <app-reveal [text]="translation.text" />
-                            </li>
-                          }
-                        </ul>
-                      }
-                    </div>
-                  }
-                  @if (gaveUp) {
-                    <p class="field-label">You gave up</p>
-                    <p class="equivalent-result">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m5 8 6 6" />
-                        <path d="m4 14 6-6 2-3" />
-                        <path d="M2 5h12" />
-                        <path d="M7 2h1" />
-                        <path d="m22 22-5-10-5 10" />
-                        <path d="M14 18h6" />
+            @let answer = equivalentText(definition);
+            @if (answer) {
+              <div class="sheet-backdrop" (click)="closeEquivalentPrompt($event)">
+                <section
+                  class="sheet"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Equivalent"
+                  (click)="$event.stopPropagation()"
+                >
+                  <div class="sheet-head">
+                    <h3>Equivalent</h3>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Close"
+                      [disabled]="equivalentAwaitingScore(prompt)"
+                      (click)="closeEquivalentPrompt()"
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
                       </svg>
-                      <span>{{ answer }}</span>
-                    </p>
-                    <div class="sheet-actions">
-                      <button
-                        type="button"
-                        class="btn btn-primary"
-                        [disabled]="busy()"
-                        (click)="closeEquivalentPrompt()"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  } @else {
-                  <div class="compare">
-                    <div class="compare-side">
-                      <p class="field-label">Equivalent</p>
+                    </button>
+                  </div>
+                  @if (equivalentSubmitted(prompt)) {
+                    @let passage = parsePassage(definition.text);
+                    @let gloss = passage.text;
+                    @let reward = equivalentRewardAt(prompt);
+                    @let gaveUp = !equivalentDraftAt(prompt).trim();
+                    @if (gloss && !gaveUp) {
+                      <div class="equivalent-gloss">
+                        <p class="field-label">Definition</p>
+                        <p>{{ shownDefinition(gloss) }}</p>
+                        @if (passage.translations.length) {
+                          <ul class="equivalents">
+                            @for (translation of passage.translations; track $index) {
+                              <li>
+                                <app-reveal
+                                  [text]="translation.text"
+                                  (unveiled)="noteReveal(prompt)"
+                                />
+                              </li>
+                            }
+                          </ul>
+                        }
+                      </div>
+                    }
+                    @if (gaveUp) {
+                      <p class="field-label">You gave up</p>
                       <p class="equivalent-result">
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                           <path d="m5 8 6 6" />
@@ -2459,127 +2478,152 @@ function writeExampleSuggestions(
                         </svg>
                         <span>{{ answer }}</span>
                       </p>
-                    </div>
-                    <div class="compare-side yours">
-                      <p class="field-label">You wrote</p>
-                      <p>{{ equivalentDraftAt(prompt) }}</p>
-                    </div>
-                  </div>
-                  <p class="field-label">Gems</p>
-                  <div class="gem-pick" data-game="translation" role="group" aria-label="Gems">
-                    @for (gems of gemScores; track gems) {
-                      @if (gems > 0) {
+                      <div class="sheet-actions">
                         <button
                           type="button"
-                          class="gem-pick-stone"
-                          [class.on]="(reward?.gems ?? -1) >= gems"
-                          [attr.aria-pressed]="reward?.gems === gems"
-                          [attr.aria-label]="gems + ' gems'"
-                          [disabled]="aiBusy()"
-                          (click)="awardEquivalent(prompt, gems)"
+                          class="btn btn-primary"
+                          [disabled]="busy()"
+                          (click)="closeEquivalentPrompt()"
                         >
-                          <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                          Done
                         </button>
+                      </div>
+                    } @else {
+                      <div class="compare">
+                        <div class="compare-side">
+                          <p class="field-label">Equivalent</p>
+                          <p class="equivalent-result">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
+                            </svg>
+                            <span>{{ answer }}</span>
+                          </p>
+                        </div>
+                        <div class="compare-side yours">
+                          <p class="field-label">You wrote</p>
+                          <p>{{ equivalentDraftAt(prompt) }}</p>
+                        </div>
+                      </div>
+                      <p class="field-label">Gems</p>
+                      <div class="gem-pick" data-game="translation" role="group" aria-label="Gems">
+                        @for (gems of gemScores; track gems) {
+                          @if (gems > 0) {
+                            <button
+                              type="button"
+                              class="gem-pick-stone"
+                              [class.on]="(reward?.gems ?? -1) >= gems"
+                              [attr.aria-pressed]="reward?.gems === gems"
+                              [attr.aria-label]="gems + ' gems'"
+                              [disabled]="aiBusy()"
+                              (click)="awardEquivalent(prompt, gems)"
+                            >
+                              <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                            </button>
+                          }
+                        }
+                        <button
+                          type="button"
+                          class="btn btn-secondary"
+                          [class.on]="reward?.gems === 0"
+                          [attr.aria-pressed]="reward?.gems === 0"
+                          [disabled]="aiBusy()"
+                          (click)="awardEquivalent(prompt, 0)"
+                        >
+                          None
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary"
+                          [disabled]="aiBusy() || reward?.by === 'ai'"
+                          [attr.aria-busy]="askingEquivalentGrade() === prompt ? true : null"
+                          (click)="judgeEquivalent(prompt)"
+                        >
+                          {{ askingEquivalentGrade() === prompt ? 'Asking…' : 'Ask AI' }}
+                        </button>
+                      </div>
+                      @if (reward; as scored) {
+                        @if (scored.by === 'ai' && scored.explanation) {
+                          <p>{{ scored.explanation }}</p>
+                        }
                       }
+                      @if (equivalentGradeError()) {
+                        <p class="error">{{ equivalentGradeError() }}</p>
+                      }
+                      <div class="sheet-actions">
+                        <button
+                          type="button"
+                          class="btn btn-primary"
+                          [disabled]="equivalentAwaitingScore(prompt) || busy()"
+                          (click)="closeEquivalentPrompt()"
+                        >
+                          Done
+                        </button>
+                      </div>
                     }
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      [class.on]="reward?.gems === 0"
-                      [attr.aria-pressed]="reward?.gems === 0"
-                      [disabled]="aiBusy()"
-                      (click)="awardEquivalent(prompt, 0)"
-                    >
-                      None
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      [disabled]="aiBusy() || reward?.by === 'ai'"
-                      [attr.aria-busy]="askingEquivalentGrade() === prompt ? true : null"
-                      (click)="judgeEquivalent(prompt)"
-                    >
-                      {{ askingEquivalentGrade() === prompt ? 'Asking…' : 'Ask AI' }}
-                    </button>
-                  </div>
-                  @if (reward; as scored) {
-                    @if (scored.by === 'ai' && scored.explanation) {
-                      <p>{{ scored.explanation }}</p>
+                  } @else {
+                    <p class="equivalent-prompt">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m5 8 6 6" />
+                        <path d="m4 14 6-6 2-3" />
+                        <path d="M2 5h12" />
+                        <path d="M7 2h1" />
+                        <path d="m22 22-5-10-5 10" />
+                        <path d="M14 18h6" />
+                      </svg>
+                      <span class="play-blur" aria-hidden="true">{{ answer }}</span>
+                    </p>
+                    <label class="field-label" [attr.for]="'play-equivalent-' + prompt">
+                      Write the equivalent
+                    </label>
+                    <input
+                      #equivalentField
+                      [id]="'play-equivalent-' + prompt"
+                      type="text"
+                      autocomplete="off"
+                      spellcheck="false"
+                      [value]="equivalentDraftAt(prompt)"
+                      [attr.maxlength]="equivalentMax"
+                      placeholder="Write the equivalent"
+                      (input)="onEquivalentDraft(prompt, $event)"
+                      (keydown.enter)="submitEquivalent(prompt, $event)"
+                    />
+                    @if (equivalentGradeError()) {
+                      <p class="error">{{ equivalentGradeError() }}</p>
                     }
+                    <div class="sheet-actions">
+                      <button
+                        type="button"
+                        class="btn btn-primary"
+                        [disabled]="busy() || !equivalentDraftAt(prompt).trim()"
+                        (click)="submitEquivalent(prompt)"
+                      >
+                        Submit
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-secondary"
+                        [disabled]="busy()"
+                        (click)="giveUpEquivalent(prompt)"
+                      >
+                        Give up
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-secondary"
+                        (click)="equivalentPrompt.set(-1)"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   }
-                  @if (equivalentGradeError()) {
-                    <p class="error">{{ equivalentGradeError() }}</p>
-                  }
-                  <div class="sheet-actions">
-                    <button
-                      type="button"
-                      class="btn btn-primary"
-                      [disabled]="equivalentAwaitingScore(prompt) || busy()"
-                      (click)="closeEquivalentPrompt()"
-                    >
-                      Done
-                    </button>
-                  </div>
-                  }
-                } @else {
-                  <p class="equivalent-prompt">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m5 8 6 6" />
-                      <path d="m4 14 6-6 2-3" />
-                      <path d="M2 5h12" />
-                      <path d="M7 2h1" />
-                      <path d="m22 22-5-10-5 10" />
-                      <path d="M14 18h6" />
-                    </svg>
-                    <span class="play-blur" aria-hidden="true">{{ answer }}</span>
-                  </p>
-                  <label class="field-label" [attr.for]="'play-equivalent-' + prompt">
-                    Write the equivalent
-                  </label>
-                  <input
-                    #equivalentField
-                    [id]="'play-equivalent-' + prompt"
-                    type="text"
-                    autocomplete="off"
-                    spellcheck="false"
-                    [value]="equivalentDraftAt(prompt)"
-                    [attr.maxlength]="equivalentMax"
-                    placeholder="Write the equivalent"
-                    (input)="onEquivalentDraft(prompt, $event)"
-                    (keydown.enter)="submitEquivalent(prompt, $event)"
-                  />
-                  @if (equivalentGradeError()) {
-                    <p class="error">{{ equivalentGradeError() }}</p>
-                  }
-                  <div class="sheet-actions">
-                    <button
-                      type="button"
-                      class="btn btn-primary"
-                      [disabled]="busy() || !equivalentDraftAt(prompt).trim()"
-                      (click)="submitEquivalent(prompt)"
-                    >
-                      Submit
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      [disabled]="busy()"
-                      (click)="giveUpEquivalent(prompt)"
-                    >
-                      Give up
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      (click)="equivalentPrompt.set(-1)"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                }
-              </section>
-            </div>
-          }
+                </section>
+              </div>
+            }
           }
         }
 
@@ -2618,7 +2662,7 @@ function writeExampleSuggestions(
                       <ul class="equivalents">
                         @for (translation of gloss.translations; track $index) {
                           <li>
-                            <app-reveal [text]="translation.text" />
+                            <app-reveal [text]="translation.text" (unveiled)="noteReveal(prompt)" />
                           </li>
                         }
                       </ul>
@@ -2633,70 +2677,257 @@ function writeExampleSuggestions(
                       </button>
                     </div>
                   } @else {
-                  @let reward = definitionRewardAt(prompt);
-                  <div class="compare">
-                    <div class="compare-side">
-                      <p class="field-label">Definition</p>
-                      @let gloss = parsePassage(definition.text);
-                      <p class="passage">{{ shownDefinition(gloss.text) }}</p>
-                      @if (gloss.translations; as translations) {
-                        @if (translations.length) {
-                          <ul class="equivalents">
-                            @for (translation of translations; track $index) {
-                              <li>
-                                <app-reveal [text]="translation.text" />
-                              </li>
-                            }
-                          </ul>
+                    @let reward = definitionRewardAt(prompt);
+                    <div class="compare">
+                      <div class="compare-side">
+                        <p class="field-label">Definition</p>
+                        @let gloss = parsePassage(definition.text);
+                        <p class="passage">{{ shownDefinition(gloss.text) }}</p>
+                        @if (gloss.translations; as translations) {
+                          @if (translations.length) {
+                            <ul class="equivalents">
+                              @for (translation of translations; track $index) {
+                                <li>
+                                  <app-reveal
+                                    [text]="translation.text"
+                                    (unveiled)="noteReveal(prompt)"
+                                  />
+                                </li>
+                              }
+                            </ul>
+                          }
+                        }
+                      </div>
+                      <div class="compare-side yours">
+                        <p class="field-label">Your answer</p>
+                        <p>{{ definitionDraftAt(prompt) }}</p>
+                      </div>
+                    </div>
+                    <p class="field-label">Gems</p>
+                    <div class="gem-pick" data-game="definition" role="group" aria-label="Gems">
+                      @for (gems of gemScores; track gems) {
+                        @if (gems > 0) {
+                          <button
+                            type="button"
+                            class="gem-pick-stone"
+                            [class.on]="(reward?.gems ?? -1) >= gems"
+                            [attr.aria-pressed]="reward?.gems === gems"
+                            [attr.aria-label]="gems + ' gems'"
+                            [disabled]="aiBusy()"
+                            (click)="awardDefinition(prompt, gems)"
+                          >
+                            <span class="gem gem-gain-stone" aria-hidden="true"></span>
+                          </button>
                         }
                       }
+                      <button
+                        type="button"
+                        class="btn btn-secondary"
+                        [class.on]="reward?.gems === 0"
+                        [attr.aria-pressed]="reward?.gems === 0"
+                        [disabled]="aiBusy()"
+                        (click)="awardDefinition(prompt, 0)"
+                      >
+                        None
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-secondary"
+                        [disabled]="aiBusy() || reward?.by === 'ai'"
+                        [attr.aria-busy]="askingGrade() === prompt ? true : null"
+                        (click)="evaluateDefinition(prompt)"
+                      >
+                        {{ askingGrade() === prompt ? 'Asking…' : 'Ask AI' }}
+                      </button>
                     </div>
-                    <div class="compare-side yours">
-                      <p class="field-label">Your answer</p>
-                      <p>{{ definitionDraftAt(prompt) }}</p>
-                    </div>
-                  </div>
-                  <p class="field-label">Gems</p>
-                  <div class="gem-pick" data-game="definition" role="group" aria-label="Gems">
-                    @for (gems of gemScores; track gems) {
-                      @if (gems > 0) {
-                        <button
-                          type="button"
-                          class="gem-pick-stone"
-                          [class.on]="(reward?.gems ?? -1) >= gems"
-                          [attr.aria-pressed]="reward?.gems === gems"
-                          [attr.aria-label]="gems + ' gems'"
-                          [disabled]="aiBusy()"
-                          (click)="awardDefinition(prompt, gems)"
-                        >
-                          <span class="gem gem-gain-stone" aria-hidden="true"></span>
-                        </button>
+                    @if (reward; as scored) {
+                      @if (scored.by === 'ai' && scored.explanation) {
+                        <p>{{ scored.explanation }}</p>
                       }
                     }
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      [class.on]="reward?.gems === 0"
-                      [attr.aria-pressed]="reward?.gems === 0"
-                      [disabled]="aiBusy()"
-                      (click)="awardDefinition(prompt, 0)"
-                    >
-                      None
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      [disabled]="aiBusy() || reward?.by === 'ai'"
-                      [attr.aria-busy]="askingGrade() === prompt ? true : null"
-                      (click)="evaluateDefinition(prompt)"
-                    >
-                      {{ askingGrade() === prompt ? 'Asking…' : 'Ask AI' }}
-                    </button>
-                  </div>
-                  @if (reward; as scored) {
-                    @if (scored.by === 'ai' && scored.explanation) {
-                      <p>{{ scored.explanation }}</p>
+                    @if (error()) {
+                      <p class="error">{{ error() }}</p>
                     }
+                    <div class="sheet-actions">
+                      <button
+                        type="button"
+                        class="btn btn-primary"
+                        [disabled]="definitionAwaitingScore(prompt) || askingGrade() === prompt"
+                        (click)="closeDefinitionPrompt()"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  }
+                } @else {
+                  <div class="field-heading">
+                    @if (supportAvailable()) {
+                      <div class="lang" role="tablist" aria-label="Definition language">
+                        <button
+                          type="button"
+                          role="tab"
+                          [class.on]="definitionSource() === 'support'"
+                          [attr.aria-selected]="definitionSource() === 'support'"
+                          [disabled]="translating() || askingPolish() !== null"
+                          (click)="workDefinition('support')"
+                        >
+                          {{ translationLanguageName() }}
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          [class.on]="definitionSource() === 'working'"
+                          [attr.aria-selected]="definitionSource() === 'working'"
+                          [disabled]="translating() || askingPolish() !== null"
+                          (click)="workDefinition('working')"
+                        >
+                          {{ originalLanguageName() }}
+                        </button>
+                      </div>
+                    } @else {
+                      <label class="field-label" [attr.for]="'play-definition-' + prompt">
+                        Definition
+                      </label>
+                    }
+                    <span class="header-actions">
+                      <select
+                        class="translate-language"
+                        aria-label="Translation language"
+                        [value]="translationTarget()"
+                        [disabled]="translating() || askingPolish() !== null"
+                        (change)="setTranslationInto($event)"
+                      >
+                        <option value="" [selected]="!translationTarget()">No translation</option>
+                        @for (code of translationLanguages(); track code) {
+                          <option [value]="code" [selected]="code === translationTarget()">
+                            {{ languageName(code) }}
+                          </option>
+                        }
+                      </select>
+                      @if (supportAvailable()) {
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          [disabled]="!canTranslateDefinition(prompt)"
+                          [attr.aria-busy]="translating() ? true : null"
+                          [attr.aria-label]="
+                            'Translate into ' +
+                            (definitionSource() === 'support'
+                              ? originalLanguageName()
+                              : translationLanguageName())
+                          "
+                          (click)="translateDefinition(prompt)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
+                        </button>
+                      }
+                      @if (!supportAvailable() || definitionSource() === 'working') {
+                        <button
+                          type="button"
+                          class="icon-btn fix"
+                          aria-label="Correct"
+                          title="Correct"
+                          [attr.aria-busy]="askingPolish() === 'correct' ? true : null"
+                          [disabled]="!canPolishDefinition(prompt)"
+                          (click)="polishWorkingDefinition(prompt, 'correct')"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m6 16 6-12 6 12" />
+                            <path d="M8 12h8" />
+                            <path d="m16 20 2 2 4-4" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn idea"
+                          aria-label="Reformulate"
+                          title="Reformulate"
+                          [attr.aria-busy]="askingPolish() === 'reformulate' ? true : null"
+                          [disabled]="!canPolishDefinition(prompt)"
+                          (click)="polishWorkingDefinition(prompt, 'reformulate')"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 20h9" />
+                            <path
+                              d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"
+                            />
+                          </svg>
+                        </button>
+                      }
+                    </span>
+                  </div>
+                  @if (supportAvailable() && definitionSource() === 'support') {
+                    <textarea
+                      #supportField
+                      [id]="'play-definition-support-' + prompt"
+                      rows="2"
+                      [attr.aria-label]="translationLanguageName()"
+                      [value]="definitionSupportDraftAt(prompt)"
+                      [attr.maxlength]="definitionMax"
+                      [disabled]="askingGrade() === prompt || translating()"
+                      placeholder="Write the definition"
+                      (input)="onDefinitionSupportDraft(prompt, $event)"
+                    ></textarea>
+                  } @else {
+                    @if (definitionPolishNote(); as note) {
+                      <div
+                        class="compare-side"
+                        [class.fix]="note.task === 'correct'"
+                        [class.idea]="note.task === 'reformulate'"
+                      >
+                        <div class="field-heading">
+                          <p class="field-label">
+                            {{ note.task === 'correct' ? 'Correction' : 'Reformulation' }}
+                          </p>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Dismiss"
+                            (click)="definitionPolishNote.set(null)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M18 6 6 18" />
+                              <path d="m6 6 12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                        @if (note.task === 'correct') {
+                          <p class="hint">{{ note.explanation }}</p>
+                        } @else {
+                          <div class="add-choices">
+                            @for (option of note.options; track $index) {
+                              <button
+                                type="button"
+                                class="btn btn-secondary add-choice"
+                                (click)="useDefinitionProposition(prompt, option)"
+                              >
+                                {{ option }}
+                              </button>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                    <textarea
+                      #definitionField
+                      [id]="'play-definition-' + prompt"
+                      rows="2"
+                      [value]="definitionDraftAt(prompt)"
+                      [attr.maxlength]="definitionMax"
+                      [disabled]="
+                        askingGrade() === prompt || translating() || askingPolish() !== null
+                      "
+                      [attr.aria-label]="supportAvailable() ? originalLanguageName() : 'Definition'"
+                      placeholder="Write the definition"
+                      (input)="onDefinitionDraft(prompt, $event)"
+                    ></textarea>
                   }
                   @if (error()) {
                     <p class="error">{{ error() }}</p>
@@ -2705,208 +2936,28 @@ function writeExampleSuggestions(
                     <button
                       type="button"
                       class="btn btn-primary"
-                      [disabled]="definitionAwaitingScore(prompt) || askingGrade() === prompt"
-                      (click)="closeDefinitionPrompt()"
+                      [disabled]="aiBusy() || translating() || !definitionDraftAt(prompt).trim()"
+                      (click)="submitDefinition(prompt)"
                     >
-                      Done
+                      Submit
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [disabled]="askingGrade() === prompt"
+                      (click)="giveUpDefinition(prompt)"
+                    >
+                      Give up
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [disabled]="askingGrade() === prompt"
+                      (click)="definitionPrompt.set(-1)"
+                    >
+                      Cancel
                     </button>
                   </div>
-                  }
-                } @else {
-                <div class="field-heading">
-                  @if (supportAvailable()) {
-                    <div class="lang" role="tablist" aria-label="Definition language">
-                      <button
-                        type="button"
-                        role="tab"
-                        [class.on]="definitionSource() === 'support'"
-                        [attr.aria-selected]="definitionSource() === 'support'"
-                        [disabled]="translating() || askingPolish() !== null"
-                        (click)="workDefinition('support')"
-                      >
-                        {{ translationLanguageName() }}
-                      </button>
-                      <button
-                        type="button"
-                        role="tab"
-                        [class.on]="definitionSource() === 'working'"
-                        [attr.aria-selected]="definitionSource() === 'working'"
-                        [disabled]="translating() || askingPolish() !== null"
-                        (click)="workDefinition('working')"
-                      >
-                        {{ originalLanguageName() }}
-                      </button>
-                    </div>
-                  } @else {
-                    <label class="field-label" [attr.for]="'play-definition-' + prompt">
-                      Definition
-                    </label>
-                  }
-                  <span class="header-actions">
-                    <select
-                      class="translate-language"
-                      aria-label="Translation language"
-                      [value]="translationTarget()"
-                      [disabled]="translating() || askingPolish() !== null"
-                      (change)="setTranslationInto($event)"
-                    >
-                      <option value="" [selected]="!translationTarget()">No translation</option>
-                      @for (code of translationLanguages(); track code) {
-                        <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
-                      }
-                    </select>
-                    @if (supportAvailable()) {
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        [disabled]="!canTranslateDefinition(prompt)"
-                        [attr.aria-busy]="translating() ? true : null"
-                        [attr.aria-label]="
-                          'Translate into ' +
-                          (definitionSource() === 'support'
-                            ? originalLanguageName()
-                            : translationLanguageName())
-                        "
-                        (click)="translateDefinition(prompt)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m5 8 6 6" />
-                          <path d="m4 14 6-6 2-3" />
-                          <path d="M2 5h12" />
-                          <path d="M7 2h1" />
-                          <path d="m22 22-5-10-5 10" />
-                          <path d="M14 18h6" />
-                        </svg>
-                      </button>
-                    }
-                    @if (!supportAvailable() || definitionSource() === 'working') {
-                      <button
-                        type="button"
-                        class="icon-btn fix"
-                        aria-label="Correct"
-                        title="Correct"
-                        [attr.aria-busy]="askingPolish() === 'correct' ? true : null"
-                        [disabled]="!canPolishDefinition(prompt)"
-                        (click)="polishWorkingDefinition(prompt, 'correct')"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m6 16 6-12 6 12" />
-                          <path d="M8 12h8" />
-                          <path d="m16 20 2 2 4-4" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        class="icon-btn idea"
-                        aria-label="Reformulate"
-                        title="Reformulate"
-                        [attr.aria-busy]="askingPolish() === 'reformulate' ? true : null"
-                        [disabled]="!canPolishDefinition(prompt)"
-                        (click)="polishWorkingDefinition(prompt, 'reformulate')"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M12 20h9" />
-                          <path
-                            d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"
-                          />
-                        </svg>
-                      </button>
-                    }
-                  </span>
-                </div>
-                @if (supportAvailable() && definitionSource() === 'support') {
-                  <textarea
-                    #supportField
-                    [id]="'play-definition-support-' + prompt"
-                    rows="2"
-                    [attr.aria-label]="translationLanguageName()"
-                    [value]="definitionSupportDraftAt(prompt)"
-                    [attr.maxlength]="definitionMax"
-                    [disabled]="askingGrade() === prompt || translating()"
-                    placeholder="Write the definition"
-                    (input)="onDefinitionSupportDraft(prompt, $event)"
-                  ></textarea>
-                } @else {
-                @if (definitionPolishNote(); as note) {
-                  <div
-                    class="compare-side"
-                    [class.fix]="note.task === 'correct'"
-                    [class.idea]="note.task === 'reformulate'"
-                  >
-                    <div class="field-heading">
-                      <p class="field-label">
-                        {{ note.task === 'correct' ? 'Correction' : 'Reformulation' }}
-                      </p>
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Dismiss"
-                        (click)="definitionPolishNote.set(null)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M18 6 6 18" />
-                          <path d="m6 6 12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                    @if (note.task === 'correct') {
-                      <p class="hint">{{ note.explanation }}</p>
-                    } @else {
-                      <div class="add-choices">
-                        @for (option of note.options; track $index) {
-                          <button
-                            type="button"
-                            class="btn btn-secondary add-choice"
-                            (click)="useDefinitionProposition(prompt, option)"
-                          >
-                            {{ option }}
-                          </button>
-                        }
-                      </div>
-                    }
-                  </div>
-                }
-                <textarea
-                  #definitionField
-                  [id]="'play-definition-' + prompt"
-                  rows="2"
-                  [value]="definitionDraftAt(prompt)"
-                  [attr.maxlength]="definitionMax"
-                  [disabled]="askingGrade() === prompt || translating() || askingPolish() !== null"
-                  [attr.aria-label]="supportAvailable() ? originalLanguageName() : 'Definition'"
-                  placeholder="Write the definition"
-                  (input)="onDefinitionDraft(prompt, $event)"
-                ></textarea>
-                }
-                @if (error()) {
-                  <p class="error">{{ error() }}</p>
-                }
-                <div class="sheet-actions">
-                  <button
-                    type="button"
-                    class="btn btn-primary"
-                    [disabled]="aiBusy() || translating() || !definitionDraftAt(prompt).trim()"
-                    (click)="submitDefinition(prompt)"
-                  >
-                    Submit
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    [disabled]="askingGrade() === prompt"
-                    (click)="giveUpDefinition(prompt)"
-                  >
-                    Give up
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    [disabled]="askingGrade() === prompt"
-                    (click)="definitionPrompt.set(-1)"
-                  >
-                    Cancel
-                  </button>
-                </div>
                 }
               </section>
             </div>
@@ -2948,7 +2999,7 @@ function writeExampleSuggestions(
                       <ul class="equivalents">
                         @for (translation of gloss.translations; track $index) {
                           <li>
-                            <app-reveal [text]="translation.text" />
+                            <app-reveal [text]="translation.text" (unveiled)="noteReveal(prompt)" />
                           </li>
                         }
                       </ul>
@@ -3054,7 +3105,9 @@ function writeExampleSuggestions(
                       >
                         <option value="" [selected]="!translationTarget()">No translation</option>
                         @for (code of translationLanguages(); track code) {
-                          <option [value]="code" [selected]="code === translationTarget()">{{ languageName(code) }}</option>
+                          <option [value]="code" [selected]="code === translationTarget()">
+                            {{ languageName(code) }}
+                          </option>
                         }
                       </select>
                       @if (supportAvailable()) {
@@ -3102,23 +3155,23 @@ function writeExampleSuggestions(
                   </div>
                   @if (!supportAvailable() || exampleSource() === 'working') {
                     @if (exampleCorrection(); as correction) {
-                    <div class="compare-side fix">
-                      <div class="field-heading">
-                        <p class="field-label">Correction</p>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Dismiss"
-                          (click)="exampleCorrection.set(null)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M18 6 6 18" />
-                            <path d="m6 6 12 12" />
-                          </svg>
-                        </button>
+                      <div class="compare-side fix">
+                        <div class="field-heading">
+                          <p class="field-label">Correction</p>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Dismiss"
+                            (click)="exampleCorrection.set(null)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M18 6 6 18" />
+                              <path d="m6 6 12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                        <p class="hint">{{ correction }}</p>
                       </div>
-                      <p class="hint">{{ correction }}</p>
-                    </div>
                     }
                   }
                   @if (supportAvailable() && exampleSource() === 'support') {
@@ -3377,7 +3430,10 @@ function writeExampleSuggestions(
                           <ul class="equivalents">
                             @for (translation of passage.translations; track $index) {
                               <li>
-                                <app-reveal [text]="translation.text" />
+                                <app-reveal
+                                  [text]="translation.text"
+                                  (unveiled)="noteReveal(index)"
+                                />
                               </li>
                             }
                           </ul>
@@ -3392,7 +3448,10 @@ function writeExampleSuggestions(
                           <ul class="equivalents">
                             @for (translation of passage.translations; track $index) {
                               <li>
-                                <app-reveal [text]="translation.text" />
+                                <app-reveal
+                                  [text]="translation.text"
+                                  (unveiled)="noteReveal(index)"
+                                />
                               </li>
                             }
                           </ul>
@@ -3425,7 +3484,10 @@ function writeExampleSuggestions(
                               <ul class="equivalents">
                                 @for (translation of passage.translations; track $index) {
                                   <li>
-                                    <app-reveal [text]="translation.text" />
+                                    <app-reveal
+                                      [text]="translation.text"
+                                      (unveiled)="noteReveal(index)"
+                                    />
                                   </li>
                                 }
                               </ul>
@@ -3529,26 +3591,26 @@ function writeExampleSuggestions(
 
         @if (formsConfirm(); as choice) {
           @if (formsConfirmDetail(choice.index)) {
-          <div class="sheet-backdrop" (click)="closeFormsConfirm($event)">
-            <section
-              class="sheet confirm"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Generate forms"
-              (click)="$event.stopPropagation()"
-            >
-              <h3>Generate forms?</h3>
-              <p>We'll generate the missing forms.</p>
-              <div class="sheet-actions">
-                <button type="button" class="btn btn-secondary" (click)="formsConfirm.set(null)">
-                  Cancel
-                </button>
-                <button type="button" class="btn btn-primary" (click)="confirmGenerateForms()">
-                  Generate
-                </button>
-              </div>
-            </section>
-          </div>
+            <div class="sheet-backdrop" (click)="closeFormsConfirm($event)">
+              <section
+                class="sheet confirm"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Generate forms"
+                (click)="$event.stopPropagation()"
+              >
+                <h3>Generate forms?</h3>
+                <p>We'll generate the missing forms.</p>
+                <div class="sheet-actions">
+                  <button type="button" class="btn btn-secondary" (click)="formsConfirm.set(null)">
+                    Cancel
+                  </button>
+                  <button type="button" class="btn btn-primary" (click)="confirmGenerateForms()">
+                    Generate
+                  </button>
+                </div>
+              </section>
+            </div>
           }
         }
 
@@ -4362,6 +4424,31 @@ function writeExampleSuggestions(
       min-width: 0;
     }
 
+    .activity-stat {
+      display: inline-flex;
+      flex: none;
+      align-items: center;
+      gap: 0.15rem;
+      margin-right: 0.15rem;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .activity-stat svg {
+      display: block;
+      width: 0.85rem;
+      height: 0.85rem;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .item-actions {
       justify-content: flex-end;
     }
@@ -4679,7 +4766,6 @@ function writeExampleSuggestions(
       margin-right: 0;
       color: var(--meta-color);
     }
-
 
     .sense-main {
       display: flex;
@@ -5790,6 +5876,10 @@ export class ElementModal {
   readonly speaking = signal<string | null>(null);
 
   private editingTranslations = new Map<string, string>();
+  /** Latest element written from this card, including a save that has not finished. */
+  private written: StoredElement | null = null;
+  private saveChain: Promise<void> = Promise.resolve();
+  private busySaves = 0;
   private translateTicket = 0;
   private equivalentTicket = 0;
   private exampleJob = 0;
@@ -5810,7 +5900,8 @@ export class ElementModal {
   private readonly definitionField = viewChild<ElementRef<HTMLTextAreaElement>>('definitionField');
   private readonly supportField = viewChild<ElementRef<HTMLTextAreaElement>>('supportField');
   private readonly exampleField = viewChild<ElementRef<HTMLTextAreaElement>>('exampleField');
-  private readonly exampleSupportField = viewChild<ElementRef<HTMLTextAreaElement>>('exampleSupportField');
+  private readonly exampleSupportField =
+    viewChild<ElementRef<HTMLTextAreaElement>>('exampleSupportField');
   /** Which definition tab is showing. */
   readonly definitionSource = signal<'support' | 'working'>('support');
   readonly definitionPolishNote = signal<
@@ -5833,6 +5924,7 @@ export class ElementModal {
       const id = this.element().id;
       if (id === this.trackedElementId) return;
       this.trackedElementId = id;
+      this.written = null;
       this.stopSpeech();
       this.editor.set(null);
       this.formEdit.set(null);
@@ -6044,22 +6136,21 @@ export class ElementModal {
       forms: retitleForms(definition.forms, element.title, name),
     }));
     const editing = this.formEdit();
-    this.busy.set(true);
     this.titleError.set('');
-    try {
-      const saved = await saveElement({ ...element, title: name, definitions });
-      if (this.element().id !== element.id) return;
-      if (editing?.originalText && sameTitle(editing.originalText, element.title)) {
-        this.formEdit.set({ ...editing, originalText: name });
-        if (sameTitle(this.formDraft(), element.title)) this.formDraft.set(name);
-      }
-      this.titleEdit.set(false);
-      this.changed.emit(saved);
-    } catch {
-      if (this.element().id === element.id) this.titleError.set('Could not save this element.');
-    } finally {
-      if (this.element().id === element.id) this.busy.set(false);
+    const saved = await this.commit(
+      { ...this.currentElement(), title: name, definitions },
+      { report: false },
+    );
+    if (!this.alive || this.element().id !== element.id) return;
+    if (!saved) {
+      this.titleError.set('Could not save this element.');
+      return;
     }
+    if (editing?.originalText && sameTitle(editing.originalText, element.title)) {
+      this.formEdit.set({ ...editing, originalText: name });
+      if (sameTitle(this.formDraft(), element.title)) this.formDraft.set(name);
+    }
+    this.titleEdit.set(false);
   }
 
   shownTitle(title = this.element().title): string {
@@ -6117,9 +6208,7 @@ export class ElementModal {
   }
 
   equivalentMissing(): boolean {
-    return (
-      this.element().mode === 1 && !this.equivalentIdDraft() && !this.equivalentDraft().trim()
-    );
+    return this.element().mode === 1 && !this.equivalentIdDraft() && !this.equivalentDraft().trim();
   }
 
   translationLanguageName(): string {
@@ -6444,7 +6533,12 @@ export class ElementModal {
   }
 
   generateExample(index: number): void {
-    if ((this.inPlay() && !this.translationGame() && !this.definitionGame()) || this.aiBusy() || !this.element().definitions[index]) return;
+    if (
+      (this.inPlay() && !this.translationGame() && !this.definitionGame()) ||
+      this.aiBusy() ||
+      !this.element().definitions[index]
+    )
+      return;
     this.openExampleEngineer(index);
   }
 
@@ -6601,7 +6695,11 @@ export class ElementModal {
     }
   }
 
-  private async attachExample(element: StoredElement, gloss: string, example: string): Promise<void> {
+  private async attachExample(
+    element: StoredElement,
+    gloss: string,
+    example: string,
+  ): Promise<void> {
     const definitions = this.copyDefinitions();
     const target = definitions.find(
       (definition) => senseKey(definition.text) === gloss.trim().toLowerCase(),
@@ -7038,7 +7136,10 @@ export class ElementModal {
     for (const item of extra.translations) {
       if (!item.language || item.language === target || !item.text) continue;
       const existing = this.editingTranslations.get(item.language) ?? '';
-      this.editingTranslations.set(item.language, existing ? joinPhrase(existing, item.text) : item.text);
+      this.editingTranslations.set(
+        item.language,
+        existing ? joinPhrase(existing, item.text) : item.text,
+      );
     }
     return this.storedFromTranslations(joinPhrase(current.text, extra.text));
   }
@@ -7386,7 +7487,7 @@ export class ElementModal {
   }
 
   async setComfort(rate: number): Promise<void> {
-    const element = this.element();
+    const element = this.currentElement();
     if (rate === element.comfort || rate < 1 || rate > 10) return;
     await this.saveAppearance({ comfort: rate });
   }
@@ -7444,18 +7545,12 @@ export class ElementModal {
     patch: Partial<Pick<StoredElement, 'mode' | 'comfort'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
-    this.busy.set(true);
-    this.error.set('');
-    try {
-      const saved = await saveElement({ ...this.element(), ...patch });
-      this.changed.emit(saved);
-      return true;
-    } catch {
-      this.error.set('Could not save this element.');
-      return false;
-    } finally {
-      this.busy.set(false);
+    const current = this.currentElement();
+    const next: StoredElement = { ...current, ...patch };
+    if (patch.comfort != null && patch.comfort !== current.comfort) {
+      next.log = [...current.log, { event: 'comfort', comfort: patch.comfort, at: Date.now() }];
     }
+    return this.commit(next);
   }
 
   showCollision(event: MouseEvent, matches: DefinitionHighlightMatch[]): void {
@@ -7632,7 +7727,7 @@ export class ElementModal {
         forms: current?.forms ?? [],
         examples: current?.examples ?? [],
         metadata: this.metadataToStore(),
-        log: current?.log.map((entry) => ({ ...entry })) ?? [],
+        log: this.logWithRework(current, text),
       };
       if (editor.index == null) unlinked.push(next);
       else unlinked[editor.index] = next;
@@ -7687,7 +7782,8 @@ export class ElementModal {
     const editing = this.metaEdit();
     const key = this.metaKey().trim().slice(0, META_KEY_MAX_LENGTH);
     const value = this.metaValue().trim().slice(0, META_VALUE_MAX_LENGTH);
-    if (key && value) return writeMetadata(this.sheetMetadata(), editing?.previousKey ?? null, key, value);
+    if (key && value)
+      return writeMetadata(this.sheetMetadata(), editing?.previousKey ?? null, key, value);
     return { ...this.sheetMetadata() };
   }
 
@@ -7851,7 +7947,7 @@ export class ElementModal {
 
   private async removeExercise(definitionIndex: number, historyIndex: number): Promise<void> {
     const elementId = this.element().id;
-    const definition = this.element().definitions[definitionIndex];
+    const definition = this.currentElement().definitions[definitionIndex];
     const entry = definition ? this.exerciseHistory(definition)[historyIndex] : undefined;
     const logIndex = definition && entry ? definition.log.indexOf(entry) : -1;
     if (!definition || logIndex < 0) {
@@ -7872,7 +7968,7 @@ export class ElementModal {
     }
     this.adjustExerciseRound(definitionIndex, logIndex);
     this.confirm.set(null);
-    if (!next.log.length) {
+    if (!this.exerciseHistory(next).length) {
       this.closeExerciseLog();
       return;
     }
@@ -7995,8 +8091,14 @@ export class ElementModal {
     if (this.element().id === elementId) this.exampleSuggestions.set(current);
   }
 
+  private currentElement(): StoredElement {
+    const written = this.written;
+    const element = this.element();
+    return written?.id === element.id ? written : element;
+  }
+
   private copyDefinitions(): ElementDefinition[] {
-    return this.element().definitions.map((definition) => ({
+    return this.currentElement().definitions.map((definition) => ({
       ...definition,
       forms: definition.forms.map((form) => ({ text: form.text, metadata: { ...form.metadata } })),
       examples: definition.examples.map((example) => ({
@@ -8008,22 +8110,87 @@ export class ElementModal {
     }));
   }
 
+  /** Keep the log, and append a rework when the stored wording changed. */
+  private logWithRework(current: ElementDefinition | null, text: string): ElementDefinition['log'] {
+    const log = current?.log.map((entry) => ({ ...entry })) ?? [];
+    if (current && text !== current.text) log.push({ event: 'rework', at: Date.now() });
+    return log;
+  }
+
+  noteReveal(index: number): void {
+    const definitions = this.copyDefinitions();
+    const definition = definitions[index];
+    if (!definition) return;
+    definition.log = [...definition.log, { event: 'reveal', at: Date.now() }];
+    void this.persist(definitions, this.currentElement().equivalents, { busy: false });
+  }
+
+  reworkCount(definition: ElementDefinition): number {
+    return definition.log.filter((entry) => entry.event === 'rework').length;
+  }
+
+  revealCount(definition: ElementDefinition): number {
+    return definition.log.filter((entry) => entry.event === 'reveal').length;
+  }
+
+  reworkLabel(count: number): string {
+    return count === 1 ? 'Reworked 1 time' : `Reworked ${count} times`;
+  }
+
+  revealLabel(count: number): string {
+    return count === 1 ? 'Revealed 1 time' : `Revealed ${count} times`;
+  }
+
   private async persist(
     definitions: ElementDefinition[],
     equivalents: ElementEquivalent[],
+    options?: { busy?: boolean },
   ): Promise<boolean> {
-    this.busy.set(true);
-    this.error.set('');
-    try {
-      const saved = await saveElement({ ...this.element(), definitions, equivalents });
-      this.changed.emit(saved);
-      return true;
-    } catch {
-      this.error.set('Could not save this element.');
-      return false;
-    } finally {
-      this.busy.set(false);
+    return this.commit({ ...this.currentElement(), definitions, equivalents }, options);
+  }
+
+  /** Save in order. A later edit is applied before an earlier save can replace it. */
+  private commit(
+    next: StoredElement,
+    options?: { busy?: boolean; report?: boolean },
+  ): Promise<boolean> {
+    const busy = options?.busy !== false;
+    const report = options?.report ?? busy;
+    this.written = next;
+    if (!busy) this.changed.emit(next);
+    const snapshot = next;
+    if (busy) {
+      this.busySaves += 1;
+      this.busy.set(true);
+      if (report) this.error.set('');
     }
+    const run = this.saveChain.then(async () => {
+      try {
+        const saved = await saveElement(snapshot);
+        if (!this.alive || this.element().id !== saved.id) return true;
+        if (this.written === snapshot) {
+          this.written = saved;
+          this.changed.emit(saved);
+        }
+        return true;
+      } catch {
+        if (this.written === snapshot) this.written = null;
+        if (report && this.alive && this.element().id === snapshot.id) {
+          this.error.set('Could not save this element.');
+        }
+        return false;
+      } finally {
+        if (busy) {
+          this.busySaves = Math.max(0, this.busySaves - 1);
+          if (this.busySaves === 0) this.busy.set(false);
+        }
+      }
+    });
+    this.saveChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
   }
 
   private beginSheet(text: string): void {
@@ -8230,7 +8397,11 @@ export class ElementModal {
 
   submitEquivalent(index: number, event?: Event): void {
     event?.preventDefault();
-    if (!this.translationGame() || this.equivalentSubmitted(index) || !this.equivalentDraftAt(index).trim()) {
+    if (
+      !this.translationGame() ||
+      this.equivalentSubmitted(index) ||
+      !this.equivalentDraftAt(index).trim()
+    ) {
       return;
     }
     const equivalentSubmitted = this.round().equivalentSubmitted.slice();
@@ -8271,9 +8442,10 @@ export class ElementModal {
   /** Sum of gems for each exercise color. Colors with nothing earned are left out. */
   exerciseTotals(
     definition: ElementDefinition,
-  ): { game: DefinitionLogEntry['game']; gems: number }[] | null {
-    const sums = new Map<DefinitionLogEntry['game'], number>();
+  ): { game: DefinitionGameLog['game']; gems: number }[] | null {
+    const sums = new Map<DefinitionGameLog['game'], number>();
     for (const entry of definition.log) {
+      if (entry.event !== 'game') continue;
       sums.set(entry.game, (sums.get(entry.game) ?? 0) + entry.gems);
     }
     const totals = (['translation', 'example', 'definition'] as const)
@@ -8282,20 +8454,22 @@ export class ElementModal {
     return totals.length ? totals : null;
   }
 
-  logMode(game: DefinitionLogEntry['game']): ElementMode {
+  logMode(game: DefinitionGameLog['game']): ElementMode {
     if (game === 'example') return 2;
     if (game === 'definition') return 3;
     return 1;
   }
 
-  exerciseTotalsLabel(totals: { game: DefinitionLogEntry['game']; gems: number }[]): string {
+  exerciseTotalsLabel(totals: { game: DefinitionGameLog['game']; gems: number }[]): string {
     const detail = totals.map((total) => `${total.gems} ${total.game} gems`).join(', ');
     return `Show exercises, ${detail}`;
   }
 
-  /** Newest exercise first. */
-  exerciseHistory(definition: ElementDefinition): DefinitionLogEntry[] {
-    return definition.log.slice().reverse();
+  /** Newest game first. Reworks and reveals stay in the log and out of this list. */
+  exerciseHistory(definition: ElementDefinition): DefinitionGameLog[] {
+    return definition.log
+      .filter((entry): entry is DefinitionGameLog => entry.event === 'game')
+      .reverse();
   }
 
   exerciseWhen(at: number): string {
@@ -8359,7 +8533,8 @@ export class ElementModal {
         definition: gloss,
         answer,
       });
-      if (!this.alive || job !== this.equivalentGradeJob || this.element().id !== element.id) return;
+      if (!this.alive || job !== this.equivalentGradeJob || this.element().id !== element.id)
+        return;
       if (this.equivalentDraftAt(index).trim() !== answer) return;
       const logIndex = await this.recordEquivalentReward(index, {
         gems: grade.score,
@@ -8367,7 +8542,8 @@ export class ElementModal {
         answer,
         explanation: grade.explanation,
       });
-      if (!this.alive || job !== this.equivalentGradeJob || this.element().id !== element.id) return;
+      if (!this.alive || job !== this.equivalentGradeJob || this.element().id !== element.id)
+        return;
       if (this.equivalentDraftAt(index).trim() !== answer) return;
       if (logIndex == null) {
         this.equivalentGradeError.set('Could not save this score.');
@@ -8400,14 +8576,15 @@ export class ElementModal {
   /** Append this attempt, or replace it when the learner changes the score. */
   private async recordEquivalentReward(
     index: number,
-    entry: { gems: number; by: DefinitionLogEntry['by']; answer: string; explanation?: string },
+    entry: { gems: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
   ): Promise<number | null> {
     const elementId = this.element().id;
     const definitions = this.copyDefinitions();
     const definition = definitions[index];
     if (!definition) return null;
     const log = definition.log.map((item) => ({ ...item }));
-    const stored: DefinitionLogEntry = {
+    const stored: DefinitionGameLog = {
+      event: 'game',
       game: 'translation',
       gems: entry.gems,
       by: entry.by,
@@ -8416,11 +8593,11 @@ export class ElementModal {
     };
     if (entry.explanation) stored.explanation = entry.explanation;
     let logIndex = this.round().equivalentLogIndexes[index];
-    if (typeof logIndex !== 'number' || logIndex < 0 || logIndex >= log.length) {
+    if (typeof logIndex === 'number' && log[logIndex]?.event === 'game') {
+      log[logIndex] = stored;
+    } else {
       log.push(stored);
       logIndex = log.length - 1;
-    } else {
-      log[logIndex] = stored;
     }
     definitions[index] = { ...definition, log };
     const saved = await this.persist(definitions, this.element().equivalents);
@@ -8500,7 +8677,8 @@ export class ElementModal {
       const result = String(translated ?? '')
         .trim()
         .slice(0, DEFINITION_MAX);
-      if (!this.alive || ticket !== this.translateTicket || this.element().id !== element.id) return;
+      if (!this.alive || ticket !== this.translateTicket || this.element().id !== element.id)
+        return;
       if (!result) {
         this.error.set('Could not translate this.');
         return;
@@ -8677,7 +8855,8 @@ export class ElementModal {
 
   async evaluateDefinition(index: number): Promise<void> {
     if (this.aiBusy() || !this.definitionSubmitted(index) || this.definitionGaveUp(index)) return;
-    if (this.definitionRewardAt(index)?.by === 'ai' || !this.definitionDraftAt(index).trim()) return;
+    if (this.definitionRewardAt(index)?.by === 'ai' || !this.definitionDraftAt(index).trim())
+      return;
     const element = this.element();
     const definition = element.definitions[index];
     const gloss = parsePassage(definition?.text ?? '').text.trim();
@@ -8734,14 +8913,15 @@ export class ElementModal {
   /** Append this attempt, or replace it when the learner changes the score. */
   private async recordDefinitionReward(
     index: number,
-    entry: { gems: number; by: DefinitionLogEntry['by']; answer: string; explanation?: string },
+    entry: { gems: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
   ): Promise<number | null> {
     const elementId = this.element().id;
     const definitions = this.copyDefinitions();
     const definition = definitions[index];
     if (!definition) return null;
     const log = definition.log.map((item) => ({ ...item }));
-    const stored: DefinitionLogEntry = {
+    const stored: DefinitionGameLog = {
+      event: 'game',
       game: 'definition',
       gems: entry.gems,
       by: entry.by,
@@ -8750,11 +8930,11 @@ export class ElementModal {
     };
     if (entry.explanation) stored.explanation = entry.explanation;
     let logIndex = this.round().definitionLogIndexes?.[index];
-    if (typeof logIndex !== 'number' || logIndex < 0 || logIndex >= log.length) {
+    if (typeof logIndex === 'number' && log[logIndex]?.event === 'game') {
+      log[logIndex] = stored;
+    } else {
       log.push(stored);
       logIndex = log.length - 1;
-    } else {
-      log[logIndex] = stored;
     }
     definitions[index] = { ...definition, log };
     const saved = await this.persist(definitions, this.element().equivalents);
@@ -8801,7 +8981,11 @@ export class ElementModal {
 
   /** A written example is in, and the AI has not scored it yet. */
   exampleAwaitingScore(index: number): boolean {
-    return this.exampleSubmitted(index) && !!this.exampleDraftAt(index).trim() && !this.exampleRewardAt(index);
+    return (
+      this.exampleSubmitted(index) &&
+      !!this.exampleDraftAt(index).trim() &&
+      !this.exampleRewardAt(index)
+    );
   }
 
   private exampleGaveUp(index: number): boolean {
@@ -8813,7 +8997,10 @@ export class ElementModal {
     this.exampleCorrection.set(null);
     this.exampleSource.set(source);
     setTimeout(() =>
-      (source === 'support' ? this.exampleSupportField() : this.exampleField())?.nativeElement.focus(),
+      (source === 'support'
+        ? this.exampleSupportField()
+        : this.exampleField()
+      )?.nativeElement.focus(),
     );
   }
 
@@ -8854,7 +9041,8 @@ export class ElementModal {
       const result = String(translated ?? '')
         .trim()
         .slice(0, this.exampleLengthMax);
-      if (!this.alive || ticket !== this.translateTicket || this.element().id !== element.id) return;
+      if (!this.alive || ticket !== this.translateTicket || this.element().id !== element.id)
+        return;
       if (!result) {
         this.error.set('Could not translate this.');
         return;
@@ -8948,7 +9136,8 @@ export class ElementModal {
   }
 
   submitExample(index: number): void {
-    if (!this.exampleGame() || this.aiBusy() || this.translating() || this.exampleSubmitted(index)) return;
+    if (!this.exampleGame() || this.aiBusy() || this.translating() || this.exampleSubmitted(index))
+      return;
     if (!this.exampleReady(index)) return;
     const exampleSubmitted = this.round().exampleSubmitted?.slice() ?? [];
     while (exampleSubmitted.length <= index) exampleSubmitted.push(false);
@@ -9040,14 +9229,15 @@ export class ElementModal {
   /** Append this attempt, or replace it when the learner tries again. */
   private async recordExampleReward(
     index: number,
-    entry: { gems: number; by: DefinitionLogEntry['by']; answer: string; explanation?: string },
+    entry: { gems: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
   ): Promise<number | null> {
     const elementId = this.element().id;
     const definitions = this.copyDefinitions();
     const definition = definitions[index];
     if (!definition) return null;
     const log = definition.log.map((item) => ({ ...item }));
-    const stored: DefinitionLogEntry = {
+    const stored: DefinitionGameLog = {
+      event: 'game',
       game: 'example',
       gems: entry.gems,
       by: entry.by,
@@ -9056,11 +9246,11 @@ export class ElementModal {
     };
     if (entry.explanation) stored.explanation = entry.explanation;
     let logIndex = this.round().exampleLogIndexes?.[index];
-    if (typeof logIndex !== 'number' || logIndex < 0 || logIndex >= log.length) {
+    if (typeof logIndex === 'number' && log[logIndex]?.event === 'game') {
+      log[logIndex] = stored;
+    } else {
       log.push(stored);
       logIndex = log.length - 1;
-    } else {
-      log[logIndex] = stored;
     }
     definitions[index] = { ...definition, log };
     const saved = await this.persist(definitions, this.element().equivalents);
