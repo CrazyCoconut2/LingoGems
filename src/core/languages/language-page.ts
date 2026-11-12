@@ -966,7 +966,7 @@ const MOVE_SLOP_PX = 10;
       }
 
       @if (statsOpen()) {
-        <app-gem-stats (closed)="closeStats()" />
+        <app-gem-stats [language]="code()" (closed)="closeStats()" />
       }
 
       @if (opened(); as element) {
