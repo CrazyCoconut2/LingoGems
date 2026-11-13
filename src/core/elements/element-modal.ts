@@ -486,7 +486,12 @@ function writeExampleSuggestions(
       [attr.aria-label]="dialogLabel()"
       (click)="onBackdrop($event)"
     >
-      <div class="panel" [attr.data-mode]="element().mode">
+      <div
+        class="panel"
+        [class.colored]="!!element().color"
+        [style.--element-color]="element().color || null"
+        [attr.data-mode]="element().mode"
+      >
         <ng-template #hearButton let-key="key" let-text="text" let-label="label" let-off="off">
           @if (canHear(text)) {
             <button
@@ -642,12 +647,10 @@ function writeExampleSuggestions(
               type="button"
               class="icon-btn"
               [class.active]="colorOpen()"
-              [class.highlight-on]="!!element().color"
               [attr.aria-label]="element().color ? 'Color ' + element().color : 'No color'"
               [attr.title]="element().color ? 'Color ' + element().color : 'No color'"
               [attr.aria-expanded]="colorOpen()"
               [disabled]="busy() || inPlay()"
-              [style.--swatch]="element().color || null"
               (click)="colorOpen.set(true)"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1404,7 +1407,7 @@ function writeExampleSuggestions(
                   <p class="error">{{ sheetError() }}</p>
                 }
                 @if (current.kind === 'definition') {
-                  <div class="equivalent-block" [class.missing]="equivalentMissing()">
+                  <div class="equivalent-block">
                     <div class="field-heading">
                       <label class="field-label" for="definition-equivalent">Equivalent</label>
                       @if (supportAvailable()) {
@@ -3617,6 +3620,16 @@ function writeExampleSuggestions(
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
     }
 
+    .panel.colored {
+      --text-muted: #d0d3e6;
+      --muted: #d0d3e6;
+      --surface: oklch(from var(--element-color) 0.3 calc(min(c, 0.058)) h);
+      --surface-2: oklch(from var(--element-color) 0.34 calc(min(c, 0.058)) h);
+      --border: oklch(from var(--element-color) 0.46 calc(min(c, 0.05)) h);
+      background: var(--surface);
+      border-color: var(--border);
+    }
+
     header,
     .sheet-head,
     .section-heading,
@@ -4112,23 +4125,6 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
-      position: relative;
-    }
-
-    .equivalent-block.missing::before {
-      content: '';
-      position: absolute;
-      z-index: 0;
-      inset: -0.55rem;
-      border-radius: 12px;
-      background: rgba(255, 92, 122, 0.12);
-      box-shadow: inset 0 0 0 1px rgba(255, 92, 122, 0.55);
-      pointer-events: none;
-    }
-
-    .equivalent-block > * {
-      position: relative;
-      z-index: 1;
     }
 
     h2,
@@ -4262,13 +4258,6 @@ function writeExampleSuggestions(
     .icon-btn.active:hover:not(:disabled) {
       color: var(--accent-text);
       background: var(--accent-soft);
-    }
-
-    .icon-btn.highlight-on,
-    .icon-btn.highlight-on:hover:not(:disabled),
-    .icon-btn.highlight-on.active,
-    .icon-btn.highlight-on.active:hover:not(:disabled) {
-      color: var(--swatch, var(--accent));
     }
 
     .icon-btn.danger:hover:not(:disabled) {
@@ -6146,10 +6135,6 @@ export class ElementModal {
     const selected = this.equivalentSelected(id);
     this.equivalentDraft.set('');
     this.equivalentIdDraft.set(selected ? null : id);
-  }
-
-  equivalentMissing(): boolean {
-    return this.element().mode === 1 && !this.equivalentIdDraft() && !this.equivalentDraft().trim();
   }
 
   translationLanguageName(): string {

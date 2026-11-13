@@ -87,9 +87,15 @@ const DEFAULT_COLOR = '#6c63ff';
       max-height: min(100%, 34rem);
       min-height: 0;
       padding: 0.75rem 0.9rem 0.7rem;
+      --surface: #14172b;
+      --surface-2: #1c2038;
+      --border: #2a2f4a;
+      --text: #f0f1f8;
+      --text-muted: #9499b3;
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) + 2px);
       background: var(--surface);
+      color: var(--text);
       box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
       overflow: auto;
     }
@@ -189,7 +195,7 @@ const DEFAULT_COLOR = '#6c63ff';
       width: 1.85rem;
       height: 1.4rem;
       padding: 0;
-      border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--text) 32%, transparent);
       border-radius: 0.35rem;
       cursor: pointer;
     }

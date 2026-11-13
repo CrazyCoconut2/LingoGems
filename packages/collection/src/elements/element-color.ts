@@ -1,10 +1,13 @@
-/** The five colors an element can take without becoming a custom color. */
+/**
+ * Five sober card colors, stepped from red to green. Low chroma and a dark
+ * lightness, so the fill stays quiet and light text stays easy to read.
+ */
 export const ELEMENT_COLOR_PRESETS = [
-  '#cf7b6e',
-  '#cfc86e',
-  '#71cf6e',
-  '#6ecfbb',
-  '#7aa0cf',
+  '#47211f',
+  '#44250e',
+  '#3b2b04',
+  '#29320e',
+  '#14361f',
 ] as const;
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;

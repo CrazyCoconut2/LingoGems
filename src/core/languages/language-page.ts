@@ -228,11 +228,9 @@ const MOVE_SLOP_PX = 10;
                     type="button"
                     class="list-action"
                     [class.active]="colorOpen()"
-                    [class.highlight-on]="!!selectionColor()"
                     aria-label="Set color"
                     title="Set color"
                     [disabled]="selectionBusy()"
-                    [style.--swatch]="selectionColor()"
                     (click)="openSelectionColor()"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -315,6 +313,7 @@ const MOVE_SLOP_PX = 10;
                   class="element"
                   [class.playing]="playing()"
                   [class.selected]="isSelected(element.id)"
+                  [class.colored]="!!element.color"
                   [style.--score-color]="element.color || null"
                   [attr.aria-pressed]="selecting() ? isSelected(element.id) : null"
                   (click)="onCardClick(element.id)"
@@ -1310,11 +1309,6 @@ const MOVE_SLOP_PX = 10;
       background: transparent;
     }
 
-    .list-toolbar .list-action.highlight-on,
-    .list-toolbar .list-action.highlight-on.active {
-      color: var(--swatch, var(--accent));
-    }
-
     .list-action.danger {
       color: var(--danger);
     }
@@ -1571,6 +1565,26 @@ const MOVE_SLOP_PX = 10;
       background: color-mix(in srgb, var(--score-color, transparent) 30%, var(--surface));
       box-shadow: inset 0 0 0 1px
         color-mix(in srgb, var(--score-color, var(--text)) 55%, transparent);
+    }
+
+    .element.colored {
+      --text-muted: #d0d3e6;
+      --level-line: oklch(from var(--score-color) 0.46 calc(min(c, 0.05)) h);
+      border-color: var(--level-line);
+      background: oklch(from var(--score-color) 0.3 calc(min(c, 0.058)) h);
+      color: var(--text);
+    }
+
+    .element.colored:hover {
+      background: oklch(from var(--score-color) 0.34 calc(min(c, 0.058)) h);
+    }
+
+    .element.colored.selected,
+    .element.colored.selected:hover {
+      --level-line: oklch(from var(--score-color) 0.55 calc(min(c, 0.05)) h);
+      border-color: var(--level-line);
+      background: oklch(from var(--score-color) 0.38 calc(min(c, 0.058)) h);
+      box-shadow: inset 0 0 0 1px oklch(from var(--score-color) 0.55 calc(min(c, 0.05)) h);
     }
 
     .card-gem {

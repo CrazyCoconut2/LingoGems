@@ -4,7 +4,7 @@ import {
   languageCodeFromLabel,
   type LearnableLanguage,
 } from '../languages/catalog';
-import { customElementColor, sanitizeElementColor } from './element-color';
+import { customElementColor, ELEMENT_COLOR_PRESETS, sanitizeElementColor } from './element-color';
 import { mergeMetadataCatalog, normalizeElementCatalog } from './metadata-catalog';
 import {
   collectMetadataIndexes,
@@ -197,7 +197,7 @@ export async function addElement(language: string, title: string): Promise<Store
     equivalents: [],
     definitions: [],
     mode: null,
-    color: null,
+    color: ELEMENT_COLOR_PRESETS[0],
     clicks: 0,
     log: [],
     ...emptyMetadataIndexes(),
