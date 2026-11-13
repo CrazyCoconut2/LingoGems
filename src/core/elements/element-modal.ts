@@ -4918,7 +4918,7 @@ function sameDefinitionOrder(
       gap: 0.25rem;
       min-width: 0;
       padding: 0.1rem 0 0.1rem 0.85rem;
-      border-left: 3px solid rgba(var(--accent-rgb), 0.45);
+      border-left: 3px solid var(--gem-example);
       color: var(--text-muted);
       font-size: 0.88rem;
       line-height: 1.5;
