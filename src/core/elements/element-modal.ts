@@ -817,45 +817,20 @@ function sameDefinitionOrder(
                         </span>
                       } @else {
                         <span class="item-actions-main">
-                          @if (!inPlay() && reworkCount(definition); as reworks) {
-                            <span
-                              class="activity-stat"
-                              [attr.aria-label]="reworkLabel(reworks)"
-                              [attr.title]="reworkLabel(reworks)"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                              </svg>
-                              <span>{{ reworks }}</span>
-                            </span>
-                          }
-                          @if (!inPlay() && revealCount(definition); as reveals) {
-                            <span
-                              class="activity-stat"
-                              [attr.aria-label]="revealLabel(reveals)"
-                              [attr.title]="revealLabel(reveals)"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                                <circle cx="12" cy="12" r="3" />
-                              </svg>
-                              <span>{{ reveals }}</span>
-                            </span>
-                          }
-                          @if (!inPlay() && exerciseTotals(definition); as totals) {
+                          @if (!inPlay()) {
                             <button
                               type="button"
-                              class="gem-gain"
-                              [attr.aria-label]="exerciseTotalsLabel(totals)"
-                              title="Exercises"
+                              class="icon-btn"
+                              aria-label="Stats"
+                              title="Stats"
                               (click)="openExerciseLog(index)"
                             >
-                              @for (total of totals; track total.game) {
-                                <span class="gem-gain" [attr.data-game]="total.game">
-                                  <app-gem-icon class="gem-gain-stone" [game]="total.game" />
-                                  <span class="gem-gain-count">x{{ total.gems }}</span>
-                                </span>
-                              }
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+                                <path d="M18 17V9" />
+                                <path d="M13 17V5" />
+                                <path d="M8 17v-3" />
+                              </svg>
                             </button>
                           }
                           <button
@@ -3345,14 +3320,14 @@ function sameDefinitionOrder(
           @if (element().definitions[index]; as definition) {
             <div class="sheet-backdrop" (click)="closeExerciseLog($event)">
               <section
-                class="sheet"
+                class="sheet definition-stats"
                 role="dialog"
                 aria-modal="true"
-                aria-label="Exercises"
+                aria-label="Stats"
                 (click)="$event.stopPropagation()"
               >
                 <div class="sheet-head">
-                  <h3>Exercises</h3>
+                  <h3>Stats</h3>
                   <button
                     type="button"
                     class="icon-btn"
@@ -3366,36 +3341,88 @@ function sameDefinitionOrder(
                   </button>
                 </div>
                 @if (exerciseEntry() < 0) {
-                  <div class="add-choices">
-                    @for (entry of exerciseHistory(definition); track $index) {
-                      <button
-                        type="button"
-                        class="btn btn-secondary add-choice log-row"
-                        [attr.aria-label]="
-                          modeLabel(logMode(entry.game)) +
-                          ', ' +
-                          entry.gems +
-                          ' gems, ' +
-                          exerciseWhen(entry.at)
-                        "
-                        (click)="exerciseEntry.set($index)"
-                      >
-                        <span class="log-copy">
-                          <span class="log-game">{{ modeLabel(logMode(entry.game)) }}</span>
-                          <span class="hint">{{ exerciseWhen(entry.at) }}</span>
-                        </span>
-                        <span class="gem-pick" [attr.data-game]="entry.game" aria-hidden="true">
-                          @for (gems of gemScores; track gems) {
-                            @if (gems > 0) {
-                              <span class="gem-pick-stone" [class.on]="entry.gems >= gems">
-                                <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
-                              </span>
-                            }
-                          }
-                        </span>
-                      </button>
-                    }
+                  <div class="stats-summary">
+                    <div
+                      class="stats-hero"
+                      [attr.aria-label]="exerciseCount(definition) + ' exercises'"
+                    >
+                      <p class="stats-eyebrow">Exercises</p>
+                      <p class="stats-hero-value">{{ exerciseCount(definition) }}</p>
+                    </div>
+                    <section class="stats-block">
+                      <h3>Gems</h3>
+                      <ul class="stats-gems">
+                        @for (total of definitionGems(definition); track total.game) {
+                          <li [attr.data-game]="total.game">
+                            <span class="stats-stone" aria-hidden="true">
+                              <app-gem-icon class="stats-stone-icon" [game]="total.game" />
+                            </span>
+                            <span class="stats-count">{{ total.gems }}</span>
+                            <span class="stats-caption">{{ modeLabel(logMode(total.game)) }}</span>
+                          </li>
+                        }
+                      </ul>
+                    </section>
+                    <section class="stats-block">
+                      <h3>Activity</h3>
+                      <ul class="stats-activity">
+                        <li [attr.aria-label]="reworkLabel(reworkCount(definition))">
+                          <span class="stats-well" aria-hidden="true">
+                            <svg class="stats-mark" viewBox="0 0 24 24">
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            </svg>
+                          </span>
+                          <span class="stats-count">{{ reworkCount(definition) }}</span>
+                          <span class="stats-caption">Reworked</span>
+                        </li>
+                        <li [attr.aria-label]="revealLabel(revealCount(definition))">
+                          <span class="stats-well" aria-hidden="true">
+                            <svg class="stats-mark" viewBox="0 0 24 24">
+                              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          </span>
+                          <span class="stats-count">{{ revealCount(definition) }}</span>
+                          <span class="stats-caption">Revealed</span>
+                        </li>
+                      </ul>
+                    </section>
                   </div>
+                  @if (exerciseHistory(definition).length) {
+                    <section class="stats-log">
+                      <h3>Exercises</h3>
+                      <div class="add-choices">
+                        @for (entry of exerciseHistory(definition); track $index) {
+                          <button
+                            type="button"
+                            class="btn btn-secondary add-choice log-row"
+                            [attr.aria-label]="
+                              modeLabel(logMode(entry.game)) +
+                              ', ' +
+                              entry.gems +
+                              ' gems, ' +
+                              exerciseWhen(entry.at)
+                            "
+                            (click)="exerciseEntry.set($index)"
+                          >
+                            <span class="log-copy">
+                              <span class="log-game">{{ modeLabel(logMode(entry.game)) }}</span>
+                              <span class="hint">{{ exerciseWhen(entry.at) }}</span>
+                            </span>
+                            <span class="gem-pick" [attr.data-game]="entry.game" aria-hidden="true">
+                              @for (gems of gemScores; track gems) {
+                                @if (gems > 0) {
+                                  <span class="gem-pick-stone" [class.on]="entry.gems >= gems">
+                                    <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
+                                  </span>
+                                }
+                              }
+                            </span>
+                          </button>
+                        }
+                      </div>
+                    </section>
+                  }
                 } @else {
                   @let entry = exerciseHistory(definition)[exerciseEntry()];
                   @if (entry) {
@@ -4486,32 +4513,6 @@ function sameDefinitionOrder(
       min-width: 0;
     }
 
-    .activity-stat {
-      display: inline-flex;
-      flex: none;
-      align-items: center;
-      gap: 0.15rem;
-      margin-right: 0.15rem;
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      font-weight: 500;
-      letter-spacing: 0.02em;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
-    .activity-stat svg {
-      display: block;
-      width: 1.15rem;
-      height: 1.15rem;
-      flex: none;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 1.75;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
     .item-actions {
       justify-content: flex-end;
     }
@@ -5117,6 +5118,164 @@ function sameDefinitionOrder(
       border-radius: var(--radius);
       background: var(--surface);
       box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
+    }
+
+    .definition-stats {
+      gap: 0.85rem;
+    }
+
+    .stats-summary,
+    .stats-log {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .stats-log {
+      gap: 0.55rem;
+    }
+
+    .stats-hero {
+      display: flex;
+      flex-direction: column;
+      gap: 0.28rem;
+      padding: 1rem 1.05rem 0.95rem;
+      border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+      border-radius: 1.05rem;
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--accent) 18%, transparent),
+        color-mix(in srgb, var(--accent) 7%, rgba(8, 10, 18, 0.35))
+      );
+    }
+
+    .stats-eyebrow,
+    .definition-stats .stats-block > h3 {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .stats-hero-value,
+    .stats-count {
+      margin: 0;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .stats-hero-value {
+      font-size: 2.7rem;
+      font-weight: 700;
+      letter-spacing: -0.045em;
+      line-height: 0.95;
+    }
+
+    .stats-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+
+    .stats-gems,
+    .stats-activity {
+      display: grid;
+      gap: 0.45rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .stats-gems {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .stats-activity {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .stats-gems li,
+    .stats-activity li {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.15rem;
+      min-width: 0;
+      padding: 0.85rem 0.55rem 0.7rem;
+      border-radius: 1.05rem;
+    }
+
+    .stats-gems li {
+      border: 1px solid color-mix(in srgb, var(--exercise-gem) 32%, transparent);
+      background: color-mix(in srgb, var(--exercise-gem) 13%, rgba(8, 10, 18, 0.55));
+    }
+
+    .stats-activity li {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--text-muted);
+    }
+
+    .stats-stone,
+    .stats-well {
+      display: grid;
+      place-items: center;
+      margin-bottom: 0.28rem;
+      border-radius: 0.7rem;
+    }
+
+    .stats-stone {
+      width: 2.35rem;
+      height: 2.35rem;
+      background: color-mix(in srgb, var(--exercise-gem) 16%, rgba(6, 8, 16, 0.82));
+      color: var(--exercise-gem);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--exercise-gem) 38%, transparent);
+    }
+
+    .stats-stone-icon {
+      --gem-size: 1.45rem;
+    }
+
+    .stats-well {
+      width: 2.15rem;
+      height: 2.15rem;
+      background: rgba(8, 10, 18, 0.45);
+      color: var(--text-muted);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    .stats-mark {
+      display: block;
+      width: 0.95rem;
+      height: 0.95rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .stats-count {
+      font-size: 1.55rem;
+      font-weight: 700;
+    }
+
+    .stats-caption {
+      max-width: 100%;
+      color: var(--text-muted);
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      line-height: 1.2;
+      text-align: center;
+      text-transform: uppercase;
+      overflow-wrap: anywhere;
     }
 
     .editor-sheet {
@@ -8560,30 +8719,30 @@ export class ElementModal {
     return this.round().equivalentRewards[index] ?? null;
   }
 
-  /** Sum of gems for each exercise color. Colors with nothing earned are left out. */
-  exerciseTotals(
+  /** Game entries recorded on this definition. */
+  exerciseCount(definition: ElementDefinition): number {
+    return definition.log.filter((entry) => entry.event === 'game').length;
+  }
+
+  /** Gem totals for every exercise color, including colors with nothing earned. */
+  definitionGems(
     definition: ElementDefinition,
-  ): { game: DefinitionGameLog['game']; gems: number }[] | null {
+  ): { game: DefinitionGameLog['game']; gems: number }[] {
     const sums = new Map<DefinitionGameLog['game'], number>();
     for (const entry of definition.log) {
       if (entry.event !== 'game') continue;
       sums.set(entry.game, (sums.get(entry.game) ?? 0) + entry.gems);
     }
-    const totals = (['translation', 'example', 'definition'] as const)
-      .map((game) => ({ game, gems: sums.get(game) ?? 0 }))
-      .filter((total) => total.gems > 0);
-    return totals.length ? totals : null;
+    return (['translation', 'example', 'definition'] as const).map((game) => ({
+      game,
+      gems: sums.get(game) ?? 0,
+    }));
   }
 
   logMode(game: DefinitionGameLog['game']): ElementMode {
     if (game === 'example') return 2;
     if (game === 'definition') return 3;
     return 1;
-  }
-
-  exerciseTotalsLabel(totals: { game: DefinitionGameLog['game']; gems: number }[]): string {
-    const detail = totals.map((total) => `${total.gems} ${total.game} gems`).join(', ');
-    return `Show exercises, ${detail}`;
   }
 
   /** Newest game first. Reworks and reveals stay in the log and out of this list. */
