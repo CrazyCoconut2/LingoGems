@@ -711,6 +711,154 @@ function writeExampleSuggestions(
             <ol class="definitions">
               @for (definition of element().definitions; track $index; let index = $index) {
                 <li class="sense" [class.fresh]="definitionIsNew(definition.text)">
+                  <div class="sense-head">
+                    <h3>Definition {{ index + 1 }}</h3>
+                    <div class="item-actions">
+                      @if (passagePick(index, null); as pick) {
+                        <span class="lookup-actions">
+                          <button
+                            type="button"
+                            class="lookup-chip"
+                            aria-label="Add element"
+                            [disabled]="aiBusy()"
+                            (pointerdown)="confirmPassagePick($event, pick.text)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M5 12h14" />
+                              <path d="M12 5v14" />
+                            </svg>
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            class="lookup-chip"
+                            aria-label="Add element with AI"
+                            [disabled]="aiBusy()"
+                            [attr.aria-busy]="addingSelection() ? true : null"
+                            (pointerdown)="confirmPassagePick($event, pick.text, true)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path
+                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                              />
+                            </svg>
+                            Ask AI
+                          </button>
+                        </span>
+                      } @else {
+                        @if (element().definitions.length > 1) {
+                          <span class="item-actions-move">
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              aria-label="Move definition up"
+                              title="Move definition up"
+                              [disabled]="inPlay() || aiBusy() || index === 0"
+                              (click)="moveDefinition(index, -1)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m18 15-6-6-6 6" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              aria-label="Move definition down"
+                              title="Move definition down"
+                              [disabled]="
+                                inPlay() || aiBusy() || index === element().definitions.length - 1
+                              "
+                              (click)="moveDefinition(index, 1)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m6 9 6 6 6-6" />
+                              </svg>
+                            </button>
+                          </span>
+                        }
+                        <span class="item-actions-main">
+                          @if (!inPlay() && reworkCount(definition); as reworks) {
+                            <span
+                              class="activity-stat"
+                              [attr.aria-label]="reworkLabel(reworks)"
+                              [attr.title]="reworkLabel(reworks)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                              </svg>
+                              <span>{{ reworks }}</span>
+                            </span>
+                          }
+                          @if (!inPlay() && revealCount(definition); as reveals) {
+                            <span
+                              class="activity-stat"
+                              [attr.aria-label]="revealLabel(reveals)"
+                              [attr.title]="revealLabel(reveals)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </svg>
+                              <span>{{ reveals }}</span>
+                            </span>
+                          }
+                          @if (!inPlay() && exerciseTotals(definition); as totals) {
+                            <button
+                              type="button"
+                              class="gem-gain"
+                              [attr.aria-label]="exerciseTotalsLabel(totals)"
+                              title="Exercises"
+                              (click)="openExerciseLog(index)"
+                            >
+                              @for (total of totals; track total.game) {
+                                <span class="gem-gain" [attr.data-game]="total.game">
+                                  <app-gem-icon class="gem-gain-stone" [game]="total.game" />
+                                  <span class="gem-gain-count">x{{ total.gems }}</span>
+                                </span>
+                              }
+                            </button>
+                          }
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            [attr.aria-label]="
+                              definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                            "
+                            [attr.title]="
+                              definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                            "
+                            [disabled]="inPlay() || aiBusy()"
+                            (click)="openDefinition(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            </svg>
+                            @if (element().mode === 1 && !definition.equivalentId) {
+                              <span class="notify-mode" aria-hidden="true">
+                                <app-mode-icon [mode]="1" />
+                              </span>
+                            }
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn danger"
+                            aria-label="Delete definition"
+                            title="Delete definition"
+                            [disabled]="inPlay() || aiBusy()"
+                            (click)="askDeleteDefinition(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M3 6h18" />
+                              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                              <path d="M10 11v6" />
+                              <path d="M14 11v6" />
+                            </svg>
+                          </button>
+                        </span>
+                      }
+                    </div>
+                  </div>
                   <div class="sense-main">
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
@@ -728,22 +876,22 @@ function writeExampleSuggestions(
                                   off: true,
                                 }"
                               />
-                              <button
-                                type="button"
-                                class="definition-cue"
-                                aria-label="Write the definition"
-                                (click)="openDefinitionPrompt(index)"
-                              >
-                                <span class="definition-cue-text" aria-hidden="true">{{
-                                  shownDefinition(passage.text)
-                                }}</span>
-                              </button>
+                              <div class="spoken-copy">
+                                <button
+                                  type="button"
+                                  class="definition-cue"
+                                  aria-label="Write the definition"
+                                  (click)="openDefinitionPrompt(index)"
+                                >
+                                  <span class="definition-cue-text" aria-hidden="true">{{
+                                    shownDefinition(passage.text)
+                                  }}</span>
+                                </button>
+                                <ng-container [ngTemplateOutlet]="passageTranslations" />
+                              </div>
                             </div>
                           } @else {
-                            <p
-                              class="passage sense-selectable spoken"
-                              [attr.data-definition-index]="index"
-                            >
+                            <div class="spoken">
                               <ng-container
                                 [ngTemplateOutlet]="hearButton"
                                 [ngTemplateOutletContext]="{
@@ -752,7 +900,11 @@ function writeExampleSuggestions(
                                   label: 'definition',
                                 }"
                               />
-                              <span class="spoken-text">
+                              <div class="spoken-copy">
+                                <p
+                                  class="passage sense-selectable"
+                                  [attr.data-definition-index]="index"
+                                >
                                 @for (part of highlightPassage(passage.text); track $index) {
                                 @if (part.matches.length > 1) {
                                   <button
@@ -780,26 +932,30 @@ function writeExampleSuggestions(
                                   <span [textContent]="part.text"></span>
                                 }
                               }
-                              </span>
-                            </p>
+                                </p>
+                                <ng-container [ngTemplateOutlet]="passageTranslations" />
+                              </div>
+                            </div>
                           }
+                        }
+                      </ng-template>
+                      <ng-template #passageTranslations>
+                        @if (passage.translations.length) {
+                          <ul class="equivalents">
+                            @for (translation of passage.translations; track $index) {
+                              <li>
+                                <app-reveal
+                                  [text]="translation.text"
+                                  [locked]="inPlay()"
+                                  (unveiled)="noteReveal(index)"
+                                />
+                              </li>
+                            }
+                          </ul>
                         }
                       </ng-template>
                       @let equivalent = equivalentText(definition);
                       @let meta = entries(definition.metadata);
-                      @if (passage.translations.length) {
-                        <ul class="equivalents">
-                          @for (translation of passage.translations; track $index) {
-                            <li>
-                              <app-reveal
-                                [text]="translation.text"
-                                [locked]="inPlay()"
-                                (unveiled)="noteReveal(index)"
-                              />
-                            </li>
-                          }
-                        </ul>
-                      }
                       @if (equivalent || meta.length) {
                         <ul class="sense-meta">
                           @if (equivalent) {
@@ -865,151 +1021,6 @@ function writeExampleSuggestions(
                       }
                     </div>
                   </div>
-                  <div class="item-actions">
-                    @if (passagePick(index, null); as pick) {
-                      <span class="lookup-actions">
-                        <button
-                          type="button"
-                          class="lookup-chip"
-                          aria-label="Add element"
-                          [disabled]="aiBusy()"
-                          (pointerdown)="confirmPassagePick($event, pick.text)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M5 12h14" />
-                            <path d="M12 5v14" />
-                          </svg>
-                          Add
-                        </button>
-                        <button
-                          type="button"
-                          class="lookup-chip"
-                          aria-label="Add element with AI"
-                          [disabled]="aiBusy()"
-                          [attr.aria-busy]="addingSelection() ? true : null"
-                          (pointerdown)="confirmPassagePick($event, pick.text, true)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                            />
-                          </svg>
-                          Ask AI
-                        </button>
-                      </span>
-                    } @else {
-                      @if (element().definitions.length > 1) {
-                        <span class="item-actions-move">
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Move definition up"
-                            title="Move definition up"
-                            [disabled]="inPlay() || aiBusy() || index === 0"
-                            (click)="moveDefinition(index, -1)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m18 15-6-6-6 6" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Move definition down"
-                            title="Move definition down"
-                            [disabled]="
-                              inPlay() || aiBusy() || index === element().definitions.length - 1
-                            "
-                            (click)="moveDefinition(index, 1)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m6 9 6 6 6-6" />
-                            </svg>
-                          </button>
-                        </span>
-                      }
-                      <span class="item-actions-main">
-                        @if (!inPlay() && reworkCount(definition); as reworks) {
-                          <span
-                            class="activity-stat"
-                            [attr.aria-label]="reworkLabel(reworks)"
-                            [attr.title]="reworkLabel(reworks)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                            </svg>
-                            <span>{{ reworks }}</span>
-                          </span>
-                        }
-                        @if (!inPlay() && revealCount(definition); as reveals) {
-                          <span
-                            class="activity-stat"
-                            [attr.aria-label]="revealLabel(reveals)"
-                            [attr.title]="revealLabel(reveals)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                              <circle cx="12" cy="12" r="3" />
-                            </svg>
-                            <span>{{ reveals }}</span>
-                          </span>
-                        }
-                        @if (!inPlay() && exerciseTotals(definition); as totals) {
-                          <button
-                            type="button"
-                            class="gem-gain"
-                            [attr.aria-label]="exerciseTotalsLabel(totals)"
-                            title="Exercises"
-                            (click)="openExerciseLog(index)"
-                          >
-                            @for (total of totals; track total.game) {
-                              <span class="gem-gain" [attr.data-game]="total.game">
-                                <app-gem-icon class="gem-gain-stone" [game]="total.game" />
-                                <span class="gem-gain-count">x{{ total.gems }}</span>
-                              </span>
-                            }
-                          </button>
-                        }
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          [attr.aria-label]="
-                            definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                          "
-                          [attr.title]="
-                            definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                          "
-                          [disabled]="inPlay() || aiBusy()"
-                          (click)="openDefinition(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                          </svg>
-                          @if (element().mode === 1 && !definition.equivalentId) {
-                            <span class="notify-mode" aria-hidden="true">
-                              <app-mode-icon [mode]="1" />
-                            </span>
-                          }
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn danger"
-                          aria-label="Delete definition"
-                          title="Delete definition"
-                          [disabled]="inPlay() || aiBusy()"
-                          (click)="askDeleteDefinition(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M3 6h18" />
-                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                            <path d="M10 11v6" />
-                            <path d="M14 11v6" />
-                          </svg>
-                        </button>
-                      </span>
-                    }
-                  </div>
 
                   @if (definition.examples.length) {
                     <section class="group">
@@ -1027,11 +1038,7 @@ function writeExampleSuggestions(
                             >
                               @let passage = parsePassage(example.text);
                               @if (passage.text) {
-                                <p
-                                  class="passage sense-selectable spoken"
-                                  [attr.data-definition-index]="index"
-                                  [attr.data-example-index]="exampleIndex"
-                                >
+                                <div class="spoken">
                                   <ng-container
                                     [ngTemplateOutlet]="hearButton"
                                     [ngTemplateOutletContext]="{
@@ -1040,8 +1047,13 @@ function writeExampleSuggestions(
                                       label: 'example',
                                     }"
                                   />
-                                  <span class="spoken-text">
-                                    @for (part of highlightPassage(passage.text); track $index) {
+                                  <div class="spoken-copy">
+                                    <p
+                                      class="passage sense-selectable"
+                                      [attr.data-definition-index]="index"
+                                      [attr.data-example-index]="exampleIndex"
+                                    >
+                                      @for (part of highlightPassage(passage.text); track $index) {
                                     @if (part.matches.length > 1) {
                                       <button
                                         type="button"
@@ -1068,21 +1080,22 @@ function writeExampleSuggestions(
                                       <span [textContent]="part.text"></span>
                                     }
                                   }
-                                  </span>
-                                </p>
-                              }
-                              @if (passage.translations.length) {
-                                <ul class="equivalents">
-                                  @for (translation of passage.translations; track $index) {
-                                    <li>
-                                      <app-reveal
-                                        [text]="translation.text"
-                                        [locked]="inPlay()"
-                                        (unveiled)="noteReveal(index)"
-                                      />
-                                    </li>
-                                  }
-                                </ul>
+                                    </p>
+                                    @if (passage.translations.length) {
+                                      <ul class="equivalents">
+                                        @for (translation of passage.translations; track $index) {
+                                          <li>
+                                            <app-reveal
+                                              [text]="translation.text"
+                                              [locked]="inPlay()"
+                                              (unveiled)="noteReveal(index)"
+                                            />
+                                          </li>
+                                        }
+                                      </ul>
+                                    }
+                                  </div>
+                                </div>
                               }
                               @if (entries(example.metadata); as meta) {
                                 @if (meta.length) {
@@ -4212,11 +4225,12 @@ function writeExampleSuggestions(
       max-width: 100%;
     }
 
-    .spoken > .spoken-text,
-    .spoken > .definition-cue {
+    .spoken > .spoken-copy {
       flex: 1;
       min-width: 0;
-      width: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
     }
 
     .spoken > .icon-btn.hear-inline {
@@ -4228,6 +4242,59 @@ function writeExampleSuggestions(
 
     .example-quote > .spoken > .icon-btn.hear-inline {
       margin-block-start: calc((1.5em - 1.5rem) / 2);
+    }
+
+    .sense:has(.sense-copy > .spoken > .icon-btn.hear-inline) {
+      --phrase-indent: calc(1.5rem + 0.15rem);
+    }
+
+    .sense > .group > .forms {
+      margin-inline-start: var(--phrase-indent, 0);
+    }
+
+    .sense-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.35rem 0.5rem;
+      min-width: 0;
+      margin: -0.8rem -0.5rem 0;
+      padding: 0.2rem 0.15rem 0.35rem 0.7rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sense-head h3 {
+      margin: 0;
+      font-size: 0.82rem;
+      font-weight: 650;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--text);
+    }
+
+    .sense-head .item-actions {
+      flex: none;
+      margin-inline-start: auto;
+    }
+
+    .example-quote {
+      --phrase-indent: 0;
+    }
+
+    .example-quote:has(> .spoken > .icon-btn.hear-inline) {
+      --phrase-indent: calc(1.5rem + 0.15rem);
+    }
+
+    .example-quote > .pills {
+      margin-inline-start: var(--phrase-indent, 0);
+    }
+
+    .saved-example:has(.example-quote) > .item-actions {
+      margin-inline-start: calc(3px + 0.85rem);
+    }
+
+    .saved-example:has(.example-quote > .spoken > .icon-btn.hear-inline) > .item-actions {
+      margin-inline-start: calc(3px + 0.85rem + 1.5rem + 0.15rem);
     }
 
     .notify-mode {
@@ -4481,7 +4548,7 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       gap: 0.55rem;
-      padding: 0.8rem 0.9rem;
+      padding: 0.8rem 0.5rem;
       border: 1px solid var(--border);
       border-radius: var(--radius);
       background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
@@ -4498,7 +4565,8 @@ function writeExampleSuggestions(
       flex-wrap: wrap;
       align-items: center;
       gap: 0.35rem;
-      margin: 0;
+      margin-block: 0;
+      margin-inline: var(--phrase-indent, 0) 0;
       padding: 0;
       list-style: none;
     }
@@ -4676,12 +4744,11 @@ function writeExampleSuggestions(
     }
 
     .linguagem-highlighted--current {
-      text-decoration: none;
-      border-radius: 0.18em;
-      padding: 0 0.12em;
-      background: color-mix(in srgb, var(--score-color, var(--accent)) 32%, transparent);
-      box-decoration-break: clone;
-      -webkit-box-decoration-break: clone;
+      text-decoration-line: underline;
+      text-decoration-color: var(--text);
+      background: transparent;
+      border-radius: 0;
+      padding: 0;
     }
 
     .collision {
@@ -4734,6 +4801,11 @@ function writeExampleSuggestions(
       background: var(--surface-2);
       color: var(--text-muted);
       font-size: 0.8125rem;
+    }
+
+    .form-chip {
+      box-sizing: border-box;
+      border: 1px solid color-mix(in srgb, var(--text) 55%, transparent);
     }
 
     .pills li.colored {
