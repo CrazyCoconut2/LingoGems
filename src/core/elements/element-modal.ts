@@ -631,18 +631,22 @@ function sameDefinitionOrder(
           @if (headerEquivalents(); as equivalents) {
             @if (equivalents.length) {
               <p class="equivalents" [attr.aria-hidden]="headerTranslationsLocked() ? true : null">
-                @for (text of equivalents; track $index) {
+                @for (item of equivalents; track item.id) {
                   @if ($index > 0) {
                     <span class="sep" aria-hidden="true">·</span>
                   }
                   @if (translationGame()) {
-                    <span>{{ text }}</span>
+                    <span
+                      [class.play-blur]="!equivalentEarned(item.id)"
+                      [attr.aria-hidden]="equivalentEarned(item.id) ? null : true"
+                      >{{ item.text }}</span
+                    >
                   } @else {
                     <app-reveal
-                      [text]="text"
+                      [text]="item.text"
                       [locked]="headerTranslationsLocked()"
-                      [open]="equivalentUnveiled(text)"
-                      (unveiled)="unveilEquivalent(text)"
+                      [open]="equivalentUnveiled(item.text) || equivalentEarned(item.id)"
+                      (unveiled)="unveilEquivalent(item.text)"
                     />
                   }
                 }
@@ -817,22 +821,21 @@ function sameDefinitionOrder(
                         </span>
                       } @else {
                         <span class="item-actions-main">
-                          @if (!inPlay()) {
-                            <button
-                              type="button"
-                              class="icon-btn"
-                              aria-label="Stats"
-                              title="Stats"
-                              (click)="openExerciseLog(index)"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M3 3v16a2 2 0 0 0 2 2h16" />
-                                <path d="M18 17V9" />
-                                <path d="M13 17V5" />
-                                <path d="M8 17v-3" />
-                              </svg>
-                            </button>
-                          }
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Stats"
+                            title="Stats"
+                            [disabled]="inPlay()"
+                            (click)="openExerciseLog(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+                              <path d="M18 17V9" />
+                              <path d="M13 17V5" />
+                              <path d="M8 17v-3" />
+                            </svg>
+                          </button>
                           <button
                             type="button"
                             class="icon-btn"
@@ -3769,10 +3772,6 @@ function sameDefinitionOrder(
       animation: gem-scintillate 1s linear infinite;
     }
 
-    .definition-cue-text {
-      animation: blur-scintillate 1s linear infinite;
-    }
-
     .definition-cue {
       display: block;
       width: 100%;
@@ -3788,7 +3787,7 @@ function sameDefinitionOrder(
     }
 
     .definition-cue-text {
-      color: var(--scintilla);
+      color: var(--text-muted);
       white-space: pre-wrap;
       filter: blur(0.55em);
       user-select: none;
@@ -5771,6 +5770,7 @@ function sameDefinitionOrder(
     }
 
     .play-blur {
+      color: var(--text-muted);
       filter: blur(0.55em);
       pointer-events: none;
       user-select: none;
@@ -6397,12 +6397,13 @@ export class ElementModal {
     return displayTitle(text, this.element().language);
   }
 
-  headerEquivalents(): string[] {
-    const element = this.element();
-    if (!this.translationGame()) return element.equivalents.map((item) => item.text);
-    return element.equivalents
-      .filter((item) => this.equivalentSolved(item.id))
-      .map((item) => item.text);
+  headerEquivalents(): { id: string; text: string }[] {
+    return this.element().equivalents.map((item) => ({ id: item.id, text: item.text }));
+  }
+
+  /** Clear in the header once this equivalent has been answered in the translation game. */
+  equivalentEarned(id: string): boolean {
+    return this.equivalentSolved(id);
   }
 
   removeEquivalent(id: string): void {

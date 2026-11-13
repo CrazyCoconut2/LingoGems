@@ -31,8 +31,8 @@ import {
       cursor: pointer;
       user-select: none;
       vertical-align: baseline;
-      color: var(--scintilla, var(--text-muted));
-      animation: reveal-scintillate 1s linear infinite;
+      color: var(--text-muted);
+      transition: filter 0.12s ease;
     }
 
     :host(.shown) {
@@ -40,35 +40,11 @@ import {
       cursor: inherit;
       user-select: text;
       color: inherit;
-      animation: none;
     }
 
     :host(.locked) {
       pointer-events: none;
       cursor: default;
-      animation: none;
-    }
-
-    @keyframes reveal-scintillate {
-      0%,
-      62%,
-      100% {
-        color: var(--scintilla, var(--text-muted));
-        filter: blur(0.55em);
-      }
-
-      74%,
-      86% {
-        color: #fff;
-        filter: blur(0.55em) drop-shadow(0 0 2px #fff)
-          drop-shadow(0 0 8px var(--scintilla-hot, #fff));
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      :host {
-        animation: none;
-      }
     }
   `,
 })
