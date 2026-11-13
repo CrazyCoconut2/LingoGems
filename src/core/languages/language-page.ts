@@ -2,7 +2,6 @@ import {
   Component,
   computed,
   DestroyRef,
-  effect,
   HostListener,
   inject,
   signal,
@@ -89,7 +88,7 @@ const MOVE_SLOP_PX = 10;
               autocomplete="off"
               [value]="query()"
               [attr.maxlength]="maxSearchLength"
-              [disabled]="playing() || !code()"
+              [disabled]="!code()"
               (input)="onSearch(inputValue($event))"
               placeholder="Search lemmas or forms…"
               aria-label="Search lemmas or forms"
@@ -101,7 +100,7 @@ const MOVE_SLOP_PX = 10;
                   class="search-add"
                   [attr.aria-label]="askLabel()"
                   [attr.title]="askLabel()"
-                  [disabled]="asking() || playing()"
+                  [disabled]="asking()"
                   [attr.aria-busy]="asking() ? true : null"
                   (click)="askFromSearch()"
                 >
@@ -115,7 +114,7 @@ const MOVE_SLOP_PX = 10;
                   type="submit"
                   class="search-add"
                   aria-label="Add entry"
-                  [disabled]="asking() || playing()"
+                  [disabled]="asking()"
                 >
                   <svg viewBox="0 0 24 24">
                     <path d="M5 12h14" />
@@ -131,7 +130,7 @@ const MOVE_SLOP_PX = 10;
               type="button"
               class="toolbar-icon-btn"
               [class.active]="discoverOpen()"
-              [disabled]="playing() || !code()"
+              [disabled]="!code()"
               aria-label="Discover"
               title="Discover"
               (click)="openDiscover($event)"
@@ -164,7 +163,7 @@ const MOVE_SLOP_PX = 10;
                 class="toolbar-icon-btn"
                 [class.active]="sortOpen() || sortActive()"
                 [attr.aria-expanded]="sortOpen()"
-                [disabled]="playing() || !code()"
+                [disabled]="!code()"
                 aria-label="Sort collection"
                 title="Sort"
                 (click)="toggleSort($event)"
@@ -176,7 +175,7 @@ const MOVE_SLOP_PX = 10;
                   <path d="M17 20V4" />
                 </svg>
               </button>
-              @if (sortOpen() && !playing()) {
+              @if (sortOpen()) {
                 <div
                   class="toolbar-popover"
                   role="listbox"
@@ -305,7 +304,6 @@ const MOVE_SLOP_PX = 10;
                 <button
                   type="button"
                   class="element"
-                  [class.playing]="playing()"
                   [class.selected]="isSelected(element.id)"
                   [class.colored]="!!element.color"
                   [style.--score-color]="element.color || null"
@@ -319,27 +317,17 @@ const MOVE_SLOP_PX = 10;
                   (pointerleave)="onCardPointerUp()"
                 >
                   <div class="element-body">
-                    @if (playing()) {
-                      @if (element.mode; as mode) {
-                        <span class="play-mark">
-                          <span class="play-icon" [attr.aria-label]="modeLabel(mode)">
-                            <app-mode-icon [mode]="mode" />
-                          </span>
-                        </span>
-                      }
-                    } @else {
-                      <span class="title-line">
-                        <span class="title">
-                          @for (part of highlight(element.title); track $index) {
-                            @if (part.hit) {
-                              <mark class="hit">{{ part.text }}</mark>
-                            } @else {
-                              <span>{{ part.text }}</span>
-                            }
+                    <span class="title-line">
+                      <span class="title">
+                        @for (part of highlight(element.title); track $index) {
+                          @if (part.hit) {
+                            <mark class="hit">{{ part.text }}</mark>
+                          } @else {
+                            <span>{{ part.text }}</span>
                           }
-                        </span>
+                        }
                       </span>
-                    }
+                    </span>
                   </div>
                   @let activity = activityTotals(element);
                   <div class="card-icons">
@@ -394,6 +382,19 @@ const MOVE_SLOP_PX = 10;
                     </span>
                   </div>
                 </button>
+                @if (!selecting() && element.definitions.length) {
+                  @if (element.mode; as mode) {
+                    <button
+                      type="button"
+                      class="drill"
+                      [attr.aria-label]="'Drill ' + modeLabel(mode)"
+                      [attr.title]="'Drill ' + modeLabel(mode)"
+                      (click)="drillElement(element.id)"
+                    >
+                      <app-mode-icon [mode]="mode" />
+                    </button>
+                  }
+                }
               </li>
             }
           </ul>
@@ -759,7 +760,7 @@ const MOVE_SLOP_PX = 10;
           [collection]="elements()"
           [colors]="colorOptions()"
           [canGoBack]="canGoBack()"
-          [playing]="playing() && element.id === playId()"
+          [playing]="element.id === playId()"
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
           (deleted)="onElementDeleted()"
@@ -786,29 +787,6 @@ const MOVE_SLOP_PX = 10;
               <path d="M13 17V5" />
               <path d="M8 17v-3" />
             </svg>
-          </button>
-          <button
-            type="button"
-            class="app-bar-btn mode"
-            [class.active]="playing()"
-            [disabled]="!code()"
-            [attr.aria-pressed]="playing()"
-            [attr.aria-label]="playing() ? 'Playing, switch to working' : 'Working, switch to play'"
-            [attr.title]="playing() ? 'Playing, switch to working' : 'Working, switch to play'"
-            (click)="togglePlay()"
-          >
-            @if (playing()) {
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <polygon points="8 5 19 12 8 19 8 5" />
-              </svg>
-            } @else {
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"
-                />
-                <path d="m15 5 4 4" />
-              </svg>
-            }
           </button>
           <button
             type="button"
@@ -897,12 +875,6 @@ const MOVE_SLOP_PX = 10;
       cursor: pointer;
     }
 
-    .app-bar-btn.mode {
-      width: 3.25rem;
-      height: 3.25rem;
-      margin-bottom: 0.35rem;
-    }
-
     .app-bar-btn:hover:not(:disabled) {
       color: var(--text);
       background: rgba(139, 144, 165, 0.16);
@@ -926,11 +898,6 @@ const MOVE_SLOP_PX = 10;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
-    }
-
-    .app-bar-btn.mode svg {
-      width: 1.65rem;
-      height: 1.65rem;
     }
 
     .entries-toolbar {
@@ -1340,6 +1307,7 @@ const MOVE_SLOP_PX = 10;
     }
 
     .elements > li {
+      position: relative;
       display: flex;
       min-width: 0;
     }
@@ -1487,35 +1455,33 @@ const MOVE_SLOP_PX = 10;
       letter-spacing: -0.02em;
     }
 
-    .element.playing .element-body {
-      align-items: center;
+    .elements > li:has(.drill) .card-icons {
+      padding-inline-end: 2.4rem;
     }
 
-    .play-mark {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.15rem;
-      margin: 0;
+    .drill {
+      position: absolute;
+      z-index: 1;
+      right: 0.4rem;
+      bottom: 0.38rem;
+      display: grid;
+      place-items: center;
+      width: 1.85rem;
+      height: 1.85rem;
       padding: 0;
       border: 0;
-      background: transparent;
-      color: inherit;
-      line-height: 1;
+      border-radius: 0.45rem;
+      background: color-mix(in srgb, var(--text) 8%, transparent);
       cursor: pointer;
     }
 
-    .play-icon {
-      display: grid;
-      place-items: center;
-      width: 2.15rem;
-      height: 2.15rem;
-      color: var(--text);
+    .drill:hover {
+      background: color-mix(in srgb, var(--text) 14%, transparent);
     }
 
-    .play-icon app-mode-icon {
-      width: 100%;
-      height: 100%;
+    .drill app-mode-icon {
+      width: 1.25rem;
+      height: 1.25rem;
     }
 
     .skeleton {
@@ -2071,10 +2037,7 @@ export class LanguagePage {
   readonly filtersOpen = signal(false);
   readonly settingsOpen = signal(false);
   readonly statsOpen = signal(false);
-  readonly playing = signal(false);
   readonly playId = signal('');
-  readonly playOrder = signal<readonly string[]>([]);
-  readonly dismissed = signal<ReadonlySet<string>>(new Set());
   readonly expanded = signal<FilterSection | null>('definitions');
   readonly elementId = signal('');
   readonly trail = signal<string[]>([]);
@@ -2112,21 +2075,7 @@ export class LanguagePage {
     });
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
   });
-  readonly playable = computed(() => this.visible().filter((element) => element.mode !== null));
-  readonly shown = computed(() => {
-    const visible = this.visible();
-    if (!this.playing()) return visible;
-    const dismissed = this.dismissed();
-    const rank = new Map(this.playOrder().map((id, index) => [id, index]));
-    return this.playable()
-      .filter((element) => !dismissed.has(element.id))
-      .slice()
-      .sort((left, right) => {
-        const leftRank = rank.get(left.id) ?? Number.MAX_SAFE_INTEGER;
-        const rightRank = rank.get(right.id) ?? Number.MAX_SAFE_INTEGER;
-        return leftRank - rightRank;
-      });
-  });
+  readonly shown = computed(() => this.visible());
   readonly countLabel = computed(() => {
     if (this.selecting()) {
       const count = this.selectedIds().size;
@@ -2144,8 +2093,6 @@ export class LanguagePage {
   readonly emptyMessage = computed(() => {
     if (!this.code()) return 'Select a language to continue.';
     if (!this.elements().length) return 'No elements yet.';
-    if (this.playing() && this.playable().length > 0) return 'Nothing left this round.';
-    if (this.playing() && this.visible().length > 0) return 'No elements ready for games.';
     return 'No matching elements.';
   });
 
@@ -2157,17 +2104,6 @@ export class LanguagePage {
     });
     void this.loadCatalog();
     void this.load(ensureSelectedLanguage() ?? '');
-    effect(() => {
-      if (!this.playing()) return;
-      const dismissed = this.dismissed();
-      const order = this.playOrder();
-      const known = new Set([...order, ...dismissed]);
-      const newcomers = this.playable()
-        .map((element) => element.id)
-        .filter((id) => !known.has(id));
-      if (newcomers.length === 0) return;
-      this.playOrder.set([...order, ...shuffleIds(newcomers)]);
-    });
   }
 
   @HostListener('document:click', ['$event'])
@@ -2213,15 +2149,20 @@ export class LanguagePage {
 
   openElement(id: string): void {
     if (!id) return;
+    if (this.playId() !== id) this.playId.set('');
     this.trail.set([id]);
     this.showElement(id);
   }
 
   openCard(id: string): void {
-    if (this.playing()) {
-      this.playCard(id);
-      return;
-    }
+    this.recordClick(id);
+    this.openElement(id);
+  }
+
+  drillElement(id: string): void {
+    const element = this.elements().find((item) => item.id === id);
+    if (!element || element.mode === null || element.definitions.length === 0) return;
+    this.playId.set(id);
     this.recordClick(id);
     this.openElement(id);
   }
@@ -2243,7 +2184,6 @@ export class LanguagePage {
   }
 
   onCardContextMenu(event: Event, id: string): void {
-    if (this.playing()) return;
     event.preventDefault();
     event.stopPropagation();
     if (this.selecting()) {
@@ -2254,7 +2194,7 @@ export class LanguagePage {
   }
 
   onCardPointerDown(event: PointerEvent, id: string): void {
-    if (this.playing() || this.selecting() || this.selectionBusy()) return;
+    if (this.selecting() || this.selectionBusy()) return;
     if (event.pointerType === 'mouse' || event.button !== 0) return;
     this.clearPressTimer();
     this.pressStartX = event.clientX;
@@ -2375,7 +2315,7 @@ export class LanguagePage {
   }
 
   private beginSelection(id: string): void {
-    if (this.playing() || this.selectionBusy() || !id) return;
+    if (this.selectionBusy() || !id) return;
     this.swallowClickUntil = Date.now() + 400;
     this.selecting.set(true);
     this.selectedIds.update((current) => {
@@ -2631,7 +2571,6 @@ export class LanguagePage {
   }
 
   onSearch(value: string): void {
-    if (this.playing()) return;
     const query = value.slice(0, ELEMENT_SEARCH_MAX_LENGTH);
     this.query.set(query);
     this.lookupError.set('');
@@ -2643,7 +2582,7 @@ export class LanguagePage {
     event.preventDefault();
     const title = this.query().trim();
     const code = this.code();
-    if (!title || !code || this.asking() || this.playing()) return;
+    if (!title || !code || this.asking()) return;
     if (this.searchTimer) clearTimeout(this.searchTimer);
     const created = await addElement(code, title);
     this.elements.set(await readElements(code));
@@ -2655,7 +2594,7 @@ export class LanguagePage {
   async askFromSearch(): Promise<void> {
     const selected = this.query().trim();
     const code = this.code();
-    if (!selected || !code || this.asking() || this.playing()) return;
+    if (!selected || !code || this.asking()) return;
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.asking.set(true);
     this.lookupError.set('');
@@ -2697,57 +2636,21 @@ export class LanguagePage {
     this.search.set(elementPrefixSearch(''));
   }
 
-  playCard(id: string, event?: Event): void {
-    event?.stopPropagation();
-    if (!this.playing() || !id) return;
-    this.dismissCard(id);
-    const element = this.elements().find((item) => item.id === id);
-    const playable = !!element && element.mode !== null && element.definitions.length > 0;
-    this.playId.set(playable ? id : '');
-    this.openElement(id);
-  }
-
-  dismissCard(id: string): void {
-    if (!this.playing() || !id || this.dismissed().has(id)) return;
-    const dismissed = new Set(this.dismissed());
-    dismissed.add(id);
-    this.dismissed.set(dismissed);
-    this.playOrder.set(shuffleIds(this.playOrder().filter((item) => item !== id)));
-  }
-
-  togglePlay(): void {
-    if (!this.code()) return;
-    if (this.playing()) {
-      this.playing.set(false);
-      this.playOrder.set([]);
-      this.dismissed.set(new Set());
-      this.playId.set('');
-      return;
-    }
-    this.commitSearch();
-    this.clearSelection();
-    this.sortOpen.set(false);
-    if (this.discoverOpen()) this.closeDiscover();
-    this.dismissed.set(new Set());
-    this.playOrder.set(shuffleIds(this.playable().map((element) => element.id)));
-    this.playing.set(true);
-  }
-
   toggleSort(event: Event): void {
     event.stopPropagation();
-    if (this.playing() || !this.code()) return;
+    if (!this.code()) return;
     this.sortOpen.update((open) => !open);
   }
 
   chooseSort(sort: ElementSort): void {
-    if (this.playing() || !this.code()) return;
+    if (!this.code()) return;
     this.sortOpen.set(false);
     this.sort.set(this.sort() === sort ? 'none' : sort);
   }
 
   openDiscover(event: Event): void {
     event.stopPropagation();
-    if (this.playing() || !this.code()) return;
+    if (!this.code()) return;
     this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.settingsOpen()) this.closeSettings();
@@ -2985,9 +2888,6 @@ export class LanguagePage {
   private async load(language: string): Promise<void> {
     const seq = ++this.loadId;
     const code = language.trim().toLowerCase();
-    this.playing.set(false);
-    this.playOrder.set([]);
-    this.dismissed.set(new Set());
     this.playId.set('');
     this.clearSelection();
     this.sortOpen.set(false);
@@ -3069,17 +2969,6 @@ export class LanguagePage {
     }
     this.search.set(elementPrefixSearch(this.query()));
   }
-}
-
-function shuffleIds(ids: readonly string[]): string[] {
-  const next = ids.slice();
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(Math.random() * (index + 1));
-    const current = next[index] ?? '';
-    next[index] = next[swap] ?? '';
-    next[swap] = current;
-  }
-  return next;
 }
 
 function hasExample(element: StoredElement, example: string): boolean {

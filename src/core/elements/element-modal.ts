@@ -992,7 +992,10 @@ function sameDefinitionOrder(
                                   "
                                   (click)="openEquivalentPrompt(index)"
                                 >
-                                  <app-mode-icon [mode]="1" />
+                                  <app-mode-icon
+                                    [mode]="1"
+                                    [class.scintillate]="!equivalentSubmitted(index)"
+                                  />
                                   <span
                                     class="guess-answer"
                                     [class.play-blur]="!equivalentSubmitted(index)"
@@ -3761,8 +3764,9 @@ function sameDefinitionOrder(
       animation: icon-scintillate 1s linear infinite;
     }
 
-    .guess-open.needs-click svg {
-      animation: icon-scintillate 1s linear infinite;
+    .guess-open.needs-click app-mode-icon {
+      filter: drop-shadow(0 0 3px rgba(var(--scintilla-rgb), 0.55));
+      animation: gem-scintillate 1s linear infinite;
     }
 
     .definition-cue-text {
@@ -3836,7 +3840,7 @@ function sameDefinitionOrder(
     @media (prefers-reduced-motion: reduce) {
       .header-actions .mode-btn.play-focus app-mode-icon,
       .icon-btn.play-focus svg,
-      .guess-open.needs-click svg,
+      .guess-open.needs-click app-mode-icon,
       .definition-cue-text {
         animation: none;
       }
