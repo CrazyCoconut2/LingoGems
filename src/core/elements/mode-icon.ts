@@ -27,7 +27,7 @@ const MODE_GEM: Record<ElementMode, GemFace> = {
     lowerRight: '#8e1c2e',
     bottom: '#6a1422',
     face: '#e44550',
-    ink: '#2c0c12',
+    ink: '#fff4f2',
     line: '#4a1018',
   },
   2: {
@@ -40,7 +40,7 @@ const MODE_GEM: Record<ElementMode, GemFace> = {
     lowerRight: '#8a4010',
     bottom: '#642c08',
     face: '#e88832',
-    ink: '#2c1408',
+    ink: '#fff6ee',
     line: '#4a240c',
   },
   3: {
@@ -53,7 +53,7 @@ const MODE_GEM: Record<ElementMode, GemFace> = {
     lowerRight: '#146428',
     bottom: '#0c4418',
     face: '#34b848',
-    ink: '#062410',
+    ink: '#f4fff3',
     line: '#0c3814',
   },
 };
@@ -101,7 +101,7 @@ const MODE_GEM: Record<ElementMode, GemFace> = {
       <g
         class="mark"
         fill="none"
-        stroke-width="1.7"
+        stroke-width="2.4"
         stroke-linecap="round"
         stroke-linejoin="round"
         transform="translate(50 50) scale(1.45) translate(-12 -12)"

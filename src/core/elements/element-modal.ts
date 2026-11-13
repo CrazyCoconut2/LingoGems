@@ -1015,14 +1015,7 @@ function sameDefinitionOrder(
                                   "
                                   (click)="openEquivalentPrompt(index)"
                                 >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="m5 8 6 6" />
-                                    <path d="m4 14 6-6 2-3" />
-                                    <path d="M2 5h12" />
-                                    <path d="M7 2h1" />
-                                    <path d="m22 22-5-10-5 10" />
-                                    <path d="M14 18h6" />
-                                  </svg>
+                                  <app-mode-icon [mode]="1" />
                                   <span
                                     class="guess-answer"
                                     [class.play-blur]="!equivalentSubmitted(index)"
@@ -1031,14 +1024,7 @@ function sameDefinitionOrder(
                                   >
                                 </button>
                               } @else {
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="m5 8 6 6" />
-                                  <path d="m4 14 6-6 2-3" />
-                                  <path d="M2 5h12" />
-                                  <path d="M7 2h1" />
-                                  <path d="m22 22-5-10-5 10" />
-                                  <path d="M14 18h6" />
-                                </svg>
+                                <app-mode-icon [mode]="1" />
                                 <app-reveal
                                   [text]="equivalent"
                                   [locked]="inPlay()"
@@ -4429,7 +4415,6 @@ function sameDefinitionOrder(
     h3.section-title svg,
     .lookup-chip svg,
     .equivalent-prompt svg,
-    .sense-equivalent svg,
     .forms-toggle svg,
     .equivalent-result svg {
       fill: none;
@@ -4661,11 +4646,20 @@ function sameDefinitionOrder(
     }
 
     .sense-meta li.sense-equivalent {
-      gap: 0.28rem;
-      border-color: rgba(var(--accent-rgb), 0.45);
-      background: rgba(var(--accent-rgb), 0.12);
-      color: var(--accent-text);
+      gap: 0.35rem;
+      height: auto;
+      min-height: 1.7rem;
+      padding-block: 0.12rem;
+      border-color: color-mix(in srgb, var(--gem-translation) 58%, transparent);
+      background: color-mix(in srgb, var(--gem-translation) 16%, transparent);
+      color: color-mix(in srgb, var(--gem-translation) 42%, white);
       font-weight: 650;
+    }
+
+    .sense-equivalent app-mode-icon {
+      width: 1.55rem;
+      height: 1.55rem;
+      flex: none;
     }
 
     .sense-meta li.sense-equivalent app-reveal,
@@ -4691,10 +4685,10 @@ function sameDefinitionOrder(
       height: 1.7rem;
       margin: 0;
       padding: 0 0.5rem;
-      border: 1px solid var(--accent);
+      border: 1px solid color-mix(in srgb, var(--gem-translation) 70%, transparent);
       border-radius: 0.35rem;
-      background: rgba(var(--accent-rgb), 0.16);
-      color: var(--accent);
+      background: color-mix(in srgb, var(--gem-translation) 16%, transparent);
+      color: color-mix(in srgb, var(--gem-translation) 42%, white);
       font: inherit;
       font-size: 0.72rem;
       font-weight: 650;
@@ -4703,7 +4697,7 @@ function sameDefinitionOrder(
     }
 
     .guess-open:hover {
-      background: rgba(var(--accent-rgb), 0.28);
+      background: color-mix(in srgb, var(--gem-translation) 26%, transparent);
     }
 
     .guess-open.needs-click {
@@ -4734,12 +4728,6 @@ function sameDefinitionOrder(
 
     .equivalent-prompt .play-blur {
       color: var(--text);
-    }
-
-    .sense-equivalent svg {
-      width: 0.95rem;
-      height: 0.95rem;
-      flex: none;
     }
 
     .sense-meta li.colored,
