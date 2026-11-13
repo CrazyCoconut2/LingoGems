@@ -578,30 +578,6 @@ function writeExampleSuggestions(
               </div>
             }
             <div class="title-end">
-              @let mode = element().mode;
-              <button
-                type="button"
-                class="mode-btn"
-                [class.play-focus]="translationGame() || exampleGame() || definitionCue()"
-                [attr.aria-label]="inPlay() ? 'What to do' : mode ? modeLabel(mode) : 'Set mode'"
-                [attr.title]="inPlay() ? 'What to do' : mode ? modeLabel(mode) : 'Set mode'"
-                [attr.aria-expanded]="inPlay() ? helpOpen() : modeOpen()"
-                [disabled]="busy()"
-                (click)="openMode()"
-              >
-                @if (mode) {
-                  <app-mode-icon
-                    [mode]="mode"
-                    [class.scintillate]="translationGame() || exampleGame() || definitionCue()"
-                  />
-                } @else {
-                  <svg class="empty-stone" viewBox="0 0 100 100" aria-hidden="true">
-                    <polygon
-                      points="32.4,7.5 67.6,7.5 92.5,32.4 92.5,67.6 67.6,92.5 32.4,92.5 7.5,67.6 7.5,32.4"
-                    />
-                  </svg>
-                }
-              </button>
               <button
                 #closeButton
                 type="button"
@@ -638,6 +614,30 @@ function writeExampleSuggestions(
             }
           }
           <div class="header-actions">
+            @let mode = element().mode;
+            <button
+              type="button"
+              class="mode-btn"
+              [class.play-focus]="translationGame() || exampleGame() || definitionCue()"
+              [attr.aria-label]="inPlay() ? 'What to do' : mode ? modeLabel(mode) : 'Set mode'"
+              [attr.title]="inPlay() ? 'What to do' : mode ? modeLabel(mode) : 'Set mode'"
+              [attr.aria-expanded]="inPlay() ? helpOpen() : modeOpen()"
+              [disabled]="busy()"
+              (click)="openMode()"
+            >
+              @if (mode) {
+                <app-mode-icon
+                  [mode]="mode"
+                  [class.scintillate]="translationGame() || exampleGame() || definitionCue()"
+                />
+              } @else {
+                <svg class="empty-stone" viewBox="0 0 100 100" aria-hidden="true">
+                  <polygon
+                    points="32.4,7.5 67.6,7.5 92.5,32.4 92.5,67.6 67.6,92.5 32.4,92.5 7.5,67.6 7.5,32.4"
+                  />
+                </svg>
+              }
+            </button>
             <button
               type="button"
               class="icon-btn"
@@ -3668,15 +3668,16 @@ function writeExampleSuggestions(
       flex: none;
     }
 
-    .title-end .mode-btn {
+    .header-actions .mode-btn {
       width: 2rem;
       height: 2rem;
+      margin-inline-end: 0.15rem;
       border: 1px solid var(--card-border);
       border-radius: 999px;
     }
 
-    .title-end .mode-btn app-mode-icon,
-    .title-end .mode-btn .empty-stone {
+    .header-actions .mode-btn app-mode-icon,
+    .header-actions .mode-btn .empty-stone {
       width: 1.7rem;
       height: 1.7rem;
     }
@@ -3711,8 +3712,8 @@ function writeExampleSuggestions(
       --scintilla-hot: #b8f5bc;
     }
 
-    .title-end .mode-btn.play-focus,
-    .title-end .mode-btn.play-focus:disabled {
+    .header-actions .mode-btn.play-focus,
+    .header-actions .mode-btn.play-focus:disabled {
       opacity: 1;
       color: var(--scintilla);
       border-color: rgba(var(--scintilla-rgb), 0.78);
@@ -3721,7 +3722,7 @@ function writeExampleSuggestions(
       cursor: pointer;
     }
 
-    .title-end .mode-btn.play-focus app-mode-icon {
+    .header-actions .mode-btn.play-focus app-mode-icon {
       filter: drop-shadow(0 0 3px rgba(var(--scintilla-rgb), 0.55));
       animation: gem-scintillate 1s linear infinite;
     }
@@ -3813,7 +3814,7 @@ function writeExampleSuggestions(
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .title-end .mode-btn.play-focus app-mode-icon,
+      .header-actions .mode-btn.play-focus app-mode-icon,
       .icon-btn.play-focus svg,
       .guess-open.needs-click svg,
       .definition-cue-text {
