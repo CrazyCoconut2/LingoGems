@@ -289,9 +289,11 @@ const MOVE_SLOP_PX = 10;
             @for (item of skeletons; track item) {
               <li>
                 <div class="element skeleton">
-                  <span class="bone bone-side"></span>
-                  <div class="element-body">
-                    <span class="bone bone-title"></span>
+                  <div class="card-face">
+                    <div class="card-top">
+                      <span class="bone bone-side"></span>
+                      <span class="bone bone-title"></span>
+                    </div>
                   </div>
                 </div>
               </li>
@@ -317,45 +319,23 @@ const MOVE_SLOP_PX = 10;
                   (pointerleave)="onCardPointerUp()"
                 >
                 @let activity = activityTotals(element);
-                <div class="card-icons">
-                  <span
-                    class="stat"
-                    [class.zero]="activity.opened === 0"
-                    [attr.aria-label]="openedLabel(activity.opened)"
-                    [attr.title]="openedLabel(activity.opened)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
-                      />
-                    </svg>
-                    <span>{{ activity.opened }}</span>
-                  </span>
-                  <span
-                    class="stat"
-                    [class.zero]="activity.reworked === 0"
-                    [attr.aria-label]="reworkedLabel(activity.reworked)"
-                    [attr.title]="reworkedLabel(activity.reworked)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                    </svg>
-                    <span>{{ activity.reworked }}</span>
-                  </span>
-                  <span
-                    class="stat"
-                    [class.zero]="activity.revealed === 0"
-                    [attr.aria-label]="revealedLabel(activity.revealed)"
-                    [attr.title]="revealedLabel(activity.revealed)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                    <span>{{ activity.revealed }}</span>
-                  </span>
-                </div>
-                  <div class="element-body">
+                <div class="card-face">
+                  <div class="card-top">
+                    <span
+                      class="stat"
+                      [class.zero]="activity.opened === 0"
+                      [attr.aria-label]="openedLabel(activity.opened)"
+                      [attr.title]="openedLabel(activity.opened)"
+                    >
+                      <span class="stat-box">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
+                          />
+                        </svg>
+                      </span>
+                      <span>{{ activity.opened }}</span>
+                    </span>
                     <span class="title-line">
                       <span class="title">
                         @for (part of highlight(element.title); track $index) {
@@ -368,6 +348,36 @@ const MOVE_SLOP_PX = 10;
                       </span>
                     </span>
                   </div>
+                  <div class="card-icons">
+                    <span
+                      class="stat"
+                      [class.zero]="activity.reworked === 0"
+                      [attr.aria-label]="reworkedLabel(activity.reworked)"
+                      [attr.title]="reworkedLabel(activity.reworked)"
+                    >
+                      <span class="stat-box">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                      </span>
+                      <span>{{ activity.reworked }}</span>
+                    </span>
+                    <span
+                      class="stat"
+                      [class.zero]="activity.revealed === 0"
+                      [attr.aria-label]="revealedLabel(activity.revealed)"
+                      [attr.title]="revealedLabel(activity.revealed)"
+                    >
+                      <span class="stat-box">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </span>
+                      <span>{{ activity.revealed }}</span>
+                    </span>
+                  </div>
+                </div>
                 </button>
                 @if (!selecting() && element.definitions.length) {
                   @if (element.mode; as mode) {
@@ -1332,14 +1342,22 @@ const MOVE_SLOP_PX = 10;
       -webkit-touch-callout: none;
     }
 
-    .element-body {
+    .card-face {
       display: flex;
       flex: 1;
       flex-direction: column;
-      justify-content: flex-start;
-      gap: 0.35rem;
+      align-items: flex-start;
       min-width: 0;
-      padding: 0.5rem 0.7rem 0.55rem 0.35rem;
+      padding: 0.5rem 0.7rem 0.5rem 0.6rem;
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      height: 1.4rem;
+      min-width: 0;
+      max-width: 100%;
     }
 
     .card-icons {
@@ -1347,33 +1365,44 @@ const MOVE_SLOP_PX = 10;
       display: flex;
       flex: none;
       flex-direction: column;
-      justify-content: flex-start;
       align-items: flex-start;
-      gap: 0.28rem;
-      padding: 0.5rem 0.15rem 0.45rem 0.6rem;
+      gap: 0.32rem;
+      margin-top: 0.32rem;
     }
 
     .stat {
       display: inline-flex;
       flex: none;
       align-items: center;
-      height: 1.05rem;
-      gap: 0.18rem;
+      height: 1.4rem;
+      gap: 0.28rem;
       color: var(--text-muted);
       font-size: 0.72rem;
       font-weight: 600;
       font-variant-numeric: tabular-nums;
-      line-height: 1;
+      line-height: 1.4rem;
     }
 
     .stat.zero {
       opacity: 0.4;
     }
 
+    .stat-box {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 1.4rem;
+      height: 1.4rem;
+      border-radius: 0.35rem;
+      background: rgba(8, 10, 18, 0.55);
+      color: var(--text-muted);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    }
+
     .stat svg {
       display: block;
-      width: 0.85rem;
-      height: 0.85rem;
+      width: 0.8rem;
+      height: 0.8rem;
       flex: none;
       fill: none;
       stroke: currentColor;
@@ -1418,20 +1447,21 @@ const MOVE_SLOP_PX = 10;
     .title-line {
       display: flex;
       align-items: center;
-      height: 1.05rem;
-      gap: 0.4rem;
       min-width: 0;
     }
 
     .title {
       min-width: 0;
-      font-size: 1.05rem;
+      font-size: 1rem;
       font-weight: 650;
-      line-height: 1;
+      line-height: 1.4rem;
       letter-spacing: -0.02em;
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.14em;
     }
 
-    .elements > li:has(.drill) .element-body {
+    .elements > li:has(.drill) .card-face {
       padding-bottom: 2.15rem;
     }
 
@@ -1520,11 +1550,9 @@ const MOVE_SLOP_PX = 10;
     }
 
     .skeleton .bone-side {
-      width: 1.6rem;
-      height: 2.4rem;
-      margin: 0.5rem 0.35rem 0.5rem 0.6rem;
-      align-self: center;
-      border-radius: 0.3rem;
+      width: 1.05rem;
+      height: 1.05rem;
+      border-radius: 0.2rem;
     }
 
     .skeleton .bone-title {
