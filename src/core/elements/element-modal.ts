@@ -487,6 +487,32 @@ function writeExampleSuggestions(
       (click)="onBackdrop($event)"
     >
       <div class="panel" [attr.data-mode]="element().mode">
+        <ng-template #hearButton let-key="key" let-text="text" let-label="label" let-off="off">
+          @if (canHear(text)) {
+            <button
+              type="button"
+              class="icon-btn hear-inline"
+              [class.active]="speaking() === key"
+              [attr.aria-pressed]="speaking() === key"
+              [attr.aria-label]="speaking() === key ? 'Stop speaking' : 'Hear ' + label"
+              [attr.title]="speaking() === key ? 'Stop speaking' : 'Hear ' + label"
+              [disabled]="!!off"
+              (click)="hear(key, text); $event.stopPropagation()"
+            >
+              @if (speaking() === key) {
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect class="solid" width="10" height="10" x="7" y="7" rx="1" />
+                </svg>
+              } @else {
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                </svg>
+              }
+            </button>
+          }
+        </ng-template>
         <header>
           <div class="title-row">
             @if (canGoBack()) {
@@ -528,6 +554,14 @@ function writeExampleSuggestions(
               </form>
             } @else {
               <div class="title-main">
+                <ng-container
+                  [ngTemplateOutlet]="hearButton"
+                  [ngTemplateOutletContext]="{
+                    key: 'title',
+                    text: shownTitle(),
+                    label: 'title',
+                  }"
+                />
                 <h2>{{ shownTitle() }}</h2>
                 <button
                   type="button"
@@ -639,29 +673,6 @@ function writeExampleSuggestions(
                 <path d="M12 7v6" />
               </svg>
             </button>
-            @if (canHear(shownTitle())) {
-              <button
-                type="button"
-                class="icon-btn"
-                [class.active]="speaking() === 'title'"
-                [attr.aria-pressed]="speaking() === 'title'"
-                [attr.aria-label]="speaking() === 'title' ? 'Stop speaking' : 'Hear title'"
-                [attr.title]="speaking() === 'title' ? 'Stop speaking' : 'Hear title'"
-                (click)="hear('title', shownTitle())"
-              >
-                @if (speaking() === 'title') {
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <rect class="solid" width="10" height="10" x="7" y="7" rx="1" />
-                  </svg>
-                } @else {
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                  </svg>
-                }
-              </button>
-            }
             <button
               type="button"
               class="icon-btn danger"
@@ -704,22 +715,42 @@ function writeExampleSuggestions(
                       <ng-template #definitionPassage>
                         @if (passage.text) {
                           @if (definitionGame() && definitionConcealed(index)) {
-                            <button
-                              type="button"
-                              class="definition-cue"
-                              aria-label="Write the definition"
-                              (click)="openDefinitionPrompt(index)"
-                            >
-                              <span class="definition-cue-text" aria-hidden="true">{{
-                                shownDefinition(passage.text)
-                              }}</span>
-                            </button>
+                            <div class="spoken">
+                              <ng-container
+                                [ngTemplateOutlet]="hearButton"
+                                [ngTemplateOutletContext]="{
+                                  key: 'definition:' + index,
+                                  text: definition.text,
+                                  label: 'definition',
+                                  off: true,
+                                }"
+                              />
+                              <button
+                                type="button"
+                                class="definition-cue"
+                                aria-label="Write the definition"
+                                (click)="openDefinitionPrompt(index)"
+                              >
+                                <span class="definition-cue-text" aria-hidden="true">{{
+                                  shownDefinition(passage.text)
+                                }}</span>
+                              </button>
+                            </div>
                           } @else {
                             <p
-                              class="passage sense-selectable"
+                              class="passage sense-selectable spoken"
                               [attr.data-definition-index]="index"
                             >
-                              @for (part of highlightPassage(passage.text); track $index) {
+                              <ng-container
+                                [ngTemplateOutlet]="hearButton"
+                                [ngTemplateOutletContext]="{
+                                  key: 'definition:' + index,
+                                  text: definition.text,
+                                  label: 'definition',
+                                }"
+                              />
+                              <span class="spoken-text">
+                                @for (part of highlightPassage(passage.text); track $index) {
                                 @if (part.matches.length > 1) {
                                   <button
                                     type="button"
@@ -746,6 +777,7 @@ function writeExampleSuggestions(
                                   <span [textContent]="part.text"></span>
                                 }
                               }
+                              </span>
                             </p>
                           }
                         }
@@ -935,38 +967,6 @@ function writeExampleSuggestions(
                             }
                           </button>
                         }
-                        @if (canHear(definition.text)) {
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            [class.active]="speaking() === 'definition:' + index"
-                            [attr.aria-pressed]="speaking() === 'definition:' + index"
-                            [attr.aria-label]="
-                              speaking() === 'definition:' + index
-                                ? 'Stop speaking'
-                                : 'Hear definition'
-                            "
-                            [attr.title]="
-                              speaking() === 'definition:' + index
-                                ? 'Stop speaking'
-                                : 'Hear definition'
-                            "
-                            [disabled]="definitionConcealed(index)"
-                            (click)="hear('definition:' + index, definition.text)"
-                          >
-                            @if (speaking() === 'definition:' + index) {
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <rect class="solid" width="10" height="10" x="7" y="7" rx="1" />
-                              </svg>
-                            } @else {
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                              </svg>
-                            }
-                          </button>
-                        }
                         <button
                           type="button"
                           class="icon-btn"
@@ -1025,11 +1025,20 @@ function writeExampleSuggestions(
                               @let passage = parsePassage(example.text);
                               @if (passage.text) {
                                 <p
-                                  class="passage sense-selectable"
+                                  class="passage sense-selectable spoken"
                                   [attr.data-definition-index]="index"
                                   [attr.data-example-index]="exampleIndex"
                                 >
-                                  @for (part of highlightPassage(passage.text); track $index) {
+                                  <ng-container
+                                    [ngTemplateOutlet]="hearButton"
+                                    [ngTemplateOutletContext]="{
+                                      key: 'example:' + index + ':' + exampleIndex,
+                                      text: example.text,
+                                      label: 'example',
+                                    }"
+                                  />
+                                  <span class="spoken-text">
+                                    @for (part of highlightPassage(passage.text); track $index) {
                                     @if (part.matches.length > 1) {
                                       <button
                                         type="button"
@@ -1056,6 +1065,7 @@ function writeExampleSuggestions(
                                       <span [textContent]="part.text"></span>
                                     }
                                   }
+                                  </span>
                                 </p>
                               }
                               @if (passage.translations.length) {
@@ -1658,52 +1668,20 @@ function writeExampleSuggestions(
                           ) {
                             @let example = definition.examples[exampleIndex];
                             <li class="sheet-item">
-                              <p>{{ parsePassage(example.text).text }}</p>
+                              <p class="spoken">
+                                <ng-container
+                                  [ngTemplateOutlet]="hearButton"
+                                  [ngTemplateOutletContext]="{
+                                    key: 'example:' + index + ':' + exampleIndex,
+                                    text: example.text,
+                                    label: 'example',
+                                  }"
+                                />
+                                <span class="spoken-text">{{
+                                  parsePassage(example.text).text
+                                }}</span>
+                              </p>
                               <span class="item-actions-main">
-                                @if (canHear(example.text)) {
-                                  <button
-                                    type="button"
-                                    class="icon-btn"
-                                    [class.active]="
-                                      speaking() === 'example:' + index + ':' + exampleIndex
-                                    "
-                                    [attr.aria-pressed]="
-                                      speaking() === 'example:' + index + ':' + exampleIndex
-                                    "
-                                    [attr.aria-label]="
-                                      speaking() === 'example:' + index + ':' + exampleIndex
-                                        ? 'Stop speaking'
-                                        : 'Hear example'
-                                    "
-                                    [attr.title]="
-                                      speaking() === 'example:' + index + ':' + exampleIndex
-                                        ? 'Stop speaking'
-                                        : 'Hear example'
-                                    "
-                                    (click)="
-                                      hear('example:' + index + ':' + exampleIndex, example.text)
-                                    "
-                                  >
-                                    @if (speaking() === 'example:' + index + ':' + exampleIndex) {
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <rect
-                                          class="solid"
-                                          width="10"
-                                          height="10"
-                                          x="7"
-                                          y="7"
-                                          rx="1"
-                                        />
-                                      </svg>
-                                    } @else {
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                                      </svg>
-                                    }
-                                  </button>
-                                }
                                 <button
                                   type="button"
                                   class="icon-btn"
@@ -4206,6 +4184,55 @@ function writeExampleSuggestions(
       border-radius: 0.4rem;
     }
 
+    .icon-btn.hear-inline {
+      width: 1.5rem;
+      height: 1.5rem;
+      margin-inline-end: 0.15rem;
+      vertical-align: -0.3em;
+    }
+
+    .icon-btn.hear-inline svg {
+      width: 0.95rem;
+      height: 0.95rem;
+    }
+
+    .title-main .icon-btn.hear-inline {
+      width: 1.8rem;
+      height: 1.8rem;
+      margin-inline: 0;
+      vertical-align: unset;
+    }
+
+    .title-main .icon-btn.hear-inline svg {
+      width: 1rem;
+      height: 1rem;
+    }
+
+    .spoken {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.15rem;
+      max-width: 100%;
+    }
+
+    .spoken > .spoken-text,
+    .spoken > .definition-cue {
+      flex: 1;
+      min-width: 0;
+      width: auto;
+    }
+
+    .spoken > .icon-btn.hear-inline {
+      flex: none;
+      margin: 0;
+      margin-block-start: calc((1.45em - 1.5rem) / 2);
+      vertical-align: unset;
+    }
+
+    .example-quote > .spoken > .icon-btn.hear-inline {
+      margin-block-start: calc((1.5em - 1.5rem) / 2);
+    }
+
     .notify-mode {
       position: absolute;
       top: -0.08rem;
@@ -4631,6 +4658,7 @@ function writeExampleSuggestions(
 
     .passage {
       white-space: pre-wrap;
+      line-height: 1.45;
     }
 
     .linguagem-highlighted {
@@ -4786,6 +4814,7 @@ function writeExampleSuggestions(
 
     .example-quote .passage {
       margin: 0;
+      line-height: 1.5;
     }
 
     .example-quote .equivalents {
