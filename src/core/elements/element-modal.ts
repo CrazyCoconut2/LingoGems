@@ -781,7 +781,7 @@ function sameDefinitionOrder(
                           </svg>
                         </button>
                       }
-                      <h3>Definition</h3>
+                      <h3 class="section-title">Definition</h3>
                     </div>
                     <div class="item-actions">
                       @if (passagePick(index, null); as pick) {
@@ -1023,8 +1023,48 @@ function sameDefinitionOrder(
                     </div>
                   </div>
 
-                  @if (definition.examples.length) {
-                    <section class="group">
+                  <section class="group">
+                    <div class="section-heading">
+                      <h3 class="section-title">Examples</h3>
+                      <div class="header-actions">
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Generate an example"
+                          title="Generate an example"
+                          [disabled]="
+                            (inPlay() && !translationGame() && !definitionGame()) || aiBusy()
+                          "
+                          [attr.aria-busy]="askingExamples() === index ? true : null"
+                          (click)="generateExample(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                            />
+                            <path d="M5 3v4" />
+                            <path d="M3 5h4" />
+                            <path d="M19 17v4" />
+                            <path d="M17 19h4" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          [class.play-focus]="exampleCue(index)"
+                          aria-label="Add an example"
+                          title="Add an example"
+                          [disabled]="(inPlay() && !exampleCue(index)) || aiBusy()"
+                          (click)="onAddExample(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12h14" />
+                            <path d="M12 5v14" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    @if (definition.examples.length) {
                       <ul class="examples">
                         @for (
                           exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
@@ -1114,8 +1154,8 @@ function sameDefinitionOrder(
                                 }
                               }
                             </div>
-                            @if (passagePick(index, exampleIndex); as pick) {
-                              <div class="item-actions">
+                            <div class="item-actions">
+                              @if (passagePick(index, exampleIndex); as pick) {
                                 <span class="lookup-actions">
                                   <button
                                     type="button"
@@ -1146,15 +1186,83 @@ function sameDefinitionOrder(
                                     Ask AI
                                   </button>
                                 </span>
-                              </div>
-                            }
+                              } @else {
+                                <span class="item-actions-main">
+                                  <button
+                                    type="button"
+                                    class="icon-btn"
+                                    aria-label="Edit example"
+                                    title="Edit example"
+                                    [disabled]="inPlay() || aiBusy()"
+                                    (click)="openExample(index, exampleIndex)"
+                                  >
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="icon-btn danger"
+                                    aria-label="Delete example"
+                                    title="Delete example"
+                                    [disabled]="inPlay() || aiBusy()"
+                                    (click)="askDeleteExample(index, exampleIndex)"
+                                  >
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                      <path d="M3 6h18" />
+                                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                      <path d="M10 11v6" />
+                                      <path d="M14 11v6" />
+                                    </svg>
+                                  </button>
+                                </span>
+                              }
+                            </div>
                           </li>
                         }
                       </ul>
-                    </section>
-                  }
-                  @if (definition.forms.length) {
-                    <section class="group">
+                    }
+                  </section>
+                  <section class="group">
+                    <div class="section-heading">
+                      <h3 class="section-title">Forms</h3>
+                      <div class="header-actions">
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Generate forms"
+                          title="Generate forms"
+                          [disabled]="inPlay() || aiBusy()"
+                          [attr.aria-busy]="askingForms() === index ? true : null"
+                          (click)="askGenerateForms(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                            />
+                            <path d="M5 3v4" />
+                            <path d="M3 5h4" />
+                            <path d="M19 17v4" />
+                            <path d="M17 19h4" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Add a form"
+                          title="Add a form"
+                          [disabled]="inPlay() || aiBusy()"
+                          (click)="addFormManually(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12h14" />
+                            <path d="M12 5v14" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    @if (definition.forms.length) {
                       <ul class="forms">
                         @for (form of definition.forms; track form.text) {
                           <li>
@@ -1178,12 +1286,21 @@ function sameDefinitionOrder(
                                 </svg>
                                 {{ form.text }}
                               </button>
+                              <button
+                                type="button"
+                                class="tag-remove"
+                                [disabled]="inPlay() || busy()"
+                                [attr.aria-label]="'Remove form ' + form.text"
+                                (click)="removeForm(index, form.text)"
+                              >
+                                ×
+                              </button>
                             </div>
                           </li>
                         }
                       </ul>
-                    </section>
-                  }
+                    }
+                  </section>
                 </li>
               }
             </ol>
@@ -1635,185 +1752,6 @@ function sameDefinitionOrder(
                     }
                   </ul>
                 </div>
-                @if (current.kind === 'definition' && current.index != null) {
-                  @let index = current.index;
-                  @if (element().definitions[index]; as definition) {
-                    <section class="sheet-part">
-                      <div class="section-heading">
-                        <h3 class="section-title">Examples</h3>
-                        <div class="header-actions">
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Generate an example"
-                            title="Generate an example"
-                            [disabled]="
-                              (inPlay() && !translationGame() && !definitionGame()) || aiBusy()
-                            "
-                            [attr.aria-busy]="askingExamples() === index ? true : null"
-                            (click)="generateExample(index)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path
-                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                              />
-                              <path d="M5 3v4" />
-                              <path d="M3 5h4" />
-                              <path d="M19 17v4" />
-                              <path d="M17 19h4" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            [class.play-focus]="exampleCue(index)"
-                            aria-label="Add an example"
-                            title="Add an example"
-                            [disabled]="(inPlay() && !exampleCue(index)) || aiBusy()"
-                            (click)="onAddExample(index)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M5 12h14" />
-                              <path d="M12 5v14" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                      @if (definition.examples.length) {
-                        <ul class="sheet-items">
-                          @for (
-                            exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
-                            track exampleIndex
-                          ) {
-                            @let example = definition.examples[exampleIndex];
-                            <li class="sheet-item">
-                              <p class="spoken">
-                                <ng-container
-                                  [ngTemplateOutlet]="hearButton"
-                                  [ngTemplateOutletContext]="{
-                                    key: 'example:' + index + ':' + exampleIndex,
-                                    text: example.text,
-                                    label: 'example',
-                                  }"
-                                />
-                                <span class="spoken-text">{{
-                                  parsePassage(example.text).text
-                                }}</span>
-                              </p>
-                              <span class="item-actions-main">
-                                <button
-                                  type="button"
-                                  class="icon-btn"
-                                  aria-label="Edit example"
-                                  title="Edit example"
-                                  [disabled]="inPlay() || aiBusy()"
-                                  (click)="openExample(index, exampleIndex)"
-                                >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                                  </svg>
-                                </button>
-                                <button
-                                  type="button"
-                                  class="icon-btn danger"
-                                  aria-label="Delete example"
-                                  title="Delete example"
-                                  [disabled]="inPlay() || aiBusy()"
-                                  (click)="askDeleteExample(index, exampleIndex)"
-                                >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M3 6h18" />
-                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                    <path d="M10 11v6" />
-                                    <path d="M14 11v6" />
-                                  </svg>
-                                </button>
-                              </span>
-                            </li>
-                          }
-                        </ul>
-                      }
-                    </section>
-                    <section class="sheet-part">
-                      <div class="section-heading">
-                        <h3 class="section-title">Forms</h3>
-                        <div class="header-actions">
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Generate forms"
-                            title="Generate forms"
-                            [disabled]="inPlay() || aiBusy()"
-                            [attr.aria-busy]="askingForms() === index ? true : null"
-                            (click)="askGenerateForms(index)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path
-                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                              />
-                              <path d="M5 3v4" />
-                              <path d="M3 5h4" />
-                              <path d="M19 17v4" />
-                              <path d="M17 19h4" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Add a form"
-                            title="Add a form"
-                            [disabled]="inPlay() || aiBusy()"
-                            (click)="addFormManually(index)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M5 12h14" />
-                              <path d="M12 5v14" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                      @if (definition.forms.length) {
-                        <ul class="forms">
-                          @for (form of definition.forms; track form.text) {
-                            <li>
-                              <div class="form-chip">
-                                <button
-                                  type="button"
-                                  [disabled]="inPlay() || busy()"
-                                  [attr.aria-label]="'Edit form ' + form.text"
-                                  (click)="openExistingForm(index, form.text)"
-                                >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path
-                                      d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"
-                                    />
-                                    <path
-                                      d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"
-                                    />
-                                    <path
-                                      d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"
-                                    />
-                                  </svg>
-                                  {{ form.text }}
-                                </button>
-                                <button
-                                  type="button"
-                                  class="tag-remove"
-                                  [disabled]="inPlay() || busy()"
-                                  [attr.aria-label]="'Remove form ' + form.text"
-                                  (click)="removeForm(index, form.text)"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            </li>
-                          }
-                        </ul>
-                      }
-                    </section>
-                  }
-                }
               </div>
               <div class="sheet-actions sheet-footer">
                 <button
@@ -4322,12 +4260,13 @@ function sameDefinitionOrder(
       margin-inline-start: var(--phrase-indent, 0);
     }
 
-    .sense:has(.example-quote) > .group > .forms {
-      margin-inline-start: calc(var(--phrase-indent, 0) + 3px + 0.85rem);
+    .sense > .group > .section-heading {
+      margin-inline: -0.2rem;
+      padding-inline: 0.2rem 0.15rem;
     }
 
-    .sense:has(.example-quote > .spoken > .icon-btn.hear-inline) > .group > .forms {
-      margin-inline-start: calc(var(--phrase-indent, 0) + 3px + 0.85rem + 1.5rem + 0.15rem);
+    .sense:has(.drag-handle) > .group > .section-heading {
+      padding-inline-start: calc(0.2rem + 1.8rem + 0.1rem);
     }
 
     .sense-head {
@@ -4367,11 +4306,6 @@ function sameDefinitionOrder(
 
     .sense-head h3 {
       margin: 0;
-      font-size: 0.75rem;
-      font-weight: 500;
-      letter-spacing: 0.02em;
-      text-transform: none;
-      color: var(--text-muted);
     }
 
     .sense-head .item-actions {
@@ -4391,11 +4325,22 @@ function sameDefinitionOrder(
       margin-inline-start: var(--phrase-indent, 0);
     }
 
-    .saved-example:has(.example-quote) > .item-actions {
+    .saved-example > .item-actions {
+      align-self: stretch;
+      justify-content: flex-end;
+      margin-inline: 0 -0.2rem;
+      padding-inline: 0 0.15rem;
+    }
+
+    .saved-example:has(.lookup-actions) > .item-actions {
+      justify-content: flex-start;
+      margin-inline: 0;
+      padding-inline: 0;
       margin-inline-start: calc(3px + 0.85rem);
     }
 
-    .saved-example:has(.example-quote > .spoken > .icon-btn.hear-inline) > .item-actions {
+    .saved-example:has(.example-quote > .spoken > .icon-btn.hear-inline):has(.lookup-actions)
+      > .item-actions {
       margin-inline-start: calc(3px + 0.85rem + 1.5rem + 0.15rem);
     }
 
@@ -7271,7 +7216,6 @@ export class ElementModal {
     this.beginSheet(definition?.text ?? '');
     if (definition) this.dismissNew(definition.text);
     this.editor.set({ kind: 'definition', index });
-    this.focusDraft();
   }
 
   openExample(definitionIndex: number, exampleIndex: number | null): void {
