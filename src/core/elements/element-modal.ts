@@ -1190,6 +1190,17 @@ function sameDefinitionOrder(
                                 [attr.aria-label]="'Edit form ' + form.text"
                                 (click)="openExistingForm(index, form.text)"
                               >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path
+                                    d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"
+                                  />
+                                  <path
+                                    d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"
+                                  />
+                                  <path
+                                    d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"
+                                  />
+                                </svg>
                                 {{ form.text }}
                               </button>
                             </div>
@@ -1798,6 +1809,17 @@ function sameDefinitionOrder(
                                   [attr.aria-label]="'Edit form ' + form.text"
                                   (click)="openExistingForm(index, form.text)"
                                 >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path
+                                      d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"
+                                    />
+                                    <path
+                                      d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"
+                                    />
+                                    <path
+                                      d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"
+                                    />
+                                  </svg>
                                   {{ form.text }}
                                 </button>
                                 <button
@@ -4419,6 +4441,7 @@ function sameDefinitionOrder(
     .lookup-chip svg,
     .equivalent-prompt svg,
     .forms-toggle svg,
+    .form-chip svg,
     .equivalent-result svg {
       fill: none;
       stroke: currentColor;
@@ -4899,6 +4922,19 @@ function sameDefinitionOrder(
       color: inherit;
       font: inherit;
       cursor: pointer;
+    }
+
+    .form-chip > button:first-child {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .form-chip svg {
+      display: block;
+      width: 0.95rem;
+      height: 0.95rem;
+      flex: none;
     }
 
     .form-chip > button:first-child,
