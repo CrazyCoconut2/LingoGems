@@ -618,7 +618,10 @@ function sameDefinitionOrder(
                 aria-label="Close"
                 (click)="closed.emit()"
               >
-                ×
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
               </button>
             </div>
           </div>
@@ -3985,9 +3988,10 @@ function sameDefinitionOrder(
       flex: 1;
       min-width: 0;
       font: inherit;
-      font-size: 1.35rem;
-      font-weight: 650;
-      letter-spacing: -0.03em;
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
     }
 
     .equivalents {
@@ -4164,9 +4168,10 @@ function sameDefinitionOrder(
 
     h2 {
       min-width: 0;
-      font-size: 1.35rem;
-      font-weight: 650;
-      letter-spacing: -0.03em;
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
     }
 
     .header-actions {
@@ -4183,18 +4188,14 @@ function sameDefinitionOrder(
       flex: none;
       border: 0;
       background: transparent;
-      color: var(--text);
+      color: var(--text-muted);
       cursor: pointer;
     }
 
     .close {
-      width: 2rem;
-      height: 2rem;
-      border: 1px solid var(--card-border);
-      border-radius: 999px;
-      color: var(--text);
-      font-size: 1.4rem;
-      line-height: 1;
+      width: 1.8rem;
+      height: 1.8rem;
+      border-radius: 0.4rem;
     }
 
     .close:hover,
@@ -4218,8 +4219,8 @@ function sameDefinitionOrder(
     }
 
     .icon-btn.hear-inline svg {
-      width: 0.95rem;
-      height: 0.95rem;
+      width: 1.05rem;
+      height: 1.05rem;
     }
 
     .title-main .icon-btn.hear-inline {
@@ -4230,8 +4231,8 @@ function sameDefinitionOrder(
     }
 
     .title-main .icon-btn.hear-inline svg {
-      width: 1rem;
-      height: 1rem;
+      width: 1.15rem;
+      height: 1.15rem;
     }
 
     .spoken {
@@ -4317,11 +4318,11 @@ function sameDefinitionOrder(
 
     .sense-head h3 {
       margin: 0;
-      font-size: 0.82rem;
-      font-weight: 650;
-      letter-spacing: 0;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
       text-transform: none;
-      color: var(--text);
+      color: var(--text-muted);
     }
 
     .sense-head .item-actions {
@@ -4412,6 +4413,7 @@ function sameDefinitionOrder(
       color: var(--accent-text);
     }
 
+    .close svg,
     .icon-btn svg,
     h3.section-title svg,
     .lookup-chip svg,
@@ -4420,15 +4422,16 @@ function sameDefinitionOrder(
     .equivalent-result svg {
       fill: none;
       stroke: currentColor;
-      stroke-width: 2;
+      stroke-width: 1.75;
       stroke-linecap: round;
       stroke-linejoin: round;
     }
 
+    .close svg,
     .icon-btn svg {
       display: block;
-      width: 1rem;
-      height: 1rem;
+      width: 1.15rem;
+      height: 1.15rem;
       flex: none;
     }
 
@@ -4467,20 +4470,21 @@ function sameDefinitionOrder(
       gap: 0.15rem;
       margin-right: 0.15rem;
       color: var(--text-muted);
-      font-size: 0.72rem;
-      font-weight: 650;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
       font-variant-numeric: tabular-nums;
       line-height: 1;
     }
 
     .activity-stat svg {
       display: block;
-      width: 0.85rem;
-      height: 0.85rem;
+      width: 1.15rem;
+      height: 1.15rem;
       flex: none;
       fill: none;
       stroke: currentColor;
-      stroke-width: 2;
+      stroke-width: 1.75;
       stroke-linecap: round;
       stroke-linejoin: round;
     }
@@ -4516,8 +4520,8 @@ function sameDefinitionOrder(
 
     .lookup-chip svg {
       display: block;
-      width: 0.9rem;
-      height: 0.9rem;
+      width: 1.15rem;
+      height: 1.15rem;
     }
 
     .lookup-chip:disabled {
@@ -4632,13 +4636,13 @@ function sameDefinitionOrder(
       box-sizing: border-box;
       display: inline-flex;
       align-items: center;
-      height: 1.7rem;
+      height: 1.85rem;
       padding: 0 0.5rem;
       border: 1px solid rgba(139, 144, 165, 0.4);
-      border-radius: 0.35rem;
+      border-radius: 0.4rem;
       background: transparent;
       color: var(--text-muted);
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       line-height: 1;
       white-space: nowrap;
     }
@@ -4649,28 +4653,30 @@ function sameDefinitionOrder(
 
     .sense-meta-key {
       margin-right: 0.35rem;
-      font-weight: 600;
+      font-weight: 500;
+      letter-spacing: 0.02em;
     }
 
     .sense-meta-value {
       color: var(--text);
-      font-weight: 650;
+      font-size: 0.75rem;
+      font-weight: 600;
     }
 
     .sense-meta li.sense-equivalent {
       gap: 0.35rem;
-      height: auto;
-      min-height: 1.7rem;
-      padding-block: 0.12rem;
+      height: 1.85rem;
+      min-height: 1.85rem;
+      padding-block: 0;
       border-color: color-mix(in srgb, var(--gem-translation) 58%, transparent);
       background: color-mix(in srgb, var(--gem-translation) 16%, transparent);
       color: color-mix(in srgb, var(--gem-translation) 42%, white);
-      font-weight: 650;
+      font-weight: 600;
     }
 
     .sense-equivalent app-mode-icon {
-      width: 1.55rem;
-      height: 1.55rem;
+      width: 1.15rem;
+      height: 1.15rem;
       flex: none;
     }
 
@@ -4693,17 +4699,17 @@ function sameDefinitionOrder(
     .guess-open {
       display: inline-flex;
       align-items: center;
-      gap: 0.28rem;
-      height: 1.7rem;
+      gap: 0.35rem;
+      height: 1.85rem;
       margin: 0;
       padding: 0 0.5rem;
       border: 1px solid color-mix(in srgb, var(--gem-translation) 70%, transparent);
-      border-radius: 0.35rem;
+      border-radius: 0.4rem;
       background: color-mix(in srgb, var(--gem-translation) 16%, transparent);
       color: color-mix(in srgb, var(--gem-translation) 42%, white);
       font: inherit;
-      font-size: 0.72rem;
-      font-weight: 650;
+      font-size: 0.75rem;
+      font-weight: 600;
       line-height: 1;
       cursor: pointer;
     }
@@ -4742,7 +4748,6 @@ function sameDefinitionOrder(
       color: var(--text);
     }
 
-    .sense-meta li.colored,
     .pills li.colored {
       gap: 0.4rem;
       background: color-mix(in srgb, var(--meta-color) 30%, var(--surface-2));
@@ -4750,13 +4755,18 @@ function sameDefinitionOrder(
     }
 
     .sense-meta li.colored {
-      border-color: color-mix(in srgb, var(--meta-color) 62%, transparent);
+      background: transparent;
+      border-left-color: var(--meta-color);
+      border-left-width: 2px;
     }
 
-    .sense-meta li.colored .sense-meta-key,
     .pills li.colored .sense-meta-key {
       margin-right: 0;
       color: var(--meta-color);
+    }
+
+    .sense-meta li.colored .sense-meta-key {
+      color: var(--text-muted);
     }
 
     .sense-main {
@@ -5738,8 +5748,9 @@ function sameDefinitionOrder(
 
     .gem-gain-count {
       color: var(--exercise-gem);
-      font-size: 0.85rem;
-      font-weight: 750;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
       line-height: 1;
     }
 
