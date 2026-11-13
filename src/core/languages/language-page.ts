@@ -21,6 +21,7 @@ import { generateElementFromSelection } from 'ai';
 import {
   absorbSavedElement,
   addElement,
+  catalogFromElements,
   compareElements,
   DEFAULT_ELEMENT_SORT,
   deleteElement,
@@ -3248,15 +3249,12 @@ export class LanguagePage {
       for (const element of all) {
         next.push(await saveElement(element, { syncCatalog: false }));
       }
-      const catalog = await replaceMetadataCatalog(
-        next.reduce(
-          (indexes, element) => absorbSavedElement(indexes, element),
-          emptyElementCatalog(),
-        ),
-      );
+      const catalog = await replaceMetadataCatalog(catalogFromElements(next));
       const code = this.code();
       if (code) this.elements.set(next.filter((element) => element.language === code));
       this.metadataCatalog.set(catalog);
+      const live = new Set<string>([...ELEMENT_COLOR_PRESETS, ...catalog.colors]);
+      this.colorFilter.update((current) => current.filter((color) => live.has(color)));
     } catch {
       this.recomputeError.set('Could not recompute metadata.');
     } finally {

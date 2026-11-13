@@ -45,6 +45,16 @@ export function absorbSavedElement(
   };
 }
 
+/** Metadata and custom colors that still appear on these elements. Presets are omitted. */
+export function catalogFromElements(
+  elements: readonly (ElementMetadataIndexes & { color?: string | null })[],
+): ElementCatalog {
+  return elements.reduce(
+    (catalog, element) => absorbSavedElement(catalog, element),
+    emptyElementCatalog(),
+  );
+}
+
 export async function readMetadataCatalog(): Promise<ElementCatalog> {
   if (typeof indexedDB === 'undefined') return emptyElementCatalog();
   const db = await openDatabase();

@@ -7,6 +7,7 @@ export {
 
 export {
   absorbSavedElement,
+  catalogFromElements,
   emptyElementCatalog,
   readMetadataCatalog,
   replaceMetadataCatalog,
