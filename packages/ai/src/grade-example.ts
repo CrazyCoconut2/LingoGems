@@ -7,14 +7,19 @@ import type { CompleteJsonInput } from './types';
 const GRADE_EXAMPLE_SYSTEM_PROMPT = `You score how well a learner's example shows one dictionary sense.
 JSON keys stay in English.
 The sentence and the gloss are both in the language named by writeFieldsIn.
-lemma is the headword. The sentence already contains it or one of its forms. Do not score whether the word is present.
-Score gems from 0 to ${TRANSLATION_GEM_MAX} for whether the rest of the sentence shows that the learner used the word in the sense of the gloss.
+lemma is the headword. forms lists known inflections of that headword for this sense. The list can be empty or incomplete.
+First judge the form, before the sense:
+- The sentence must use the lemma or a form of it
+- That form must be a real, correctly spelled form of the lemma. A form on the list is valid. A real form missing from the list is also valid
+- No form of the lemma scores 0
+- A form that is not a real form of the lemma, including a misspelled form, scores 0
+When a valid form is present, score gems from 0 to ${TRANSLATION_GEM_MAX} for whether the rest of the sentence shows that the learner used the word in the sense of the gloss.
 - ${TRANSLATION_GEM_MAX} means the other words make this sense clear. Someone who did not know the lemma could tell what it means here
 - Partial credit means the sense is only partly shown, or the context is thin but still real
 - 0 means the sentence does not show the sense. The lemma alone scores 0. The lemma with only a function word, such as an article, also scores 0. A different sense scores 0
-Spelling mistakes do not sink a sentence that shows the sense.
+Spelling mistakes in the other words do not sink a sentence that shows the sense. Spelling of the form itself does count.
 explanation MUST be in the language named by writeFieldsIn. Do not write it in English unless writeFieldsIn is English.
-explanation says whether the sentence shows this sense and why the score is what it is. Do not quote the gloss in full.
+explanation says whether a form of the lemma was used, whether that form is valid, and why the score is what it is. Do not quote the gloss in full.
 JSON only: {"score":<0-${TRANSLATION_GEM_MAX}>,"explanation":"<text>"}`;
 
 const GRADE_MAX_TOKENS = 1024;
@@ -24,6 +29,7 @@ type GradeExampleInput = {
   lemma: string;
   gloss: string;
   answer: string;
+  forms: string[];
 };
 
 type GradedExample = {
@@ -37,6 +43,7 @@ function buildGradeExampleUserMessage(input: GradeExampleInput): string {
   return JSON.stringify({
     writeFieldsIn,
     lemma: input.lemma.trim(),
+    forms: input.forms,
     gloss: input.gloss.trim(),
     answer: input.answer.trim(),
   });
@@ -75,8 +82,11 @@ export async function gradeExample(request: GradeExampleInput): Promise<GradedEx
   const lemma = String(request.lemma || '').trim();
   const gloss = String(request.gloss || '').trim();
   const answer = String(request.answer || '').trim();
+  const forms = (Array.isArray(request.forms) ? request.forms : [])
+    .map((form) => String(form || '').trim())
+    .filter((form) => form.length > 0);
   if (!language || !lemma || !gloss || !answer) aiError(AI_ERROR.RESPONSE_INVALID);
-  const ready: GradeExampleInput = { language, lemma, gloss, answer };
+  const ready: GradeExampleInput = { language, lemma, gloss, answer, forms };
   const input: CompleteJsonInput = {
     system: GRADE_EXAMPLE_SYSTEM_PROMPT,
     user: buildGradeExampleUserMessage(ready),

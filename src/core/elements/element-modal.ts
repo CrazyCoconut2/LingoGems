@@ -77,7 +77,6 @@ import {
   DEFINITION_MAX,
   EQUIVALENT_MAX,
   emptyPlayRound,
-  exampleContainsForm,
   type EquivalentReward,
   type PlayRound,
 } from './play-session';
@@ -2577,7 +2576,7 @@ function sameDefinitionOrder(
                 role="dialog"
                 aria-modal="true"
                 aria-label="Definition"
-                (click)="$event.stopPropagation()"
+                (click)="onEditorSheetClick($event)"
               >
                 <div class="sheet-head">
                   <h3>Definition</h3>
@@ -2731,44 +2730,90 @@ function sameDefinitionOrder(
                       </label>
                     }
                     <span class="header-actions">
-                      <select
-                        class="translate-language"
-                        aria-label="Translation language"
-                        [value]="translationTarget()"
-                        [disabled]="translating() || askingPolish() !== null"
-                        (change)="setTranslationInto($event)"
-                      >
-                        <option value="" [selected]="!translationTarget()">No translation</option>
-                        @for (code of translationLanguages(); track code) {
-                          <option [value]="code" [selected]="code === translationTarget()">
-                            {{ languageName(code) }}
-                          </option>
-                        }
-                      </select>
-                      @if (supportAvailable()) {
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          [disabled]="!canTranslateDefinition(prompt)"
-                          [attr.aria-busy]="translating() ? true : null"
-                          [attr.aria-label]="
-                            'Translate into ' +
-                            (definitionSource() === 'support'
-                              ? originalLanguageName()
-                              : translationLanguageName())
-                          "
-                          (click)="translateDefinition(prompt)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                        </button>
-                      }
+                      <span class="generate-bundle translate-split">
+                        <div class="generate-split">
+                          <button
+                            type="button"
+                            class="generate-main"
+                            [attr.aria-label]="
+                              translating()
+                                ? 'Translating…'
+                                : translationTarget()
+                                  ? 'Translate into ' + languageName(translationTarget())
+                                  : 'Translate'
+                            "
+                            [attr.title]="
+                              translating()
+                                ? 'Translating…'
+                                : translationTarget()
+                                  ? 'Translate into ' + languageName(translationTarget())
+                                  : 'Translate'
+                            "
+                            [attr.aria-busy]="translating() ? true : null"
+                            [disabled]="!canTranslateDefinition(prompt)"
+                            (click)="translateDefinition(prompt)"
+                          >
+                            <span class="generate-translation">
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m5 8 6 6" />
+                                <path d="m4 14 6-6 2-3" />
+                                <path d="M2 5h12" />
+                                <path d="M7 2h1" />
+                                <path d="m22 22-5-10-5 10" />
+                                <path d="M14 18h6" />
+                              </svg>
+                              @if (translationTarget(); as code) {
+                                {{ languageName(code) }}
+                              }
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            class="generate-chevron"
+                            [class.open]="sheetTranslationOpen()"
+                            [attr.aria-expanded]="sheetTranslationOpen()"
+                            aria-label="Translation language"
+                            [disabled]="translating() || askingPolish() !== null"
+                            (click)="toggleSheetTranslation()"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
+                          </button>
+                          @if (sheetTranslationOpen()) {
+                            <ul
+                              class="translation-menu down"
+                              role="listbox"
+                              aria-label="Translation language"
+                            >
+                              <li>
+                                <button
+                                  type="button"
+                                  role="option"
+                                  [class.selected]="!translationTarget()"
+                                  [attr.aria-selected]="!translationTarget()"
+                                  (click)="chooseSheetTranslation('')"
+                                >
+                                  No translation
+                                </button>
+                              </li>
+                              @for (code of translationLanguages(); track code) {
+                                <li>
+                                  <button
+                                    type="button"
+                                    role="option"
+                                    [class.selected]="code === translationTarget()"
+                                    [attr.aria-selected]="code === translationTarget()"
+                                    (click)="chooseSheetTranslation(code)"
+                                  >
+                                    {{ languageName(code) }}
+                                  </button>
+                                </li>
+                              }
+                            </ul>
+                          }
+                        </div>
+                      </span>
                       @if (!supportAvailable() || definitionSource() === 'working') {
                         <button
                           type="button"
@@ -2914,7 +2959,7 @@ function sameDefinitionOrder(
                 role="dialog"
                 aria-modal="true"
                 aria-label="Example"
-                (click)="$event.stopPropagation()"
+                (click)="onEditorSheetClick($event)"
               >
                 <div class="sheet-head">
                   <h3>Example</h3>
@@ -3037,44 +3082,90 @@ function sameDefinitionOrder(
                       </label>
                     }
                     <span class="header-actions">
-                      <select
-                        class="translate-language"
-                        aria-label="Translation language"
-                        [value]="translationTarget()"
-                        [disabled]="translating() || askingPolish() !== null"
-                        (change)="setTranslationInto($event)"
-                      >
-                        <option value="" [selected]="!translationTarget()">No translation</option>
-                        @for (code of translationLanguages(); track code) {
-                          <option [value]="code" [selected]="code === translationTarget()">
-                            {{ languageName(code) }}
-                          </option>
-                        }
-                      </select>
-                      @if (supportAvailable()) {
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          [disabled]="!canTranslateExample(prompt)"
-                          [attr.aria-busy]="translating() ? true : null"
-                          [attr.aria-label]="
-                            'Translate into ' +
-                            (exampleSource() === 'support'
-                              ? originalLanguageName()
-                              : translationLanguageName())
-                          "
-                          (click)="translateExample(prompt)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                        </button>
-                      }
+                      <span class="generate-bundle translate-split">
+                        <div class="generate-split">
+                          <button
+                            type="button"
+                            class="generate-main"
+                            [attr.aria-label]="
+                              translating()
+                                ? 'Translating…'
+                                : translationTarget()
+                                  ? 'Translate into ' + languageName(translationTarget())
+                                  : 'Translate'
+                            "
+                            [attr.title]="
+                              translating()
+                                ? 'Translating…'
+                                : translationTarget()
+                                  ? 'Translate into ' + languageName(translationTarget())
+                                  : 'Translate'
+                            "
+                            [attr.aria-busy]="translating() ? true : null"
+                            [disabled]="!canTranslateExample(prompt)"
+                            (click)="translateExample(prompt)"
+                          >
+                            <span class="generate-translation">
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m5 8 6 6" />
+                                <path d="m4 14 6-6 2-3" />
+                                <path d="M2 5h12" />
+                                <path d="M7 2h1" />
+                                <path d="m22 22-5-10-5 10" />
+                                <path d="M14 18h6" />
+                              </svg>
+                              @if (translationTarget(); as code) {
+                                {{ languageName(code) }}
+                              }
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            class="generate-chevron"
+                            [class.open]="sheetTranslationOpen()"
+                            [attr.aria-expanded]="sheetTranslationOpen()"
+                            aria-label="Translation language"
+                            [disabled]="translating() || askingPolish() !== null"
+                            (click)="toggleSheetTranslation()"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
+                          </button>
+                          @if (sheetTranslationOpen()) {
+                            <ul
+                              class="translation-menu down"
+                              role="listbox"
+                              aria-label="Translation language"
+                            >
+                              <li>
+                                <button
+                                  type="button"
+                                  role="option"
+                                  [class.selected]="!translationTarget()"
+                                  [attr.aria-selected]="!translationTarget()"
+                                  (click)="chooseSheetTranslation('')"
+                                >
+                                  No translation
+                                </button>
+                              </li>
+                              @for (code of translationLanguages(); track code) {
+                                <li>
+                                  <button
+                                    type="button"
+                                    role="option"
+                                    [class.selected]="code === translationTarget()"
+                                    [attr.aria-selected]="code === translationTarget()"
+                                    (click)="chooseSheetTranslation(code)"
+                                  >
+                                    {{ languageName(code) }}
+                                  </button>
+                                </li>
+                              }
+                            </ul>
+                          }
+                        </div>
+                      </span>
                       @if (!supportAvailable() || exampleSource() === 'working') {
                         <button
                           type="button"
@@ -4503,18 +4594,6 @@ function sameDefinitionOrder(
 
     .lookup-chip.selected {
       background: rgba(var(--accent-rgb), 0.16);
-    }
-
-    .translate-language {
-      max-width: 10rem;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      font-size: 0.78rem;
-      font-weight: 650;
-      padding: 0.15rem 0.45rem;
     }
 
     .body {
@@ -6244,10 +6323,18 @@ export class ElementModal {
       return;
     }
     if (this.definitionPromptOpen()) {
+      if (this.sheetTranslationOpen()) {
+        this.sheetTranslationOpen.set(false);
+        return;
+      }
       this.closeDefinitionPrompt();
       return;
     }
     if (this.examplePromptOpen()) {
+      if (this.sheetTranslationOpen()) {
+        this.sheetTranslationOpen.set(false);
+        return;
+      }
       this.closeExamplePrompt();
       return;
     }
@@ -6453,11 +6540,6 @@ export class ElementModal {
     return LEARNABLE_LANGUAGES.filter((code) => code !== learning);
   }
 
-  setTranslationInto(event: Event): void {
-    const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
-    rememberTranslationInto(value);
-  }
-
   toggleExampleTranslation(): void {
     if (this.askingExamples() !== null) return;
     this.exampleTranslationOpen.update((open) => !open);
@@ -6481,7 +6563,8 @@ export class ElementModal {
   }
 
   toggleSheetTranslation(): void {
-    if (this.translating() || this.askingEquivalent() || this.busy()) return;
+    if (this.translating() || this.askingEquivalent() || this.busy() || this.askingPolish() !== null)
+      return;
     this.sheetTranslationOpen.update((open) => !open);
   }
 
@@ -7746,7 +7829,7 @@ export class ElementModal {
       return `Write the equivalent for each definition. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI.`;
     }
     if (mode === 2) {
-      return `Write an example for each definition. It must contain the element, and the other words must show that sense. The AI scores it from 0 to ${TRANSLATION_GEM_MAX}.`;
+      return `Write an example for each definition. The AI checks that it uses a valid form of the word and that the other words show that sense, then scores it from 0 to ${TRANSLATION_GEM_MAX}.`;
     }
     return `Write each hidden definition and submit it. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI. Or give up to see it.`;
   }
@@ -8999,6 +9082,7 @@ export class ElementModal {
     const index = this.definitionPrompt();
     if (this.askingGrade() !== null) return;
     if (index >= 0 && this.definitionAwaitingScore(index)) return;
+    this.sheetTranslationOpen.set(false);
     this.definitionPrompt.set(-1);
   }
 
@@ -9189,6 +9273,7 @@ export class ElementModal {
     const index = this.examplePrompt();
     if (this.askingExampleGrade() !== null) return;
     if (index >= 0 && this.exampleAwaitingScore(index)) return;
+    this.sheetTranslationOpen.set(false);
     this.examplePrompt.set(-1);
   }
 
@@ -9356,12 +9441,9 @@ export class ElementModal {
     this.writeRound({ ...this.round(), exampleDrafts });
   }
 
-  /** Submit needs a target-language sentence that already contains the element. */
+  /** Submit needs a sentence. The grader decides whether a valid form was used. */
   exampleReady(index: number): boolean {
-    const answer = this.exampleDraftAt(index).trim();
-    if (!answer) return false;
-    const forms = this.element().definitions[index]?.forms.map((form) => form.text) ?? [];
-    return exampleContainsForm(answer, this.element().title, forms);
+    return this.exampleDraftAt(index).trim().length > 0;
   }
 
   submitExample(index: number): void {
@@ -9416,6 +9498,7 @@ export class ElementModal {
         lemma: element.title,
         gloss,
         answer,
+        forms: definition.forms.map((form) => form.text),
       });
       if (!this.alive || job !== this.exampleGradeJob || this.element().id !== element.id) return;
       if (this.exampleDraftAt(index).trim() !== answer) return;

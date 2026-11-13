@@ -289,10 +289,10 @@ const MOVE_SLOP_PX = 10;
             @for (item of skeletons; track item) {
               <li>
                 <div class="element skeleton">
+                  <span class="bone bone-side"></span>
                   <div class="element-body">
                     <span class="bone bone-title"></span>
                   </div>
-                  <span class="bone bone-metrics"></span>
                 </div>
               </li>
             }
@@ -316,6 +316,45 @@ const MOVE_SLOP_PX = 10;
                   (pointercancel)="onCardPointerUp()"
                   (pointerleave)="onCardPointerUp()"
                 >
+                @let activity = activityTotals(element);
+                <div class="card-icons">
+                  <span
+                    class="stat"
+                    [class.zero]="activity.opened === 0"
+                    [attr.aria-label]="openedLabel(activity.opened)"
+                    [attr.title]="openedLabel(activity.opened)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
+                      />
+                    </svg>
+                    <span>{{ activity.opened }}</span>
+                  </span>
+                  <span
+                    class="stat"
+                    [class.zero]="activity.reworked === 0"
+                    [attr.aria-label]="reworkedLabel(activity.reworked)"
+                    [attr.title]="reworkedLabel(activity.reworked)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                    </svg>
+                    <span>{{ activity.reworked }}</span>
+                  </span>
+                  <span
+                    class="stat"
+                    [class.zero]="activity.revealed === 0"
+                    [attr.aria-label]="revealedLabel(activity.revealed)"
+                    [attr.title]="revealedLabel(activity.revealed)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <span>{{ activity.revealed }}</span>
+                  </span>
+                </div>
                   <div class="element-body">
                     <span class="title-line">
                       <span class="title">
@@ -329,70 +368,30 @@ const MOVE_SLOP_PX = 10;
                       </span>
                     </span>
                   </div>
-                  @let activity = activityTotals(element);
-                  <div class="card-icons">
-                    @if (modeGem(element); as total) {
-                      <span
-                        class="card-gem"
-                        [attr.data-game]="total.game"
-                        [attr.aria-label]="gemsLabel(total.game, total.gems)"
-                        [attr.title]="gemsLabel(total.game, total.gems)"
-                      >
-                        <app-mode-icon
-                          [mode]="total.game === 'translation' ? 1 : total.game === 'example' ? 2 : 3"
-                        />
-                        <span>{{ total.gems }}</span>
-                      </span>
-                    }
-                    <span
-                      class="stat"
-                      [class.zero]="activity.opened === 0"
-                      [attr.aria-label]="openedLabel(activity.opened)"
-                      [attr.title]="openedLabel(activity.opened)"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                          d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
-                        />
-                      </svg>
-                      <span>{{ activity.opened }}</span>
-                    </span>
-                    <span
-                      class="stat"
-                      [class.zero]="activity.reworked === 0"
-                      [attr.aria-label]="reworkedLabel(activity.reworked)"
-                      [attr.title]="reworkedLabel(activity.reworked)"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                      </svg>
-                      <span>{{ activity.reworked }}</span>
-                    </span>
-                    <span
-                      class="stat"
-                      [class.zero]="activity.revealed === 0"
-                      [attr.aria-label]="revealedLabel(activity.revealed)"
-                      [attr.title]="revealedLabel(activity.revealed)"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                      <span>{{ activity.revealed }}</span>
-                    </span>
-                  </div>
                 </button>
                 @if (!selecting() && element.definitions.length) {
                   @if (element.mode; as mode) {
-                    <button
-                      type="button"
-                      class="drill"
-                      [attr.aria-label]="'Drill ' + modeLabel(mode)"
-                      [attr.title]="'Drill ' + modeLabel(mode)"
-                      (click)="drillElement(element.id)"
-                    >
-                      <app-mode-icon [mode]="mode" />
-                    </button>
+                    @if (modeGem(element); as total) {
+                      <button
+                        type="button"
+                        class="drill"
+                        [class.colored]="!!element.color"
+                        [style.--score-color]="element.color || null"
+                        [attr.aria-label]="drillLabel(mode, total.gems)"
+                        [attr.title]="drillLabel(mode, total.gems)"
+                        (click)="drillElement(element.id)"
+                      >
+                        <app-mode-icon [mode]="mode" />
+                        <span class="drill-gems" [class.zero]="total.gems === 0">{{
+                          total.gems
+                        }}</span>
+                        <span class="drill-label">Drill</span>
+                        <svg class="drill-arrow" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M5 12h14" />
+                          <path d="m12 5 7 7-7 7" />
+                        </svg>
+                      </button>
+                    }
                   }
                 }
               </li>
@@ -1317,9 +1316,9 @@ const MOVE_SLOP_PX = 10;
       width: 100%;
       flex: 1;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       align-items: stretch;
-      min-height: 4.8rem;
+      min-height: 3.4rem;
       padding: 0;
       overflow: hidden;
       --level-line: color-mix(in srgb, var(--score-color, var(--border)) 42%, var(--border));
@@ -1340,56 +1339,31 @@ const MOVE_SLOP_PX = 10;
       justify-content: flex-start;
       gap: 0.35rem;
       min-width: 0;
-      padding: 0.55rem 0.75rem;
+      padding: 0.5rem 0.7rem 0.55rem 0.35rem;
     }
 
     .card-icons {
       box-sizing: border-box;
       display: flex;
       flex: none;
-      align-items: center;
-      gap: 0.75rem;
-      width: 100%;
-      padding: 0.1rem 0.75rem 0.5rem;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: flex-start;
+      gap: 0.28rem;
+      padding: 0.5rem 0.15rem 0.45rem 0.6rem;
     }
 
-    .card-gem,
     .stat {
       display: inline-flex;
       flex: none;
       align-items: center;
+      height: 1.05rem;
       gap: 0.18rem;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
-    .card-gem {
-      color: var(--exercise-gem);
-      font-size: 0.78rem;
-      font-weight: 600;
-    }
-
-    .card-gem[data-game='translation'] {
-      --exercise-gem: var(--gem-translation);
-    }
-
-    .card-gem[data-game='example'] {
-      --exercise-gem: var(--gem-example);
-    }
-
-    .card-gem[data-game='definition'] {
-      --exercise-gem: var(--gem-definition);
-    }
-
-    .card-gem app-mode-icon {
-      width: 1.2rem;
-      height: 1.2rem;
-    }
-
-    .stat {
       color: var(--text-muted);
       font-size: 0.72rem;
       font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
     }
 
     .stat.zero {
@@ -1444,6 +1418,7 @@ const MOVE_SLOP_PX = 10;
     .title-line {
       display: flex;
       align-items: center;
+      height: 1.05rem;
       gap: 0.4rem;
       min-width: 0;
     }
@@ -1452,36 +1427,77 @@ const MOVE_SLOP_PX = 10;
       min-width: 0;
       font-size: 1.05rem;
       font-weight: 650;
+      line-height: 1;
       letter-spacing: -0.02em;
     }
 
-    .elements > li:has(.drill) .card-icons {
-      padding-inline-end: 2.4rem;
+    .elements > li:has(.drill) .element-body {
+      padding-bottom: 2.15rem;
     }
 
     .drill {
       position: absolute;
       z-index: 1;
       right: 0.4rem;
-      bottom: 0.38rem;
-      display: grid;
-      place-items: center;
-      width: 1.85rem;
-      height: 1.85rem;
-      padding: 0;
-      border: 0;
-      border-radius: 0.45rem;
-      background: color-mix(in srgb, var(--text) 8%, transparent);
+      bottom: 0.35rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      height: 1.55rem;
+      padding: 0 0.48rem 0 0.32rem;
+      border: 1px solid var(--level-line);
+      border-radius: 0.4rem;
+      background: color-mix(in srgb, var(--score-color, transparent) 12%, var(--surface));
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      --level-line: color-mix(in srgb, var(--score-color, var(--border)) 42%, var(--border));
       cursor: pointer;
     }
 
-    .drill:hover {
-      background: color-mix(in srgb, var(--text) 14%, transparent);
+    .drill.colored {
+      --text-muted: #d0d3e6;
+      --level-line: oklch(from var(--score-color) 0.46 calc(min(c, 0.05)) h);
+      background: oklch(from var(--score-color) 0.34 calc(min(c, 0.058)) h);
+      color: var(--text-muted);
     }
 
-    .drill app-mode-icon {
-      width: 1.25rem;
-      height: 1.25rem;
+    .drill:hover {
+      background: color-mix(in srgb, var(--score-color, transparent) 18%, var(--surface));
+    }
+
+    .drill.colored:hover {
+      background: oklch(from var(--score-color) 0.4 calc(min(c, 0.058)) h);
+    }
+
+    .drill app-mode-icon,
+    .drill-arrow {
+      flex: none;
+      width: 0.95rem;
+      height: 0.95rem;
+    }
+
+    .drill-gems,
+    .drill-label {
+      color: inherit;
+      font-size: inherit;
+      font-weight: inherit;
+      line-height: 1;
+    }
+
+    .drill-gems.zero {
+      opacity: 0.4;
+    }
+
+    .drill-arrow {
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .skeleton {
@@ -1503,10 +1519,12 @@ const MOVE_SLOP_PX = 10;
       vertical-align: -0.08em;
     }
 
-    .skeleton .bone-metrics {
-      width: 7.5rem;
-      height: 0.75rem;
-      margin: 0.15rem 0.75rem 0.5rem;
+    .skeleton .bone-side {
+      width: 1.6rem;
+      height: 2.4rem;
+      margin: 0.5rem 0.35rem 0.5rem 0.6rem;
+      align-self: center;
+      border-radius: 0.3rem;
     }
 
     .skeleton .bone-title {
@@ -2549,6 +2567,11 @@ export class LanguagePage {
   gemsLabel(game: 'translation' | 'example' | 'definition', count: number): string {
     const amount = count === 1 ? '1 gem' : `${count} gems`;
     return `${amount} from ${game}`;
+  }
+
+  drillLabel(mode: ElementMode, gems: number): string {
+    const game = mode === 1 ? 'translation' : mode === 2 ? 'example' : 'definition';
+    return `Drill ${this.modeLabel(mode)}. ${this.gemsLabel(game, gems)}`;
   }
 
   openedLabel(count: number): string {

@@ -1,4 +1,4 @@
-import { surfaceSpans, type DefinitionLogBy } from 'collection';
+import { type DefinitionLogBy } from 'collection';
 
 export const EQUIVALENT_MAX = 200;
 export const DEFINITION_MAX = 500;
@@ -52,13 +52,4 @@ export function emptyPlayRound(): PlayRound {
     exampleLogIndexes: [],
     givenUp: false,
   };
-}
-
-/** True when the sentence contains the title or one of the given forms. */
-export function exampleContainsForm(
-  sentence: string,
-  title: string,
-  forms: readonly string[],
-): boolean {
-  return surfaceSpans(sentence, title, forms).length > 0;
 }
