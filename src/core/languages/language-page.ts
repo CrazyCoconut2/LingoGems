@@ -290,8 +290,8 @@ const MOVE_SLOP_PX = 10;
               <li>
                 <div class="element skeleton">
                   <div class="card-face">
-                    <div class="card-top">
-                      <span class="bone bone-side"></span>
+                    <span class="bone bone-side"></span>
+                    <div class="card-main">
                       <span class="bone bone-title"></span>
                     </div>
                   </div>
@@ -320,7 +320,7 @@ const MOVE_SLOP_PX = 10;
                 >
                 @let activity = activityTotals(element);
                 <div class="card-face">
-                  <div class="card-top">
+                  <div class="stat-rail">
                     <span
                       class="stat"
                       [class.zero]="activity.opened === 0"
@@ -336,19 +336,6 @@ const MOVE_SLOP_PX = 10;
                       </span>
                       <span>{{ activity.opened }}</span>
                     </span>
-                    <span class="title-line">
-                      <span class="title">
-                        @for (part of highlight(element.title); track $index) {
-                          @if (part.hit) {
-                            <mark class="hit">{{ part.text }}</mark>
-                          } @else {
-                            <span>{{ part.text }}</span>
-                          }
-                        }
-                      </span>
-                    </span>
-                  </div>
-                  <div class="card-icons">
                     <span
                       class="stat"
                       [class.zero]="activity.reworked === 0"
@@ -375,6 +362,17 @@ const MOVE_SLOP_PX = 10;
                         </svg>
                       </span>
                       <span>{{ activity.revealed }}</span>
+                    </span>
+                  </div>
+                  <div class="card-main">
+                    <span class="title">
+                      @for (part of highlight(element.title); track $index) {
+                        @if (part.hit) {
+                          <mark class="hit">{{ part.text }}</mark>
+                        } @else {
+                          <span>{{ part.text }}</span>
+                        }
+                      }
                     </span>
                   </div>
                 </div>
@@ -1333,7 +1331,7 @@ const MOVE_SLOP_PX = 10;
       overflow: hidden;
       --level-line: color-mix(in srgb, var(--score-color, var(--border)) 42%, var(--border));
       border: 1px solid var(--level-line);
-      border-radius: 0;
+      border-radius: 0.7rem;
       background: color-mix(in srgb, var(--score-color, transparent) 12%, var(--surface));
       color: inherit;
       font: inherit;
@@ -1345,42 +1343,45 @@ const MOVE_SLOP_PX = 10;
     .card-face {
       display: flex;
       flex: 1;
-      flex-direction: column;
-      align-items: flex-start;
+      flex-direction: row;
+      align-items: stretch;
       min-width: 0;
-      padding: 0.5rem 0.7rem 0.5rem 0.6rem;
     }
 
-    .card-top {
-      display: flex;
-      align-items: center;
-      gap: 0.55rem;
-      height: 1.4rem;
-      min-width: 0;
-      max-width: 100%;
-    }
-
-    .card-icons {
-      box-sizing: border-box;
+    .stat-rail {
       display: flex;
       flex: none;
       flex-direction: column;
+      border-right: 1px solid var(--level-line);
+      background: rgba(0, 0, 0, 0.18);
+    }
+
+    .card-main {
+      display: flex;
+      flex: 1;
       align-items: flex-start;
-      gap: 0.32rem;
-      margin-top: 0.32rem;
+      min-width: 0;
+      padding: 0 0.75rem;
     }
 
     .stat {
-      display: inline-flex;
+      display: flex;
       flex: none;
       align-items: center;
-      height: 1.4rem;
-      gap: 0.28rem;
+      box-sizing: border-box;
+      height: 2rem;
+      gap: 0.35rem;
+      padding: 0 0.45rem;
+      border-bottom: 1px solid var(--level-line);
       color: var(--text-muted);
       font-size: 0.72rem;
       font-weight: 600;
       font-variant-numeric: tabular-nums;
-      line-height: 1.4rem;
+      line-height: 1;
+    }
+
+    .stat:last-child {
+      border-bottom: 0;
     }
 
     .stat.zero {
@@ -1391,12 +1392,12 @@ const MOVE_SLOP_PX = 10;
       display: grid;
       place-items: center;
       flex: none;
-      width: 1.4rem;
-      height: 1.4rem;
-      border-radius: 0.35rem;
+      width: 1.35rem;
+      height: 1.35rem;
+      border-radius: 0.32rem;
       background: rgba(8, 10, 18, 0.55);
       color: var(--text-muted);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
     }
 
     .stat svg {
@@ -1444,25 +1445,16 @@ const MOVE_SLOP_PX = 10;
       box-shadow: inset 0 0 0 1px oklch(from var(--score-color) 0.55 calc(min(c, 0.05)) h);
     }
 
-    .title-line {
-      display: flex;
-      align-items: center;
-      min-width: 0;
-    }
-
     .title {
       min-width: 0;
-      font-size: 1rem;
+      max-width: 100%;
+      overflow: hidden;
+      font-size: 1.05rem;
       font-weight: 650;
-      line-height: 1.4rem;
+      line-height: 2rem;
       letter-spacing: -0.02em;
-      text-decoration: underline;
-      text-decoration-thickness: 1px;
-      text-underline-offset: 0.14em;
-    }
-
-    .elements > li:has(.drill) .card-face {
-      padding-bottom: 2.15rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .drill {
@@ -1550,14 +1542,15 @@ const MOVE_SLOP_PX = 10;
     }
 
     .skeleton .bone-side {
-      width: 1.05rem;
-      height: 1.05rem;
-      border-radius: 0.2rem;
+      width: 4.2rem;
+      height: 6rem;
+      border-radius: 0;
     }
 
     .skeleton .bone-title {
       width: 58%;
       height: 1.05rem;
+      margin-top: 0.45rem;
     }
 
     .empty {
