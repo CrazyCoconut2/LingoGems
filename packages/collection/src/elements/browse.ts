@@ -22,52 +22,6 @@ export type ElementSort = (typeof ELEMENT_SORTS)[number];
 
 export const DEFAULT_ELEMENT_SORT: ElementSort = 'created-desc';
 
-const COUNT_LIMIT = 99;
-
-/** Inclusive bounds. The minimum is always set and defaults to 0. The maximum may be open. */
-export type ElementCountRange = {
-  min: number;
-  max: number | null;
-};
-
-/** Moves one edge by one. The minimum stops at 0. An empty maximum starts at the minimum. */
-export function stepCountRange(
-  range: ElementCountRange,
-  edge: 'min' | 'max',
-  by: number,
-): ElementCountRange {
-  if (by !== 1 && by !== -1) return range;
-  if (edge === 'min') {
-    const next = range.min + by;
-    if (next < 0 || next > COUNT_LIMIT) return range;
-    if (range.max != null && next > range.max) return range;
-    return { min: next, max: range.max };
-  }
-  if (range.max == null) {
-    if (by < 0) return range;
-    return { min: range.min, max: range.min };
-  }
-  const next = range.max + by;
-  if (next > COUNT_LIMIT || next < range.min) return range;
-  return { min: range.min, max: next };
-}
-
-/** Sets one edge. Values outside 0–99 are ignored. A value past the other edge clamps to it. */
-export function setCountRangeBound(
-  range: ElementCountRange,
-  edge: 'min' | 'max',
-  value: number | null,
-): ElementCountRange {
-  if (value != null && (!Number.isInteger(value) || value < 0 || value > COUNT_LIMIT)) return range;
-  if (edge === 'min') {
-    const next = value ?? 0;
-    const min = range.max != null && next > range.max ? range.max : next;
-    return { min, max: range.max };
-  }
-  if (value != null && value < range.min) return { min: range.min, max: range.min };
-  return { min: range.min, max: value };
-}
-
 function elementTranslationCount(element: StoredElement): number {
   return element.equivalents.length;
 }
@@ -140,18 +94,6 @@ function variabilityMatches(
   return true;
 }
 
-/** Keep an element whose translation and definition counts fall inside each range. */
-export function elementMatchesCountRanges(
-  element: StoredElement,
-  translations: ElementCountRange,
-  definitions: ElementCountRange,
-): boolean {
-  return (
-    countInRange(elementTranslationCount(element), translations) &&
-    countInRange(elementDefinitionCount(element), definitions)
-  );
-}
-
 /** Gems earned in the element's current game. An element with no mode has none. */
 function elementModeGems(element: StoredElement): number {
   const game =
@@ -170,12 +112,6 @@ function elementModeGems(element: StoredElement): number {
     }
   }
   return gems;
-}
-
-function countInRange(count: number, range: ElementCountRange): boolean {
-  if (count < range.min) return false;
-  if (range.max != null && count > range.max) return false;
-  return true;
 }
 
 export function compareElements(

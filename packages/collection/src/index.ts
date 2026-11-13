@@ -73,16 +73,12 @@ export {
 export {
   DEFAULT_ELEMENT_SORT,
   compareElements,
-  elementMatchesCountRanges,
   elementMatchesMetadata,
   elementMatchesColor,
   elementMatchesMode,
   formatMetadataFilter,
   metadataFilterSize,
   parseMetadataFilter,
-  setCountRangeBound,
-  stepCountRange,
-  type ElementCountRange,
   type ElementSort,
 } from './elements/browse';
 
