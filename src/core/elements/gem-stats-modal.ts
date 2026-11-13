@@ -18,7 +18,6 @@ import {
   type DailyGoals,
 } from './gem-stats-goals';
 import { GemStatsJob } from './gem-stats-job';
-import { comfortColor } from './comfort-palette';
 import { GemIcon } from './gem-icon';
 import type { DayStats, ElementDayStats, GemCounts } from './gem-stats.worker';
 
@@ -47,7 +46,7 @@ const EMPTY_DAY: DayStats = {
   opened: 0,
   reworked: 0,
   revealed: 0,
-  comfort: 0,
+  exercises: 0,
   elements: [],
 };
 
@@ -183,16 +182,11 @@ const EMPTY_DAY: DayStats = {
               </section>
             </div>
           } @else if (ready()) {
-            <div
-              class="hero"
-              [style.--comfort]="comfortTone(shown().comfort)"
-              [attr.aria-label]="comfortLabel(shown().comfort)"
-              [attr.title]="comfortLabel(shown().comfort)"
-            >
+            <div class="hero" [attr.aria-label]="exerciseLabel(shown().exercises)">
               <div class="hero-top">
                 <div class="hero-copy">
-                  <p class="eyebrow">Comfort</p>
-                  <p class="hero-value">{{ formatSigned(shown().comfort) }}</p>
+                  <p class="eyebrow">Exercises</p>
+                  <p class="hero-value">{{ formatCount(shown().exercises) }}</p>
                 </div>
                 @if (dayBadge()) {
                   <span class="hero-badge">{{ dayBadge() }}</span>
@@ -202,26 +196,29 @@ const EMPTY_DAY: DayStats = {
                 <div class="goal-edit">
                   <span class="goal-edit-label">Daily goal</span>
                   <ng-container
-                    *ngTemplateOutlet="goalStepper; context: { kind: 'comfort', label: 'comfort' }"
+                    *ngTemplateOutlet="
+                      goalStepper;
+                      context: { kind: 'exercises', label: 'exercises' }
+                    "
                   />
                 </div>
               }
-              @if (goals().comfort; as goal) {
+              @if (goals().exercises; as goal) {
                 <div
                   class="meter"
                   role="progressbar"
                   aria-valuemin="0"
-                  [attr.aria-valuenow]="meterNow(comfortGain(), goal)"
+                  [attr.aria-valuenow]="meterNow(shown().exercises, goal)"
                   [attr.aria-valuemax]="goal"
-                  [attr.aria-label]="comfortMeterLabel(goal)"
+                  [attr.aria-label]="exerciseMeterLabel(goal)"
                 >
                   <span class="meter-track">
                     <span
                       class="meter-fill"
-                      [style.width.%]="meterPercent(comfortGain(), goal)"
+                      [style.width.%]="meterPercent(shown().exercises, goal)"
                     ></span>
                   </span>
-                  <span class="meter-label">{{ meterText(comfortGain(), goal) }}</span>
+                  <span class="meter-label">{{ meterText(shown().exercises, goal) }}</span>
                 </div>
               }
             </div>
@@ -321,14 +318,13 @@ const EMPTY_DAY: DayStats = {
                 @if (day(); as current) {
                   @for (element of current.elements; track element.id) {
                     <li class="row">
-                      @if (element.comfort !== 0) {
+                      @if (element.exercises > 0) {
                         <span
                           class="badge"
-                          [attr.data-sign]="element.comfort > 0 ? 'up' : 'down'"
-                          [attr.aria-label]="comfortLabel(element.comfort)"
-                          [attr.title]="comfortLabel(element.comfort)"
+                          [attr.aria-label]="exerciseLabel(element.exercises)"
+                          [attr.title]="exerciseLabel(element.exercises)"
                         >
-                          {{ formatSigned(element.comfort) }}
+                          {{ formatCount(element.exercises) }}
                         </span>
                       }
                       <div class="row-main">
@@ -671,14 +667,14 @@ const EMPTY_DAY: DayStats = {
       min-width: 0;
       margin: 0.7rem 1rem 0;
       padding: 1rem 1.05rem 0.95rem;
-      border: 1px solid color-mix(in srgb, var(--comfort) 36%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
       border-radius: 1.05rem;
       background: linear-gradient(
         180deg,
-        color-mix(in srgb, var(--comfort) 18%, transparent),
-        color-mix(in srgb, var(--comfort) 7%, rgba(8, 10, 18, 0.35))
+        color-mix(in srgb, var(--accent) 18%, transparent),
+        color-mix(in srgb, var(--accent) 7%, rgba(8, 10, 18, 0.35))
       );
-      color: var(--comfort);
+      color: var(--accent);
     }
 
     .hero-top {
@@ -1100,23 +1096,14 @@ const EMPTY_DAY: DayStats = {
       height: 2.15rem;
       flex: none;
       padding: 0 0.4rem;
+      border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
       border-radius: 999px;
+      background: color-mix(in srgb, var(--accent) 18%, transparent);
+      color: var(--accent);
       font-size: 0.78rem;
       font-weight: 750;
       font-variant-numeric: tabular-nums;
       line-height: 1;
-    }
-
-    .badge[data-sign='up'] {
-      border: 1px solid color-mix(in srgb, #e6b325 42%, transparent);
-      background: color-mix(in srgb, #e6b325 18%, transparent);
-      color: #f0c14a;
-    }
-
-    .badge[data-sign='down'] {
-      border: 1px solid color-mix(in srgb, var(--danger) 42%, transparent);
-      background: color-mix(in srgb, var(--danger) 16%, transparent);
-      color: var(--danger);
     }
 
     .row-main {
@@ -1174,9 +1161,9 @@ const EMPTY_DAY: DayStats = {
     }
 
     .hero-loading {
-      --comfort: var(--text-muted);
       border-color: var(--border);
       background: color-mix(in srgb, var(--text) 4%, transparent);
+      color: var(--text-muted);
     }
 
     .bone {
@@ -1277,7 +1264,6 @@ export class GemStatsModal {
   readonly snapshot = computed(() => this.stats().snapshot);
   readonly day = computed(() => this.snapshot()?.days[this.dayIndex()] ?? null);
   readonly shown = computed(() => this.day() ?? EMPTY_DAY);
-  readonly comfortGain = computed(() => Math.max(this.shown().comfort, 0));
   readonly gemTotals = computed(() => {
     const totals: GemCounts = { translation: 0, example: 0, definition: 0 };
     for (const day of this.snapshot()?.days ?? []) {
@@ -1371,8 +1357,8 @@ export class GemStatsModal {
     return `${this.formatCount(Math.max(gain, 0))} / ${this.formatCount(goal)}`;
   }
 
-  comfortMeterLabel(goal: number): string {
-    return `Comfort increase ${this.meterText(this.comfortGain(), goal)}`;
+  exerciseMeterLabel(goal: number): string {
+    return `Exercises ${this.meterText(this.shown().exercises, goal)}`;
   }
 
   gemMeterLabel(label: string, gain: number, goal: number): string {
@@ -1416,23 +1402,9 @@ export class GemStatsModal {
     return new Intl.NumberFormat(undefined).format(count);
   }
 
-  formatSigned(count: number): string {
-    const amount = this.formatCount(Math.abs(count));
-    if (count > 0) return `+${amount}`;
-    if (count < 0) return `−${amount}`;
-    return amount;
-  }
-
-  comfortTone(delta: number): string {
-    if (delta > 0) return comfortColor(10);
-    if (delta < 0) return comfortColor(1);
-    return 'var(--text-muted)';
-  }
-
-  comfortLabel(delta: number): string {
-    if (delta > 0) return `Comfort up ${this.formatCount(delta)}`;
-    if (delta < 0) return `Comfort down ${this.formatCount(Math.abs(delta))}`;
-    return 'Comfort unchanged';
+  exerciseLabel(count: number): string {
+    const amount = this.formatCount(count);
+    return count === 1 ? `${amount} exercise` : `${amount} exercises`;
   }
 
   activityLabel(label: string, count: number): string {

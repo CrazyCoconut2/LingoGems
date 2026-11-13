@@ -8,14 +8,6 @@ import {
   type AiProviderId,
 } from 'ai';
 import { emptyMetadataIndexes, replaceCollection } from 'collection';
-import {
-  COMFORT_RATES,
-  DEFAULT_COMFORT_PALETTE,
-  readComfortPalette,
-  resetComfortPalette,
-  writeComfortColor,
-  type ComfortRate,
-} from '../elements/comfort-palette';
 import { GemStatsJob } from '../elements/gem-stats-job';
 import { LanguageAiSettings } from '../languages/language-ai-settings';
 import { buildDataFile, downloadDataFile, readDataFile } from './data-file';
@@ -47,7 +39,7 @@ const AI_PROVIDERS: ProviderOption[] = [
         <header class="panel-header">
           <div>
             <h2>Settings</h2>
-            <p>Provider, metadata, comfort colors, and your data.</p>
+            <p>Provider, metadata, and your data.</p>
           </div>
           <button type="button" class="icon-btn" aria-label="Close" (click)="back()">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -111,50 +103,6 @@ const AI_PROVIDERS: ProviderOption[] = [
           </section>
 
           <app-language-ai-settings [open]="expanded()" (opened)="expanded.set($event)" />
-
-          <section class="settings-section" [class.expanded]="expanded() === 'comfort'">
-            <button
-              type="button"
-              class="section-header"
-              [attr.aria-expanded]="expanded() === 'comfort'"
-              (click)="toggle('comfort')"
-            >
-              <span class="section-title">Comfort colors</span>
-              <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            @if (expanded() === 'comfort') {
-              <div class="section-body">
-                <p class="section-hint">
-                  Each score icon is colored by its comfort rate, from 1 to 10.
-                </p>
-                <div class="comfort-colors">
-                  @for (rate of comfortRates; track rate) {
-                    <label>
-                      {{ rate }}
-                      <input
-                        type="color"
-                        [attr.aria-label]="'Comfort ' + rate + ' color'"
-                        [value]="comfortSwatch(rate)"
-                        (input)="setComfortColor(rate, $event)"
-                      />
-                    </label>
-                  }
-                </div>
-                <div class="actions">
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    [disabled]="!paletteChanged()"
-                    (click)="resetPalette()"
-                  >
-                    Reset colors
-                  </button>
-                </div>
-              </div>
-            }
-          </section>
 
           <section class="settings-section" [class.expanded]="expanded() === 'data'">
             <button
@@ -509,26 +457,6 @@ const AI_PROVIDERS: ProviderOption[] = [
       border: 0;
     }
 
-    .comfort-colors {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 0.65rem;
-    }
-
-    .comfort-colors label {
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.4rem;
-    }
-
-    .comfort-colors input[type='color'] {
-      width: 2.4rem;
-      height: 2rem;
-      padding: 0.15rem;
-      cursor: pointer;
-    }
-
     .panel-footer {
       align-items: center;
       justify-content: space-between;
@@ -584,7 +512,6 @@ export class Settings {
   private importFile: File | null = null;
 
   readonly providers = AI_PROVIDERS;
-  readonly comfortRates = COMFORT_RATES;
   readonly provider = signal<AiProviderId>(this.stored?.provider ?? 'openai');
   readonly apiKey = signal(this.stored?.apiKey ?? '');
   readonly saved = signal(false);
@@ -619,23 +546,6 @@ export class Settings {
   setApiKey(value: string): void {
     this.apiKey.set(value);
     this.saved.set(false);
-  }
-
-  comfortSwatch(rate: ComfortRate): string {
-    return readComfortPalette()[rate];
-  }
-
-  setComfortColor(rate: ComfortRate, event: Event): void {
-    writeComfortColor(rate, (event.target as HTMLInputElement).value);
-  }
-
-  paletteChanged(): boolean {
-    const palette = readComfortPalette();
-    return this.comfortRates.some((rate) => palette[rate] !== DEFAULT_COMFORT_PALETTE[rate]);
-  }
-
-  resetPalette(): void {
-    resetComfortPalette();
   }
 
   async download(): Promise<void> {

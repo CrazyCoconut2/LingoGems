@@ -5,7 +5,19 @@ export {
   type LearnableLanguage,
 } from './languages/catalog';
 
-export { readMetadataCatalog, replaceMetadataCatalog } from './elements/metadata-catalog';
+export {
+  absorbSavedElement,
+  emptyElementCatalog,
+  readMetadataCatalog,
+  replaceMetadataCatalog,
+  type ElementCatalog,
+} from './elements/metadata-catalog';
+
+export {
+  ELEMENT_COLOR_PRESETS,
+  isPresetElementColor,
+  sanitizeElementColor,
+} from './elements/element-color';
 
 export {
   addElement,
@@ -62,7 +74,7 @@ export {
   compareElements,
   elementMatchesCountRanges,
   elementMatchesMetadata,
-  elementMatchesComfort,
+  elementMatchesColor,
   elementMatchesMode,
   formatMetadataFilter,
   metadataFilterSize,

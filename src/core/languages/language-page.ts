@@ -10,37 +10,38 @@ import {
 import { ElementModal } from '../elements/element-modal';
 import { GemStatsModal } from '../elements/gem-stats-modal';
 import { GemIcon } from '../elements/gem-icon';
+import { HighlightColorPicker } from '../elements/highlight-color-picker';
 import { ModeIcon } from '../elements/mode-icon';
-import { ScoreGauge } from '../elements/score-gauge';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
-import { COMFORT_RATES, comfortColor } from '../elements/comfort-palette';
 import { DiscoverModal } from './discover-modal';
 import { ensureSelectedLanguage, writeSelectedLanguage } from './selected-language';
 import { translationInto } from './translation-language';
 import { Settings } from '../settings/settings';
 import { generateElementFromSelection } from 'ai';
 import {
+  absorbSavedElement,
   addElement,
   compareElements,
   DEFAULT_ELEMENT_SORT,
   deleteElement,
   displayTitle,
+  ELEMENT_COLOR_PRESETS,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
+  elementMatchesColor,
   elementMatchesCountRanges,
   elementMatchesMetadata,
-  elementMatchesComfort,
   elementMatchesMode,
   elementMatchesPrefix,
   elementModeLabel,
   elementPrefixSearch,
-  emptyMetadataIndexes,
+  emptyElementCatalog,
+  sanitizeElementColor,
   formatMetadataFilter,
   isLearnableLanguage,
   isValidForm,
   LEARNABLE_LANGUAGES,
   languageDisplayName,
-  mergeMetadataIndexes,
   mergeMetadataVariability,
   metadataFilterSize,
   parseMetadataFilter,
@@ -51,10 +52,10 @@ import {
   saveElement,
   setCountRangeBound,
   stepCountRange,
+  type ElementCatalog,
   type ElementCountRange,
   type ElementDefinition,
   type ElementLogEntry,
-  type ElementMetadataIndexes,
   type ElementMetadataVariability,
   type ElementMode,
   type ElementSearch,
@@ -64,7 +65,7 @@ import {
 } from 'collection';
 
 type FilterSection =
-  'language' | 'mode' | 'comfort' | 'translations' | 'definitions' | 'examples' | 'forms';
+  'language' | 'mode' | 'color' | 'translations' | 'definitions' | 'examples' | 'forms';
 
 type MetadataKind = 'definitions' | 'examples' | 'forms';
 
@@ -82,7 +83,7 @@ const MOVE_SLOP_PX = 10;
 
 @Component({
   selector: 'app-language-page',
-  imports: [ElementModal, ModeIcon, ScoreGauge, DiscoverModal, Settings, GemStatsModal, GemIcon],
+  imports: [ElementModal, ModeIcon, DiscoverModal, Settings, GemStatsModal, GemIcon, HighlightColorPicker],
   template: `
     <main>
       <div class="page-top">
@@ -226,16 +227,18 @@ const MOVE_SLOP_PX = 10;
                   <button
                     type="button"
                     class="list-action"
-                    [class.active]="comfortOpen()"
-                    aria-label="Set comfort"
-                    title="Set comfort"
+                    [class.active]="colorOpen()"
+                    [class.highlight-on]="!!selectionColor()"
+                    aria-label="Set color"
+                    title="Set color"
                     [disabled]="selectionBusy()"
-                    (click)="openSelectionComfort()"
+                    [style.--swatch]="selectionColor()"
+                    (click)="openSelectionColor()"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10" />
-                      <circle cx="12" cy="12" r="6" />
-                      <circle cx="12" cy="12" r="2" />
+                      <path d="m9 11-6 6v3h9l3-3" />
+                      <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
+                      <path d="M3 22h18" />
                     </svg>
                   </button>
                   <button
@@ -299,7 +302,6 @@ const MOVE_SLOP_PX = 10;
                     <span class="bone bone-title"></span>
                   </div>
                   <span class="bone bone-icons"></span>
-                  <span class="bone bone-track"></span>
                 </div>
               </li>
             }
@@ -313,7 +315,7 @@ const MOVE_SLOP_PX = 10;
                   class="element"
                   [class.playing]="playing()"
                   [class.selected]="isSelected(element.id)"
-                  [style.--score-color]="comfortColor(element.comfort)"
+                  [style.--score-color]="element.color || null"
                   [attr.aria-pressed]="selecting() ? isSelected(element.id) : null"
                   (click)="onCardClick(element.id)"
                   (contextmenu)="onCardContextMenu($event, element.id)"
@@ -400,15 +402,6 @@ const MOVE_SLOP_PX = 10;
                       </span>
                     }
                   </div>
-                  <div
-                    class="comfort-track"
-                    role="img"
-                    [attr.aria-label]="'Comfort ' + element.comfort + ' of 10'"
-                  >
-                    @for (rate of comfortRates; track rate) {
-                      <span class="comfort-mark" [class.filled]="rate <= element.comfort"></span>
-                    }
-                  </div>
                 </button>
               </li>
             }
@@ -442,7 +435,7 @@ const MOVE_SLOP_PX = 10;
               <div>
                 <h2 class="filter-title">Filters</h2>
                 <p class="filter-subtitle">
-                  Keep elements by language, mode, comfort, counts, or metadata.
+                  Keep elements by language, mode, color, counts, or metadata.
                 </p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
@@ -562,48 +555,47 @@ const MOVE_SLOP_PX = 10;
                 }
               </section>
 
-              <section class="filter-section" [class.expanded]="expanded() === 'comfort'">
+              <section class="filter-section" [class.expanded]="expanded() === 'color'">
                 <button
                   type="button"
                   class="section-header"
-                  [attr.aria-expanded]="expanded() === 'comfort'"
-                  (click)="toggleSection('comfort')"
+                  [attr.aria-expanded]="expanded() === 'color'"
+                  (click)="toggleSection('color')"
                 >
                   <span class="section-title">
-                    Comfort
-                    @if (comfortFilter().length) {
-                      <span class="section-count">{{ comfortSummary() }}</span>
+                    Color
+                    @if (colorFilter().length) {
+                      <span class="section-count">{{ colorSummary() }}</span>
                     }
                   </span>
                   <svg class="section-chevron" viewBox="0 0 24 24">
                     <path d="m6 9 6 6 6-6" />
                   </svg>
                 </button>
-                @if (expanded() === 'comfort') {
+                @if (expanded() === 'color') {
                   <div class="section-body">
                     <div class="section-actions">
                       <button
                         type="button"
                         class="link-btn"
-                        [disabled]="comfortFilter().length === 0"
-                        (click)="clearComfort()"
+                        [disabled]="colorFilter().length === 0"
+                        (click)="clearColor()"
                       >
                         Clear
                       </button>
                     </div>
-                    <p class="section-hint">Show elements at any selected comfort rate.</p>
-                    <div class="comfort-choices" role="group" aria-label="Comfort">
-                      @for (rate of comfortRates; track rate) {
+                    <p class="section-hint">Show elements in any selected color.</p>
+                    <div class="color-choices" role="group" aria-label="Color">
+                      @for (color of colorOptions(); track color) {
                         <button
                           type="button"
-                          class="comfort-choice"
-                          [class.selected]="comfortSelected(rate)"
-                          [attr.aria-pressed]="comfortSelected(rate)"
-                          [style.--rate-color]="comfortColor(rate)"
-                          (click)="chooseComfort(rate)"
-                        >
-                          {{ rate }}
-                        </button>
+                          class="color-swatch"
+                          [class.selected]="colorSelected(color)"
+                          [attr.aria-pressed]="colorSelected(color)"
+                          [attr.aria-label]="color"
+                          [style.--swatch]="color"
+                          (click)="chooseColor(color)"
+                        ></button>
                       }
                     </div>
                   </div>
@@ -863,60 +855,20 @@ const MOVE_SLOP_PX = 10;
         </div>
       }
 
-      @if (comfortOpen()) {
-        <div class="selection-backdrop" (click)="closeComfortSheet($event)">
-          <section
-            class="selection-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Comfort"
-            (click)="$event.stopPropagation()"
-          >
-            <div class="selection-head">
-              <h3>Comfort</h3>
-              <button
-                type="button"
-                class="list-action"
-                aria-label="Close"
-                [disabled]="selectionBusy()"
-                (click)="closeComfortSheet($event)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M18 6 6 18" />
-                  <path d="m6 6 12 12" />
-                </svg>
-              </button>
-            </div>
-            <div class="comfort-stepper" role="group" aria-label="Comfort">
-              <button
-                type="button"
-                class="comfort-step"
-                aria-label="Lower comfort"
-                [disabled]="selectionBusy() || comfortDraft() <= 1"
-                (click)="stepSelectionComfort(-1)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12h14" />
-                </svg>
-              </button>
-              <app-score-gauge [score]="comfortDraft()" size="md" />
-              <button
-                type="button"
-                class="comfort-step"
-                aria-label="Raise comfort"
-                [disabled]="selectionBusy() || comfortDraft() >= 10"
-                (click)="stepSelectionComfort(1)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12h14" />
-                  <path d="M12 5v14" />
-                </svg>
-              </button>
-            </div>
+      @if (colorOpen()) {
+        <div class="selection-backdrop" (click)="closeColorSheet($event)">
+          <div class="highlight-picker-stack">
+            <app-highlight-color-picker
+              [color]="selectionColor()"
+              [colors]="colorOptions()"
+              [disabled]="selectionBusy()"
+              (saved)="confirmSelectionColor($event)"
+              (dismissed)="closeColorSheet()"
+            />
             @if (selectionError()) {
               <p class="selection-error">{{ selectionError() }}</p>
             }
-          </section>
+          </div>
         </div>
       }
 
@@ -974,6 +926,7 @@ const MOVE_SLOP_PX = 10;
         <app-element-modal
           [element]="element"
           [collection]="elements()"
+          [colors]="colorOptions()"
           [canGoBack]="canGoBack()"
           [playing]="playing() && element.id === playId()"
           (closed)="closeElement()"
@@ -1183,8 +1136,7 @@ const MOVE_SLOP_PX = 10;
     .toolbar-icon-btn svg,
     .section-chevron,
     .icon-btn svg,
-    .list-action svg,
-    .comfort-step svg {
+    .list-action svg {
       display: block;
       width: 1rem;
       height: 1rem;
@@ -1358,6 +1310,11 @@ const MOVE_SLOP_PX = 10;
       background: transparent;
     }
 
+    .list-toolbar .list-action.highlight-on,
+    .list-toolbar .list-action.highlight-on.active {
+      color: var(--swatch, var(--accent));
+    }
+
     .list-action.danger {
       color: var(--danger);
     }
@@ -1430,31 +1387,6 @@ const MOVE_SLOP_PX = 10;
 
     .btn-danger:hover:not(:disabled) {
       background: rgba(255, 92, 122, 0.12);
-    }
-
-    .comfort-stepper {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 1.1rem;
-    }
-
-    .comfort-step {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 2.4rem;
-      height: 2.4rem;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: transparent;
-      color: var(--text);
-      cursor: pointer;
-    }
-
-    .comfort-step:disabled {
-      opacity: 0.35;
-      cursor: default;
     }
 
     .search-bar {
@@ -1669,27 +1601,6 @@ const MOVE_SLOP_PX = 10;
       --gem-size: 0.85rem;
     }
 
-    .comfort-track {
-      display: flex;
-      box-sizing: border-box;
-      width: 100%;
-      margin-top: auto;
-      gap: 2px;
-      border-top: 1px solid var(--level-line, var(--border));
-      background: var(--level-line, var(--border));
-    }
-
-    .comfort-mark {
-      flex: 1 1 0;
-      min-width: 0;
-      height: 0.48rem;
-      background: color-mix(in srgb, var(--text) 16%, color-mix(in srgb, #000 55%, var(--surface)));
-    }
-
-    .comfort-mark.filled {
-      background: var(--score-color, var(--text));
-    }
-
     .title-line {
       display: flex;
       align-items: center;
@@ -1791,13 +1702,6 @@ const MOVE_SLOP_PX = 10;
     .skeleton .bone-title {
       width: 58%;
       height: 1.05rem;
-    }
-
-    .skeleton .bone-track {
-      width: 100%;
-      height: 0.48rem;
-      margin: 0;
-      border-radius: 0;
     }
 
     .empty {
@@ -2129,38 +2033,42 @@ const MOVE_SLOP_PX = 10;
       flex: none;
     }
 
-    .comfort-choices {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 0.45rem;
+    .color-choices {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.55rem;
     }
 
-    .comfort-choice {
-      display: grid;
-      place-items: center;
-      width: 100%;
-      min-width: 0;
-      height: 2.45rem;
-      margin: 0;
+    .color-swatch {
+      width: 2.2rem;
+      height: 2.2rem;
       padding: 0;
-      border: 1px solid var(--rate-color, var(--border));
-      border-radius: 0.75rem;
-      background: transparent;
-      color: var(--rate-color, var(--text));
-      font: inherit;
-      font-size: 0.9rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
+      border: 2px solid transparent;
+      border-radius: 999px;
+      background: var(--swatch);
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28);
       cursor: pointer;
     }
 
-    .comfort-choice:hover {
-      background: color-mix(in srgb, var(--rate-color, var(--text)) 18%, transparent);
+    .color-swatch:hover:not(:disabled) {
+      filter: brightness(1.06);
     }
 
-    .comfort-choice.selected {
-      background: var(--rate-color, var(--text));
-      color: var(--bg);
+    .color-swatch.selected {
+      border-color: var(--text);
+    }
+
+    .color-swatch:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    .highlight-picker-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      width: min(100%, 19.5rem);
     }
 
     .meta-key {
@@ -2314,7 +2222,7 @@ export class LanguagePage {
   private pressStartX = 0;
   private pressStartY = 0;
   private swallowClickUntil = 0;
-  private comfortApplied = false;
+  private colorApplied = false;
   private scrollLock = '';
   private scrollLocked = false;
   private promptedLanguage = false;
@@ -2322,8 +2230,6 @@ export class LanguagePage {
   readonly languageOptions = LEARNABLE_LANGUAGES;
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly modeLabel = elementModeLabel;
-  readonly comfortRates = COMFORT_RATES;
-  readonly comfortColor = comfortColor;
   readonly asking = signal(false);
   readonly translationInto = translationInto;
   readonly discoverOpen = signal(false);
@@ -2332,8 +2238,7 @@ export class LanguagePage {
   readonly selectedIds = signal<ReadonlySet<string>>(new Set());
   readonly selectionBusy = signal(false);
   readonly selectionError = signal('');
-  readonly comfortOpen = signal(false);
-  readonly comfortDraft = signal(1);
+  readonly colorOpen = signal(false);
   readonly deleteConfirm = signal(false);
   readonly skeletons = ELEMENT_SKELETONS;
   private readonly baseSortOptions: { value: ElementSort; label: string }[] = [
@@ -2388,11 +2293,15 @@ export class LanguagePage {
   readonly translationRange = signal<ElementCountRange>({ min: 0, max: null });
   readonly definitionRange = signal<ElementCountRange>({ min: 0, max: null });
   readonly modeFilter = signal<ElementMode[]>([]);
-  readonly comfortFilter = signal<number[]>([]);
+  readonly colorFilter = signal<string[]>([]);
   readonly definitionMetaFilter = signal<ElementMetadataVariability>({});
   readonly exampleMetaFilter = signal<ElementMetadataVariability>({});
   readonly formMetaFilter = signal<ElementMetadataVariability>({});
-  readonly metadataCatalog = signal<ElementMetadataIndexes>(emptyMetadataIndexes());
+  readonly metadataCatalog = signal<ElementCatalog>(emptyElementCatalog());
+  readonly colorOptions = computed(() => [
+    ...ELEMENT_COLOR_PRESETS,
+    ...this.metadataCatalog().colors,
+  ]);
   readonly recomputing = signal(false);
   readonly recomputeError = signal('');
   readonly sortOpen = signal(false);
@@ -2415,7 +2324,7 @@ export class LanguagePage {
   readonly optionalFilterCount = computed(
     () =>
       this.modeFilter().length +
-      this.comfortFilter().length +
+      this.colorFilter().length +
       (this.rangeActive(this.translationRange()) ? 1 : 0) +
       (this.rangeActive(this.definitionRange()) ? 1 : 0) +
       metadataFilterSize(this.definitionMetaFilter()) +
@@ -2432,14 +2341,14 @@ export class LanguagePage {
     const translations = this.translationRange();
     const definitions = this.definitionRange();
     const mode = this.modeFilter();
-    const comfort = this.comfortFilter();
+    const color = this.colorFilter();
     const definitionMeta = this.definitionMetaFilter();
     const exampleMeta = this.exampleMetaFilter();
     const formMeta = this.formMetaFilter();
     const matched = this.elements().filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
       if (!elementMatchesMode(element, mode)) return false;
-      if (!elementMatchesComfort(element, comfort)) return false;
+      if (!elementMatchesColor(element, color)) return false;
       if (!elementMatchesCountRanges(element, translations, definitions)) return false;
       return elementMatchesMetadata(element, definitionMeta, exampleMeta, formMeta);
     });
@@ -2529,8 +2438,8 @@ export class LanguagePage {
       return;
     }
     if (this.elementId() || this.selectionBusy()) return;
-    if (this.comfortOpen()) {
-      this.closeComfortSheet();
+    if (this.colorOpen()) {
+      this.closeColorSheet();
       return;
     }
     if (this.deleteConfirm()) {
@@ -2625,52 +2534,55 @@ export class LanguagePage {
     this.clearPressTimer();
     this.selecting.set(false);
     this.selectedIds.set(new Set());
-    this.comfortOpen.set(false);
+    this.colorOpen.set(false);
     this.deleteConfirm.set(false);
-    this.comfortApplied = false;
+    this.colorApplied = false;
     this.selectionError.set('');
   }
 
-  openSelectionComfort(): void {
+  openSelectionColor(): void {
     if (this.selectionBusy() || this.selectedIds().size === 0) return;
-    const selected = this.selectedElements();
-    const shared = selected[0]?.comfort ?? 1;
-    const rate = selected.every((element) => element.comfort === shared) ? shared : 1;
-    this.comfortDraft.set(rate);
-    this.comfortApplied = false;
+    this.colorApplied = false;
     this.deleteConfirm.set(false);
-    this.comfortOpen.set(true);
+    this.colorOpen.set(true);
   }
 
-  closeComfortSheet(event?: Event): void {
+  closeColorSheet(event?: Event): void {
     event?.stopPropagation();
     if (this.selectionBusy()) return;
-    this.comfortOpen.set(false);
-    if (!this.comfortApplied) return;
-    this.comfortApplied = false;
+    this.colorOpen.set(false);
+    if (!this.colorApplied) return;
+    this.colorApplied = false;
     this.clearSelection();
   }
 
-  async stepSelectionComfort(delta: number): Promise<void> {
-    const rate = Math.min(10, Math.max(1, this.comfortDraft() + delta));
-    if (rate === this.comfortDraft() || this.selectionBusy()) return;
+  selectionColor(): string | null {
+    const selected = this.selectedElements();
+    if (!selected.length) return null;
+    const color = selected[0]?.color ?? null;
+    return selected.every((element) => element.color === color) ? color : null;
+  }
+
+  async confirmSelectionColor(color: string | null): Promise<void> {
+    await this.setSelectionColor(color);
+    if (this.selectionError()) return;
+    this.closeColorSheet();
+  }
+
+  async setSelectionColor(color: string | null): Promise<void> {
+    const next = color == null ? null : sanitizeElementColor(color);
+    if (color != null && !next) return;
+    if (this.selectionBusy()) return;
     const saved = await this.writeSelected((element) =>
-      element.comfort === rate
-        ? element
-        : {
-            ...element,
-            comfort: rate,
-            log: [...element.log, { event: 'comfort', comfort: rate, at: Date.now() }],
-          },
+      element.color === next ? element : { ...element, color: next },
     );
     if (!saved) return;
-    this.comfortDraft.set(rate);
-    this.comfortApplied = true;
+    this.colorApplied = true;
   }
 
   askDeleteSelection(): void {
     if (this.selectionBusy() || this.selectedIds().size === 0) return;
-    this.comfortOpen.set(false);
+    this.colorOpen.set(false);
     this.deleteConfirm.set(true);
   }
 
@@ -2739,7 +2651,7 @@ export class LanguagePage {
 
   private dismissSelectionFromOutside(target: Element | null): void {
     if (this.selectionBusy() || !this.selecting()) return;
-    if (this.comfortOpen() || this.deleteConfirm()) return;
+    if (this.colorOpen() || this.deleteConfirm()) return;
     if (
       target?.closest('.element, .list-toolbar-actions, .selection-backdrop, app-element-modal')
     ) {
@@ -2770,6 +2682,9 @@ export class LanguagePage {
       if (this.code() !== language) return false;
       const byId = new Map(saved.map((item) => [item.id, item]));
       this.elements.update((list) => list.map((item) => byId.get(item.id) ?? item));
+      this.metadataCatalog.update((catalog) =>
+        saved.reduce((current, element) => absorbSavedElement(current, element), catalog),
+      );
       return true;
     } catch {
       this.selectionError.set('Could not update these elements.');
@@ -2847,7 +2762,7 @@ export class LanguagePage {
     }
     if (this.code() === code) this.elements.set(await readElements(code));
     if (this.code() === code) {
-      this.metadataCatalog.update((current) => mergeMetadataIndexes(current, created));
+      this.metadataCatalog.update((current) => absorbSavedElement(current, created));
     }
     if (fromSearch) {
       this.clearSearch();
@@ -2861,7 +2776,7 @@ export class LanguagePage {
 
   replaceElement(saved: StoredElement): void {
     this.elements.update((list) => list.map((item) => (item.id === saved.id ? saved : item)));
-    this.metadataCatalog.update((current) => mergeMetadataIndexes(current, saved));
+    this.metadataCatalog.update((current) => absorbSavedElement(current, saved));
   }
 
   onElementDeleted(): void {
@@ -3168,30 +3083,29 @@ export class LanguagePage {
     this.releaseGemSort();
   }
 
-  comfortSelected(rate: number): boolean {
-    return this.comfortFilter().includes(rate);
+  colorSelected(color: string): boolean {
+    return this.colorFilter().includes(color);
   }
 
-  comfortSummary(): string {
-    const rates = this.comfortFilter();
-    return rates.length === 1 ? String(rates[0]) : String(rates.length);
+  colorSummary(): string {
+    return String(this.colorFilter().length);
   }
 
-  chooseComfort(rate: number): void {
-    const current = this.comfortFilter();
-    const next = current.includes(rate)
-      ? current.filter((item) => item !== rate)
-      : [...current, rate].sort((left, right) => left - right);
-    this.comfortFilter.set(next);
+  chooseColor(color: string): void {
+    const current = this.colorFilter();
+    const next = current.includes(color)
+      ? current.filter((item) => item !== color)
+      : [...current, color];
+    this.colorFilter.set(next);
   }
 
-  clearComfort(): void {
-    this.comfortFilter.set([]);
+  clearColor(): void {
+    this.colorFilter.set([]);
   }
 
   clearFilters(): void {
     this.modeFilter.set([]);
-    this.comfortFilter.set([]);
+    this.colorFilter.set([]);
     this.translationRange.set({ min: 0, max: null });
     this.definitionRange.set({ min: 0, max: null });
     this.definitionMetaFilter.set({});
@@ -3320,11 +3234,12 @@ export class LanguagePage {
       for (const element of all) {
         next.push(await saveElement(element, { syncCatalog: false }));
       }
-      const union = next.reduce(
-        (indexes, element) => mergeMetadataIndexes(indexes, element),
-        emptyMetadataIndexes(),
+      const catalog = await replaceMetadataCatalog(
+        next.reduce(
+          (indexes, element) => absorbSavedElement(indexes, element),
+          emptyElementCatalog(),
+        ),
       );
-      const catalog = await replaceMetadataCatalog(union);
       const code = this.code();
       if (code) this.elements.set(next.filter((element) => element.language === code));
       this.metadataCatalog.set(catalog);

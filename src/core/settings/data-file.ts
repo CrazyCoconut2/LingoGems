@@ -1,7 +1,7 @@
 import {
   readAllElements,
   readMetadataCatalog,
-  type ElementMetadataIndexes,
+  type ElementCatalog,
   type StoredElement,
 } from 'collection';
 
@@ -14,7 +14,7 @@ export type DataFile = {
   kind: typeof KIND;
   version: typeof VERSION;
   elements: StoredElement[];
-  catalog: ElementMetadataIndexes;
+  catalog: ElementCatalog;
 };
 
 export async function buildDataFile(): Promise<Blob> {

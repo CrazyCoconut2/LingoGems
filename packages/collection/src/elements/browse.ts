@@ -82,12 +82,12 @@ export function elementMatchesMode(element: StoredElement, modes: readonly Eleme
   return element.mode !== null && modes.includes(element.mode);
 }
 
-/** Keep an element at one of the chosen comfort rates. An empty list keeps every element. */
-export function elementMatchesComfort(
+/** Keep an element in one of the chosen colors. An empty list keeps every element. */
+export function elementMatchesColor(
   element: StoredElement,
-  comforts: readonly number[],
+  colors: readonly string[],
 ): boolean {
-  return comforts.length === 0 || comforts.includes(element.comfort);
+  return colors.length === 0 || (element.color != null && colors.includes(element.color));
 }
 
 /** `definitionMeta`, `exampleMeta`, and `formMeta` query values. Empty means no constraint. */

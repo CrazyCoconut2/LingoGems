@@ -4,13 +4,12 @@ import {
   languageCodeFromLabel,
   type LearnableLanguage,
 } from '../languages/catalog';
-import { mergeMetadataCatalog } from './metadata-catalog';
+import { customElementColor, sanitizeElementColor } from './element-color';
+import { mergeMetadataCatalog, normalizeElementCatalog } from './metadata-catalog';
 import {
   collectMetadataIndexes,
   emptyMetadataIndexes,
   metadataIndexesEmpty,
-  normalizeMetadataVariability,
-  type ElementMetadataIndexes,
   type ElementMetadataVariability,
 } from './metadata-variability';
 
@@ -53,9 +52,8 @@ export type DefinitionGameLog = {
 export type DefinitionLogEntry =
   DefinitionGameLog | { event: 'rework'; at: number } | { event: 'reveal'; at: number };
 
-/** A comfort change or an open. `at` is when it happened. */
-export type ElementLogEntry =
-  { event: 'comfort'; comfort: number; at: number } | { event: 'click'; at: number };
+/** An open. `at` is when it happened. */
+export type ElementLogEntry = { event: 'click'; at: number };
 
 export type ElementDefinition = {
   text: string;
@@ -84,9 +82,6 @@ export function elementModeLabel(mode: ElementMode): string {
   return ELEMENT_MODE_LABELS[mode];
 }
 
-const MIN_COMFORT = 1;
-const MAX_COMFORT = 10;
-
 export type StoredElement = {
   id: string;
   language: LearnableLanguage;
@@ -95,11 +90,11 @@ export type StoredElement = {
   definitions: ElementDefinition[];
   /** Unset until the user chooses a mode. */
   mode: ElementMode | null;
-  /** How comfortable this element feels, from 1 to 10. Missing values are 1. */
-  comfort: number;
+  /** Optional swatch. Missing or invalid values are unset. */
+  color: string | null;
   /** Times this card was opened from the edition list. Missing values are 0. */
   clicks: number;
-  /** Dated comfort changes and opens. Missing values are an empty log. */
+  /** Dated opens. Missing values are an empty log. */
   log: ElementLogEntry[];
   /** Distinct metadata values across this element's definitions. */
   definitionMetadata: ElementMetadataVariability;
@@ -202,7 +197,7 @@ export async function addElement(language: string, title: string): Promise<Store
     equivalents: [],
     definitions: [],
     mode: null,
-    comfort: MIN_COMFORT,
+    color: null,
     clicks: 0,
     log: [],
     ...emptyMetadataIndexes(),
@@ -245,7 +240,7 @@ export async function saveElement(
     equivalents: content.equivalents,
     definitions,
     mode: normalizeElementMode(element?.mode),
-    comfort: normalizeComfort(element?.comfort),
+    color: normalizeColor(element?.color),
     clicks: normalizeClicks(element?.clicks),
     log: normalizeElementLog(element?.log),
     ...indexes,
@@ -254,8 +249,11 @@ export async function saveElement(
     deletedAt: deletedAtOf(element?.deletedAt),
   };
   await putElement(saved);
-  if (options?.syncCatalog !== false && !metadataIndexesEmpty(indexes)) {
-    await mergeMetadataCatalog(indexes);
+  if (
+    options?.syncCatalog !== false &&
+    (!metadataIndexesEmpty(indexes) || customElementColor(saved.color))
+  ) {
+    await mergeMetadataCatalog({ ...indexes, colors: saved.color ? [saved.color] : [] });
   }
   return saved;
 }
@@ -281,7 +279,7 @@ export async function replaceCollection(
     seen.add(element.id);
     saved.push(element);
   }
-  const indexes = catalogIndexes(catalog);
+  const indexes = normalizeElementCatalog(catalog);
   const db = await openDatabase();
   const tx = db.transaction([ELEMENTS_STORE, CATALOG_STORE], 'readwrite');
   const done = transactionDone(tx);
@@ -305,16 +303,6 @@ export async function deleteElement(id: string): Promise<void> {
   const element = normalizeElement(raw);
   if (!element || element.deletedAt != null) return;
   await putElement({ ...element, deletedAt: Date.now() });
-}
-
-function catalogIndexes(raw: unknown): ElementMetadataIndexes {
-  if (!raw || typeof raw !== 'object') return emptyMetadataIndexes();
-  const source = raw as Partial<ElementMetadataIndexes>;
-  return {
-    definitionMetadata: normalizeMetadataVariability(source.definitionMetadata),
-    exampleMetadata: normalizeMetadataVariability(source.exampleMetadata),
-    formMetadata: normalizeMetadataVariability(source.formMetadata),
-  };
 }
 
 function transactionDone(tx: IDBTransaction): Promise<void> {
@@ -361,7 +349,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     equivalents: content.equivalents,
     definitions: content.definitions,
     mode: normalizeElementMode(source.mode),
-    comfort: normalizeComfort(source.comfort),
+    color: normalizeColor(source.color),
     clicks: normalizeClicks(source.clicks),
     log: normalizeElementLog(source.log),
     ...collectMetadataIndexes(content.definitions),
@@ -394,13 +382,10 @@ function normalizeElementLog(value: unknown): ElementLogEntry[] {
 
 function normalizeElementLogEntry(raw: unknown): ElementLogEntry | null {
   if (!raw || typeof raw !== 'object') return null;
-  const source = raw as { event?: unknown; at?: unknown; comfort?: unknown };
+  const source = raw as { event?: unknown; at?: unknown };
   if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
-  if (source.event === 'click') return { event: 'click', at: source.at };
-  if (source.event !== 'comfort') return null;
-  const comfort = Math.round(Number(source.comfort));
-  if (!Number.isInteger(comfort) || comfort < MIN_COMFORT || comfort > MAX_COMFORT) return null;
-  return { event: 'comfort', comfort, at: source.at };
+  if (source.event !== 'click') return null;
+  return { event: 'click', at: source.at };
 }
 
 /** Missing or invalid values are 0. */
@@ -410,11 +395,9 @@ function normalizeClicks(value: unknown): number {
   return clicks;
 }
 
-/** Missing or out-of-range values are 1. */
-function normalizeComfort(value: unknown): number {
-  const rate = Math.round(Number(value));
-  if (!Number.isInteger(rate) || rate < MIN_COMFORT || rate > MAX_COMFORT) return MIN_COMFORT;
-  return rate;
+/** Missing or invalid values are unset. */
+function normalizeColor(value: unknown): string | null {
+  return sanitizeElementColor(value);
 }
 
 function normalizeContent(

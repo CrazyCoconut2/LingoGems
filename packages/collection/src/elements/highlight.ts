@@ -12,7 +12,7 @@ export type DefinitionHighlightPart = {
   current: boolean;
   /** Other elements whose forms cover this span. */
   matches: DefinitionHighlightMatch[];
-  /** Comfort color of the element that won the span. */
+  /** Color of the element that won the span. Empty when that element has none. */
   color: string;
 };
 

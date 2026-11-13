@@ -30,6 +30,7 @@ import {
   LEARNABLE_LANGUAGES,
   isLearnableLanguage,
   saveElement,
+  sanitizeElementColor,
   TRANSLATION_GEM_MAX,
   type DefinitionGameLog,
   type DefinitionHighlightMatch,
@@ -75,9 +76,8 @@ import { Reveal } from './reveal';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { rememberTranslationInto, translationInto } from '../languages/translation-language';
 import { GemIcon } from './gem-icon';
+import { HighlightColorPicker } from './highlight-color-picker';
 import { ModeIcon } from './mode-icon';
-import { comfortColor } from './comfort-palette';
-import { ScoreGauge } from './score-gauge';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
@@ -477,7 +477,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [NgTemplateOutlet, Reveal, ModeIcon, ScoreGauge, GemIcon],
+  imports: [NgTemplateOutlet, Reveal, ModeIcon, GemIcon, HighlightColorPicker],
   template: `
     <div
       class="backdrop"
@@ -606,14 +606,38 @@ function writeExampleSuggestions(
           <div class="header-actions">
             <button
               type="button"
-              class="comfort-btn"
-              [attr.aria-label]="'Comfort ' + element().comfort"
-              [attr.title]="'Comfort ' + element().comfort"
-              [attr.aria-expanded]="comfortOpen()"
+              class="icon-btn"
+              [class.active]="colorOpen()"
+              [class.highlight-on]="!!element().color"
+              [attr.aria-label]="element().color ? 'Color ' + element().color : 'No color'"
+              [attr.title]="element().color ? 'Color ' + element().color : 'No color'"
+              [attr.aria-expanded]="colorOpen()"
               [disabled]="busy() || inPlay()"
-              (click)="comfortOpen.set(true)"
+              [style.--swatch]="element().color || null"
+              (click)="colorOpen.set(true)"
             >
-              <app-score-gauge [score]="element().comfort" aria-hidden="true" />
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 11-6 6v3h9l3-3" />
+                <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
+                <path d="M3 22h18" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Add a definition"
+              title="Add a definition"
+              [disabled]="inPlay() || aiBusy()"
+              [attr.aria-busy]="addingDefinitions() ? true : null"
+              (click)="openDefinitionMenu()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
+                />
+                <path d="M9 10h6" />
+                <path d="M12 7v6" />
+              </svg>
             </button>
             @if (canHear(shownTitle())) {
               <button
@@ -657,70 +681,6 @@ function writeExampleSuggestions(
           </div>
         </header>
         <div class="body">
-          <div class="section-heading">
-            <h3 class="section-title">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
-                />
-                <path d="m8 13 4-7 4 7" />
-                <path d="M9.1 11h5.7" />
-              </svg>
-              Definitions
-            </h3>
-            <div class="header-actions">
-              <button
-                type="button"
-                class="icon-btn"
-                aria-label="Add a definition from an example"
-                title="From an example"
-                [disabled]="inPlay() || aiBusy()"
-                [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
-                (click)="openDefinitionFromExample()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                  />
-                  <path
-                    d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="icon-btn"
-                aria-label="Generate definitions"
-                title="Generate definitions"
-                [disabled]="inPlay() || aiBusy()"
-                [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
-                (click)="openMissingDefinitions()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                  />
-                  <path d="M5 3v4" />
-                  <path d="M3 5h4" />
-                  <path d="M19 17v4" />
-                  <path d="M17 19h4" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="icon-btn"
-                aria-label="Add a definition"
-                title="Add a definition"
-                [disabled]="inPlay() || aiBusy()"
-                (click)="addDefinitionManually()"
-              >
-                <svg viewBox="0 0 24 24">
-                  <path d="M5 12h14" />
-                  <path d="M12 5v14" />
-                </svg>
-              </button>
-            </div>
-          </div>
           @if (collision(); as matches) {
             <div class="collision" role="menu" aria-label="Matching elements">
               @for (match of matches; track match.elementId) {
@@ -1048,58 +1008,8 @@ function writeExampleSuggestions(
                     }
                   </div>
 
-                  <section class="group">
-                    <div class="section-heading">
-                      <h3 class="section-title">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                          />
-                          <path
-                            d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                          />
-                        </svg>
-                        Examples
-                      </h3>
-                      <div class="header-actions">
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Generate an example"
-                          title="Generate an example"
-                          [disabled]="
-                            (inPlay() && !translationGame() && !definitionGame()) || aiBusy()
-                          "
-                          [attr.aria-busy]="askingExamples() === index ? true : null"
-                          (click)="generateExample(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                            />
-                            <path d="M5 3v4" />
-                            <path d="M3 5h4" />
-                            <path d="M19 17v4" />
-                            <path d="M17 19h4" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          [class.play-focus]="exampleCue(index)"
-                          aria-label="Add an example"
-                          title="Add an example"
-                          [disabled]="(inPlay() && !exampleCue(index)) || aiBusy()"
-                          (click)="onAddExample(index)"
-                        >
-                          <svg viewBox="0 0 24 24">
-                            <path d="M5 12h14" />
-                            <path d="M12 5v14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                    @if (definition.examples.length) {
+                  @if (definition.examples.length) {
+                    <section class="group">
                       <ul class="examples">
                         @for (
                           exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
@@ -1177,8 +1087,8 @@ function writeExampleSuggestions(
                                 }
                               }
                             </div>
-                            <div class="item-actions">
-                              @if (passagePick(index, exampleIndex); as pick) {
+                            @if (passagePick(index, exampleIndex); as pick) {
+                              <div class="item-actions">
                                 <span class="lookup-actions">
                                   <button
                                     type="button"
@@ -1209,126 +1119,301 @@ function writeExampleSuggestions(
                                     Ask AI
                                   </button>
                                 </span>
-                              } @else {
-                                <span class="item-actions-main">
-                                  @if (canHear(example.text) && !exampleGame()) {
-                                    <button
-                                      type="button"
-                                      class="icon-btn"
-                                      [class.active]="
-                                        speaking() === 'example:' + index + ':' + exampleIndex
-                                      "
-                                      [attr.aria-pressed]="
-                                        speaking() === 'example:' + index + ':' + exampleIndex
-                                      "
-                                      [attr.aria-label]="
-                                        speaking() === 'example:' + index + ':' + exampleIndex
-                                          ? 'Stop speaking'
-                                          : 'Hear example'
-                                      "
-                                      [attr.title]="
-                                        speaking() === 'example:' + index + ':' + exampleIndex
-                                          ? 'Stop speaking'
-                                          : 'Hear example'
-                                      "
-                                      (click)="
-                                        hear('example:' + index + ':' + exampleIndex, example.text)
-                                      "
-                                    >
-                                      @if (speaking() === 'example:' + index + ':' + exampleIndex) {
-                                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                                          <rect
-                                            class="solid"
-                                            width="10"
-                                            height="10"
-                                            x="7"
-                                            y="7"
-                                            rx="1"
-                                          />
-                                        </svg>
-                                      } @else {
-                                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                                          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                                        </svg>
-                                      }
-                                    </button>
-                                  }
-                                  <button
-                                    type="button"
-                                    class="icon-btn"
-                                    aria-label="Edit example"
-                                    title="Edit example"
-                                    [disabled]="inPlay() || aiBusy()"
-                                    (click)="openExample(index, exampleIndex)"
-                                  >
-                                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="icon-btn danger"
-                                    aria-label="Delete example"
-                                    title="Delete example"
-                                    [disabled]="inPlay() || aiBusy()"
-                                    (click)="askDeleteExample(index, exampleIndex)"
-                                  >
-                                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                                      <path d="M3 6h18" />
-                                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                      <path d="M10 11v6" />
-                                      <path d="M14 11v6" />
-                                    </svg>
-                                  </button>
-                                </span>
-                              }
+                              </div>
+                            }
+                          </li>
+                        }
+                      </ul>
+                    </section>
+                  }
+                  @if (definition.forms.length) {
+                    <section class="group">
+                      <ul class="forms">
+                        @for (form of definition.forms; track form.text) {
+                          <li>
+                            <div class="form-chip">
+                              <button
+                                type="button"
+                                [disabled]="inPlay() || busy()"
+                                [attr.aria-label]="'Edit form ' + form.text"
+                                (click)="openExistingForm(index, form.text)"
+                              >
+                                {{ form.text }}
+                              </button>
+                              <button
+                                type="button"
+                                class="tag-remove"
+                                [disabled]="inPlay() || busy()"
+                                [attr.aria-label]="'Remove form ' + form.text"
+                                (click)="removeForm(index, form.text)"
+                              >
+                                ×
+                              </button>
                             </div>
                           </li>
                         }
                       </ul>
-                    } @else {
-                      <p class="hint">No examples yet.</p>
-                    }
-                  </section>
+                    </section>
+                  }
+                </li>
+              }
+            </ol>
+          } @else {
+            <p class="empty">No definitions yet.</p>
+          }
+        </div>
 
-                  <section class="group">
-                    <div class="section-heading">
+        @if (editor(); as current) {
+          <div class="sheet-backdrop" (click)="closeSheet($event)">
+            <section
+              #editorSheet
+              class="sheet editor-sheet"
+              role="dialog"
+              aria-modal="true"
+              [attr.aria-label]="sheetTitle(current)"
+              [style.height.px]="editorSheetHeight()"
+              (click)="onEditorSheetClick($event)"
+            >
+              <div class="sheet-head">
+                <h3>{{ sheetTitle(current) }}</h3>
+                <span class="sheet-tools">
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Close"
+                    (click)="editor.set(null)"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
+                </span>
+              </div>
+              <div class="sheet-scroll">
+                <div class="field-heading">
+                  <label
+                    [attr.for]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
+                  >
+                    {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
+                  </label>
+                  <span class="header-actions">
+                    <span class="generate-bundle translate-split">
+                      <div class="generate-split">
+                        <button
+                          type="button"
+                          class="generate-main"
+                          [attr.aria-label]="
+                            translating()
+                              ? 'Translating…'
+                              : translationTarget()
+                                ? 'Translate into ' + languageName(translationTarget())
+                                : 'Translate'
+                          "
+                          [attr.title]="
+                            translating()
+                              ? 'Translating…'
+                              : translationTarget()
+                                ? 'Translate into ' + languageName(translationTarget())
+                                : 'Translate'
+                          "
+                          [attr.aria-busy]="translating() ? true : null"
+                          [disabled]="!canTranslate()"
+                          (click)="translateDraft()"
+                        >
+                          <span class="generate-translation">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
+                            </svg>
+                            @if (translationTarget(); as code) {
+                              {{ languageName(code) }}
+                            }
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          class="generate-chevron"
+                          [class.open]="sheetTranslationOpen()"
+                          [attr.aria-expanded]="sheetTranslationOpen()"
+                          aria-label="Translation language"
+                          [disabled]="translating() || askingEquivalent() || busy()"
+                          (click)="toggleSheetTranslation()"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m6 9 6 6 6-6" />
+                          </svg>
+                        </button>
+                        @if (sheetTranslationOpen()) {
+                          <ul
+                            class="translation-menu down"
+                            role="listbox"
+                            aria-label="Translation language"
+                          >
+                            <li>
+                              <button
+                                type="button"
+                                role="option"
+                                [class.selected]="!translationTarget()"
+                                [attr.aria-selected]="!translationTarget()"
+                                (click)="chooseSheetTranslation('')"
+                              >
+                                No translation
+                              </button>
+                            </li>
+                            @for (code of translationLanguages(); track code) {
+                              <li>
+                                <button
+                                  type="button"
+                                  role="option"
+                                  [class.selected]="code === translationTarget()"
+                                  [attr.aria-selected]="code === translationTarget()"
+                                  (click)="chooseSheetTranslation(code)"
+                                >
+                                  {{ languageName(code) }}
+                                </button>
+                              </li>
+                            }
+                          </ul>
+                        }
+                      </div>
+                    </span>
+                    @if (current.kind === 'definition' && current.index != null) {
                       <button
                         type="button"
-                        class="section-title forms-fold"
-                        [attr.aria-expanded]="formsOpen(index)"
-                        (click)="toggleForms(index)"
+                        class="icon-btn"
+                        aria-label="Engineer definition"
+                        title="Engineer definition"
+                        [class.active]="definitionEngineerOpen()"
+                        [attr.aria-pressed]="definitionEngineerOpen()"
+                        [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
+                        [disabled]="aiBusy() && !definitionEngineerOpen()"
+                        (click)="toggleDefinitionEngineer()"
                       >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                           <path
-                            d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
+                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
                           />
-                          <path d="m22 12.5-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5" />
-                          <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
-                        </svg>
-                        Forms
-                        <span class="fold-count">{{ definition.forms.length }}</span>
-                        <svg
-                          class="fold-chevron"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                          [class.open]="formsOpen(index)"
-                        >
-                          <path d="m6 9 6 6 6-6" />
+                          <path d="M5 3v4" />
+                          <path d="M3 5h4" />
+                          <path d="M19 17v4" />
+                          <path d="M17 19h4" />
                         </svg>
                       </button>
-                      <div class="header-actions">
+                    }
+                  </span>
+                </div>
+                <div
+                  class="definition-slot"
+                  [class.engineering]="current.kind === 'definition' && !!definitionEngineer()"
+                >
+                  @if (current.kind === 'definition' && definitionEngineer(); as engineer) {
+                    <div class="definition-ai">
+                      <div class="instruct-field">
+                        <input
+                          id="definition-note"
+                          [value]="engineer.instruction"
+                          [attr.maxlength]="definitionInstructionMax"
+                          [disabled]="definitionSheetBusy()"
+                          placeholder="Instruct AI on how to modify this definition"
+                          aria-label="Instruct AI on how to modify this definition"
+                          (input)="onDefinitionEngineerInstruction($event)"
+                          (keydown.enter)="$event.preventDefault(); generateEngineeredDefinition()"
+                        />
+                        <button
+                          type="button"
+                          class="entry-confirm"
+                          aria-label="Modify definition"
+                          [disabled]="
+                            definitionSheetBusy() ||
+                            (!engineer.instruction.trim() && !engineer.selected.length)
+                          "
+                          [attr.aria-busy]="askingWording() !== null ? true : null"
+                          (click)="generateEngineeredDefinition()"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20 6 9 17l-5-5" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div class="related-row">
+                        <ul class="related-scroll">
+                          @for (word of engineer.words; track word.text) {
+                            <li>
+                              <button
+                                type="button"
+                                class="related-chip"
+                                [class.selected]="relatedWordChosen(word)"
+                                [attr.aria-pressed]="relatedWordChosen(word)"
+                                [disabled]="definitionSheetBusy()"
+                                (click)="toggleRelatedWord(word)"
+                              >
+                                <span class="relation">{{ label(word.relation) }}</span>
+                                <span class="related-word">{{ word.text }}</span>
+                              </button>
+                            </li>
+                          }
+                          <li>
+                            <button
+                              type="button"
+                              class="related-more"
+                              aria-label="Find related"
+                              title="Find related"
+                              [disabled]="definitionSheetBusy()"
+                              [attr.aria-busy]="askingRelated() !== null ? true : null"
+                              (click)="findRelatedWords()"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                  d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                                />
+                                <path d="M5 3v4" />
+                                <path d="M3 5h4" />
+                                <path d="M19 17v4" />
+                                <path d="M17 19h4" />
+                              </svg>
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  }
+                  <textarea
+                    #draftField
+                    [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
+                    rows="3"
+                    [value]="textDraft()"
+                    (input)="textDraft.set(inputValue($event))"
+                  ></textarea>
+                </div>
+                @if (sheetError()) {
+                  <p class="error">{{ sheetError() }}</p>
+                }
+                @if (current.kind === 'definition') {
+                  <div class="equivalent-block" [class.missing]="equivalentMissing()">
+                    <div class="field-heading">
+                      <label class="field-label" for="definition-equivalent">Equivalent</label>
+                      @if (supportAvailable()) {
                         <button
                           type="button"
                           class="icon-btn"
-                          aria-label="Generate forms"
-                          title="Generate forms"
-                          [disabled]="inPlay() || aiBusy()"
-                          [attr.aria-busy]="askingForms() === index ? true : null"
-                          (click)="askGenerateForms(index)"
+                          [attr.aria-label]="
+                            askingEquivalent()
+                              ? 'Finding an equivalent…'
+                              : 'Ask AI for an equivalent'
+                          "
+                          [attr.title]="
+                            askingEquivalent()
+                              ? 'Finding an equivalent…'
+                              : 'Ask AI for an equivalent'
+                          "
+                          [attr.aria-busy]="askingEquivalent() ? true : null"
+                          [disabled]="!canAskEquivalent()"
+                          (click)="askEquivalent()"
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path
@@ -1340,22 +1425,357 @@ function writeExampleSuggestions(
                             <path d="M17 19h4" />
                           </svg>
                         </button>
+                      }
+                    </div>
+                    <ul class="equivalent-choices equivalent-pills">
+                      @for (item of sheetEquivalents(); track item.id) {
+                        <li [class.selected]="equivalentSelected(item.id)">
+                          <button
+                            type="button"
+                            [attr.aria-pressed]="equivalentSelected(item.id)"
+                            [disabled]="busy()"
+                            [attr.aria-label]="item.text"
+                            (click)="chooseEquivalent(item.id)"
+                          >
+                            {{ item.text }}
+                          </button>
+                          <button
+                            type="button"
+                            class="tag-remove"
+                            [disabled]="busy()"
+                            [attr.aria-label]="'Remove equivalent ' + item.text"
+                            (click)="removeEquivalent(item.id)"
+                          >
+                            ×
+                          </button>
+                        </li>
+                      }
+                      <li class="entry-pill">
+                        <input
+                          id="definition-equivalent"
+                          class="equivalent-entry"
+                          [value]="equivalentDraft()"
+                          (input)="equivalentDraft.set(inputValue($event))"
+                          [style.width]="equivalentEntryWidth()"
+                          autocomplete="off"
+                          placeholder="New equivalent"
+                          aria-label="New equivalent"
+                          (keydown.enter)="confirmEquivalent()"
+                        />
                         <button
                           type="button"
-                          class="icon-btn"
-                          aria-label="Add a form"
-                          title="Add a form"
-                          [disabled]="inPlay() || aiBusy()"
-                          (click)="addFormManually(index)"
+                          class="entry-confirm"
+                          aria-label="Add equivalent"
+                          [disabled]="busy() || !equivalentDraft().trim()"
+                          (click)="confirmEquivalent()"
                         >
-                          <svg viewBox="0 0 24 24">
-                            <path d="M5 12h14" />
-                            <path d="M12 5v14" />
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20 6 9 17l-5-5" />
                           </svg>
                         </button>
-                      </div>
+                      </li>
+                    </ul>
+                  </div>
+                }
+                <div class="meta">
+                  <div class="field-heading">
+                    <span class="field-label">Metadata</span>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      [attr.aria-label]="
+                        askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'
+                      "
+                      [attr.title]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
+                      [attr.aria-busy]="askingMetadata() ? true : null"
+                      [disabled]="!canAskMetadata()"
+                      (click)="askMetadata()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                        />
+                        <path d="M5 3v4" />
+                        <path d="M3 5h4" />
+                        <path d="M19 17v4" />
+                        <path d="M17 19h4" />
+                      </svg>
+                    </button>
+                  </div>
+                  @if (metaEdit()) {
+                    <div class="meta-edit">
+                      <input
+                        #metaKeyField
+                        [value]="metaKey()"
+                        [attr.maxlength]="metaKeyMaxLength"
+                        placeholder="Key"
+                        aria-label="Metadata key"
+                        (input)="metaKey.set(inputValue($event))"
+                        (keydown.enter)="saveMetadata()"
+                      />
+                      <input
+                        [value]="metaValue()"
+                        [attr.maxlength]="metaValueMaxLength"
+                        placeholder="Value"
+                        aria-label="Metadata value"
+                        (input)="metaValue.set(inputValue($event))"
+                        (keydown.enter)="saveMetadata()"
+                      />
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        [disabled]="busy() || !metaKey().trim() || !metaValue().trim()"
+                        aria-label="Save metadata"
+                        (click)="saveMetadata()"
+                      >
+                        <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Cancel"
+                        (click)="cancelMetadata()"
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <path d="M18 6 6 18" />
+                          <path d="m6 6 12 12" />
+                        </svg>
+                      </button>
                     </div>
-                    @if (formsOpen(index)) {
+                  }
+                  <ul class="pills">
+                    @for (entry of entries(sheetMetadata()); track entry.key) {
+                      @if (metaEdit()?.previousKey !== entry.key) {
+                        @let color = sheetMetaColor(current.kind, entry.key);
+                        <li [class.colored]="color" [style.--meta-color]="color">
+                          <button
+                            type="button"
+                            [disabled]="busy()"
+                            [attr.aria-label]="'Edit metadata ' + entry.key"
+                            (click)="openMetadata(entry.key)"
+                          >
+                            <span class="sense-meta-key">{{ entry.key }}</span>
+                            <span class="sense-meta-value">{{ entry.value }}</span>
+                          </button>
+                          <button
+                            type="button"
+                            class="tag-remove"
+                            [disabled]="busy()"
+                            [attr.aria-label]="'Remove metadata ' + entry.key"
+                            (click)="removeMetadata(entry.key)"
+                          >
+                            ×
+                          </button>
+                        </li>
+                      }
+                    }
+                    @if (!metaEdit()) {
+                      <li class="meta-entry">
+                        <input
+                          [value]="metaKey()"
+                          [attr.maxlength]="metaKeyMaxLength"
+                          [style.width]="metaEntryWidth(metaKey(), 'Key')"
+                          placeholder="Key"
+                          aria-label="Metadata key"
+                          autocomplete="off"
+                          (input)="metaKey.set(inputValue($event))"
+                          (keydown.enter)="commitNewMetadata()"
+                        />
+                        <input
+                          [value]="metaValue()"
+                          [attr.maxlength]="metaValueMaxLength"
+                          [style.width]="metaEntryWidth(metaValue(), 'Value')"
+                          placeholder="Value"
+                          aria-label="Metadata value"
+                          autocomplete="off"
+                          (input)="metaValue.set(inputValue($event))"
+                          (keydown.enter)="commitNewMetadata()"
+                        />
+                        <button
+                          type="button"
+                          class="entry-confirm"
+                          aria-label="Add metadata"
+                          [disabled]="busy() || !metaKey().trim() || !metaValue().trim()"
+                          (click)="commitNewMetadata()"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20 6 9 17l-5-5" />
+                          </svg>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                </div>
+                @if (current.kind === 'definition' && current.index != null) {
+                  @let index = current.index;
+                  @if (element().definitions[index]; as definition) {
+                    <section class="sheet-part">
+                      <div class="section-heading">
+                        <h3 class="section-title">Examples</h3>
+                        <div class="header-actions">
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Generate an example"
+                            title="Generate an example"
+                            [disabled]="
+                              (inPlay() && !translationGame() && !definitionGame()) || aiBusy()
+                            "
+                            [attr.aria-busy]="askingExamples() === index ? true : null"
+                            (click)="generateExample(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path
+                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                              />
+                              <path d="M5 3v4" />
+                              <path d="M3 5h4" />
+                              <path d="M19 17v4" />
+                              <path d="M17 19h4" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            [class.play-focus]="exampleCue(index)"
+                            aria-label="Add an example"
+                            title="Add an example"
+                            [disabled]="(inPlay() && !exampleCue(index)) || aiBusy()"
+                            (click)="onAddExample(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M5 12h14" />
+                              <path d="M12 5v14" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                      @if (definition.examples.length) {
+                        <ul class="sheet-items">
+                          @for (
+                            exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
+                            track exampleIndex
+                          ) {
+                            @let example = definition.examples[exampleIndex];
+                            <li class="sheet-item">
+                              <p>{{ parsePassage(example.text).text }}</p>
+                              <span class="item-actions-main">
+                                @if (canHear(example.text)) {
+                                  <button
+                                    type="button"
+                                    class="icon-btn"
+                                    [class.active]="
+                                      speaking() === 'example:' + index + ':' + exampleIndex
+                                    "
+                                    [attr.aria-pressed]="
+                                      speaking() === 'example:' + index + ':' + exampleIndex
+                                    "
+                                    [attr.aria-label]="
+                                      speaking() === 'example:' + index + ':' + exampleIndex
+                                        ? 'Stop speaking'
+                                        : 'Hear example'
+                                    "
+                                    [attr.title]="
+                                      speaking() === 'example:' + index + ':' + exampleIndex
+                                        ? 'Stop speaking'
+                                        : 'Hear example'
+                                    "
+                                    (click)="
+                                      hear('example:' + index + ':' + exampleIndex, example.text)
+                                    "
+                                  >
+                                    @if (speaking() === 'example:' + index + ':' + exampleIndex) {
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <rect
+                                          class="solid"
+                                          width="10"
+                                          height="10"
+                                          x="7"
+                                          y="7"
+                                          rx="1"
+                                        />
+                                      </svg>
+                                    } @else {
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                                      </svg>
+                                    }
+                                  </button>
+                                }
+                                <button
+                                  type="button"
+                                  class="icon-btn"
+                                  aria-label="Edit example"
+                                  title="Edit example"
+                                  [disabled]="inPlay() || aiBusy()"
+                                  (click)="openExample(index, exampleIndex)"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  class="icon-btn danger"
+                                  aria-label="Delete example"
+                                  title="Delete example"
+                                  [disabled]="inPlay() || aiBusy()"
+                                  (click)="askDeleteExample(index, exampleIndex)"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 6h18" />
+                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                    <path d="M10 11v6" />
+                                    <path d="M14 11v6" />
+                                  </svg>
+                                </button>
+                              </span>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </section>
+                    <section class="sheet-part">
+                      <div class="section-heading">
+                        <h3 class="section-title">Forms</h3>
+                        <div class="header-actions">
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Generate forms"
+                            title="Generate forms"
+                            [disabled]="inPlay() || aiBusy()"
+                            [attr.aria-busy]="askingForms() === index ? true : null"
+                            (click)="askGenerateForms(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path
+                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                              />
+                              <path d="M5 3v4" />
+                              <path d="M3 5h4" />
+                              <path d="M19 17v4" />
+                              <path d="M17 19h4" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Add a form"
+                            title="Add a form"
+                            [disabled]="inPlay() || aiBusy()"
+                            (click)="addFormManually(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M5 12h14" />
+                              <path d="M12 5v14" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
                       @if (definition.forms.length) {
                         <ul class="forms">
                           @for (form of definition.forms; track form.text) {
@@ -1382,458 +1802,12 @@ function writeExampleSuggestions(
                             </li>
                           }
                         </ul>
-                      } @else {
-                        <p class="hint">No forms yet.</p>
                       }
-                    }
-                  </section>
-                </li>
-              }
-            </ol>
-          } @else {
-            <p class="empty">No definitions yet.</p>
-          }
-        </div>
-
-        @if (editor(); as current) {
-          <div class="sheet-backdrop" (click)="closeSheet($event)">
-            <section
-              #editorSheet
-              class="sheet"
-              role="dialog"
-              aria-modal="true"
-              [attr.aria-label]="sheetTitle(current)"
-              [style.height.px]="editorSheetHeight()"
-              (click)="onEditorSheetClick($event)"
-            >
-              <div class="sheet-head">
-                <h3>{{ sheetTitle(current) }}</h3>
-                <span class="sheet-tools">
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Close"
-                    (click)="editor.set(null)"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
-                    </svg>
-                  </button>
-                </span>
-              </div>
-              <div class="field-heading">
-                <label
-                  [attr.for]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
-                >
-                  {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
-                </label>
-                <span class="header-actions">
-                  <span class="generate-bundle translate-split">
-                    <div class="generate-split">
-                      <button
-                        type="button"
-                        class="generate-main"
-                        [attr.aria-label]="
-                          translating()
-                            ? 'Translating…'
-                            : translationTarget()
-                              ? 'Translate into ' + languageName(translationTarget())
-                              : 'Translate'
-                        "
-                        [attr.title]="
-                          translating()
-                            ? 'Translating…'
-                            : translationTarget()
-                              ? 'Translate into ' + languageName(translationTarget())
-                              : 'Translate'
-                        "
-                        [attr.aria-busy]="translating() ? true : null"
-                        [disabled]="!canTranslate()"
-                        (click)="translateDraft()"
-                      >
-                        <span class="generate-translation">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                          @if (translationTarget(); as code) {
-                            {{ languageName(code) }}
-                          }
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        class="generate-chevron"
-                        [class.open]="sheetTranslationOpen()"
-                        [attr.aria-expanded]="sheetTranslationOpen()"
-                        aria-label="Translation language"
-                        [disabled]="translating() || askingEquivalent() || busy()"
-                        (click)="toggleSheetTranslation()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </button>
-                      @if (sheetTranslationOpen()) {
-                        <ul
-                          class="translation-menu down"
-                          role="listbox"
-                          aria-label="Translation language"
-                        >
-                          <li>
-                            <button
-                              type="button"
-                              role="option"
-                              [class.selected]="!translationTarget()"
-                              [attr.aria-selected]="!translationTarget()"
-                              (click)="chooseSheetTranslation('')"
-                            >
-                              No translation
-                            </button>
-                          </li>
-                          @for (code of translationLanguages(); track code) {
-                            <li>
-                              <button
-                                type="button"
-                                role="option"
-                                [class.selected]="code === translationTarget()"
-                                [attr.aria-selected]="code === translationTarget()"
-                                (click)="chooseSheetTranslation(code)"
-                              >
-                                {{ languageName(code) }}
-                              </button>
-                            </li>
-                          }
-                        </ul>
-                      }
-                    </div>
-                  </span>
-                  @if (current.kind === 'definition' && current.index != null) {
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Engineer definition"
-                      title="Engineer definition"
-                      [class.active]="definitionEngineerOpen()"
-                      [attr.aria-pressed]="definitionEngineerOpen()"
-                      [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
-                      [disabled]="aiBusy() && !definitionEngineerOpen()"
-                      (click)="toggleDefinitionEngineer()"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                        />
-                        <path d="M5 3v4" />
-                        <path d="M3 5h4" />
-                        <path d="M19 17v4" />
-                        <path d="M17 19h4" />
-                      </svg>
-                    </button>
+                    </section>
                   }
-                </span>
-              </div>
-              <div
-                class="definition-slot"
-                [class.engineering]="current.kind === 'definition' && !!definitionEngineer()"
-              >
-                @if (current.kind === 'definition' && definitionEngineer(); as engineer) {
-                  <div class="definition-ai">
-                    <div class="instruct-field">
-                      <input
-                        id="definition-note"
-                        [value]="engineer.instruction"
-                        [attr.maxlength]="definitionInstructionMax"
-                        [disabled]="definitionSheetBusy()"
-                        placeholder="Instruct AI on how to modify this definition"
-                        aria-label="Instruct AI on how to modify this definition"
-                        (input)="onDefinitionEngineerInstruction($event)"
-                        (keydown.enter)="$event.preventDefault(); generateEngineeredDefinition()"
-                      />
-                      <button
-                        type="button"
-                        class="entry-confirm"
-                        aria-label="Modify definition"
-                        [disabled]="
-                          definitionSheetBusy() ||
-                          (!engineer.instruction.trim() && !engineer.selected.length)
-                        "
-                        [attr.aria-busy]="askingWording() !== null ? true : null"
-                        (click)="generateEngineeredDefinition()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div class="related-row">
-                      <ul class="related-scroll">
-                        @for (word of engineer.words; track word.text) {
-                          <li>
-                            <button
-                              type="button"
-                              class="related-chip"
-                              [class.selected]="relatedWordChosen(word)"
-                              [attr.aria-pressed]="relatedWordChosen(word)"
-                              [disabled]="definitionSheetBusy()"
-                              (click)="toggleRelatedWord(word)"
-                            >
-                              <span class="relation">{{ label(word.relation) }}</span>
-                              <span class="related-word">{{ word.text }}</span>
-                            </button>
-                          </li>
-                        }
-                        <li>
-                          <button
-                            type="button"
-                            class="related-more"
-                            aria-label="Find related"
-                            title="Find related"
-                            [disabled]="definitionSheetBusy()"
-                            [attr.aria-busy]="askingRelated() !== null ? true : null"
-                            (click)="findRelatedWords()"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path
-                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                              />
-                              <path d="M5 3v4" />
-                              <path d="M3 5h4" />
-                              <path d="M19 17v4" />
-                              <path d="M17 19h4" />
-                            </svg>
-                          </button>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
                 }
-                <textarea
-                  #draftField
-                  [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
-                  rows="3"
-                  [value]="textDraft()"
-                  (input)="textDraft.set(inputValue($event))"
-                ></textarea>
               </div>
-              @if (sheetError()) {
-                <p class="error">{{ sheetError() }}</p>
-              }
-              @if (current.kind === 'definition') {
-                <div class="equivalent-block" [class.missing]="equivalentMissing()">
-                  <div class="field-heading">
-                    <label class="field-label" for="definition-equivalent">Equivalent</label>
-                    @if (supportAvailable()) {
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        [attr.aria-label]="
-                          askingEquivalent() ? 'Finding an equivalent…' : 'Ask AI for an equivalent'
-                        "
-                        [attr.title]="
-                          askingEquivalent() ? 'Finding an equivalent…' : 'Ask AI for an equivalent'
-                        "
-                        [attr.aria-busy]="askingEquivalent() ? true : null"
-                        [disabled]="!canAskEquivalent()"
-                        (click)="askEquivalent()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                          />
-                          <path d="M5 3v4" />
-                          <path d="M3 5h4" />
-                          <path d="M19 17v4" />
-                          <path d="M17 19h4" />
-                        </svg>
-                      </button>
-                    }
-                  </div>
-                  <ul class="equivalent-choices equivalent-pills">
-                    @for (item of sheetEquivalents(); track item.id) {
-                      <li [class.selected]="equivalentSelected(item.id)">
-                        <button
-                          type="button"
-                          [attr.aria-pressed]="equivalentSelected(item.id)"
-                          [disabled]="busy()"
-                          [attr.aria-label]="item.text"
-                          (click)="chooseEquivalent(item.id)"
-                        >
-                          {{ item.text }}
-                        </button>
-                        <button
-                          type="button"
-                          class="tag-remove"
-                          [disabled]="busy()"
-                          [attr.aria-label]="'Remove equivalent ' + item.text"
-                          (click)="removeEquivalent(item.id)"
-                        >
-                          ×
-                        </button>
-                      </li>
-                    }
-                    <li class="entry-pill">
-                      <input
-                        id="definition-equivalent"
-                        class="equivalent-entry"
-                        [value]="equivalentDraft()"
-                        (input)="equivalentDraft.set(inputValue($event))"
-                        [style.width]="equivalentEntryWidth()"
-                        autocomplete="off"
-                        placeholder="New equivalent"
-                        aria-label="New equivalent"
-                        (keydown.enter)="confirmEquivalent()"
-                      />
-                      <button
-                        type="button"
-                        class="entry-confirm"
-                        aria-label="Add equivalent"
-                        [disabled]="busy() || !equivalentDraft().trim()"
-                        (click)="confirmEquivalent()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-              }
-              <div class="meta">
-                <div class="field-heading">
-                  <span class="field-label">Metadata</span>
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    [attr.aria-label]="
-                      askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'
-                    "
-                    [attr.title]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
-                    [attr.aria-busy]="askingMetadata() ? true : null"
-                    [disabled]="!canAskMetadata()"
-                    (click)="askMetadata()"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                      />
-                      <path d="M5 3v4" />
-                      <path d="M3 5h4" />
-                      <path d="M19 17v4" />
-                      <path d="M17 19h4" />
-                    </svg>
-                  </button>
-                </div>
-                @if (metaEdit()) {
-                  <div class="meta-edit">
-                    <input
-                      #metaKeyField
-                      [value]="metaKey()"
-                      [attr.maxlength]="metaKeyMaxLength"
-                      placeholder="Key"
-                      aria-label="Metadata key"
-                      (input)="metaKey.set(inputValue($event))"
-                      (keydown.enter)="saveMetadata()"
-                    />
-                    <input
-                      [value]="metaValue()"
-                      [attr.maxlength]="metaValueMaxLength"
-                      placeholder="Value"
-                      aria-label="Metadata value"
-                      (input)="metaValue.set(inputValue($event))"
-                      (keydown.enter)="saveMetadata()"
-                    />
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      [disabled]="busy() || !metaKey().trim() || !metaValue().trim()"
-                      aria-label="Save metadata"
-                      (click)="saveMetadata()"
-                    >
-                      <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
-                    </button>
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Cancel"
-                      (click)="cancelMetadata()"
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <path d="M18 6 6 18" />
-                        <path d="m6 6 12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                }
-                <ul class="pills">
-                  @for (entry of entries(sheetMetadata()); track entry.key) {
-                    @if (metaEdit()?.previousKey !== entry.key) {
-                      @let color = sheetMetaColor(current.kind, entry.key);
-                      <li [class.colored]="color" [style.--meta-color]="color">
-                        <button
-                          type="button"
-                          [disabled]="busy()"
-                          [attr.aria-label]="'Edit metadata ' + entry.key"
-                          (click)="openMetadata(entry.key)"
-                        >
-                          <span class="sense-meta-key">{{ entry.key }}</span>
-                          <span class="sense-meta-value">{{ entry.value }}</span>
-                        </button>
-                        <button
-                          type="button"
-                          class="tag-remove"
-                          [disabled]="busy()"
-                          [attr.aria-label]="'Remove metadata ' + entry.key"
-                          (click)="removeMetadata(entry.key)"
-                        >
-                          ×
-                        </button>
-                      </li>
-                    }
-                  }
-                  @if (!metaEdit()) {
-                    <li class="meta-entry">
-                      <input
-                        [value]="metaKey()"
-                        [attr.maxlength]="metaKeyMaxLength"
-                        [style.width]="metaEntryWidth(metaKey(), 'Key')"
-                        placeholder="Key"
-                        aria-label="Metadata key"
-                        autocomplete="off"
-                        (input)="metaKey.set(inputValue($event))"
-                        (keydown.enter)="commitNewMetadata()"
-                      />
-                      <input
-                        [value]="metaValue()"
-                        [attr.maxlength]="metaValueMaxLength"
-                        [style.width]="metaEntryWidth(metaValue(), 'Value')"
-                        placeholder="Value"
-                        aria-label="Metadata value"
-                        autocomplete="off"
-                        (input)="metaValue.set(inputValue($event))"
-                        (keydown.enter)="commitNewMetadata()"
-                      />
-                      <button
-                        type="button"
-                        class="entry-confirm"
-                        aria-label="Add metadata"
-                        [disabled]="busy() || !metaKey().trim() || !metaValue().trim()"
-                        (click)="commitNewMetadata()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
-                      </button>
-                    </li>
-                  }
-                </ul>
-              </div>
-              <div class="sheet-actions">
+              <div class="sheet-actions sheet-footer">
                 <button
                   type="button"
                   class="btn btn-primary"
@@ -2192,17 +2166,17 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (addDefinitionOpen()) {
+        @if (definitionMenuOpen()) {
           <div class="sheet-backdrop" (click)="closeAddDefinition($event)">
             <section
               class="sheet add-definition"
               role="dialog"
               aria-modal="true"
-              aria-label="From an example"
-              (click)="onDefinitionExampleClick($event)"
+              aria-label="Add a definition"
+              (click)="onDefinitionMenuClick($event)"
             >
               <div class="sheet-head">
-                <h3>From an example</h3>
+                <h3>Add a definition</h3>
                 <button
                   type="button"
                   class="icon-btn"
@@ -2216,198 +2190,212 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <p>
-                This sentence is added to a definition that already fits, or a new definition is
-                written.
-              </p>
-              <div class="add-example">
-                <div class="example-entry">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                    />
-                    <path
-                      d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                    />
-                  </svg>
-                  <textarea
-                    id="definition-example"
-                    rows="3"
-                    [value]="definitionExample()"
-                    [attr.maxlength]="exampleLengthMax"
-                    [disabled]="asking()"
-                    [attr.placeholder]="
-                      'Write a sentence in ' + originalLanguageName() + ' that uses this word'
-                    "
-                    aria-label="Example"
-                    (input)="definitionExample.set(inputValue($event))"
-                  ></textarea>
-                </div>
-              </div>
-              <div class="sheet-actions example-actions">
-                <div class="generate-bundle">
-                  <div class="generate-split">
-                    <button
-                      type="button"
-                      class="generate-main"
-                      [disabled]="asking() || !definitionExample().trim()"
-                      [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
-                      (click)="addDefinitionFromExample()"
-                    >
-                      Ask
-                      @if (translationTarget(); as code) {
-                        <span class="generate-translation">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                          {{ languageName(code) }}
-                        </span>
-                      }
-                    </button>
-                    <button
-                      type="button"
-                      class="generate-chevron"
-                      [class.open]="definitionExampleTranslationOpen()"
-                      [attr.aria-expanded]="definitionExampleTranslationOpen()"
-                      aria-label="Translation language"
-                      [disabled]="asking()"
-                      (click)="toggleDefinitionExampleTranslation()"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </button>
-                    @if (definitionExampleTranslationOpen()) {
-                      <ul class="translation-menu" role="listbox" aria-label="Translation language">
-                        <li>
-                          <button
-                            type="button"
-                            role="option"
-                            [class.selected]="!translationTarget()"
-                            [attr.aria-selected]="!translationTarget()"
-                            (click)="chooseDefinitionExampleTranslation('')"
-                          >
-                            No translation
-                          </button>
-                        </li>
-                        @for (code of translationLanguages(); track code) {
-                          <li>
-                            <button
-                              type="button"
-                              role="option"
-                              [class.selected]="code === translationTarget()"
-                              [attr.aria-selected]="code === translationTarget()"
-                              (click)="chooseDefinitionExampleTranslation(code)"
-                            >
-                              {{ languageName(code) }}
-                            </button>
-                          </li>
-                        }
-                      </ul>
-                    }
-                  </div>
-                </div>
-              </div>
-              @if (error()) {
-                <p class="error">{{ error() }}</p>
-              }
-            </section>
-          </div>
-        }
-
-        @if (missingDefinitionsOpen()) {
-          <div class="sheet-backdrop" (click)="closeMissingDefinitions($event)">
-            <section
-              class="sheet confirm missing-definitions"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Generate definitions"
-              (click)="onMissingDefinitionsClick($event)"
-            >
-              <h3>Generate definitions?</h3>
-              <p>The AI will add the missing definitions of “{{ shownTitle() }}”.</p>
-              <div class="sheet-actions example-actions">
-                <div class="generate-bundle">
-                  <div class="generate-split">
-                    <button
-                      type="button"
-                      class="generate-main"
-                      [disabled]="asking()"
-                      [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
-                      (click)="addMissingDefinitions()"
-                    >
-                      Generate
-                      @if (translationTarget(); as code) {
-                        <span class="generate-translation">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                          {{ languageName(code) }}
-                        </span>
-                      }
-                    </button>
-                    <button
-                      type="button"
-                      class="generate-chevron"
-                      [class.open]="missingTranslationOpen()"
-                      [attr.aria-expanded]="missingTranslationOpen()"
-                      aria-label="Translation language"
-                      [disabled]="asking()"
-                      (click)="toggleMissingTranslation()"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </button>
-                    @if (missingTranslationOpen()) {
-                      <ul class="translation-menu" role="listbox" aria-label="Translation language">
-                        <li>
-                          <button
-                            type="button"
-                            role="option"
-                            [class.selected]="!translationTarget()"
-                            [attr.aria-selected]="!translationTarget()"
-                            (click)="chooseMissingTranslation('')"
-                          >
-                            No translation
-                          </button>
-                        </li>
-                        @for (code of translationLanguages(); track code) {
-                          <li>
-                            <button
-                              type="button"
-                              role="option"
-                              [class.selected]="code === translationTarget()"
-                              [attr.aria-selected]="code === translationTarget()"
-                              (click)="chooseMissingTranslation(code)"
-                            >
-                              {{ languageName(code) }}
-                            </button>
-                          </li>
-                        }
-                      </ul>
-                    }
-                  </div>
-                </div>
+              <div class="add-choices">
                 <button
                   type="button"
-                  class="btn btn-secondary"
+                  class="btn btn-secondary add-choice"
+                  [attr.aria-pressed]="definitionAddChoice() === 'example'"
                   [disabled]="asking()"
-                  (click)="closeDefinitionPrompts()"
+                  (click)="chooseDefinitionAdd('example')"
                 >
-                  Cancel
+                  From an example
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary add-choice"
+                  [attr.aria-pressed]="definitionAddChoice() === 'missing'"
+                  [disabled]="asking()"
+                  (click)="chooseDefinitionAdd('missing')"
+                >
+                  Missing definitions
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary add-choice"
+                  [disabled]="asking()"
+                  (click)="addDefinitionManually()"
+                >
+                  Manually
                 </button>
               </div>
+              @if (definitionAddChoice() === 'example') {
+                <p>
+                  This sentence is added to a definition that already fits, or a new definition is
+                  written.
+                </p>
+                <div class="add-example">
+                  <div class="example-entry">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                      />
+                      <path
+                        d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                      />
+                    </svg>
+                    <textarea
+                      id="definition-example"
+                      rows="3"
+                      [value]="definitionExample()"
+                      [attr.maxlength]="exampleLengthMax"
+                      [disabled]="asking()"
+                      [attr.placeholder]="
+                        'Write a sentence in ' + originalLanguageName() + ' that uses this word'
+                      "
+                      aria-label="Example"
+                      (input)="definitionExample.set(inputValue($event))"
+                    ></textarea>
+                  </div>
+                </div>
+                <div class="sheet-actions example-actions">
+                  <div class="generate-bundle">
+                    <div class="generate-split">
+                      <button
+                        type="button"
+                        class="generate-main"
+                        [disabled]="asking() || !definitionExample().trim()"
+                        [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
+                        (click)="addDefinitionFromExample()"
+                      >
+                        Ask
+                        @if (translationTarget(); as code) {
+                          <span class="generate-translation">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
+                            </svg>
+                            {{ languageName(code) }}
+                          </span>
+                        }
+                      </button>
+                      <button
+                        type="button"
+                        class="generate-chevron"
+                        [class.open]="definitionExampleTranslationOpen()"
+                        [attr.aria-expanded]="definitionExampleTranslationOpen()"
+                        aria-label="Translation language"
+                        [disabled]="asking()"
+                        (click)="toggleDefinitionExampleTranslation()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </button>
+                      @if (definitionExampleTranslationOpen()) {
+                        <ul
+                          class="translation-menu"
+                          role="listbox"
+                          aria-label="Translation language"
+                        >
+                          <li>
+                            <button
+                              type="button"
+                              role="option"
+                              [class.selected]="!translationTarget()"
+                              [attr.aria-selected]="!translationTarget()"
+                              (click)="chooseDefinitionExampleTranslation('')"
+                            >
+                              No translation
+                            </button>
+                          </li>
+                          @for (code of translationLanguages(); track code) {
+                            <li>
+                              <button
+                                type="button"
+                                role="option"
+                                [class.selected]="code === translationTarget()"
+                                [attr.aria-selected]="code === translationTarget()"
+                                (click)="chooseDefinitionExampleTranslation(code)"
+                              >
+                                {{ languageName(code) }}
+                              </button>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+              @if (definitionAddChoice() === 'missing') {
+                <p>The AI will add the missing definitions of “{{ shownTitle() }}”.</p>
+                <div class="sheet-actions example-actions">
+                  <div class="generate-bundle">
+                    <div class="generate-split">
+                      <button
+                        type="button"
+                        class="generate-main"
+                        [disabled]="asking() || !element().title.trim()"
+                        (click)="addMissingDefinitions()"
+                      >
+                        Generate
+                        @if (translationTarget(); as code) {
+                          <span class="generate-translation">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
+                            </svg>
+                            {{ languageName(code) }}
+                          </span>
+                        }
+                      </button>
+                      <button
+                        type="button"
+                        class="generate-chevron"
+                        [class.open]="missingTranslationOpen()"
+                        [attr.aria-expanded]="missingTranslationOpen()"
+                        aria-label="Translation language"
+                        [disabled]="asking()"
+                        (click)="toggleMissingTranslation()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </button>
+                      @if (missingTranslationOpen()) {
+                        <ul
+                          class="translation-menu"
+                          role="listbox"
+                          aria-label="Translation language"
+                        >
+                          <li>
+                            <button
+                              type="button"
+                              role="option"
+                              [class.selected]="!translationTarget()"
+                              [attr.aria-selected]="!translationTarget()"
+                              (click)="chooseMissingTranslation('')"
+                            >
+                              No translation
+                            </button>
+                          </li>
+                          @for (code of translationLanguages(); track code) {
+                            <li>
+                              <button
+                                type="button"
+                                role="option"
+                                [class.selected]="code === translationTarget()"
+                                [attr.aria-selected]="code === translationTarget()"
+                                (click)="chooseMissingTranslation(code)"
+                              >
+                                {{ languageName(code) }}
+                              </button>
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
               @if (error()) {
                 <p class="error">{{ error() }}</p>
               }
@@ -3239,57 +3227,15 @@ function writeExampleSuggestions(
           }
         }
 
-        @if (comfortOpen()) {
-          <div class="sheet-backdrop" (click)="closeComfort($event)">
-            <section
-              class="sheet mode-sheet"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Comfort"
-              (click)="$event.stopPropagation()"
-            >
-              <div class="sheet-head">
-                <h3>Comfort</h3>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  [disabled]="busy()"
-                  (click)="comfortOpen.set(false)"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div class="comfort-stepper" role="group" aria-label="Comfort">
-                <button
-                  type="button"
-                  class="comfort-step"
-                  aria-label="Lower comfort"
-                  [disabled]="busy() || element().comfort <= 1"
-                  (click)="setComfort(element().comfort - 1)"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 12h14" />
-                  </svg>
-                </button>
-                <app-score-gauge [score]="element().comfort" size="md" />
-                <button
-                  type="button"
-                  class="comfort-step"
-                  aria-label="Raise comfort"
-                  [disabled]="busy() || element().comfort >= 10"
-                  (click)="setComfort(element().comfort + 1)"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 12h14" />
-                    <path d="M12 5v14" />
-                  </svg>
-                </button>
-              </div>
-            </section>
+        @if (colorOpen()) {
+          <div class="sheet-backdrop" (click)="closeColor($event)">
+            <app-highlight-color-picker
+              [color]="element().color"
+              [colors]="colors()"
+              [disabled]="busy()"
+              (saved)="confirmColor($event)"
+              (dismissed)="colorOpen.set(false)"
+            />
           </div>
         }
 
@@ -3908,67 +3854,6 @@ function writeExampleSuggestions(
       color: var(--text);
     }
 
-    .comfort-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex: none;
-      width: 2.15rem;
-      height: 1.8rem;
-      border: 0;
-      padding: 0;
-      border-radius: 0.4rem;
-      background: transparent;
-      color: inherit;
-      cursor: pointer;
-    }
-
-    .comfort-btn:hover:not(:disabled) {
-      background: rgba(139, 144, 165, 0.16);
-    }
-
-    .comfort-btn:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-
-    .comfort-stepper {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 1.1rem;
-      width: 100%;
-    }
-
-    .comfort-step {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex: none;
-      width: 2.4rem;
-      height: 2.4rem;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: transparent;
-      color: var(--text);
-      cursor: pointer;
-    }
-
-    .comfort-step svg {
-      display: block;
-      width: 1.05rem;
-      height: 1.05rem;
-    }
-
-    .comfort-step:hover:not(:disabled) {
-      background: rgba(139, 144, 165, 0.16);
-    }
-
-    .comfort-step:disabled {
-      opacity: 0.35;
-      cursor: default;
-    }
-
     .mode-btn {
       display: inline-flex;
       align-items: center;
@@ -4351,6 +4236,13 @@ function writeExampleSuggestions(
       background: var(--accent-soft);
     }
 
+    .icon-btn.highlight-on,
+    .icon-btn.highlight-on:hover:not(:disabled),
+    .icon-btn.highlight-on.active,
+    .icon-btn.highlight-on.active:hover:not(:disabled) {
+      color: var(--swatch, var(--accent));
+    }
+
     .icon-btn.danger:hover:not(:disabled) {
       color: var(--danger);
       background: rgba(255, 92, 122, 0.12);
@@ -4384,10 +4276,8 @@ function writeExampleSuggestions(
       color: var(--accent-text);
     }
 
-    .comfort-step svg,
     .icon-btn svg,
     h3.section-title svg,
-    button.section-title svg,
     .lookup-chip svg,
     .equivalent-prompt svg,
     .sense-equivalent svg,
@@ -4534,58 +4424,14 @@ function writeExampleSuggestions(
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
-    }
-
-    h3.section-title,
-    button.section-title {
       color: var(--text);
     }
 
-    h3.section-title svg,
-    button.section-title svg {
+    h3.section-title svg {
       display: block;
       width: 1.15rem;
       height: 1.15rem;
       flex: none;
-    }
-
-    button.section-title {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      min-width: 0;
-      margin: 0;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      font: inherit;
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      line-height: 1;
-      text-transform: uppercase;
-      cursor: pointer;
-    }
-
-    button.forms-fold {
-      flex: 1;
-      justify-content: flex-start;
-    }
-
-    button.section-title .fold-count {
-      color: var(--text-muted);
-      font-variant-numeric: tabular-nums;
-      letter-spacing: 0;
-    }
-
-    button.section-title .fold-chevron {
-      width: 1rem;
-      height: 1rem;
-      stroke: currentColor;
-    }
-
-    button.section-title .fold-chevron.open {
-      transform: rotate(180deg);
     }
 
     .empty,
@@ -5049,6 +4895,11 @@ function writeExampleSuggestions(
       border-radius: 12px;
     }
 
+    .add-choice[aria-pressed='true'] {
+      border-color: var(--accent);
+      color: var(--accent-text);
+    }
+
     .sheet {
       display: flex;
       flex-direction: column;
@@ -5064,8 +4915,72 @@ function writeExampleSuggestions(
       box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
     }
 
+    .editor-sheet {
+      min-height: 0;
+      overflow: hidden;
+      gap: 0;
+      padding-bottom: 0;
+    }
+
+    .editor-sheet > .sheet-head {
+      flex: none;
+      margin-bottom: 0.55rem;
+    }
+
+    .sheet-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .editor-sheet > .sheet-footer {
+      position: sticky;
+      bottom: 0;
+      flex: none;
+      z-index: 2;
+      margin: 0.7rem -1rem 0;
+      padding: 0.75rem 1rem;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+    }
+
+    .sheet-part {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .sheet-items {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sheet-item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .sheet-item p {
+      flex: 1;
+      min-width: 0;
+      margin: 0.15rem 0 0;
+      color: var(--text);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
     .engineer-sheet,
-    .missing-definitions,
     .add-definition {
       overflow: visible;
     }
@@ -5776,6 +5691,8 @@ function writeExampleSuggestions(
 export class ElementModal {
   readonly element = input.required<StoredElement>();
   readonly collection = input<StoredElement[]>([]);
+  /** Presets and custom colors already saved, for the highlight picker. */
+  readonly colors = input<readonly string[]>([]);
   readonly canGoBack = input(false);
   /** Play uses this card. The element's mode decides which field is typed. */
   readonly playing = input(false);
@@ -5849,11 +5766,10 @@ export class ElementModal {
   readonly titleEdit = signal(false);
   readonly titleDraft = signal('');
   readonly titleError = signal('');
-  readonly addDefinitionOpen = signal(false);
-  readonly missingDefinitionsOpen = signal(false);
+  readonly definitionMenuOpen = signal(false);
+  readonly definitionAddChoice = signal<'example' | 'missing' | null>(null);
   readonly missingTranslationOpen = signal(false);
   readonly definitionExampleTranslationOpen = signal(false);
-  readonly expandedForms = signal<ReadonlySet<number>>(new Set());
   readonly unveiledEquivalents = signal<ReadonlySet<string>>(new Set());
   readonly addingDefinitions = signal<'missing' | 'example' | null>(null);
   readonly definitionExample = signal('');
@@ -5871,7 +5787,7 @@ export class ElementModal {
   readonly helpOpen = signal(false);
   readonly exerciseLog = signal(-1);
   readonly exerciseEntry = signal(-1);
-  readonly comfortOpen = signal(false);
+  readonly colorOpen = signal(false);
   readonly error = signal('');
   readonly speaking = signal<string | null>(null);
 
@@ -5948,13 +5864,12 @@ export class ElementModal {
       this.definitionPrompt.set(-1);
       this.examplePrompt.set(-1);
       this.closeDefinitionPrompts();
-      this.expandedForms.set(new Set());
       this.unveiledEquivalents.set(new Set());
       this.modeOpen.set(false);
       this.helpOpen.set(false);
       this.exerciseLog.set(-1);
       this.exerciseEntry.set(-1);
-      this.comfortOpen.set(false);
+      this.colorOpen.set(false);
       this.definitionExample.set('');
       this.addingDefinitions.set(null);
       this.equivalentTicket += 1;
@@ -6016,8 +5931,8 @@ export class ElementModal {
       if (!this.busy()) this.cancelTitle();
       return;
     }
-    if (this.comfortOpen()) {
-      if (!this.busy()) this.comfortOpen.set(false);
+    if (this.colorOpen()) {
+      if (!this.busy()) this.colorOpen.set(false);
       return;
     }
     if (this.confirm()?.kind === 'exercise') {
@@ -6037,11 +5952,7 @@ export class ElementModal {
       if (!this.busy()) this.modeOpen.set(false);
       return;
     }
-    if (this.missingDefinitionsOpen()) {
-      if (!this.asking()) this.closeDefinitionPrompts();
-      return;
-    }
-    if (this.addDefinitionOpen()) {
+    if (this.definitionMenuOpen()) {
       if (!this.asking()) this.closeDefinitionPrompts();
       return;
     }
@@ -6457,7 +6368,7 @@ export class ElementModal {
     );
   }
 
-  openDefinitionFromExample(): void {
+  openDefinitionMenu(): void {
     if (this.inPlay() || this.aiBusy()) return;
     this.error.set('');
     this.definitionExample.set('');
@@ -6468,36 +6379,33 @@ export class ElementModal {
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.confirm.set(null);
-    this.missingDefinitionsOpen.set(false);
+    this.definitionAddChoice.set(null);
     this.missingTranslationOpen.set(false);
-    this.addDefinitionOpen.set(true);
+    this.definitionExampleTranslationOpen.set(false);
+    this.definitionMenuOpen.set(true);
   }
 
-  openMissingDefinitions(): void {
-    if (this.inPlay() || this.aiBusy() || !this.element().title.trim()) return;
-    this.error.set('');
-    this.editor.set(null);
-    this.formEdit.set(null);
-    this.formFeatureEdit.set(null);
-    this.metaEdit.set(null);
-    this.exampleEngineer.set(null);
-    this.definitionEngineer.set(null);
-    this.confirm.set(null);
-    this.addDefinitionOpen.set(false);
+  chooseDefinitionAdd(choice: 'example' | 'missing'): void {
+    if (this.asking()) return;
     this.missingTranslationOpen.set(false);
-    this.missingDefinitionsOpen.set(true);
+    this.definitionExampleTranslationOpen.set(false);
+    this.definitionAddChoice.set(choice);
+  }
+
+  onDefinitionMenuClick(event: MouseEvent): void {
+    event.stopPropagation();
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest('.generate-bundle')) {
+      this.missingTranslationOpen.set(false);
+      this.definitionExampleTranslationOpen.set(false);
+    }
   }
 
   closeDefinitionPrompts(): void {
-    this.addDefinitionOpen.set(false);
-    this.missingDefinitionsOpen.set(false);
+    this.definitionMenuOpen.set(false);
+    this.definitionAddChoice.set(null);
     this.missingTranslationOpen.set(false);
     this.definitionExampleTranslationOpen.set(false);
-  }
-
-  closeMissingDefinitions(event: MouseEvent): void {
-    if (event.target !== event.currentTarget || this.asking()) return;
-    this.closeDefinitionPrompts();
   }
 
   toggleMissingTranslation(): void {
@@ -6510,12 +6418,6 @@ export class ElementModal {
     this.missingTranslationOpen.set(false);
   }
 
-  onMissingDefinitionsClick(event: MouseEvent): void {
-    event.stopPropagation();
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target?.closest('.generate-bundle')) this.missingTranslationOpen.set(false);
-  }
-
   toggleDefinitionExampleTranslation(): void {
     if (this.asking()) return;
     this.definitionExampleTranslationOpen.update((open) => !open);
@@ -6524,12 +6426,6 @@ export class ElementModal {
   chooseDefinitionExampleTranslation(code: string): void {
     rememberTranslationInto(code);
     this.definitionExampleTranslationOpen.set(false);
-  }
-
-  onDefinitionExampleClick(event: MouseEvent): void {
-    event.stopPropagation();
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target?.closest('.generate-bundle')) this.definitionExampleTranslationOpen.set(false);
   }
 
   generateExample(index: number): void {
@@ -6544,7 +6440,6 @@ export class ElementModal {
 
   generateForms(index: number): void {
     if (this.inPlay() || this.aiBusy() || !this.element().definitions[index]) return;
-    this.showForms(index);
     void this.askForms(index);
   }
 
@@ -6572,38 +6467,8 @@ export class ElementModal {
     this.generateForms(choice.index);
   }
 
-  formsOpen(index: number): boolean {
-    return this.expandedForms().has(index);
-  }
-
-  toggleForms(index: number): void {
-    const next = new Set(this.expandedForms());
-    if (next.has(index)) next.delete(index);
-    else next.add(index);
-    this.expandedForms.set(next);
-  }
-
-  private showForms(index: number): void {
-    if (this.expandedForms().has(index)) return;
-    const next = new Set(this.expandedForms());
-    next.add(index);
-    this.expandedForms.set(next);
-  }
-
-  private moveExpandedForms(map: (index: number) => number | null): void {
-    const current = this.expandedForms();
-    if (!current.size) return;
-    const next = new Set<number>();
-    for (const index of current) {
-      const mapped = map(index);
-      if (mapped != null && mapped >= 0) next.add(mapped);
-    }
-    this.expandedForms.set(next);
-  }
-
   addFormManually(index: number): void {
     if (this.inPlay() || this.aiBusy() || !this.element().definitions[index]) return;
-    this.showForms(index);
     this.openForm(index);
   }
 
@@ -6855,7 +6720,6 @@ export class ElementModal {
     if (forms != null) this.askingForms.set(map(forms));
     const confirming = this.formsConfirm();
     if (confirming) this.formsConfirm.set({ index: map(confirming.index) });
-    this.moveExpandedForms((index) => (index === from ? to : index === to ? from : index));
     const engineer = this.exampleEngineer();
     if (engineer) {
       this.exampleEngineer.set({ ...engineer, definitionIndex: map(engineer.definitionIndex) });
@@ -6892,7 +6756,6 @@ export class ElementModal {
     if (forms != null) this.askingForms.set(forms + by);
     const confirming = this.formsConfirm();
     if (confirming) this.formsConfirm.set({ index: confirming.index + by });
-    this.moveExpandedForms((index) => index + by);
     const related = this.askingRelated();
     if (related != null) this.askingRelated.set(related + by);
     const wording = this.askingWording();
@@ -7487,15 +7350,21 @@ export class ElementModal {
     );
   }
 
-  async setComfort(rate: number): Promise<void> {
-    const element = this.currentElement();
-    if (rate === element.comfort || rate < 1 || rate > 10) return;
-    await this.saveAppearance({ comfort: rate });
+  async confirmColor(color: string | null): Promise<void> {
+    await this.setColor(color);
+    this.colorOpen.set(false);
   }
 
-  closeComfort(event: MouseEvent): void {
+  async setColor(color: string | null): Promise<void> {
+    const next = color == null ? null : sanitizeElementColor(color);
+    if (color != null && !next) return;
+    if (this.currentElement().color === next) return;
+    await this.saveAppearance({ color: next });
+  }
+
+  closeColor(event: MouseEvent): void {
     if (event.target !== event.currentTarget || this.busy()) return;
-    this.comfortOpen.set(false);
+    this.colorOpen.set(false);
   }
 
   closeMode(event: MouseEvent): void {
@@ -7543,14 +7412,11 @@ export class ElementModal {
   }
 
   private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'mode' | 'comfort'>>,
+    patch: Partial<Pick<StoredElement, 'mode' | 'color'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
     const current = this.currentElement();
     const next: StoredElement = { ...current, ...patch };
-    if (patch.comfort != null && patch.comfort !== current.comfort) {
-      next.log = [...current.log, { event: 'comfort', comfort: patch.comfort, at: Date.now() }];
-    }
     return this.commit(next);
   }
 
@@ -7926,9 +7792,6 @@ export class ElementModal {
       else if (confirming && confirming.index > pending.index) {
         this.formsConfirm.set({ index: confirming.index - 1 });
       }
-      this.moveExpandedForms((index) =>
-        index === pending.index ? null : index > pending.index ? index - 1 : index,
-      );
       const related = this.askingRelated();
       if (related === pending.index) this.askingRelated.set(null);
       else if (related != null && related > pending.index) this.askingRelated.set(related - 1);
@@ -9326,7 +9189,7 @@ function selectionCoversPassage(passage: Element, range: Range): boolean {
 }
 
 function scoreColor(element: StoredElement): { color: string } {
-  return { color: comfortColor(element.comfort) };
+  return { color: element.color ?? '' };
 }
 
 function elementFormTexts(element: StoredElement): string[] {

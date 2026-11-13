@@ -1,7 +1,15 @@
 import { signal } from '@angular/core';
-import { sanitizePaletteColor } from './comfort-palette';
 
 const STORAGE_KEY = 'lingogem.metadata-colors.v1';
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+/** `#rrggbb`, or null when missing or invalid. */
+export function sanitizePaletteColor(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const color = value.trim();
+  return HEX_COLOR.test(color) ? color.toLowerCase() : null;
+}
 
 export type MetadataColorPlace = 'definitions' | 'examples' | 'forms';
 

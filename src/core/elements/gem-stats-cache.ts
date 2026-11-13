@@ -132,7 +132,7 @@ function isDay(value: unknown): value is DayStats {
     isCount(source.opened) &&
     isCount(source.reworked) &&
     isCount(source.revealed) &&
-    isDelta(source.comfort) &&
+    isCount(source.exercises) &&
     Array.isArray(source.elements) &&
     source.elements.every(isElementDay)
   );
@@ -150,7 +150,7 @@ function isElementDay(value: unknown): value is ElementDayStats {
     isCount(source.opened) &&
     isCount(source.reworked) &&
     isCount(source.revealed) &&
-    isDelta(source.comfort)
+    isCount(source.exercises)
   );
 }
 
@@ -162,8 +162,4 @@ function isGemCounts(value: unknown): value is GemCounts {
 
 function isCount(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
-}
-
-function isDelta(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
 }
