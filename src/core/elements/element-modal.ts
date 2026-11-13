@@ -1,3 +1,11 @@
+import {
+  CdkDrag,
+  CdkDragHandle,
+  CdkDropList,
+  moveItemInArray,
+  type CdkDragDrop,
+} from '@angular/cdk/drag-drop';
+import { CdkScrollable } from '@angular/cdk/scrolling';
 import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
@@ -11,6 +19,7 @@ import {
   input,
   output,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import {
@@ -475,9 +484,33 @@ function writeExampleSuggestions(
   for (const listener of exampleSuggestionListeners) listener(elementId);
 }
 
+function sameDefinitionOrder(
+  listed: readonly ElementDefinition[],
+  live: readonly ElementDefinition[],
+): boolean {
+  return (
+    listed.length === live.length &&
+    listed.every(
+      (definition, index) =>
+        definition.text === live[index].text &&
+        definition.equivalentId === live[index].equivalentId,
+    )
+  );
+}
+
 @Component({
   selector: 'app-element-modal',
-  imports: [NgTemplateOutlet, Reveal, ModeIcon, GemIcon, HighlightColorPicker],
+  imports: [
+    NgTemplateOutlet,
+    Reveal,
+    ModeIcon,
+    GemIcon,
+    HighlightColorPicker,
+    CdkScrollable,
+    CdkDropList,
+    CdkDrag,
+    CdkDragHandle,
+  ],
   template: `
     <div
       class="backdrop"
@@ -694,7 +727,7 @@ function writeExampleSuggestions(
             </button>
           </div>
         </header>
-        <div class="body">
+        <div class="body" cdkScrollable>
           @if (collision(); as matches) {
             <div class="collision" role="menu" aria-label="Matching elements">
               @for (match of matches; track match.elementId) {
@@ -708,11 +741,46 @@ function writeExampleSuggestions(
             <p class="error">{{ error() }}</p>
           }
           @if (element().definitions.length) {
-            <ol class="definitions">
-              @for (definition of element().definitions; track $index; let index = $index) {
-                <li class="sense" [class.fresh]="definitionIsNew(definition.text)">
+            <ol
+              class="definitions"
+              cdkDropList
+              cdkDropListLockAxis="y"
+              (cdkDropListDropped)="dropDefinition($event)"
+            >
+              @for (definition of shownDefinitions(); track $index; let index = $index) {
+                <li
+                  class="sense"
+                  cdkDrag
+                  cdkDragLockAxis="y"
+                  cdkDragPreviewContainer="parent"
+                  [cdkDragDisabled]="inPlay() || aiBusy() || element().definitions.length < 2"
+                  [class.fresh]="definitionIsNew(definition.text)"
+                >
                   <div class="sense-head">
-                    <h3>Definition {{ index + 1 }}</h3>
+                    <div class="sense-title">
+                      @if (element().definitions.length > 1) {
+                        <button
+                          type="button"
+                          class="icon-btn drag-handle"
+                          cdkDragHandle
+                          aria-label="Reorder definition"
+                          title="Drag to reorder"
+                          [disabled]="inPlay() || aiBusy()"
+                          (keydown.arrowup)="nudgeDefinition($event, index, -1)"
+                          (keydown.arrowdown)="nudgeDefinition($event, index, 1)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <circle class="solid" cx="9" cy="7" r="1.15" />
+                            <circle class="solid" cx="15" cy="7" r="1.15" />
+                            <circle class="solid" cx="9" cy="12" r="1.15" />
+                            <circle class="solid" cx="15" cy="12" r="1.15" />
+                            <circle class="solid" cx="9" cy="17" r="1.15" />
+                            <circle class="solid" cx="15" cy="17" r="1.15" />
+                          </svg>
+                        </button>
+                      }
+                      <h3>Definition</h3>
+                    </div>
                     <div class="item-actions">
                       @if (passagePick(index, null); as pick) {
                         <span class="lookup-actions">
@@ -746,36 +814,6 @@ function writeExampleSuggestions(
                           </button>
                         </span>
                       } @else {
-                        @if (element().definitions.length > 1) {
-                          <span class="item-actions-move">
-                            <button
-                              type="button"
-                              class="icon-btn"
-                              aria-label="Move definition up"
-                              title="Move definition up"
-                              [disabled]="inPlay() || aiBusy() || index === 0"
-                              (click)="moveDefinition(index, -1)"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m18 15-6-6-6 6" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              class="icon-btn"
-                              aria-label="Move definition down"
-                              title="Move definition down"
-                              [disabled]="
-                                inPlay() || aiBusy() || index === element().definitions.length - 1
-                              "
-                              (click)="moveDefinition(index, 1)"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m6 9 6 6 6-6" />
-                              </svg>
-                            </button>
-                          </span>
-                        }
                         <span class="item-actions-main">
                           @if (!inPlay() && reworkCount(definition); as reworks) {
                             <span
@@ -1165,15 +1203,6 @@ function writeExampleSuggestions(
                                 (click)="openExistingForm(index, form.text)"
                               >
                                 {{ form.text }}
-                              </button>
-                              <button
-                                type="button"
-                                class="tag-remove"
-                                [disabled]="inPlay() || busy()"
-                                [attr.aria-label]="'Remove form ' + form.text"
-                                (click)="removeForm(index, form.text)"
-                              >
-                                ×
                               </button>
                             </div>
                           </li>
@@ -3695,17 +3724,17 @@ function writeExampleSuggestions(
     }
 
     .header-actions .mode-btn {
-      width: 2rem;
-      height: 2rem;
+      width: 1.8rem;
+      height: 1.8rem;
       margin-inline-end: 0.15rem;
-      border: 1px solid var(--card-border);
-      border-radius: 999px;
+      border: 0;
+      border-radius: 0.4rem;
     }
 
     .header-actions .mode-btn app-mode-icon,
     .header-actions .mode-btn .empty-stone {
-      width: 1.7rem;
-      height: 1.7rem;
+      width: 1rem;
+      height: 1rem;
     }
 
     .empty-stone {
@@ -3999,6 +4028,18 @@ function writeExampleSuggestions(
       color: var(--text-muted);
     }
 
+    header:has(.title-row > .icon-btn) > p.equivalents {
+      margin-inline-start: calc(1.8rem + 1rem);
+    }
+
+    header:has(.title-main > .icon-btn.hear-inline) > p.equivalents {
+      margin-inline-start: calc(1.8rem + 0.15rem);
+    }
+
+    header:has(.title-row > .icon-btn):has(.title-main > .icon-btn.hear-inline) > p.equivalents {
+      margin-inline-start: calc(1.8rem + 1rem + 1.8rem + 0.15rem);
+    }
+
     .equivalent-choices {
       display: flex;
       flex-wrap: wrap;
@@ -4257,10 +4298,34 @@ function writeExampleSuggestions(
       align-items: center;
       justify-content: space-between;
       gap: 0.35rem 0.5rem;
+      box-sizing: border-box;
+      height: calc(1.8rem + 0.3rem);
       min-width: 0;
-      margin: -0.8rem -0.5rem 0;
-      padding: 0.2rem 0.15rem 0.35rem 0.7rem;
-      border-bottom: 1px solid var(--border);
+      margin: -0.35rem -0.5rem 0;
+      padding: 0.15rem 0.15rem 0.15rem 0.2rem;
+    }
+
+    .sense-head .lookup-actions {
+      flex-wrap: nowrap;
+    }
+
+    .sense-head .lookup-chip {
+      height: 1.8rem;
+    }
+
+    .sense-title {
+      display: flex;
+      align-items: center;
+      gap: 0.1rem;
+      min-width: 0;
+    }
+
+    .drag-handle {
+      cursor: grab;
+    }
+
+    .drag-handle:active {
+      cursor: grabbing;
     }
 
     .sense-head h3 {
@@ -4391,7 +4456,6 @@ function writeExampleSuggestions(
     }
 
     .item-actions,
-    .item-actions-move,
     .item-actions-main {
       display: flex;
       align-items: center;
@@ -4426,10 +4490,6 @@ function writeExampleSuggestions(
 
     .item-actions {
       justify-content: flex-end;
-    }
-
-    .item-actions-move {
-      margin-right: auto;
     }
 
     .lookup-actions {
@@ -4769,9 +4829,7 @@ function writeExampleSuggestions(
     }
 
     .sense > .group {
-      margin-top: 0.2rem;
-      padding-top: 0.85rem;
-      border-top: 1px solid var(--card-line);
+      margin-top: 0.15rem;
     }
 
     .group {
@@ -4832,6 +4890,10 @@ function writeExampleSuggestions(
     .pills li > button:first-child,
     .pills li > span {
       padding: 0.2rem 0.15rem 0.2rem 0.55rem;
+    }
+
+    .form-chip > button:only-child {
+      padding-inline: 0.55rem;
     }
 
     .pills li > span {
@@ -5852,6 +5914,17 @@ export class ElementModal {
   readonly passageSelection = signal<PassageSelection | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
+  /** Reordered definitions shown until the saved element arrives, so a drop does not snap back. */
+  private readonly listedDefinitions = signal<ElementDefinition[] | null>(null);
+  readonly shownDefinitions = computed(
+    () => this.listedDefinitions() ?? this.element().definitions,
+  );
+  private readonly releaseListedDefinitions = effect(() => {
+    const live = this.element().definitions;
+    const listed = this.listedDefinitions();
+    if (!listed || !sameDefinitionOrder(listed, live)) return;
+    untracked(() => this.listedDefinitions.set(null));
+  });
   readonly asking = signal(false);
   readonly addingSelection = signal(false);
   readonly titleEdit = signal(false);
@@ -6779,8 +6852,15 @@ export class ElementModal {
     this.speaking.set(null);
   }
 
-  private swapDefinitionIndexes(from: number, to: number): void {
-    const map = (index: number): number => (index === from ? to : index === to ? from : index);
+  /** Remap definition indexes after an item moves, including the ones it passes. */
+  private moveDefinitionIndexes(from: number, to: number): void {
+    if (from === to) return;
+    const map = (index: number): number => {
+      if (index === from) return to;
+      if (from < to && index > from && index <= to) return index - 1;
+      if (to < from && index >= to && index < from) return index + 1;
+      return index;
+    };
     const editing = this.formEdit();
     if (editing) this.formEdit.set({ ...editing, definitionIndex: map(editing.definitionIndex) });
     const editor = this.editor();
@@ -6915,7 +6995,7 @@ export class ElementModal {
     this.speaking.set(started ? key : null);
   }
 
-  async moveDefinition(index: number, delta: -1 | 1): Promise<void> {
+  moveDefinition(index: number, delta: -1 | 1): void {
     if (this.inPlay() || this.aiBusy()) return;
     const target = index + delta;
     const definitions = this.copyDefinitions();
@@ -6923,9 +7003,37 @@ export class ElementModal {
     if (!current || !definitions[target]) return;
     definitions.splice(index, 1);
     definitions.splice(target, 0, current);
+    this.applyDefinitionOrder(definitions, index, target);
+  }
+
+  nudgeDefinition(event: Event, index: number, delta: -1 | 1): void {
+    event.preventDefault();
+    this.moveDefinition(index, delta);
+  }
+
+  dropDefinition(event: CdkDragDrop<ElementDefinition[]>): void {
+    if (this.inPlay() || this.aiBusy()) return;
+    const from = event.previousIndex;
+    const to = event.currentIndex;
+    if (from === to) return;
+    const definitions = this.copyDefinitions();
+    if (!definitions[from] || !definitions[to]) return;
+    moveItemInArray(definitions, from, to);
+    this.applyDefinitionOrder(definitions, from, to);
+  }
+
+  private applyDefinitionOrder(
+    definitions: ElementDefinition[],
+    from: number,
+    to: number,
+  ): void {
+    this.listedDefinitions.set(definitions);
     this.stopSpeech();
-    if (!(await this.persist(definitions, this.element().equivalents))) return;
-    this.swapDefinitionIndexes(index, target);
+    this.moveDefinitionIndexes(from, to);
+    void this.persist(definitions, this.currentElement().equivalents, {
+      busy: false,
+      report: true,
+    });
   }
 
   openDefinition(index: number | null): void {
@@ -8105,7 +8213,7 @@ export class ElementModal {
   private async persist(
     definitions: ElementDefinition[],
     equivalents: ElementEquivalent[],
-    options?: { busy?: boolean },
+    options?: { busy?: boolean; report?: boolean },
   ): Promise<boolean> {
     return this.commit({ ...this.currentElement(), definitions, equivalents }, options);
   }

@@ -147,3 +147,16 @@ input:focus-visible {
   outline: 2px solid rgba(var(--accent-rgb), 0.7);
   outline-offset: 2px;
 }
+
+.cdk-drag-preview {
+  box-sizing: border-box;
+  box-shadow: var(--shadow);
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.4;
+}
+
+.cdk-drag-animating {
+  transition: transform 180ms ease;
+}
