@@ -519,12 +519,7 @@ function sameDefinitionOrder(
       [attr.aria-label]="dialogLabel()"
       (click)="onBackdrop($event)"
     >
-      <div
-        class="panel"
-        [class.colored]="!!element().color"
-        [style.--element-color]="element().color || null"
-        [attr.data-mode]="element().mode"
-      >
+      <div class="panel" [attr.data-mode]="element().mode">
         <ng-template #hearButton let-key="key" let-text="text" let-label="label" let-off="off">
           @if (canHear(text)) {
             <button
@@ -678,8 +673,9 @@ function sameDefinitionOrder(
             </button>
             <button
               type="button"
-              class="icon-btn"
+              class="icon-btn color-btn"
               [class.active]="colorOpen()"
+              [style.--swatch]="element().color || null"
               [attr.aria-label]="element().color ? 'Color ' + element().color : 'No color'"
               [attr.title]="element().color ? 'Color ' + element().color : 'No color'"
               [attr.aria-expanded]="colorOpen()"
@@ -691,6 +687,9 @@ function sameDefinitionOrder(
                 <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
                 <path d="M3 22h18" />
               </svg>
+              @if (element().color) {
+                <span class="color-dot" aria-hidden="true"></span>
+              }
             </button>
             <button
               type="button"
@@ -3648,16 +3647,6 @@ function sameDefinitionOrder(
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
     }
 
-    .panel.colored {
-      --text-muted: #d0d3e6;
-      --muted: #d0d3e6;
-      --surface: oklch(from var(--element-color) 0.3 calc(min(c, 0.058)) h);
-      --surface-2: oklch(from var(--element-color) 0.34 calc(min(c, 0.058)) h);
-      --border: oklch(from var(--element-color) 0.46 calc(min(c, 0.05)) h);
-      background: var(--surface);
-      border-color: var(--border);
-    }
-
     header,
     .sheet-head,
     .section-heading,
@@ -4275,8 +4264,20 @@ function sameDefinitionOrder(
       --phrase-indent: calc(1.5rem + 0.15rem);
     }
 
+    .sense > .group > .examples {
+      margin-inline-start: var(--phrase-indent, 0);
+    }
+
     .sense > .group > .forms {
       margin-inline-start: var(--phrase-indent, 0);
+    }
+
+    .sense:has(.example-quote) > .group > .forms {
+      margin-inline-start: calc(var(--phrase-indent, 0) + 3px + 0.85rem);
+    }
+
+    .sense:has(.example-quote > .spoken > .icon-btn.hear-inline) > .group > .forms {
+      margin-inline-start: calc(var(--phrase-indent, 0) + 3px + 0.85rem + 1.5rem + 0.15rem);
     }
 
     .sense-head {
@@ -4287,7 +4288,7 @@ function sameDefinitionOrder(
       box-sizing: border-box;
       height: calc(1.8rem + 0.3rem);
       min-width: 0;
-      margin: -0.35rem -0.5rem 0;
+      margin: -0.35rem -0.2rem 0;
       padding: 0.15rem 0.15rem 0.15rem 0.2rem;
     }
 
@@ -4440,6 +4441,17 @@ function sameDefinitionOrder(
       stroke: none;
     }
 
+    .color-btn .color-dot {
+      position: absolute;
+      right: 0.06rem;
+      bottom: 0.06rem;
+      width: 0.52rem;
+      height: 0.52rem;
+      border-radius: 999px;
+      background: oklch(from var(--swatch) 0.7 calc(min(max(c, 0.14), 0.2)) h);
+      box-shadow: 0 0 0 2px var(--surface);
+    }
+
     .item-actions,
     .item-actions-main {
       display: flex;
@@ -4537,7 +4549,7 @@ function sameDefinitionOrder(
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      padding: 1rem 1.15rem 0.75rem;
+      padding: 0.85rem 0.35rem 0.75rem;
     }
 
     h3 {
@@ -4593,7 +4605,7 @@ function sameDefinitionOrder(
       display: flex;
       flex-direction: column;
       gap: 0.55rem;
-      padding: 0.8rem 0.5rem;
+      padding: 0.8rem 0.2rem;
       border: 1px solid var(--border);
       border-radius: var(--radius);
       background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
