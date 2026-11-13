@@ -9,7 +9,6 @@ import {
 } from '@angular/core';
 import { ElementModal } from '../elements/element-modal';
 import { GemStatsModal } from '../elements/gem-stats-modal';
-import { GemIcon } from '../elements/gem-icon';
 import { HighlightColorPicker } from '../elements/highlight-color-picker';
 import { ModeIcon } from '../elements/mode-icon';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
@@ -78,7 +77,7 @@ const MOVE_SLOP_PX = 10;
 
 @Component({
   selector: 'app-language-page',
-  imports: [ElementModal, ModeIcon, DiscoverModal, Settings, GemStatsModal, GemIcon, HighlightColorPicker],
+  imports: [ElementModal, ModeIcon, DiscoverModal, Settings, GemStatsModal, HighlightColorPicker],
   template: `
     <main>
       <div class="page-top">
@@ -294,7 +293,7 @@ const MOVE_SLOP_PX = 10;
                   <div class="element-body">
                     <span class="bone bone-title"></span>
                   </div>
-                  <span class="bone bone-icons"></span>
+                  <span class="bone bone-metrics"></span>
                 </div>
               </li>
             }
@@ -342,26 +341,57 @@ const MOVE_SLOP_PX = 10;
                       </span>
                     }
                   </div>
+                  @let activity = activityTotals(element);
                   <div class="card-icons">
-                    @if (element.clicks > 0) {
-                      <span class="stat" [attr.aria-label]="clicksLabel(element.clicks)">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                        <span>{{ element.clicks }}</span>
-                      </span>
-                    }
                     @if (modeGem(element); as total) {
                       <span
                         class="card-gem"
                         [attr.data-game]="total.game"
                         [attr.aria-label]="gemsLabel(total.game, total.gems)"
+                        [attr.title]="gemsLabel(total.game, total.gems)"
                       >
-                        <app-gem-icon [game]="total.game" />
+                        <app-mode-icon
+                          [mode]="total.game === 'translation' ? 1 : total.game === 'example' ? 2 : 3"
+                        />
                         <span>{{ total.gems }}</span>
                       </span>
                     }
+                    <span
+                      class="stat"
+                      [class.zero]="activity.opened === 0"
+                      [attr.aria-label]="openedLabel(activity.opened)"
+                      [attr.title]="openedLabel(activity.opened)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
+                        />
+                      </svg>
+                      <span>{{ activity.opened }}</span>
+                    </span>
+                    <span
+                      class="stat"
+                      [class.zero]="activity.reworked === 0"
+                      [attr.aria-label]="reworkedLabel(activity.reworked)"
+                      [attr.title]="reworkedLabel(activity.reworked)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                      </svg>
+                      <span>{{ activity.reworked }}</span>
+                    </span>
+                    <span
+                      class="stat"
+                      [class.zero]="activity.revealed === 0"
+                      [attr.aria-label]="revealedLabel(activity.revealed)"
+                      [attr.title]="revealedLabel(activity.revealed)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      <span>{{ activity.revealed }}</span>
+                    </span>
                   </div>
                 </button>
               </li>
@@ -1350,14 +1380,64 @@ const MOVE_SLOP_PX = 10;
       display: flex;
       flex: none;
       align-items: center;
-      justify-content: flex-end;
-      gap: 0.85rem;
+      gap: 0.75rem;
       width: 100%;
-      padding: 0.15rem 0.75rem 0.45rem;
+      padding: 0.1rem 0.75rem 0.5rem;
     }
 
-    .card-icons:empty {
-      display: none;
+    .card-gem,
+    .stat {
+      display: inline-flex;
+      flex: none;
+      align-items: center;
+      gap: 0.18rem;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .card-gem {
+      color: var(--exercise-gem);
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .card-gem[data-game='translation'] {
+      --exercise-gem: var(--gem-translation);
+    }
+
+    .card-gem[data-game='example'] {
+      --exercise-gem: var(--gem-example);
+    }
+
+    .card-gem[data-game='definition'] {
+      --exercise-gem: var(--gem-definition);
+    }
+
+    .card-gem app-mode-icon {
+      width: 1.2rem;
+      height: 1.2rem;
+    }
+
+    .stat {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .stat.zero {
+      opacity: 0.4;
+    }
+
+    .stat svg {
+      display: block;
+      width: 0.85rem;
+      height: 0.85rem;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .element:hover {
@@ -1391,34 +1471,6 @@ const MOVE_SLOP_PX = 10;
       border-color: var(--level-line);
       background: oklch(from var(--score-color) 0.38 calc(min(c, 0.058)) h);
       box-shadow: inset 0 0 0 1px oklch(from var(--score-color) 0.55 calc(min(c, 0.05)) h);
-    }
-
-    .card-gem {
-      display: inline-flex;
-      flex: none;
-      align-items: center;
-      gap: 0.16rem;
-      color: var(--exercise-gem);
-      font-size: 0.78rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
-    .card-gem[data-game='translation'] {
-      --exercise-gem: var(--gem-translation);
-    }
-
-    .card-gem[data-game='example'] {
-      --exercise-gem: var(--gem-example);
-    }
-
-    .card-gem[data-game='definition'] {
-      --exercise-gem: var(--gem-definition);
-    }
-
-    .card-gem app-gem-icon {
-      --gem-size: 0.85rem;
     }
 
     .title-line {
@@ -1466,30 +1518,6 @@ const MOVE_SLOP_PX = 10;
       height: 100%;
     }
 
-    .stat {
-      display: inline-flex;
-      flex: none;
-      align-items: center;
-      gap: 0.18rem;
-      color: var(--text-muted);
-      font-size: 0.72rem;
-      font-weight: 650;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
-    .stat svg {
-      display: block;
-      width: 0.85rem;
-      height: 0.85rem;
-      flex: none;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
     .skeleton {
       border-color: color-mix(in srgb, var(--text) 7%, transparent);
       background: color-mix(in srgb, var(--surface) 88%, transparent);
@@ -1509,10 +1537,10 @@ const MOVE_SLOP_PX = 10;
       vertical-align: -0.08em;
     }
 
-    .skeleton .bone-icons {
-      width: 6.5rem;
+    .skeleton .bone-metrics {
+      width: 7.5rem;
       height: 0.75rem;
-      margin: 0.2rem 0.75rem 0.45rem;
+      margin: 0.15rem 0.75rem 0.5rem;
     }
 
     .skeleton .bone-title {
@@ -2534,10 +2562,6 @@ export class LanguagePage {
     return elementHighlightParts(displayTitle(text, this.code()), this.search());
   }
 
-  clicksLabel(count: number): string {
-    return count === 1 ? '1 click' : `${count} clicks`;
-  }
-
   gemTotals(
     element: StoredElement,
   ): { game: 'translation' | 'example' | 'definition'; gems: number }[] {
@@ -2570,9 +2594,36 @@ export class LanguagePage {
     return this.gemTotals(element).find((total) => total.game === game) ?? null;
   }
 
+  activityTotals(element: StoredElement): { opened: number; reworked: number; revealed: number } {
+    let reworked = 0;
+    let revealed = 0;
+    for (const item of element.definitions) {
+      for (const entry of item.log) {
+        if (entry.event === 'rework') reworked += 1;
+        else if (entry.event === 'reveal') revealed += 1;
+      }
+    }
+    return { opened: element.clicks, reworked, revealed };
+  }
+
   gemsLabel(game: 'translation' | 'example' | 'definition', count: number): string {
     const amount = count === 1 ? '1 gem' : `${count} gems`;
     return `${amount} from ${game}`;
+  }
+
+  openedLabel(count: number): string {
+    if (count === 0) return 'Not opened';
+    return count === 1 ? 'Opened once' : `Opened ${count} times`;
+  }
+
+  reworkedLabel(count: number): string {
+    if (count === 0) return 'Not reworked';
+    return count === 1 ? 'Reworked once' : `Reworked ${count} times`;
+  }
+
+  revealedLabel(count: number): string {
+    if (count === 0) return 'Not revealed';
+    return count === 1 ? 'Revealed once' : `Revealed ${count} times`;
   }
 
   inputValue(event: Event): string {
