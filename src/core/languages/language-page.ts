@@ -290,10 +290,11 @@ const MOVE_SLOP_PX = 10;
               <li>
                 <div class="element skeleton">
                   <div class="card-face">
-                    <span class="bone bone-side"></span>
                     <div class="card-main">
                       <span class="bone bone-title"></span>
                     </div>
+                    <span class="bone bone-action"></span>
+                    <span class="bone bone-side"></span>
                   </div>
                 </div>
               </li>
@@ -320,6 +321,24 @@ const MOVE_SLOP_PX = 10;
                 >
                 @let activity = activityTotals(element);
                 <div class="card-face">
+                  <div class="card-main">
+                    <span class="title">
+                      @for (part of highlight(element.title); track $index) {
+                        @if (part.hit) {
+                          <mark class="hit">{{ part.text }}</mark>
+                        } @else {
+                          <span>{{ part.text }}</span>
+                        }
+                      }
+                    </span>
+                  </div>
+                  @if (
+                    element.mode &&
+                    ((modeGem(element)?.gems ?? 0) > 0 ||
+                      (!selecting() && element.definitions.length))
+                  ) {
+                    <div class="action-row"></div>
+                  }
                   <div class="stat-rail">
                     <span
                       class="stat"
@@ -364,41 +383,42 @@ const MOVE_SLOP_PX = 10;
                       <span>{{ activity.revealed }}</span>
                     </span>
                   </div>
-                  <div class="card-main">
-                    <span class="title">
-                      @for (part of highlight(element.title); track $index) {
-                        @if (part.hit) {
-                          <mark class="hit">{{ part.text }}</mark>
-                        } @else {
-                          <span>{{ part.text }}</span>
-                        }
-                      }
-                    </span>
-                  </div>
                 </div>
                 </button>
-                @if (!selecting() && element.definitions.length) {
-                  @if (element.mode; as mode) {
-                    @if (modeGem(element); as total) {
-                      <button
-                        type="button"
-                        class="drill"
-                        [class.colored]="!!element.color"
-                        [style.--score-color]="element.color || null"
-                        [attr.aria-label]="drillLabel(mode, total.gems)"
-                        [attr.title]="drillLabel(mode, total.gems)"
-                        (click)="drillElement(element.id)"
-                      >
-                        <app-mode-icon [mode]="mode" />
-                        <span class="drill-gems" [class.zero]="total.gems === 0">{{
-                          total.gems
-                        }}</span>
-                        <span class="drill-label">Drill</span>
-                        <svg class="drill-arrow" viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M5 12h14" />
-                          <path d="m12 5 7 7-7 7" />
-                        </svg>
-                      </button>
+                @if (element.mode; as mode) {
+                  @if (modeGem(element); as total) {
+                    @if (total.gems > 0 || (!selecting() && element.definitions.length)) {
+                      <div class="card-corner">
+                        @if (total.gems > 0) {
+                          <span
+                            class="earned-gems"
+                            [attr.data-game]="total.game"
+                            [attr.aria-label]="gemsLabel(total.game, total.gems)"
+                            [attr.title]="gemsLabel(total.game, total.gems)"
+                          >
+                            <app-mode-icon [mode]="mode" />
+                            <span>{{ total.gems }}</span>
+                          </span>
+                        }
+                        @if (!selecting() && element.definitions.length) {
+                          <button
+                            type="button"
+                            class="drill"
+                            [class.colored]="!!element.color"
+                            [style.--score-color]="element.color || null"
+                            [attr.aria-label]="drillLabel(mode)"
+                            [attr.title]="drillLabel(mode)"
+                            (click)="drillElement(element.id)"
+                          >
+                            <app-mode-icon [mode]="mode" />
+                            <span class="drill-label">Drill</span>
+                            <svg class="drill-arrow" viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M5 12h14" />
+                              <path d="m12 5 7 7-7 7" />
+                            </svg>
+                          </button>
+                        }
+                      </div>
                     }
                   }
                 }
@@ -1324,9 +1344,9 @@ const MOVE_SLOP_PX = 10;
       width: 100%;
       flex: 1;
       display: flex;
-      flex-direction: row;
+      flex-direction: column;
       align-items: stretch;
-      min-height: 3.4rem;
+      min-height: 4rem;
       padding: 0;
       overflow: hidden;
       --level-line: color-mix(in srgb, var(--score-color, var(--border)) 42%, var(--border));
@@ -1343,25 +1363,37 @@ const MOVE_SLOP_PX = 10;
     .card-face {
       display: flex;
       flex: 1;
-      flex-direction: row;
+      flex-direction: column;
       align-items: stretch;
       min-width: 0;
+    }
+
+    .action-row {
+      flex: none;
+      height: 2.15rem;
+      margin-top: auto;
     }
 
     .stat-rail {
       display: flex;
       flex: none;
-      flex-direction: column;
-      border-right: 1px solid var(--level-line);
+      flex-direction: row;
+      align-items: center;
+      border-top: 1px solid var(--level-line);
       background: rgba(0, 0, 0, 0.18);
+    }
+
+    .card-main + .stat-rail {
+      margin-top: auto;
+      border-top: 0;
     }
 
     .card-main {
       display: flex;
-      flex: 1;
-      align-items: flex-start;
+      flex: none;
+      align-items: center;
       min-width: 0;
-      padding: 0 0.75rem;
+      padding: 0 0.7rem 0 0.45rem;
     }
 
     .stat {
@@ -1370,9 +1402,8 @@ const MOVE_SLOP_PX = 10;
       align-items: center;
       box-sizing: border-box;
       height: 2rem;
-      gap: 0.35rem;
-      padding: 0 0.45rem;
-      border-bottom: 1px solid var(--level-line);
+      gap: 0.28rem;
+      padding: 0 0.35rem 0 0.45rem;
       color: var(--text-muted);
       font-size: 0.72rem;
       font-weight: 600;
@@ -1380,8 +1411,8 @@ const MOVE_SLOP_PX = 10;
       line-height: 1;
     }
 
-    .stat:last-child {
-      border-bottom: 0;
+    .stat + .stat {
+      padding-left: 0.2rem;
     }
 
     .stat.zero {
@@ -1457,16 +1488,51 @@ const MOVE_SLOP_PX = 10;
       white-space: nowrap;
     }
 
-    .drill {
+    .card-corner {
       position: absolute;
       z-index: 1;
-      right: 0.4rem;
-      bottom: 0.35rem;
+      right: 0.45rem;
+      bottom: calc(2rem + 2px);
+      display: inline-flex;
+      align-items: center;
+      height: 2.15rem;
+      gap: 0.4rem;
+    }
+
+    .earned-gems {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.18rem;
+      color: var(--exercise-gem);
+      font-size: 0.78rem;
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .earned-gems[data-game='translation'] {
+      --exercise-gem: var(--gem-translation);
+    }
+
+    .earned-gems[data-game='example'] {
+      --exercise-gem: var(--gem-example);
+    }
+
+    .earned-gems[data-game='definition'] {
+      --exercise-gem: var(--gem-definition);
+    }
+
+    .earned-gems app-mode-icon {
+      width: 1.05rem;
+      height: 1.05rem;
+    }
+
+    .drill {
       display: inline-flex;
       align-items: center;
       gap: 0.28rem;
       height: 1.55rem;
-      padding: 0 0.48rem 0 0.32rem;
+      padding: 0 0.48rem 0 0.55rem;
       border: 1px solid var(--level-line);
       border-radius: 0.4rem;
       background: color-mix(in srgb, var(--score-color, transparent) 12%, var(--surface));
@@ -1494,23 +1560,23 @@ const MOVE_SLOP_PX = 10;
       background: oklch(from var(--score-color) 0.4 calc(min(c, 0.058)) h);
     }
 
-    .drill app-mode-icon,
+    .drill app-mode-icon {
+      flex: none;
+      width: 1.05rem;
+      height: 1.05rem;
+    }
+
     .drill-arrow {
       flex: none;
       width: 0.95rem;
       height: 0.95rem;
     }
 
-    .drill-gems,
     .drill-label {
       color: inherit;
       font-size: inherit;
       font-weight: inherit;
       line-height: 1;
-    }
-
-    .drill-gems.zero {
-      opacity: 0.4;
     }
 
     .drill-arrow {
@@ -1541,16 +1607,26 @@ const MOVE_SLOP_PX = 10;
       vertical-align: -0.08em;
     }
 
+    .skeleton .card-main {
+      min-height: 2rem;
+    }
+
+    .skeleton .bone-action {
+      align-self: flex-end;
+      width: 6.2rem;
+      height: 1.15rem;
+      margin: 0.5rem 0.45rem;
+    }
+
     .skeleton .bone-side {
-      width: 4.2rem;
-      height: 6rem;
+      width: 100%;
+      height: 2rem;
       border-radius: 0;
     }
 
     .skeleton .bone-title {
       width: 58%;
       height: 1.05rem;
-      margin-top: 0.45rem;
     }
 
     .empty {
@@ -2590,9 +2666,8 @@ export class LanguagePage {
     return `${amount} from ${game}`;
   }
 
-  drillLabel(mode: ElementMode, gems: number): string {
-    const game = mode === 1 ? 'translation' : mode === 2 ? 'example' : 'definition';
-    return `Drill ${this.modeLabel(mode)}. ${this.gemsLabel(game, gems)}`;
+  drillLabel(mode: ElementMode): string {
+    return `Drill ${this.modeLabel(mode)}`;
   }
 
   openedLabel(count: number): string {
