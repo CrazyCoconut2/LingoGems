@@ -3708,8 +3708,8 @@ function sameDefinitionOrder(
 
     .header-actions .mode-btn app-mode-icon,
     .header-actions .mode-btn .empty-stone {
-      width: 1rem;
-      height: 1rem;
+      width: 1.35rem;
+      height: 1.35rem;
     }
 
     .empty-stone {
@@ -4804,11 +4804,16 @@ function sameDefinitionOrder(
     }
 
     .linguagem-highlighted--current {
-      text-decoration-line: underline;
-      text-decoration-color: var(--text);
-      background: transparent;
-      border-radius: 0;
-      padding: 0;
+      text-decoration: none;
+      border-radius: 0.18em;
+      padding: 0 0.12em;
+      background: color-mix(
+        in srgb,
+        oklch(from var(--score-color, var(--accent)) 0.68 calc(min(max(c, 0.13), 0.18)) h) 42%,
+        transparent
+      );
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
     }
 
     .collision {
