@@ -3847,6 +3847,12 @@ function writeExampleSuggestions(
       --phrase-indent: calc(1.5rem + 0.15rem);
     }
 
+    .sense > .group > .section-heading > .section-title,
+    .sense > .group > .examples,
+    .sense > .group > .forms {
+      margin-inline-start: var(--phrase-indent, 0);
+    }
+
     .example-quote {
       --phrase-indent: 0;
     }
@@ -3870,11 +3876,12 @@ function writeExampleSuggestions(
       justify-content: flex-start;
       margin-inline: 0;
       padding-inline: 0;
+      margin-inline-start: 0.5rem;
     }
 
     .saved-example:has(.example-quote > .spoken > .icon-btn.hear-inline):has(.lookup-actions)
       > .item-actions {
-      margin-inline-start: calc(1.5rem + 0.15rem);
+      margin-inline-start: calc(0.5rem + 1.5rem + 0.15rem);
     }
 
     .icon-btn:disabled,
@@ -4471,7 +4478,7 @@ function writeExampleSuggestions(
       flex-direction: column;
       gap: 0.25rem;
       min-width: 0;
-      padding: 0.1rem 0;
+      padding: 0.1rem 0 0.1rem 0.5rem;
       color: var(--text-muted);
       font-size: 0.88rem;
       line-height: 1.5;
@@ -4480,7 +4487,7 @@ function writeExampleSuggestions(
     .example-quote::before {
       content: "";
       position: absolute;
-      inset-inline-start: -0.6rem;
+      inset-inline-start: 0;
       top: 0.15rem;
       bottom: 0.15rem;
       width: 3px;
