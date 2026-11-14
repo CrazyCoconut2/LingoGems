@@ -12,7 +12,6 @@ import {
   input,
   output,
   signal,
-  untracked,
   viewChild,
 } from '@angular/core';
 import {
@@ -152,8 +151,11 @@ function mergeMetadata(current: ElementMetadata, extra: ElementMetadata): Elemen
 type ConfirmDelete =
   | { kind: 'element' }
   | { kind: 'definition'; index: number }
+  | { kind: 'definitions' }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number }
   | { kind: 'exercise'; definitionIndex: number; historyIndex: number };
+
+const DELETE_PRESS_MS = 500;
 
 type StoredSuggestion = {
   text: string;
@@ -475,20 +477,6 @@ function writeExampleSuggestions(
   for (const listener of exampleSuggestionListeners) listener(elementId);
 }
 
-function sameDefinitionOrder(
-  listed: readonly ElementDefinition[],
-  live: readonly ElementDefinition[],
-): boolean {
-  return (
-    listed.length === live.length &&
-    listed.every(
-      (definition, index) =>
-        definition.text === live[index].text &&
-        definition.equivalentId === live[index].equivalentId,
-    )
-  );
-}
-
 @Component({
   selector: 'app-element-modal',
   imports: [
@@ -550,54 +538,33 @@ function sameDefinitionOrder(
                 </svg>
               </button>
             }
-            @if (titleEdit()) {
-              <form class="title-edit" (submit)="saveTitle($event)">
-                <input
-                  #titleField
-                  aria-label="Title"
-                  [value]="titleDraft()"
-                  [attr.maxlength]="formMaxLength"
-                  autocomplete="off"
-                  [disabled]="busy()"
-                  (input)="titleDraft.set(inputValue($event))"
-                />
-                <button
-                  type="submit"
-                  class="icon-btn"
-                  aria-label="Save title"
-                  title="Save title"
-                  [disabled]="busy() || !titleDraft().trim()"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                </button>
-              </form>
-            } @else {
-              <div class="title-main">
-                <ng-container
-                  [ngTemplateOutlet]="hearButton"
-                  [ngTemplateOutletContext]="{
-                    key: 'title',
-                    text: shownTitle(),
-                    label: 'title',
-                  }"
-                />
-                <h2>{{ shownTitle() }}</h2>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Edit title"
-                  title="Edit title"
-                  [disabled]="inPlay() || aiBusy()"
-                  (click)="openTitle()"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                  </svg>
-                </button>
-              </div>
-            }
+            <div class="title-main">
+              <ng-container
+                [ngTemplateOutlet]="hearButton"
+                [ngTemplateOutletContext]="{
+                  key: 'title',
+                  text: shownTitle(),
+                  label: 'title',
+                }"
+              />
+              <h2>{{ shownTitle() }}</h2>
+              <button
+                type="button"
+                class="icon-btn color-btn"
+                [style.--swatch]="element().color || null"
+                aria-label="Edit element"
+                title="Edit element"
+                [disabled]="inPlay() || aiBusy()"
+                (click)="openTitle()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                </svg>
+                @if (element().color) {
+                  <span class="color-dot" aria-hidden="true"></span>
+                }
+              </button>
+            </div>
             <div class="title-end">
               <button
                 #closeButton
@@ -613,9 +580,6 @@ function sameDefinitionOrder(
               </button>
             </div>
           </div>
-          @if (titleError()) {
-            <p class="error">{{ titleError() }}</p>
-          }
           @if (headerEquivalents(); as equivalents) {
             @if (equivalents.length) {
               <p class="equivalents" [attr.aria-hidden]="headerTranslationsLocked() ? true : null">
@@ -659,26 +623,79 @@ function sameDefinitionOrder(
                 />
               </button>
             }
-            <button
-              type="button"
-              class="icon-btn color-btn"
-              [class.active]="colorOpen()"
-              [style.--swatch]="element().color || null"
-              [attr.aria-label]="element().color ? 'Color ' + element().color : 'No color'"
-              [attr.title]="element().color ? 'Color ' + element().color : 'No color'"
-              [attr.aria-expanded]="colorOpen()"
-              [disabled]="busy() || inPlay()"
-              (click)="colorOpen.set(true)"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m9 11-6 6v3h9l3-3" />
-                <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
-                <path d="M3 22h18" />
-              </svg>
-              @if (element().color) {
-                <span class="color-dot" aria-hidden="true"></span>
+            @if (element().definitions.length) {
+              @let index = visibleDefinitionIndex();
+              @if (shownDefinitions()[index]; as definition) {
+                @if (passagePick(index, null); as pick) {
+                  <span class="lookup-actions">
+                    <button
+                      type="button"
+                      class="lookup-chip"
+                      aria-label="Add element"
+                      [disabled]="aiBusy()"
+                      (pointerdown)="confirmPassagePick($event, pick.text)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M5 12h14" />
+                        <path d="M12 5v14" />
+                      </svg>
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      class="lookup-chip"
+                      aria-label="Add element with AI"
+                      [disabled]="aiBusy()"
+                      [attr.aria-busy]="addingSelection() ? true : null"
+                      (pointerdown)="confirmPassagePick($event, pick.text, true)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                        />
+                      </svg>
+                      Ask AI
+                    </button>
+                  </span>
+                } @else {
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Stats"
+                    title="Stats"
+                    [disabled]="inPlay()"
+                    (click)="openExerciseLog(index)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+                      <path d="M18 17V9" />
+                      <path d="M13 17V5" />
+                      <path d="M8 17v-3" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    [attr.aria-label]="
+                      definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                    "
+                    [attr.title]="
+                      definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
+                    "
+                    [disabled]="inPlay() || aiBusy()"
+                    (click)="openDefinition(index)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                      <path d="m18 15 4-4" />
+                      <path
+                        d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                      />
+                    </svg>
+                  </button>
+                }
               }
-            </button>
+            }
             <button
               type="button"
               class="icon-btn"
@@ -699,10 +716,15 @@ function sameDefinitionOrder(
             <button
               type="button"
               class="icon-btn danger"
-              aria-label="Delete element"
-              title="Delete"
-              [disabled]="inPlay() || busy()"
-              (click)="askDeleteElement()"
+              [attr.aria-label]="deleteLabel()"
+              [attr.title]="deleteTitle()"
+              [disabled]="inPlay() || busy() || (!!element().definitions.length && aiBusy())"
+              (pointerdown)="startDeletePress($event)"
+              (pointermove)="moveDeletePress($event)"
+              (pointerup)="endDeletePress()"
+              (pointercancel)="endDeletePress()"
+              (contextmenu)="$event.preventDefault()"
+              (click)="onDeleteClick()"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M3 6h18" />
@@ -733,136 +755,6 @@ function sameDefinitionOrder(
             @if (definitions[index]; as definition) {
               <ol class="definitions">
                 <li class="sense" [class.fresh]="definitionIsNew(definition.text)">
-                  <div class="sense-head">
-                    <div class="sense-title">
-                      @if (element().definitions.length > 1) {
-                        <button
-                          type="button"
-                          class="icon-btn drag-handle"
-                          aria-label="Reorder definition"
-                          title="Arrow keys reorder"
-                          [disabled]="inPlay() || aiBusy()"
-                          (keydown.arrowup)="nudgeDefinition($event, index, -1)"
-                          (keydown.arrowdown)="nudgeDefinition($event, index, 1)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <circle class="solid" cx="9" cy="7" r="1.15" />
-                            <circle class="solid" cx="15" cy="7" r="1.15" />
-                            <circle class="solid" cx="9" cy="12" r="1.15" />
-                            <circle class="solid" cx="15" cy="12" r="1.15" />
-                            <circle class="solid" cx="9" cy="17" r="1.15" />
-                            <circle class="solid" cx="15" cy="17" r="1.15" />
-                          </svg>
-                        </button>
-                      }
-                      <h3 class="section-title">Definition</h3>
-                    </div>
-                    <div class="item-actions">
-                      @if (passagePick(index, null); as pick) {
-                        <span class="lookup-actions">
-                          <button
-                            type="button"
-                            class="lookup-chip"
-                            aria-label="Add element"
-                            [disabled]="aiBusy()"
-                            (pointerdown)="confirmPassagePick($event, pick.text)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M5 12h14" />
-                              <path d="M12 5v14" />
-                            </svg>
-                            Add
-                          </button>
-                          <button
-                            type="button"
-                            class="lookup-chip"
-                            aria-label="Add element with AI"
-                            [disabled]="aiBusy()"
-                            [attr.aria-busy]="addingSelection() ? true : null"
-                            (pointerdown)="confirmPassagePick($event, pick.text, true)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path
-                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                              />
-                            </svg>
-                            Ask AI
-                          </button>
-                        </span>
-                      } @else {
-                        <span class="item-actions-main">
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Stats"
-                            title="Stats"
-                            [disabled]="inPlay()"
-                            (click)="openExerciseLog(index)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M3 3v16a2 2 0 0 0 2 2h16" />
-                              <path d="M18 17V9" />
-                              <path d="M13 17V5" />
-                              <path d="M8 17v-3" />
-                            </svg>
-                          </button>
-                          @if (reworkCount(definition) > 0) {
-                            <span
-                              class="hammer-count"
-                              [class.struck]="struck(index)"
-                              [attr.aria-label]="reworkLabel(reworkCount(definition))"
-                              [attr.title]="reworkLabel(reworkCount(definition))"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                                <path d="m18 15 4-4" />
-                                <path
-                                  d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
-                                />
-                              </svg>
-                              <span>{{ reworkCount(definition) }}</span>
-                            </span>
-                          }
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            [attr.aria-label]="
-                              definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                            "
-                            [attr.title]="
-                              definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                            "
-                            [disabled]="inPlay() || aiBusy()"
-                            (click)="openDefinition(index)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                              <path d="m18 15 4-4" />
-                              <path
-                                d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="icon-btn danger"
-                            aria-label="Delete definition"
-                            title="Delete definition"
-                            [disabled]="inPlay() || aiBusy()"
-                            (click)="askDeleteDefinition(index)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M3 6h18" />
-                              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                              <path d="M10 11v6" />
-                              <path d="M14 11v6" />
-                            </svg>
-                          </button>
-                        </span>
-                      }
-                    </div>
-                  </div>
                   <div class="sense-main">
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
@@ -2987,15 +2879,65 @@ function sameDefinitionOrder(
           }
         }
 
-        @if (colorOpen()) {
-          <div class="sheet-backdrop" (click)="closeColor($event)">
-            <app-highlight-color-picker
-              [color]="element().color"
-              [colors]="colors()"
-              [disabled]="busy()"
-              (saved)="confirmColor($event)"
-              (dismissed)="colorOpen.set(false)"
-            />
+        @if (titleEdit()) {
+          <div class="sheet-backdrop" (click)="closeTitle($event)">
+            <form
+              class="sheet element-edit"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Edit element"
+              (click)="$event.stopPropagation()"
+              (submit)="saveTitle($event)"
+            >
+              <div class="sheet-head">
+                <h3>Edit element</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  [disabled]="busy()"
+                  (click)="cancelTitle()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <label for="element-title">Title</label>
+              <input
+                id="element-title"
+                aria-label="Title"
+                [value]="titleDraft()"
+                [attr.maxlength]="formMaxLength"
+                autocomplete="off"
+                [disabled]="busy()"
+                (input)="titleDraft.set(inputValue($event))"
+              />
+              @if (titleError()) {
+                <p class="error">{{ titleError() }}</p>
+              }
+              <app-highlight-color-picker
+                [embedded]="true"
+                [color]="element().color"
+                [colors]="colors()"
+                [disabled]="busy()"
+                (changed)="colorDraft.set($event)"
+              />
+              <div class="sheet-actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  [disabled]="busy()"
+                  (click)="cancelTitle()"
+                >
+                  Cancel
+                </button>
+                <button type="submit" class="btn btn-primary" [disabled]="!canSaveElement()">
+                  Save
+                </button>
+              </div>
+            </form>
           </div>
         }
 
@@ -3323,7 +3265,9 @@ function sameDefinitionOrder(
                 {{
                   pending.kind === 'element'
                     ? 'This element will be removed.'
-                    : 'This will be removed.'
+                    : pending.kind === 'definitions'
+                      ? 'Every definition will be removed.'
+                      : 'This will be removed.'
                 }}
               </p>
               <div class="sheet-actions">
@@ -3414,6 +3358,16 @@ function sameDefinitionOrder(
 
     header > .header-actions {
       justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .header-actions .lookup-actions {
+      flex-wrap: nowrap;
+      margin-left: 0;
+    }
+
+    .header-actions .lookup-chip {
+      height: 1.8rem;
     }
 
     .title-row {
@@ -3425,7 +3379,6 @@ function sameDefinitionOrder(
     }
 
     .title-row h2,
-    .title-edit,
     .title-main {
       flex: 1;
       min-width: 0;
@@ -3615,20 +3568,12 @@ function sameDefinitionOrder(
       height: 1.5rem;
     }
 
-    .title-edit {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
+    .element-edit {
+      width: min(100%, 22rem);
     }
 
-    .title-edit input {
-      flex: 1;
-      min-width: 0;
-      font: inherit;
-      font-size: 1.25rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      line-height: 1.2;
+    .element-edit app-highlight-color-picker {
+      margin-top: 0.2rem;
     }
 
     .equivalents {
@@ -3902,63 +3847,6 @@ function sameDefinitionOrder(
       --phrase-indent: calc(1.5rem + 0.15rem);
     }
 
-    .sense > .group > .examples {
-      margin-inline-start: var(--phrase-indent, 0);
-    }
-
-    .sense > .group > .forms {
-      margin-inline-start: var(--phrase-indent, 0);
-    }
-
-    .sense > .group > .section-heading {
-      margin-inline: -0.2rem;
-      padding-inline: 0.2rem 0.15rem;
-    }
-
-    .sense:has(.drag-handle) > .group > .section-heading {
-      padding-inline-start: calc(0.2rem + 1.8rem + 0.1rem);
-    }
-
-    .sense-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.35rem 0.5rem;
-      box-sizing: border-box;
-      height: calc(1.8rem + 0.3rem);
-      min-width: 0;
-      margin: -0.35rem -0.2rem 0;
-      padding: 0.15rem 0.15rem 0.15rem 0.2rem;
-    }
-
-    .sense-head .lookup-actions {
-      flex-wrap: nowrap;
-    }
-
-    .sense-head .lookup-chip {
-      height: 1.8rem;
-    }
-
-    .sense-title {
-      display: flex;
-      align-items: center;
-      gap: 0.1rem;
-      min-width: 0;
-    }
-
-    .drag-handle {
-      cursor: pointer;
-    }
-
-    .sense-head h3 {
-      margin: 0;
-    }
-
-    .sense-head .item-actions {
-      flex: none;
-      margin-inline-start: auto;
-    }
-
     .example-quote {
       --phrase-indent: 0;
     }
@@ -3982,12 +3870,11 @@ function sameDefinitionOrder(
       justify-content: flex-start;
       margin-inline: 0;
       padding-inline: 0;
-      margin-inline-start: calc(3px + 0.85rem);
     }
 
     .saved-example:has(.example-quote > .spoken > .icon-btn.hear-inline):has(.lookup-actions)
       > .item-actions {
-      margin-inline-start: calc(3px + 0.85rem + 1.5rem + 0.15rem);
+      margin-inline-start: calc(1.5rem + 0.15rem);
     }
 
     .icon-btn:disabled,
@@ -4039,7 +3926,6 @@ function sameDefinitionOrder(
 
     .close svg,
     .icon-btn svg,
-    .hammer-count svg,
     h3.section-title svg,
     .lookup-chip svg,
     .equivalent-prompt svg,
@@ -4093,41 +3979,6 @@ function sameDefinitionOrder(
       justify-content: flex-end;
     }
 
-    .hammer-count {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.18rem;
-      height: 1.8rem;
-      padding-inline: 0.28rem 0.38rem;
-      border-radius: 999px;
-      color: var(--text);
-      font-size: 0.78rem;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .hammer-count svg {
-      width: 0.95rem;
-      height: 0.95rem;
-    }
-
-    .hammer-count.struck {
-      color: var(--accent-text);
-      animation: hammer-strike 0.9s ease;
-    }
-
-    @keyframes hammer-strike {
-      40% {
-        transform: scale(1.12);
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .hammer-count.struck {
-        animation: none;
-      }
-    }
-
     .lookup-actions {
       display: flex;
       flex-wrap: wrap;
@@ -4176,7 +4027,7 @@ function sameDefinitionOrder(
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      padding: 0.85rem 0.35rem 0.75rem;
+      padding: 0.85rem 1.15rem 0.75rem;
     }
 
     h3 {
@@ -4271,17 +4122,16 @@ function sameDefinitionOrder(
     .sense {
       display: flex;
       flex-direction: column;
-      gap: 0.55rem;
-      padding: 0.8rem 0.2rem;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+      gap: 0.7rem;
+      padding: 0;
+      border: 0;
+      background: none;
+      box-shadow: none;
     }
 
     .sense.fresh {
-      border-left-color: #ff5c7a;
-      border-left-width: 3px;
+      border-left: 3px solid #ff5c7a;
+      padding-left: 0.65rem;
     }
 
     .sense-meta {
@@ -4615,16 +4465,27 @@ function sameDefinitionOrder(
     }
 
     .example-quote {
+      position: relative;
       display: flex;
       flex: 1;
       flex-direction: column;
       gap: 0.25rem;
       min-width: 0;
-      padding: 0.1rem 0 0.1rem 0.85rem;
-      border-left: 3px solid var(--gem-example);
+      padding: 0.1rem 0;
       color: var(--text-muted);
       font-size: 0.88rem;
       line-height: 1.5;
+    }
+
+    .example-quote::before {
+      content: "";
+      position: absolute;
+      inset-inline-start: -0.6rem;
+      top: 0.15rem;
+      bottom: 0.15rem;
+      width: 3px;
+      border-radius: 2px;
+      background: var(--gem-example);
     }
 
     .example-quote .passage {
@@ -5681,11 +5542,7 @@ export class ElementModal {
   readonly passageSelection = signal<PassageSelection | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
-  /** Reordered definitions shown until the saved element arrives, so a drop does not snap back. */
-  private readonly listedDefinitions = signal<ElementDefinition[] | null>(null);
-  readonly shownDefinitions = computed(
-    () => this.listedDefinitions() ?? this.element().definitions,
-  );
+  readonly shownDefinitions = computed(() => this.element().definitions);
   /** Index of the definition panel on screen. */
   readonly definitionPanel = signal(0);
   readonly visibleDefinitionIndex = computed(() => {
@@ -5693,17 +5550,13 @@ export class ElementModal {
     if (count === 0) return 0;
     return Math.min(this.definitionPanel(), count - 1);
   });
-  private readonly releaseListedDefinitions = effect(() => {
-    const live = this.element().definitions;
-    const listed = this.listedDefinitions();
-    if (!listed || !sameDefinitionOrder(listed, live)) return;
-    untracked(() => this.listedDefinitions.set(null));
-  });
   readonly asking = signal(false);
   readonly addingSelection = signal(false);
   readonly titleEdit = signal(false);
   readonly titleDraft = signal('');
   readonly titleError = signal('');
+  /** Color chosen in the element editor. Null clears it. */
+  readonly colorDraft = signal<string | null>(null);
   readonly definitionMenuOpen = signal(false);
   readonly definitionAddChoice = signal<'example' | 'missing' | null>(null);
   readonly unveiledEquivalents = signal<ReadonlySet<string>>(new Set());
@@ -5721,7 +5574,6 @@ export class ElementModal {
   readonly helpOpen = signal(false);
   readonly exerciseLog = signal(-1);
   readonly exerciseEntry = signal(-1);
-  readonly colorOpen = signal(false);
   readonly error = signal('');
   readonly speaking = signal<string | null>(null);
 
@@ -5745,7 +5597,6 @@ export class ElementModal {
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
   private readonly formFeatureField = viewChild<ElementRef<HTMLInputElement>>('formFeatureField');
   private readonly metaKeyField = viewChild<ElementRef<HTMLInputElement>>('metaKeyField');
-  private readonly titleField = viewChild<ElementRef<HTMLInputElement>>('titleField');
   private readonly equivalentField = viewChild<ElementRef<HTMLInputElement>>('equivalentField');
   private readonly definitionField = viewChild<ElementRef<HTMLTextAreaElement>>('definitionField');
   private readonly supportField = viewChild<ElementRef<HTMLTextAreaElement>>('supportField');
@@ -5766,7 +5617,7 @@ export class ElementModal {
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       this.alive = false;
-      window.clearTimeout(this.strikeTimer);
+      this.endDeletePress();
       stopSpeaking();
     });
     effect(() => {
@@ -5776,8 +5627,9 @@ export class ElementModal {
       const id = this.element().id;
       if (id === this.trackedElementId) return;
       this.trackedElementId = id;
+      this.endDeletePress();
+      this.deletePressHeld = false;
       this.written = null;
-      this.clearStrike();
       this.stopSpeech();
       this.editor.set(null);
       this.formEdit.set(null);
@@ -5805,7 +5657,6 @@ export class ElementModal {
       this.helpOpen.set(false);
       this.exerciseLog.set(-1);
       this.exerciseEntry.set(-1);
-      this.colorOpen.set(false);
       this.definitionExample.set('');
       this.definitionPanel.set(0);
       this.addingDefinitions.set(null);
@@ -5866,10 +5717,6 @@ export class ElementModal {
     }
     if (this.titleEdit()) {
       if (!this.busy()) this.cancelTitle();
-      return;
-    }
-    if (this.colorOpen()) {
-      if (!this.busy()) this.colorOpen.set(false);
       return;
     }
     if (this.confirm()?.kind === 'exercise') {
@@ -5938,12 +5785,13 @@ export class ElementModal {
     if (this.inPlay() || this.aiBusy() || this.titleEdit()) return;
     this.titleError.set('');
     this.titleDraft.set(this.element().title);
+    this.colorDraft.set(sanitizeElementColor(this.element().color));
     this.titleEdit.set(true);
-    setTimeout(() => {
-      const field = this.titleField()?.nativeElement;
-      field?.focus();
-      field?.select();
-    });
+  }
+
+  closeTitle(event: MouseEvent): void {
+    if (event.target !== event.currentTarget || this.busy()) return;
+    this.cancelTitle();
   }
 
   cancelTitle(): void {
@@ -5951,34 +5799,37 @@ export class ElementModal {
     this.titleError.set('');
   }
 
+  canSaveElement(): boolean {
+    if (this.busy() || !this.editedTitle()) return false;
+    return this.titleChanged() || this.colorChanged();
+  }
+
   async saveTitle(event?: Event): Promise<void> {
     event?.preventDefault();
-    if (!this.titleEdit() || this.busy()) return;
-    const name = this.titleDraft().replace(/\s+/g, ' ').trim().slice(0, FORM_MAX_LENGTH);
+    if (!this.canSaveElement()) return;
+    const name = this.editedTitle();
     const element = this.element();
-    if (!name) {
-      this.titleError.set('A title is required.');
-      return;
+    const titleChanged = this.titleChanged();
+    if (titleChanged) {
+      const taken = this.collection().some(
+        (item) => item.id !== element.id && sameTitle(item.title, name),
+      );
+      if (taken) {
+        this.titleError.set('That title is already there.');
+        return;
+      }
     }
-    if (name === element.title) {
-      this.cancelTitle();
-      return;
-    }
-    const taken = this.collection().some(
-      (item) => item.id !== element.id && sameTitle(item.title, name),
-    );
-    if (taken) {
-      this.titleError.set('That title is already there.');
-      return;
-    }
-    const definitions = this.copyDefinitions().map((definition) => ({
-      ...definition,
-      forms: retitleForms(definition.forms, element.title, name),
-    }));
+    const current = this.currentElement();
+    const definitions = titleChanged
+      ? this.copyDefinitions().map((definition) => ({
+          ...definition,
+          forms: retitleForms(definition.forms, element.title, name),
+        }))
+      : current.definitions;
     const editing = this.formEdit();
     this.titleError.set('');
     const saved = await this.commit(
-      { ...this.currentElement(), title: name, definitions },
+      { ...current, title: name, definitions, color: this.chosenColor() },
       { report: false },
     );
     if (!this.alive || this.element().id !== element.id) return;
@@ -6423,7 +6274,6 @@ export class ElementModal {
     if (this.element().id === element.id) {
       this.definitionPanel.set(index);
       this.scrollDefinitionPanel();
-      this.strike([index]);
     }
     this.definitionExample.set('');
     this.closeDefinitionPrompts();
@@ -6539,55 +6389,6 @@ export class ElementModal {
     this.speaking.set(null);
   }
 
-  /** Remap definition indexes after an item moves, including the ones it passes. */
-  private moveDefinitionIndexes(from: number, to: number): void {
-    if (from === to) return;
-    const map = (index: number): number => {
-      if (index === from) return to;
-      if (from < to && index > from && index <= to) return index - 1;
-      if (to < from && index >= to && index < from) return index + 1;
-      return index;
-    };
-    const editing = this.formEdit();
-    if (editing) this.formEdit.set({ ...editing, definitionIndex: map(editing.definitionIndex) });
-    const editor = this.editor();
-    if (editor?.kind === 'definition' && editor.index != null) {
-      this.editor.set({ kind: 'definition', index: map(editor.index) });
-    }
-    if (editor?.kind === 'example') {
-      this.editor.set({ ...editor, definitionIndex: map(editor.definitionIndex) });
-    }
-    const pending = this.confirm();
-    if (pending?.kind === 'definition') {
-      this.confirm.set({ kind: 'definition', index: map(pending.index) });
-    }
-    if (pending?.kind === 'example') {
-      this.confirm.set({ ...pending, definitionIndex: map(pending.definitionIndex) });
-    }
-    const asking = this.askingExamples();
-    if (asking != null) this.askingExamples.set(map(asking));
-    const related = this.askingRelated();
-    if (related != null) this.askingRelated.set(map(related));
-    const wording = this.askingWording();
-    if (wording != null) this.askingWording.set(map(wording));
-    const forms = this.askingForms();
-    if (forms != null) this.askingForms.set(map(forms));
-    const confirming = this.formsConfirm();
-    if (confirming) this.formsConfirm.set({ index: map(confirming.index) });
-    const engineer = this.exampleEngineer();
-    if (engineer) {
-      this.exampleEngineer.set({ ...engineer, definitionIndex: map(engineer.definitionIndex) });
-    }
-    const definitionEngineer = this.definitionEngineer();
-    if (definitionEngineer) {
-      this.definitionEngineer.set({
-        ...definitionEngineer,
-        definitionIndex: map(definitionEngineer.definitionIndex),
-      });
-    }
-    this.definitionPanel.set(map(this.definitionPanel()));
-  }
-
   private shiftDefinitionIndexes(by: number): void {
     const editing = this.formEdit();
     if (editing) this.formEdit.set({ ...editing, definitionIndex: editing.definitionIndex + by });
@@ -6684,22 +6485,6 @@ export class ElementModal {
     this.speaking.set(started ? key : null);
   }
 
-  moveDefinition(index: number, delta: -1 | 1): void {
-    if (this.inPlay() || this.aiBusy()) return;
-    const target = index + delta;
-    const definitions = this.copyDefinitions();
-    const current = definitions[index];
-    if (!current || !definitions[target]) return;
-    definitions.splice(index, 1);
-    definitions.splice(target, 0, current);
-    this.applyDefinitionOrder(definitions, index, target);
-  }
-
-  nudgeDefinition(event: Event, index: number, delta: -1 | 1): void {
-    event.preventDefault();
-    this.moveDefinition(index, delta);
-  }
-
   showDefinition(index: number): void {
     const count = this.shownDefinitions().length;
     if (index < 0 || index >= count || index === this.visibleDefinitionIndex()) return;
@@ -6709,16 +6494,6 @@ export class ElementModal {
 
   private scrollDefinitionPanel(): void {
     this.definitionBody()?.nativeElement.scrollTo({ top: 0 });
-  }
-
-  private applyDefinitionOrder(definitions: ElementDefinition[], from: number, to: number): void {
-    this.listedDefinitions.set(definitions);
-    this.stopSpeech();
-    this.moveDefinitionIndexes(from, to);
-    void this.persist(definitions, this.currentElement().equivalents, {
-      busy: false,
-      report: true,
-    });
   }
 
   openDefinition(index: number | null): void {
@@ -7080,8 +6855,6 @@ export class ElementModal {
       this.appendRework(target);
       if (!(await this.persist(definitions, this.element().equivalents))) return;
       if (this.element().id !== element.id) return;
-      const worked = this.element().definitions.findIndex((item) => senseKey(item.text) === sense);
-      this.strike([worked]);
       this.exampleEngineer.set(null);
     } catch {
       if (this.element().id === element.id) this.error.set('Could not ask for examples.');
@@ -7229,23 +7002,6 @@ export class ElementModal {
     );
   }
 
-  async confirmColor(color: string | null): Promise<void> {
-    await this.setColor(color);
-    this.colorOpen.set(false);
-  }
-
-  async setColor(color: string | null): Promise<void> {
-    const next = color == null ? null : sanitizeElementColor(color);
-    if (color != null && !next) return;
-    if (this.currentElement().color === next) return;
-    await this.saveAppearance({ color: next });
-  }
-
-  closeColor(event: MouseEvent): void {
-    if (event.target !== event.currentTarget || this.busy()) return;
-    this.colorOpen.set(false);
-  }
-
   openHelp(): void {
     if (this.busy() || !this.inPlay()) return;
     this.helpOpen.set(true);
@@ -7266,11 +7022,20 @@ export class ElementModal {
     this.writeRound({ ...this.round(), givenUp: true });
   }
 
-  private async saveAppearance(patch: Partial<Pick<StoredElement, 'color'>>): Promise<boolean> {
-    if (this.busy()) return false;
-    const current = this.currentElement();
-    const next: StoredElement = { ...current, ...patch };
-    return this.commit(next);
+  private editedTitle(): string {
+    return this.titleDraft().replace(/\s+/g, ' ').trim().slice(0, FORM_MAX_LENGTH);
+  }
+
+  private titleChanged(): boolean {
+    return this.editedTitle() !== this.element().title;
+  }
+
+  private chosenColor(): string | null {
+    return sanitizeElementColor(this.colorDraft());
+  }
+
+  private colorChanged(): boolean {
+    return this.chosenColor() !== sanitizeElementColor(this.element().color);
   }
 
   showCollision(event: MouseEvent, matches: DefinitionHighlightMatch[]): void {
@@ -7440,7 +7205,6 @@ export class ElementModal {
           ? { ...definition, equivalentId: null }
           : definition,
       );
-      const worked = editor.index != null && current != null && text !== current.text;
       const next: ElementDefinition = {
         text,
         equivalentId: linked.equivalentId,
@@ -7457,7 +7221,6 @@ export class ElementModal {
           this.definitionPanel.set(index);
           this.scrollDefinitionPanel();
         }
-        if (worked && editor.index != null) this.strike([editor.index]);
         this.editor.set(null);
       }
       return;
@@ -7476,10 +7239,7 @@ export class ElementModal {
       this.appendRework(definition);
     } else definition.examples[exampleIndex] = next;
     const definitionIndex = editor.definitionIndex;
-    if (await this.persist(definitions, this.element().equivalents)) {
-      if (exampleIndex == null) this.strike([definitionIndex]);
-      this.editor.set(null);
-    }
+    if (await this.persist(definitions, this.element().equivalents)) this.editor.set(null);
   }
 
   async saveForm(): Promise<void> {
@@ -7575,8 +7335,56 @@ export class ElementModal {
   confirmTitle(pending: ConfirmDelete): string {
     if (pending.kind === 'element') return 'Delete this element?';
     if (pending.kind === 'definition') return 'Delete this definition?';
+    if (pending.kind === 'definitions') return 'Delete all definitions?';
     if (pending.kind === 'exercise') return 'Delete this exercise?';
     return 'Delete this example?';
+  }
+
+  deleteLabel(): string {
+    return this.element().definitions.length ? 'Delete definition' : 'Delete element';
+  }
+
+  deleteTitle(): string {
+    return this.element().definitions.length
+      ? 'Delete definition. Hold to delete all.'
+      : 'Delete element';
+  }
+
+  startDeletePress(event: PointerEvent): void {
+    if (event.button !== 0 || !this.element().definitions.length) return;
+    if (this.inPlay() || this.busy() || this.aiBusy()) return;
+    this.endDeletePress();
+    this.deletePressX = event.clientX;
+    this.deletePressY = event.clientY;
+    this.deletePressTimer = window.setTimeout(() => {
+      this.deletePressTimer = 0;
+      this.deletePressHeld = true;
+      this.askDeleteAllDefinitions();
+    }, DELETE_PRESS_MS);
+  }
+
+  moveDeletePress(event: PointerEvent): void {
+    if (!this.deletePressTimer) return;
+    const dx = event.clientX - this.deletePressX;
+    const dy = event.clientY - this.deletePressY;
+    if (dx * dx + dy * dy > 100) this.endDeletePress();
+  }
+
+  endDeletePress(): void {
+    window.clearTimeout(this.deletePressTimer);
+    this.deletePressTimer = 0;
+  }
+
+  onDeleteClick(): void {
+    if (this.deletePressHeld) {
+      this.deletePressHeld = false;
+      return;
+    }
+    if (!this.element().definitions.length) {
+      this.askDeleteElement();
+      return;
+    }
+    this.askDeleteDefinition(this.visibleDefinitionIndex());
   }
 
   askDeleteElement(): void {
@@ -7590,7 +7398,14 @@ export class ElementModal {
 
   askDeleteDefinition(index: number): void {
     if (this.inPlay() || this.aiBusy() || this.busy()) return;
+    if (!this.element().definitions[index]) return;
     this.confirm.set({ kind: 'definition', index });
+  }
+
+  askDeleteAllDefinitions(): void {
+    if (this.inPlay() || this.aiBusy() || this.busy()) return;
+    if (!this.element().definitions.length) return;
+    this.confirm.set({ kind: 'definitions' });
   }
 
   askDeleteExample(definitionIndex: number, exampleIndex: number): void {
@@ -7614,6 +7429,10 @@ export class ElementModal {
     }
     if (pending.kind === 'exercise') {
       await this.removeExercise(pending.definitionIndex, pending.historyIndex);
+      return;
+    }
+    if (pending.kind === 'definitions') {
+      await this.removeAllDefinitions();
       return;
     }
     const definitions = this.copyDefinitions();
@@ -7673,6 +7492,30 @@ export class ElementModal {
     this.confirm.set(null);
     if (pending.kind === 'definition') this.editor.set(null);
     else this.adjustExampleEditor(pending.definitionIndex, pending.exampleIndex);
+  }
+
+  private async removeAllDefinitions(): Promise<void> {
+    const definitions = this.copyDefinitions();
+    const removed = definitions.map((definition) => senseKey(definition.text)).filter(Boolean);
+    if (!(await this.persist([], this.element().equivalents))) return;
+    for (const key of removed) {
+      this.engineerDrafts.delete(key);
+      this.definitionEngineerDrafts.delete(key);
+      this.replaceExampleSuggestions(this.element().id, key, []);
+    }
+    writeRelatedDrafts(this.element().id, this.definitionEngineerDrafts);
+    this.exampleEngineer.set(null);
+    this.definitionEngineer.set(null);
+    this.askingExamples.set(null);
+    this.askingForms.set(null);
+    this.formsConfirm.set(null);
+    this.askingRelated.set(null);
+    this.askingWording.set(null);
+    this.editor.set(null);
+    this.formEdit.set(null);
+    this.definitionPanel.set(0);
+    this.scrollDefinitionPanel();
+    this.confirm.set(null);
   }
 
   private adjustExampleEditor(definitionIndex: number, exampleIndex: number): void {
@@ -7816,7 +7659,6 @@ export class ElementModal {
     if (this.element().id !== id) return;
     if (!(await this.persist(definitions, this.element().equivalents))) return;
     if (this.element().id !== id) return;
-    this.strike(worked);
     writeExampleSuggestions(id, {});
     this.exampleSuggestions.set({});
   }
@@ -7867,33 +7709,10 @@ export class ElementModal {
     definition.log = [...definition.log, { event: 'rework', at: Date.now() }];
   }
 
-  private readonly struckDefinitions = signal<ReadonlySet<number>>(new Set());
-  private strikeTimer = 0;
-
-  struck(index: number): boolean {
-    return this.struckDefinitions().has(index);
-  }
-
-  /** Pulse the hammer count on the definitions this save reworked. */
-  private strike(indexes: readonly number[]): void {
-    const next = new Set(indexes.filter((index) => index >= 0));
-    if (!next.size || !this.alive) return;
-    this.struckDefinitions.set(new Set());
-    window.clearTimeout(this.strikeTimer);
-    this.strikeTimer = window.setTimeout(() => {
-      if (!this.alive) return;
-      this.struckDefinitions.set(next);
-      this.strikeTimer = window.setTimeout(() => {
-        if (this.alive) this.struckDefinitions.set(new Set());
-      }, 1200);
-    });
-  }
-
-  private clearStrike(): void {
-    window.clearTimeout(this.strikeTimer);
-    this.strikeTimer = 0;
-    if (this.struckDefinitions().size) this.struckDefinitions.set(new Set());
-  }
+  private deletePressTimer = 0;
+  private deletePressHeld = false;
+  private deletePressX = 0;
+  private deletePressY = 0;
 
   noteReveal(index: number): void {
     const definitions = this.copyDefinitions();

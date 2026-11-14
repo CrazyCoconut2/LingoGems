@@ -8,9 +8,10 @@ const DEFAULT_COLOR = '#6c63ff';
 @Component({
   selector: 'app-highlight-color-picker',
   host: {
-    role: 'dialog',
-    'aria-modal': 'true',
-    'aria-label': 'Highlight color',
+    '[attr.role]': 'embedded() ? "group" : "dialog"',
+    '[attr.aria-modal]': 'embedded() ? null : true',
+    '[attr.aria-label]': 'embedded() ? "Color" : "Highlight color"',
+    '[class.embedded]': 'embedded()',
     '(click)': '$event.stopPropagation()',
   },
   template: `
@@ -61,6 +62,7 @@ const DEFAULT_COLOR = '#6c63ff';
     <button type="button" class="picker-btn" [disabled]="disabled() || !canReset()" (click)="reset()">
       Reset
     </button>
+    @if (!embedded()) {
     <div class="picker-actions">
       <button type="button" class="picker-btn" [disabled]="disabled()" (click)="dismissed.emit()">
         Cancel
@@ -74,6 +76,7 @@ const DEFAULT_COLOR = '#6c63ff';
         Save
       </button>
     </div>
+    }
   `,
   styles: `
     :host {
@@ -98,6 +101,17 @@ const DEFAULT_COLOR = '#6c63ff';
       color: var(--text);
       box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
       overflow: auto;
+    }
+
+    :host.embedded {
+      width: 100%;
+      max-height: none;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: none;
+      box-shadow: none;
+      overflow: visible;
     }
 
     .picker-label {
@@ -264,8 +278,12 @@ export class HighlightColorPicker {
   /** Presets and custom colors already saved on elements. */
   readonly colors = input<readonly string[]>([]);
   readonly disabled = input(false);
+  /** Drawn inside another editor, without its own dialog or save buttons. */
+  readonly embedded = input(false);
   readonly saved = output<string | null>();
   readonly dismissed = output<void>();
+  /** The choice, or null when the color is cleared. */
+  readonly changed = output<string | null>();
 
   readonly draft = signal(DEFAULT_COLOR);
   readonly cleared = signal(true);
@@ -370,6 +388,7 @@ export class HighlightColorPicker {
     this.val.set(hsv.v);
     this.cleared.set(true);
     this.customOpen.set(false);
+    this.publish();
   }
 
   private applyHex(hex: string, cleared: boolean): void {
@@ -380,12 +399,18 @@ export class HighlightColorPicker {
     this.sat.set(hsv.s);
     this.val.set(hsv.v);
     this.cleared.set(cleared);
+    this.publish();
   }
 
   private applyHsv(): void {
     this.draft.set(hsvToHex(this.hue(), this.sat(), this.val()));
     this.cleared.set(false);
     this.customOpen.set(true);
+    this.publish();
+  }
+
+  private publish(): void {
+    this.changed.emit(this.cleared() ? null : this.draft());
   }
 
   private knownColors(): Set<string> {
