@@ -12,7 +12,6 @@ import {
   addElement,
   displayTitle,
   formMatchesTerm,
-  LEARNABLE_LANGUAGES,
   languageDisplayName,
   mergeMetadataVariability,
   normalizeMetadataVariability,
@@ -32,7 +31,7 @@ import {
   type DiscoveredElement,
 } from 'ai';
 import { readFieldColor } from '../elements/metadata-colors';
-import { rememberTranslationInto, translationInto } from './translation-language';
+import { supportLanguageFor } from './translation-language';
 import { Reveal } from '../elements/reveal';
 import {
   readDiscoverSearches,
@@ -78,7 +77,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       aria-label="Discover"
       (click)="onBackdrop($event)"
     >
-      <div class="panel" (click)="onPanel($event)">
+      <div class="panel">
         <header class="head">
           <div>
             <h2>Discover</h2>
@@ -129,70 +128,27 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                 }
               </div>
             </div>
-            <div class="discover-split">
-              <button
-                type="button"
-                class="discover-main"
-                [disabled]="!canSearch() || busy() || adding()"
-                (click)="submit()"
-              >
-                {{ results().length ? 'More' : 'Search' }}
-                @if (translationTarget(); as code) {
-                  <span class="discover-translation">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m5 8 6 6" />
-                      <path d="m4 14 6-6 2-3" />
-                      <path d="M2 5h12" />
-                      <path d="M7 2h1" />
-                      <path d="m22 22-5-10-5 10" />
-                      <path d="M14 18h6" />
-                    </svg>
-                    {{ languageName(code) }}
-                  </span>
-                }
-              </button>
-              <button
-                type="button"
-                class="discover-chevron"
-                [class.open]="translationOpen()"
-                [attr.aria-expanded]="translationOpen()"
-                aria-label="Translation language"
-                [disabled]="busy() || adding()"
-                (click)="toggleTranslation()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-              @if (translationOpen()) {
-                <ul class="translation-menu" role="listbox" aria-label="Translation language">
-                  <li>
-                    <button
-                      type="button"
-                      role="option"
-                      [class.selected]="!translationTarget()"
-                      [attr.aria-selected]="!translationTarget()"
-                      (click)="chooseTranslation('')"
-                    >
-                      No translation
-                    </button>
-                  </li>
-                  @for (code of translationLanguages(); track code) {
-                    <li>
-                      <button
-                        type="button"
-                        role="option"
-                        [class.selected]="code === translationTarget()"
-                        [attr.aria-selected]="code === translationTarget()"
-                        (click)="chooseTranslation(code)"
-                      >
-                        {{ languageName(code) }}
-                      </button>
-                    </li>
-                  }
-                </ul>
+            <button
+              type="button"
+              class="discover-main"
+              [disabled]="!canSearch() || busy() || adding()"
+              (click)="submit()"
+            >
+              {{ results().length ? 'More' : 'Search' }}
+              @if (translationTarget(); as code) {
+                <span class="discover-translation">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m5 8 6 6" />
+                    <path d="m4 14 6-6 2-3" />
+                    <path d="M2 5h12" />
+                    <path d="M7 2h1" />
+                    <path d="m22 22-5-10-5 10" />
+                    <path d="M14 18h6" />
+                  </svg>
+                  {{ languageName(code) }}
+                </span>
               }
-            </div>
+            </button>
             <button
               type="button"
               class="filter-btn"
@@ -646,40 +602,33 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       min-width: 0;
     }
 
-    .discover-split {
-      position: relative;
-      display: inline-flex;
+    .discover-main {
+      display: flex;
       flex: none;
-      align-items: stretch;
+      flex-direction: column;
+      align-items: center;
       align-self: flex-end;
+      justify-content: center;
+      gap: 0.12rem;
+      border: 0;
       border-radius: 999px;
       background: var(--accent);
-    }
-
-    .discover-split:hover:not(:has(:disabled)) {
-      background: var(--accent-hover);
-    }
-
-    .discover-main,
-    .discover-chevron {
-      border: 0;
-      background: transparent;
       color: white;
       font: inherit;
       font-weight: 650;
-      cursor: pointer;
-    }
-
-    .discover-main {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.12rem;
-      border-radius: 999px 0 0 999px;
       padding: 0.4rem 1rem 0.42rem;
       font-size: 0.9375rem;
       line-height: 1.1;
+      cursor: pointer;
+    }
+
+    .discover-main:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .discover-main:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
     }
 
     .discover-translation {
@@ -692,91 +641,16 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       line-height: 1;
     }
 
-    .discover-translation svg,
-    .discover-chevron svg {
+    .discover-translation svg {
       display: block;
       flex: none;
+      width: 0.72rem;
+      height: 0.72rem;
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
-    }
-
-    .discover-translation svg {
-      width: 0.72rem;
-      height: 0.72rem;
-    }
-
-    .discover-chevron svg {
-      width: 1rem;
-      height: 1rem;
-    }
-
-    .discover-chevron {
-      display: grid;
-      place-items: center;
-      border-left: 1px solid rgba(255, 255, 255, 0.28);
-      border-radius: 0 999px 999px 0;
-      padding: 0 0.75rem;
-    }
-
-    .discover-chevron svg {
-      transition: transform 0.15s ease;
-    }
-
-    .discover-chevron.open svg {
-      transform: rotate(180deg);
-    }
-
-    .discover-main:disabled,
-    .discover-chevron:disabled {
-      cursor: not-allowed;
-      opacity: 0.45;
-    }
-
-    .translation-menu {
-      position: absolute;
-      z-index: 6;
-      top: calc(100% + 0.3rem);
-      right: 0;
-      display: flex;
-      flex-direction: column;
-      width: max-content;
-      min-width: 8.25rem;
-      max-height: min(8.25rem, calc(40dvh - 5.5rem));
-      margin: 0;
-      padding: 0.2rem;
-      overflow: auto;
-      overscroll-behavior: contain;
-      list-style: none;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: var(--surface);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
-    }
-
-    .translation-menu button {
-      width: 100%;
-      border: 0;
-      border-radius: 6px;
-      background: transparent;
-      color: var(--text);
-      font: inherit;
-      font-size: 0.78rem;
-      line-height: 1.2;
-      text-align: left;
-      padding: 0.22rem 0.5rem;
-      cursor: pointer;
-    }
-
-    .translation-menu button:hover {
-      background: rgba(var(--accent-rgb), 0.1);
-    }
-
-    .translation-menu button.selected {
-      background: rgba(var(--accent-rgb), 0.16);
-      color: var(--accent-text);
     }
 
     .note span,
@@ -1437,10 +1311,8 @@ export class DiscoverModal implements OnInit {
   readonly valueMax = VALUE_MAX;
 
   readonly instruction = signal('');
-  readonly translationInto = translationInto;
   readonly filtersOpen = signal(false);
   readonly historyOpen = signal(false);
-  readonly translationOpen = signal(false);
   readonly expanded = signal<DiscoverKind | null>(null);
   readonly definitionMeta = signal<ElementMetadataVariability>({});
   readonly exampleMeta = signal<ElementMetadataVariability>({});
@@ -1485,11 +1357,10 @@ export class DiscoverModal implements OnInit {
 
   constructor() {
     const onEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || (!this.historyOpen() && !this.filtersOpen() && !this.translationOpen())) return;
+      if (event.key !== 'Escape' || (!this.historyOpen() && !this.filtersOpen())) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (this.translationOpen()) this.translationOpen.set(false);
-      else if (this.historyOpen()) this.historyOpen.set(false);
+      if (this.historyOpen()) this.historyOpen.set(false);
       else this.filtersOpen.set(false);
     };
     document.addEventListener('keydown', onEscape, true);
@@ -1519,13 +1390,11 @@ export class DiscoverModal implements OnInit {
 
   openFilters(): void {
     this.historyOpen.set(false);
-    this.translationOpen.set(false);
     this.filtersOpen.set(true);
   }
 
   openHistory(): void {
     this.filtersOpen.set(false);
-    this.translationOpen.set(false);
     this.historyOpen.set(true);
   }
 
@@ -1670,32 +1539,8 @@ export class DiscoverModal implements OnInit {
     return languageDisplayName(code);
   }
 
-  translationLanguages(): string[] {
-    const learning = this.language().trim().toLowerCase();
-    return LEARNABLE_LANGUAGES.filter((code) => code !== learning);
-  }
-
-  toggleTranslation(): void {
-    if (this.busy() || this.adding()) return;
-    this.translationOpen.update((open) => !open);
-  }
-
-  chooseTranslation(code: string): void {
-    rememberTranslationInto(code);
-    this.translationOpen.set(false);
-  }
-
-  onPanel(event: MouseEvent): void {
-    event.stopPropagation();
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target?.closest('.discover-split')) this.translationOpen.set(false);
-  }
-
   private translationTarget(): string {
-    const learning = this.language().trim().toLowerCase();
-    const into = this.translationInto().trim().toLowerCase();
-    if (!into || into === learning) return '';
-    return LEARNABLE_LANGUAGES.includes(into as (typeof LEARNABLE_LANGUAGES)[number]) ? into : '';
+    return supportLanguageFor(this.language());
   }
 
   canClear(): boolean {
@@ -1716,7 +1561,6 @@ export class DiscoverModal implements OnInit {
   }
 
   submit(): void {
-    this.translationOpen.set(false);
     if (this.results().length) this.more();
     else this.search();
   }

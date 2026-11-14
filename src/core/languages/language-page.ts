@@ -1,11 +1,5 @@
-import {
-  Component,
-  computed,
-  DestroyRef,
-  HostListener,
-  inject,
-  signal,
-} from '@angular/core';
+import { Component, computed, DestroyRef, HostListener, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ElementModal } from '../elements/element-modal';
 import { GemStatsModal } from '../elements/gem-stats-modal';
 import { HighlightColorPicker } from '../elements/highlight-color-picker';
@@ -13,7 +7,7 @@ import { ModeIcon } from '../elements/mode-icon';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { DiscoverModal } from './discover-modal';
 import { ensureSelectedLanguage, writeSelectedLanguage } from './selected-language';
-import { translationInto } from './translation-language';
+import { supportLanguageFor, writeSupportLanguage } from './translation-language';
 import { Settings } from '../settings/settings';
 import { generateElementFromSelection } from 'ai';
 import {
@@ -77,7 +71,15 @@ const MOVE_SLOP_PX = 10;
 
 @Component({
   selector: 'app-language-page',
-  imports: [ElementModal, ModeIcon, DiscoverModal, Settings, GemStatsModal, HighlightColorPicker],
+  imports: [
+    FormsModule,
+    ElementModal,
+    ModeIcon,
+    DiscoverModal,
+    Settings,
+    GemStatsModal,
+    HighlightColorPicker,
+  ],
   template: `
     <main>
       <div class="page-top">
@@ -306,71 +308,73 @@ const MOVE_SLOP_PX = 10;
                   (pointercancel)="onCardPointerUp()"
                   (pointerleave)="onCardPointerUp()"
                 >
-                @let activity = activityTotals(element);
-                <div class="card-face">
-                  <div class="card-main">
-                    <span class="title">
-                      @for (part of highlight(element.title); track $index) {
-                        @if (part.hit) {
-                          <mark class="hit">{{ part.text }}</mark>
-                        } @else {
-                          <span>{{ part.text }}</span>
+                  @let activity = activityTotals(element);
+                  <div class="card-face">
+                    <div class="card-main">
+                      <span class="title">
+                        @for (part of highlight(element.title); track $index) {
+                          @if (part.hit) {
+                            <mark class="hit">{{ part.text }}</mark>
+                          } @else {
+                            <span>{{ part.text }}</span>
+                          }
                         }
-                      }
-                    </span>
+                      </span>
+                    </div>
+                    @if (
+                      earnedGems(element).length || (!selecting() && element.definitions.length)
+                    ) {
+                      <div class="action-row"></div>
+                    }
+                    <div class="stat-rail">
+                      <span
+                        class="stat"
+                        [class.zero]="activity.opened === 0"
+                        [attr.aria-label]="openedLabel(activity.opened)"
+                        [attr.title]="openedLabel(activity.opened)"
+                      >
+                        <span class="stat-box">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
+                            />
+                          </svg>
+                        </span>
+                        <span>{{ activity.opened }}</span>
+                      </span>
+                      <span
+                        class="stat"
+                        [class.zero]="activity.reworked === 0"
+                        [attr.aria-label]="reworkedLabel(activity.reworked)"
+                        [attr.title]="reworkedLabel(activity.reworked)"
+                      >
+                        <span class="stat-box">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                            <path d="m18 15 4-4" />
+                            <path
+                              d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                            />
+                          </svg>
+                        </span>
+                        <span>{{ activity.reworked }}</span>
+                      </span>
+                      <span
+                        class="stat"
+                        [class.zero]="activity.revealed === 0"
+                        [attr.aria-label]="revealedLabel(activity.revealed)"
+                        [attr.title]="revealedLabel(activity.revealed)"
+                      >
+                        <span class="stat-box">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        </span>
+                        <span>{{ activity.revealed }}</span>
+                      </span>
+                    </div>
                   </div>
-                  @if (earnedGems(element).length || (!selecting() && element.definitions.length)) {
-                    <div class="action-row"></div>
-                  }
-                  <div class="stat-rail">
-                    <span
-                      class="stat"
-                      [class.zero]="activity.opened === 0"
-                      [attr.aria-label]="openedLabel(activity.opened)"
-                      [attr.title]="openedLabel(activity.opened)"
-                    >
-                      <span class="stat-box">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
-                          />
-                        </svg>
-                      </span>
-                      <span>{{ activity.opened }}</span>
-                    </span>
-                    <span
-                      class="stat"
-                      [class.zero]="activity.reworked === 0"
-                      [attr.aria-label]="reworkedLabel(activity.reworked)"
-                      [attr.title]="reworkedLabel(activity.reworked)"
-                    >
-                      <span class="stat-box">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                          <path d="m18 15 4-4" />
-                          <path
-                            d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
-                          />
-                        </svg>
-                      </span>
-                      <span>{{ activity.reworked }}</span>
-                    </span>
-                    <span
-                      class="stat"
-                      [class.zero]="activity.revealed === 0"
-                      [attr.aria-label]="revealedLabel(activity.revealed)"
-                      [attr.title]="revealedLabel(activity.revealed)"
-                    >
-                      <span class="stat-box">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                      </span>
-                      <span>{{ activity.revealed }}</span>
-                    </span>
-                  </div>
-                </div>
                 </button>
                 @if (earnedGems(element).length || (!selecting() && element.definitions.length)) {
                   <div class="card-corner">
@@ -503,6 +507,25 @@ const MOVE_SLOP_PX = 10;
                         <option [value]="option">{{ languageName(option) }}</option>
                       }
                     </select>
+                    @if (code(); as learning) {
+                      <label class="support-field">
+                        Support language
+                        <select
+                          class="language-select"
+                          aria-label="Support language"
+                          [ngModel]="supportFor(learning)"
+                          (ngModelChange)="setSupportLanguage(learning, $event)"
+                        >
+                          <option value="">None</option>
+                          @for (option of supportChoices(learning); track option) {
+                            <option [value]="option">{{ languageName(option) }}</option>
+                          }
+                        </select>
+                      </label>
+                      <p class="section-hint">
+                        Uses the language from Settings, unless you choose another one or none.
+                      </p>
+                    }
                   </div>
                 }
               </section>
@@ -1893,6 +1916,16 @@ const MOVE_SLOP_PX = 10;
       font: inherit;
     }
 
+    .support-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-top: 0.55rem;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 650;
+    }
+
     .color-choices {
       display: flex;
       flex-wrap: wrap;
@@ -2092,7 +2125,6 @@ export class LanguagePage {
   readonly modeLabel = elementModeLabel;
   readonly modeHelp = elementModeHelp;
   readonly asking = signal(false);
-  readonly translationInto = translationInto;
   readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
   readonly selecting = signal(false);
@@ -2948,10 +2980,19 @@ export class LanguagePage {
   }
 
   private translationTarget(): string {
-    const learning = this.code().trim().toLowerCase();
-    const into = this.translationInto().trim().toLowerCase();
-    if (!isLearnableLanguage(into) || into === learning) return '';
-    return into;
+    return supportLanguageFor(this.code());
+  }
+
+  supportFor(learning: string): string {
+    return supportLanguageFor(learning);
+  }
+
+  supportChoices(learning: string): readonly string[] {
+    return this.languageOptions.filter((code) => code !== learning);
+  }
+
+  setSupportLanguage(learning: string, value: string): void {
+    writeSupportLanguage(learning, value);
   }
 
   chooseLanguageValue(event: Event): void {

@@ -37,8 +37,6 @@ import {
   highlightDefinitionPassage,
   isValidForm,
   languageDisplayName,
-  LEARNABLE_LANGUAGES,
-  isLearnableLanguage,
   saveElement,
   sanitizeElementColor,
   TRANSLATION_GEM_MAX,
@@ -83,7 +81,7 @@ import {
 } from './play-session';
 import { Reveal } from './reveal';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
-import { rememberTranslationInto, translationInto } from '../languages/translation-language';
+import { supportLanguageFor } from '../languages/translation-language';
 import { GemIcon } from './gem-icon';
 import { HighlightColorPicker } from './highlight-color-picker';
 import { ModeIcon } from './mode-icon';
@@ -932,33 +930,33 @@ function sameDefinitionOrder(
                                   class="passage sense-selectable"
                                   [attr.data-definition-index]="index"
                                 >
-                                @for (part of highlightPassage(passage.text); track $index) {
-                                @if (part.matches.length > 1) {
-                                  <button
-                                    type="button"
-                                    class="linguagem-highlighted"
-                                    [style.--score-color]="part.color || null"
-                                    [textContent]="part.text"
-                                    (click)="showCollision($event, part.matches)"
-                                  ></button>
-                                } @else if (part.matches.length === 1 && !part.current) {
-                                  <button
-                                    type="button"
-                                    class="linguagem-highlighted"
-                                    [style.--score-color]="part.color || null"
-                                    [textContent]="part.text"
-                                    (click)="visitHighlight(part.matches[0].elementId)"
-                                  ></button>
-                                } @else if (part.current) {
-                                  <span
-                                    class="linguagem-highlighted linguagem-highlighted--current"
-                                    [style.--score-color]="part.color || null"
-                                    [textContent]="part.text"
-                                  ></span>
-                                } @else {
-                                  <span [textContent]="part.text"></span>
-                                }
-                              }
+                                  @for (part of highlightPassage(passage.text); track $index) {
+                                    @if (part.matches.length > 1) {
+                                      <button
+                                        type="button"
+                                        class="linguagem-highlighted"
+                                        [style.--score-color]="part.color || null"
+                                        [textContent]="part.text"
+                                        (click)="showCollision($event, part.matches)"
+                                      ></button>
+                                    } @else if (part.matches.length === 1 && !part.current) {
+                                      <button
+                                        type="button"
+                                        class="linguagem-highlighted"
+                                        [style.--score-color]="part.color || null"
+                                        [textContent]="part.text"
+                                        (click)="visitHighlight(part.matches[0].elementId)"
+                                      ></button>
+                                    } @else if (part.current) {
+                                      <span
+                                        class="linguagem-highlighted linguagem-highlighted--current"
+                                        [style.--score-color]="part.color || null"
+                                        [textContent]="part.text"
+                                      ></span>
+                                    } @else {
+                                      <span [textContent]="part.text"></span>
+                                    }
+                                  }
                                 </p>
                                 <ng-container [ngTemplateOutlet]="passageTranslations" />
                               </div>
@@ -1110,32 +1108,32 @@ function sameDefinitionOrder(
                                       [attr.data-example-index]="exampleIndex"
                                     >
                                       @for (part of highlightPassage(passage.text); track $index) {
-                                    @if (part.matches.length > 1) {
-                                      <button
-                                        type="button"
-                                        class="linguagem-highlighted"
-                                        [style.--score-color]="part.color || null"
-                                        [textContent]="part.text"
-                                        (click)="showCollision($event, part.matches)"
-                                      ></button>
-                                    } @else if (part.matches.length === 1 && !part.current) {
-                                      <button
-                                        type="button"
-                                        class="linguagem-highlighted"
-                                        [style.--score-color]="part.color || null"
-                                        [textContent]="part.text"
-                                        (click)="visitHighlight(part.matches[0].elementId)"
-                                      ></button>
-                                    } @else if (part.current) {
-                                      <span
-                                        class="linguagem-highlighted linguagem-highlighted--current"
-                                        [style.--score-color]="part.color || null"
-                                        [textContent]="part.text"
-                                      ></span>
-                                    } @else {
-                                      <span [textContent]="part.text"></span>
-                                    }
-                                  }
+                                        @if (part.matches.length > 1) {
+                                          <button
+                                            type="button"
+                                            class="linguagem-highlighted"
+                                            [style.--score-color]="part.color || null"
+                                            [textContent]="part.text"
+                                            (click)="showCollision($event, part.matches)"
+                                          ></button>
+                                        } @else if (part.matches.length === 1 && !part.current) {
+                                          <button
+                                            type="button"
+                                            class="linguagem-highlighted"
+                                            [style.--score-color]="part.color || null"
+                                            [textContent]="part.text"
+                                            (click)="visitHighlight(part.matches[0].elementId)"
+                                          ></button>
+                                        } @else if (part.current) {
+                                          <span
+                                            class="linguagem-highlighted linguagem-highlighted--current"
+                                            [style.--score-color]="part.color || null"
+                                            [textContent]="part.text"
+                                          ></span>
+                                        } @else {
+                                          <span [textContent]="part.text"></span>
+                                        }
+                                      }
                                     </p>
                                     @if (passage.translations.length) {
                                       <ul class="equivalents">
@@ -1333,7 +1331,6 @@ function sameDefinitionOrder(
               aria-modal="true"
               [attr.aria-label]="sheetTitle(current)"
               [style.height.px]="editorSheetHeight()"
-              (click)="onEditorSheetClick($event)"
             >
               <div class="sheet-head">
                 <h3>{{ sheetTitle(current) }}</h3>
@@ -1360,88 +1357,41 @@ function sameDefinitionOrder(
                   </label>
                   <span class="header-actions">
                     <span class="generate-bundle translate-split">
-                      <div class="generate-split">
-                        <button
-                          type="button"
-                          class="generate-main"
-                          [attr.aria-label]="
-                            translating()
-                              ? 'Translating…'
-                              : translationTarget()
-                                ? 'Translate into ' + languageName(translationTarget())
-                                : 'Translate'
-                          "
-                          [attr.title]="
-                            translating()
-                              ? 'Translating…'
-                              : translationTarget()
-                                ? 'Translate into ' + languageName(translationTarget())
-                                : 'Translate'
-                          "
-                          [attr.aria-busy]="translating() ? true : null"
-                          [disabled]="!canTranslate()"
-                          (click)="translateDraft()"
-                        >
-                          <span class="generate-translation">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
-                            @if (translationTarget(); as code) {
-                              {{ languageName(code) }}
-                            }
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          class="generate-chevron"
-                          [class.open]="sheetTranslationOpen()"
-                          [attr.aria-expanded]="sheetTranslationOpen()"
-                          aria-label="Translation language"
-                          [disabled]="translating() || askingEquivalent() || busy()"
-                          (click)="toggleSheetTranslation()"
-                        >
+                      <button
+                        type="button"
+                        class="generate-main"
+                        [attr.aria-label]="
+                          translating()
+                            ? 'Translating…'
+                            : translationTarget()
+                              ? 'Translate into ' + languageName(translationTarget())
+                              : 'Translate'
+                        "
+                        [attr.title]="
+                          translating()
+                            ? 'Translating…'
+                            : translationTarget()
+                              ? 'Translate into ' + languageName(translationTarget())
+                              : 'Translate'
+                        "
+                        [attr.aria-busy]="translating() ? true : null"
+                        [disabled]="!canTranslate()"
+                        (click)="translateDraft()"
+                      >
+                        <span class="generate-translation">
                           <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m6 9 6 6 6-6" />
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
                           </svg>
-                        </button>
-                        @if (sheetTranslationOpen()) {
-                          <ul
-                            class="translation-menu down"
-                            role="listbox"
-                            aria-label="Translation language"
-                          >
-                            <li>
-                              <button
-                                type="button"
-                                role="option"
-                                [class.selected]="!translationTarget()"
-                                [attr.aria-selected]="!translationTarget()"
-                                (click)="chooseSheetTranslation('')"
-                              >
-                                No translation
-                              </button>
-                            </li>
-                            @for (code of translationLanguages(); track code) {
-                              <li>
-                                <button
-                                  type="button"
-                                  role="option"
-                                  [class.selected]="code === translationTarget()"
-                                  [attr.aria-selected]="code === translationTarget()"
-                                  (click)="chooseSheetTranslation(code)"
-                                >
-                                  {{ languageName(code) }}
-                                </button>
-                              </li>
-                            }
-                          </ul>
-                        }
-                      </div>
+                          @if (translationTarget(); as code) {
+                            {{ languageName(code) }}
+                          }
+                        </span>
+                      </button>
                     </span>
                     @if (current.kind === 'definition' && current.index != null) {
                       <button
@@ -1796,7 +1746,6 @@ function sameDefinitionOrder(
               role="dialog"
               aria-modal="true"
               aria-label="Ask AI for examples"
-              (click)="onExampleSheetClick($event)"
             >
               <div class="sheet-head">
                 <h3>Ask AI for examples</h3>
@@ -1872,71 +1821,28 @@ function sameDefinitionOrder(
               }
               <div class="sheet-actions example-actions">
                 <div class="generate-bundle">
-                  <div class="generate-split">
-                    <button
-                      type="button"
-                      class="generate-main"
-                      [disabled]="askingExamples() !== null"
-                      [attr.aria-busy]="askingExamples() !== null ? true : null"
-                      (click)="generateEngineeredExample()"
-                    >
-                      Generate
-                      @if (translationTarget(); as code) {
-                        <span class="generate-translation">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                          {{ languageName(code) }}
-                        </span>
-                      }
-                    </button>
-                    <button
-                      type="button"
-                      class="generate-chevron"
-                      [class.open]="exampleTranslationOpen()"
-                      [attr.aria-expanded]="exampleTranslationOpen()"
-                      aria-label="Translation language"
-                      [disabled]="askingExamples() !== null"
-                      (click)="toggleExampleTranslation()"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </button>
-                    @if (exampleTranslationOpen()) {
-                      <ul class="translation-menu" role="listbox" aria-label="Translation language">
-                        <li>
-                          <button
-                            type="button"
-                            role="option"
-                            [class.selected]="!translationTarget()"
-                            [attr.aria-selected]="!translationTarget()"
-                            (click)="chooseExampleTranslation('')"
-                          >
-                            No translation
-                          </button>
-                        </li>
-                        @for (code of translationLanguages(); track code) {
-                          <li>
-                            <button
-                              type="button"
-                              role="option"
-                              [class.selected]="code === translationTarget()"
-                              [attr.aria-selected]="code === translationTarget()"
-                              (click)="chooseExampleTranslation(code)"
-                            >
-                              {{ languageName(code) }}
-                            </button>
-                          </li>
-                        }
-                      </ul>
+                  <button
+                    type="button"
+                    class="generate-main"
+                    [disabled]="askingExamples() !== null"
+                    [attr.aria-busy]="askingExamples() !== null ? true : null"
+                    (click)="generateEngineeredExample()"
+                  >
+                    Generate
+                    @if (translationTarget(); as code) {
+                      <span class="generate-translation">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m5 8 6 6" />
+                          <path d="m4 14 6-6 2-3" />
+                          <path d="M2 5h12" />
+                          <path d="M7 2h1" />
+                          <path d="m22 22-5-10-5 10" />
+                          <path d="M14 18h6" />
+                        </svg>
+                        {{ languageName(code) }}
+                      </span>
                     }
-                  </div>
+                  </button>
                 </div>
                 <button
                   type="button"
@@ -2141,7 +2047,6 @@ function sameDefinitionOrder(
               role="dialog"
               aria-modal="true"
               aria-label="Add a definition"
-              (click)="onDefinitionMenuClick($event)"
             >
               <div class="sheet-head">
                 <h3>Add a definition</h3>
@@ -2217,75 +2122,28 @@ function sameDefinitionOrder(
                 </div>
                 <div class="sheet-actions example-actions">
                   <div class="generate-bundle">
-                    <div class="generate-split">
-                      <button
-                        type="button"
-                        class="generate-main"
-                        [disabled]="asking() || !definitionExample().trim()"
-                        [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
-                        (click)="addDefinitionFromExample()"
-                      >
-                        Ask
-                        @if (translationTarget(); as code) {
-                          <span class="generate-translation">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
-                            {{ languageName(code) }}
-                          </span>
-                        }
-                      </button>
-                      <button
-                        type="button"
-                        class="generate-chevron"
-                        [class.open]="definitionExampleTranslationOpen()"
-                        [attr.aria-expanded]="definitionExampleTranslationOpen()"
-                        aria-label="Translation language"
-                        [disabled]="asking()"
-                        (click)="toggleDefinitionExampleTranslation()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </button>
-                      @if (definitionExampleTranslationOpen()) {
-                        <ul
-                          class="translation-menu"
-                          role="listbox"
-                          aria-label="Translation language"
-                        >
-                          <li>
-                            <button
-                              type="button"
-                              role="option"
-                              [class.selected]="!translationTarget()"
-                              [attr.aria-selected]="!translationTarget()"
-                              (click)="chooseDefinitionExampleTranslation('')"
-                            >
-                              No translation
-                            </button>
-                          </li>
-                          @for (code of translationLanguages(); track code) {
-                            <li>
-                              <button
-                                type="button"
-                                role="option"
-                                [class.selected]="code === translationTarget()"
-                                [attr.aria-selected]="code === translationTarget()"
-                                (click)="chooseDefinitionExampleTranslation(code)"
-                              >
-                                {{ languageName(code) }}
-                              </button>
-                            </li>
-                          }
-                        </ul>
+                    <button
+                      type="button"
+                      class="generate-main"
+                      [disabled]="asking() || !definitionExample().trim()"
+                      [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
+                      (click)="addDefinitionFromExample()"
+                    >
+                      Ask
+                      @if (translationTarget(); as code) {
+                        <span class="generate-translation">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
+                          {{ languageName(code) }}
+                        </span>
                       }
-                    </div>
+                    </button>
                   </div>
                 </div>
               }
@@ -2293,74 +2151,27 @@ function sameDefinitionOrder(
                 <p>The AI will add the missing definitions of “{{ shownTitle() }}”.</p>
                 <div class="sheet-actions example-actions">
                   <div class="generate-bundle">
-                    <div class="generate-split">
-                      <button
-                        type="button"
-                        class="generate-main"
-                        [disabled]="asking() || !element().title.trim()"
-                        (click)="addMissingDefinitions()"
-                      >
-                        Generate
-                        @if (translationTarget(); as code) {
-                          <span class="generate-translation">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
-                            {{ languageName(code) }}
-                          </span>
-                        }
-                      </button>
-                      <button
-                        type="button"
-                        class="generate-chevron"
-                        [class.open]="missingTranslationOpen()"
-                        [attr.aria-expanded]="missingTranslationOpen()"
-                        aria-label="Translation language"
-                        [disabled]="asking()"
-                        (click)="toggleMissingTranslation()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </button>
-                      @if (missingTranslationOpen()) {
-                        <ul
-                          class="translation-menu"
-                          role="listbox"
-                          aria-label="Translation language"
-                        >
-                          <li>
-                            <button
-                              type="button"
-                              role="option"
-                              [class.selected]="!translationTarget()"
-                              [attr.aria-selected]="!translationTarget()"
-                              (click)="chooseMissingTranslation('')"
-                            >
-                              No translation
-                            </button>
-                          </li>
-                          @for (code of translationLanguages(); track code) {
-                            <li>
-                              <button
-                                type="button"
-                                role="option"
-                                [class.selected]="code === translationTarget()"
-                                [attr.aria-selected]="code === translationTarget()"
-                                (click)="chooseMissingTranslation(code)"
-                              >
-                                {{ languageName(code) }}
-                              </button>
-                            </li>
-                          }
-                        </ul>
+                    <button
+                      type="button"
+                      class="generate-main"
+                      [disabled]="asking() || !element().title.trim()"
+                      (click)="addMissingDefinitions()"
+                    >
+                      Generate
+                      @if (translationTarget(); as code) {
+                        <span class="generate-translation">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
+                          {{ languageName(code) }}
+                        </span>
                       }
-                    </div>
+                    </button>
                   </div>
                 </div>
               }
@@ -2588,13 +2399,7 @@ function sameDefinitionOrder(
           @let prompt = definitionPrompt();
           @if (element().definitions[prompt]; as definition) {
             <div class="sheet-backdrop" (click)="closeDefinitionPrompt($event)">
-              <section
-                class="sheet"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Definition"
-                (click)="onEditorSheetClick($event)"
-              >
+              <section class="sheet" role="dialog" aria-modal="true" aria-label="Definition">
                 <div class="sheet-head">
                   <h3>Definition</h3>
                   <button
@@ -2748,88 +2553,41 @@ function sameDefinitionOrder(
                     }
                     <span class="header-actions">
                       <span class="generate-bundle translate-split">
-                        <div class="generate-split">
-                          <button
-                            type="button"
-                            class="generate-main"
-                            [attr.aria-label]="
-                              translating()
-                                ? 'Translating…'
-                                : translationTarget()
-                                  ? 'Translate into ' + languageName(translationTarget())
-                                  : 'Translate'
-                            "
-                            [attr.title]="
-                              translating()
-                                ? 'Translating…'
-                                : translationTarget()
-                                  ? 'Translate into ' + languageName(translationTarget())
-                                  : 'Translate'
-                            "
-                            [attr.aria-busy]="translating() ? true : null"
-                            [disabled]="!canTranslateDefinition(prompt)"
-                            (click)="translateDefinition(prompt)"
-                          >
-                            <span class="generate-translation">
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m5 8 6 6" />
-                                <path d="m4 14 6-6 2-3" />
-                                <path d="M2 5h12" />
-                                <path d="M7 2h1" />
-                                <path d="m22 22-5-10-5 10" />
-                                <path d="M14 18h6" />
-                              </svg>
-                              @if (translationTarget(); as code) {
-                                {{ languageName(code) }}
-                              }
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            class="generate-chevron"
-                            [class.open]="sheetTranslationOpen()"
-                            [attr.aria-expanded]="sheetTranslationOpen()"
-                            aria-label="Translation language"
-                            [disabled]="translating() || askingPolish() !== null"
-                            (click)="toggleSheetTranslation()"
-                          >
+                        <button
+                          type="button"
+                          class="generate-main"
+                          [attr.aria-label]="
+                            translating()
+                              ? 'Translating…'
+                              : translationTarget()
+                                ? 'Translate into ' + languageName(translationTarget())
+                                : 'Translate'
+                          "
+                          [attr.title]="
+                            translating()
+                              ? 'Translating…'
+                              : translationTarget()
+                                ? 'Translate into ' + languageName(translationTarget())
+                                : 'Translate'
+                          "
+                          [attr.aria-busy]="translating() ? true : null"
+                          [disabled]="!canTranslateDefinition(prompt)"
+                          (click)="translateDefinition(prompt)"
+                        >
+                          <span class="generate-translation">
                             <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m6 9 6 6 6-6" />
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
                             </svg>
-                          </button>
-                          @if (sheetTranslationOpen()) {
-                            <ul
-                              class="translation-menu down"
-                              role="listbox"
-                              aria-label="Translation language"
-                            >
-                              <li>
-                                <button
-                                  type="button"
-                                  role="option"
-                                  [class.selected]="!translationTarget()"
-                                  [attr.aria-selected]="!translationTarget()"
-                                  (click)="chooseSheetTranslation('')"
-                                >
-                                  No translation
-                                </button>
-                              </li>
-                              @for (code of translationLanguages(); track code) {
-                                <li>
-                                  <button
-                                    type="button"
-                                    role="option"
-                                    [class.selected]="code === translationTarget()"
-                                    [attr.aria-selected]="code === translationTarget()"
-                                    (click)="chooseSheetTranslation(code)"
-                                  >
-                                    {{ languageName(code) }}
-                                  </button>
-                                </li>
-                              }
-                            </ul>
-                          }
-                        </div>
+                            @if (translationTarget(); as code) {
+                              {{ languageName(code) }}
+                            }
+                          </span>
+                        </button>
                       </span>
                       @if (!supportAvailable() || definitionSource() === 'working') {
                         <button
@@ -2971,13 +2729,7 @@ function sameDefinitionOrder(
           @let prompt = examplePrompt();
           @if (element().definitions[prompt]; as definition) {
             <div class="sheet-backdrop" (click)="closeExamplePrompt($event)">
-              <section
-                class="sheet"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Example"
-                (click)="onEditorSheetClick($event)"
-              >
+              <section class="sheet" role="dialog" aria-modal="true" aria-label="Example">
                 <div class="sheet-head">
                   <h3>Example</h3>
                   <button
@@ -3100,88 +2852,41 @@ function sameDefinitionOrder(
                     }
                     <span class="header-actions">
                       <span class="generate-bundle translate-split">
-                        <div class="generate-split">
-                          <button
-                            type="button"
-                            class="generate-main"
-                            [attr.aria-label]="
-                              translating()
-                                ? 'Translating…'
-                                : translationTarget()
-                                  ? 'Translate into ' + languageName(translationTarget())
-                                  : 'Translate'
-                            "
-                            [attr.title]="
-                              translating()
-                                ? 'Translating…'
-                                : translationTarget()
-                                  ? 'Translate into ' + languageName(translationTarget())
-                                  : 'Translate'
-                            "
-                            [attr.aria-busy]="translating() ? true : null"
-                            [disabled]="!canTranslateExample(prompt)"
-                            (click)="translateExample(prompt)"
-                          >
-                            <span class="generate-translation">
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m5 8 6 6" />
-                                <path d="m4 14 6-6 2-3" />
-                                <path d="M2 5h12" />
-                                <path d="M7 2h1" />
-                                <path d="m22 22-5-10-5 10" />
-                                <path d="M14 18h6" />
-                              </svg>
-                              @if (translationTarget(); as code) {
-                                {{ languageName(code) }}
-                              }
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            class="generate-chevron"
-                            [class.open]="sheetTranslationOpen()"
-                            [attr.aria-expanded]="sheetTranslationOpen()"
-                            aria-label="Translation language"
-                            [disabled]="translating() || askingPolish() !== null"
-                            (click)="toggleSheetTranslation()"
-                          >
+                        <button
+                          type="button"
+                          class="generate-main"
+                          [attr.aria-label]="
+                            translating()
+                              ? 'Translating…'
+                              : translationTarget()
+                                ? 'Translate into ' + languageName(translationTarget())
+                                : 'Translate'
+                          "
+                          [attr.title]="
+                            translating()
+                              ? 'Translating…'
+                              : translationTarget()
+                                ? 'Translate into ' + languageName(translationTarget())
+                                : 'Translate'
+                          "
+                          [attr.aria-busy]="translating() ? true : null"
+                          [disabled]="!canTranslateExample(prompt)"
+                          (click)="translateExample(prompt)"
+                        >
+                          <span class="generate-translation">
                             <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m6 9 6 6 6-6" />
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
                             </svg>
-                          </button>
-                          @if (sheetTranslationOpen()) {
-                            <ul
-                              class="translation-menu down"
-                              role="listbox"
-                              aria-label="Translation language"
-                            >
-                              <li>
-                                <button
-                                  type="button"
-                                  role="option"
-                                  [class.selected]="!translationTarget()"
-                                  [attr.aria-selected]="!translationTarget()"
-                                  (click)="chooseSheetTranslation('')"
-                                >
-                                  No translation
-                                </button>
-                              </li>
-                              @for (code of translationLanguages(); track code) {
-                                <li>
-                                  <button
-                                    type="button"
-                                    role="option"
-                                    [class.selected]="code === translationTarget()"
-                                    [attr.aria-selected]="code === translationTarget()"
-                                    (click)="chooseSheetTranslation(code)"
-                                  >
-                                    {{ languageName(code) }}
-                                  </button>
-                                </li>
-                              }
-                            </ul>
-                          }
-                        </div>
+                            @if (translationTarget(); as code) {
+                              {{ languageName(code) }}
+                            }
+                          </span>
+                        </button>
                       </span>
                       @if (!supportAvailable() || exampleSource() === 'working') {
                         <button
@@ -5555,70 +5260,31 @@ function sameDefinitionOrder(
       display: flex;
     }
 
-    .generate-split {
-      position: relative;
-      display: inline-flex;
-      align-items: stretch;
-      border-radius: 999px;
-      background: var(--accent);
-    }
-
-    .generate-split:hover:not(:has(:disabled)) {
-      background: var(--accent-hover);
-    }
-
-    .generate-main,
-    .generate-chevron {
-      border: 0;
-      background: transparent;
-      color: white;
-      font: inherit;
-      font-weight: 650;
-      cursor: pointer;
-    }
-
     .generate-main {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 0.12rem;
-      border-radius: 999px 0 0 999px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: white;
+      font: inherit;
+      font-weight: 650;
       padding: 0.4rem 1rem 0.42rem;
       font-size: 0.9375rem;
       line-height: 1.1;
+      cursor: pointer;
     }
 
-    .generate-chevron {
-      display: grid;
-      place-items: center;
-      border-left: 1px solid rgba(255, 255, 255, 0.28);
-      border-radius: 0 999px 999px 0;
-      padding: 0 0.75rem;
+    .generate-main:hover:not(:disabled) {
+      background: var(--accent-hover);
     }
 
-    .generate-main:disabled,
-    .generate-chevron:disabled {
+    .generate-main:disabled {
       cursor: not-allowed;
-    }
-
-    .generate-split:has(:disabled) {
       opacity: 0.45;
-    }
-
-    .generate-chevron svg {
-      width: 1rem;
-      height: 1rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      transition: transform 0.15s ease;
-    }
-
-    .generate-chevron.open svg {
-      transform: rotate(180deg);
     }
 
     .generate-translation {
@@ -5642,21 +5308,8 @@ function sameDefinitionOrder(
       stroke-linejoin: round;
     }
 
-    .translation-menu.down {
-      top: calc(100% + 0.3rem);
-      bottom: auto;
-    }
-
     .field-heading .header-actions {
       gap: 0.4rem;
-    }
-
-    .translate-split .generate-split:has(:disabled) {
-      opacity: 1;
-    }
-
-    .translate-split .generate-split:has(.generate-chevron:disabled) {
-      opacity: 0.45;
     }
 
     .translate-split .generate-main {
@@ -5664,11 +5317,13 @@ function sameDefinitionOrder(
       gap: 0.35rem;
       padding: 0.22rem 0.65rem;
       font-size: 0.78rem;
+      opacity: 1;
     }
 
     .translate-split .generate-main:disabled,
     .translate-split .generate-main:disabled .generate-translation {
       color: rgba(255, 255, 255, 0.4);
+      opacity: 1;
     }
 
     .translate-split .generate-translation {
@@ -5678,55 +5333,6 @@ function sameDefinitionOrder(
     .translate-split .generate-translation svg {
       width: 0.95rem;
       height: 0.95rem;
-    }
-
-    .translate-split .generate-chevron {
-      padding: 0 0.5rem;
-    }
-
-    .translation-menu {
-      position: absolute;
-      z-index: 6;
-      right: 0;
-      bottom: calc(100% + 0.3rem);
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      width: max-content;
-      min-width: 8.25rem;
-      max-height: min(8.25rem, calc(40dvh - 5.5rem));
-      margin: 0;
-      padding: 0.2rem;
-      overflow: auto;
-      overscroll-behavior: contain;
-      list-style: none;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: var(--surface);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
-    }
-
-    .translation-menu button {
-      width: 100%;
-      border: 0;
-      border-radius: 6px;
-      background: transparent;
-      color: var(--text);
-      font: inherit;
-      font-size: 0.78rem;
-      line-height: 1.2;
-      text-align: left;
-      padding: 0.22rem 0.5rem;
-      cursor: pointer;
-    }
-
-    .translation-menu button:hover {
-      background: rgba(var(--accent-rgb), 0.1);
-    }
-
-    .translation-menu button.selected {
-      background: rgba(var(--accent-rgb), 0.16);
-      color: var(--accent-text);
     }
 
     .btn-danger {
@@ -5992,7 +5598,6 @@ export class ElementModal {
   readonly gemScores = Array.from({ length: TRANSLATION_GEM_MAX + 1 }, (_, gems) => gems);
   readonly equivalentMax = EQUIVALENT_MAX;
   readonly definitionMax = DEFINITION_MAX;
-  readonly translationInto = translationInto;
   readonly supportAvailable = computed(() => this.translationTarget() !== '');
   readonly languageName = languageDisplayName;
   readonly originalLanguageName = computed(
@@ -6026,7 +5631,6 @@ export class ElementModal {
   readonly equivalentIdDraft = signal<string | null>(null);
   readonly sheetEquivalents = signal<ElementEquivalent[]>([]);
   readonly textDraft = signal('');
-  readonly sheetTranslationOpen = signal(false);
   readonly translating = signal(false);
   readonly askingEquivalent = signal(false);
   readonly askingMetadata = signal(false);
@@ -6064,8 +5668,6 @@ export class ElementModal {
   readonly titleError = signal('');
   readonly definitionMenuOpen = signal(false);
   readonly definitionAddChoice = signal<'example' | 'missing' | null>(null);
-  readonly missingTranslationOpen = signal(false);
-  readonly definitionExampleTranslationOpen = signal(false);
   readonly unveiledEquivalents = signal<ReadonlySet<string>>(new Set());
   readonly addingDefinitions = signal<'missing' | 'example' | null>(null);
   readonly definitionExample = signal('');
@@ -6077,7 +5679,6 @@ export class ElementModal {
   readonly newGlosses = signal<ReadonlySet<string>>(new Set());
   readonly exampleSuggestions = signal<Record<string, ExampleSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
-  readonly exampleTranslationOpen = signal(false);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
   readonly helpOpen = signal(false);
   readonly exerciseLog = signal(-1);
@@ -6216,18 +5817,10 @@ export class ElementModal {
       return;
     }
     if (this.definitionPromptOpen()) {
-      if (this.sheetTranslationOpen()) {
-        this.sheetTranslationOpen.set(false);
-        return;
-      }
       this.closeDefinitionPrompt();
       return;
     }
     if (this.examplePromptOpen()) {
-      if (this.sheetTranslationOpen()) {
-        this.sheetTranslationOpen.set(false);
-        return;
-      }
       this.closeExamplePrompt();
       return;
     }
@@ -6265,10 +5858,6 @@ export class ElementModal {
       return;
     }
     if (this.editor()) {
-      if (this.sheetTranslationOpen()) {
-        this.sheetTranslationOpen.set(false);
-        return;
-      }
       this.editor.set(null);
       return;
     }
@@ -6424,55 +6013,8 @@ export class ElementModal {
     return code ? languageDisplayName(code) : '';
   }
 
-  translationLanguages(): string[] {
-    const learning = this.element().language.trim().toLowerCase();
-    return LEARNABLE_LANGUAGES.filter((code) => code !== learning);
-  }
-
-  toggleExampleTranslation(): void {
-    if (this.askingExamples() !== null) return;
-    this.exampleTranslationOpen.update((open) => !open);
-  }
-
-  chooseExampleTranslation(code: string): void {
-    rememberTranslationInto(code);
-    this.exampleTranslationOpen.set(false);
-  }
-
-  onExampleSheetClick(event: MouseEvent): void {
-    event.stopPropagation();
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target?.closest('.generate-bundle')) this.exampleTranslationOpen.set(false);
-  }
-
-  onEditorSheetClick(event: MouseEvent): void {
-    event.stopPropagation();
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target?.closest('.translate-split')) this.sheetTranslationOpen.set(false);
-  }
-
-  toggleSheetTranslation(): void {
-    if (this.translating() || this.askingEquivalent() || this.busy() || this.askingPolish() !== null)
-      return;
-    this.sheetTranslationOpen.update((open) => !open);
-  }
-
-  chooseSheetTranslation(code: string): void {
-    const previous = this.translationTarget();
-    const gloss = this.editor() ? this.captureEditingDraft(this.textDraft(), previous) : '';
-    rememberTranslationInto(code);
-    const next = this.translationTarget();
-    if (this.editor()) {
-      this.textDraft.set(passageForEditing(this.storedFromTranslations(gloss), next));
-    }
-    this.sheetTranslationOpen.set(false);
-  }
-
   private translationTarget(): string {
-    const learning = this.element().language.trim().toLowerCase();
-    const into = this.translationInto().trim().toLowerCase();
-    if (!isLearnableLanguage(into) || into === learning) return '';
-    return into;
+    return supportLanguageFor(this.element().language);
   }
 
   canAskEquivalent(): boolean {
@@ -6673,52 +6215,17 @@ export class ElementModal {
     this.definitionEngineer.set(null);
     this.confirm.set(null);
     this.definitionAddChoice.set(null);
-    this.missingTranslationOpen.set(false);
-    this.definitionExampleTranslationOpen.set(false);
     this.definitionMenuOpen.set(true);
   }
 
   chooseDefinitionAdd(choice: 'example' | 'missing'): void {
     if (this.asking()) return;
-    this.missingTranslationOpen.set(false);
-    this.definitionExampleTranslationOpen.set(false);
     this.definitionAddChoice.set(choice);
-  }
-
-  onDefinitionMenuClick(event: MouseEvent): void {
-    event.stopPropagation();
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target?.closest('.generate-bundle')) {
-      this.missingTranslationOpen.set(false);
-      this.definitionExampleTranslationOpen.set(false);
-    }
   }
 
   closeDefinitionPrompts(): void {
     this.definitionMenuOpen.set(false);
     this.definitionAddChoice.set(null);
-    this.missingTranslationOpen.set(false);
-    this.definitionExampleTranslationOpen.set(false);
-  }
-
-  toggleMissingTranslation(): void {
-    if (this.asking()) return;
-    this.missingTranslationOpen.update((open) => !open);
-  }
-
-  chooseMissingTranslation(code: string): void {
-    rememberTranslationInto(code);
-    this.missingTranslationOpen.set(false);
-  }
-
-  toggleDefinitionExampleTranslation(): void {
-    if (this.asking()) return;
-    this.definitionExampleTranslationOpen.update((open) => !open);
-  }
-
-  chooseDefinitionExampleTranslation(code: string): void {
-    rememberTranslationInto(code);
-    this.definitionExampleTranslationOpen.set(false);
   }
 
   generateExample(index: number): void {
@@ -6792,7 +6299,6 @@ export class ElementModal {
 
   async addMissingDefinitions(): Promise<void> {
     if (this.aiBusy() || !this.element().title.trim()) return;
-    this.missingTranslationOpen.set(false);
     this.addingDefinitions.set('missing');
     try {
       await this.askDefinitions();
@@ -6811,7 +6317,6 @@ export class ElementModal {
     this.addingDefinitions.set('example');
     this.asking.set(true);
     this.error.set('');
-    this.definitionExampleTranslationOpen.set(false);
     try {
       const placed = await generateDefinitionFromExample({
         language: element.language,
@@ -7158,11 +6663,7 @@ export class ElementModal {
     this.applyDefinitionOrder(definitions, from, to);
   }
 
-  private applyDefinitionOrder(
-    definitions: ElementDefinition[],
-    from: number,
-    to: number,
-  ): void {
+  private applyDefinitionOrder(definitions: ElementDefinition[], from: number, to: number): void {
     this.listedDefinitions.set(definitions);
     this.stopSpeech();
     this.moveDefinitionIndexes(from, to);
@@ -7242,7 +6743,6 @@ export class ElementModal {
     this.confirm.set(null);
     const draft = this.engineerDrafts.get(key) ?? { instruction: '', forms: [] };
     const available = new Set(definition.forms.map((form) => form.text.toLowerCase()));
-    this.exampleTranslationOpen.set(false);
     this.exampleEngineer.set({
       definitionIndex: index,
       instruction: draft.instruction,
@@ -7306,7 +6806,6 @@ export class ElementModal {
   closeDefinitionEngineer(event?: MouseEvent): void {
     if (event && event.target !== event.currentTarget) return;
     if (this.definitionSheetBusy()) return;
-    this.sheetTranslationOpen.set(false);
     this.definitionEngineer.set(null);
   }
 
@@ -7476,7 +6975,6 @@ export class ElementModal {
   }
 
   async generateEngineeredExample(): Promise<void> {
-    this.exampleTranslationOpen.set(false);
     const engineer = this.exampleEngineer();
     if (!engineer || this.aiBusy()) return;
     const element = this.element();
@@ -7720,9 +7218,7 @@ export class ElementModal {
     this.writeRound({ ...this.round(), givenUp: true });
   }
 
-  private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'color'>>,
-  ): Promise<boolean> {
+  private async saveAppearance(patch: Partial<Pick<StoredElement, 'color'>>): Promise<boolean> {
     if (this.busy()) return false;
     const current = this.currentElement();
     const next: StoredElement = { ...current, ...patch };
@@ -7858,7 +7354,6 @@ export class ElementModal {
     const ticket = this.translateTicket;
     this.translating.set(true);
     this.sheetError.set('');
-    this.sheetTranslationOpen.set(false);
     try {
       const translated = await translatePhrase(text, source, this.translationTarget());
       if (ticket !== this.translateTicket) return;
@@ -8424,7 +7919,6 @@ export class ElementModal {
     this.askingMetadata.set(false);
     this.seedEditingTranslations(text);
     this.textDraft.set(passageForEditing(text, this.translationTarget()));
-    this.sheetTranslationOpen.set(false);
     this.sheetError.set('');
     this.translating.set(false);
   }
@@ -8994,7 +8488,6 @@ export class ElementModal {
     const index = this.definitionPrompt();
     if (this.askingGrade() !== null) return;
     if (index >= 0 && this.definitionAwaitingScore(index)) return;
-    this.sheetTranslationOpen.set(false);
     this.definitionPrompt.set(-1);
   }
 
@@ -9185,7 +8678,6 @@ export class ElementModal {
     const index = this.examplePrompt();
     if (this.askingExampleGrade() !== null) return;
     if (index >= 0 && this.exampleAwaitingScore(index)) return;
-    this.sheetTranslationOpen.set(false);
     this.examplePrompt.set(-1);
   }
 
