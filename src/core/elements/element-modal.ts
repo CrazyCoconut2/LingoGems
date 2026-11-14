@@ -1,10 +1,3 @@
-import {
-  CdkDrag,
-  CdkDragHandle,
-  CdkDropList,
-  moveItemInArray,
-  type CdkDragDrop,
-} from '@angular/cdk/drag-drop';
 import { CdkScrollable } from '@angular/cdk/scrolling';
 import { NgTemplateOutlet } from '@angular/common';
 import {
@@ -505,9 +498,6 @@ function sameDefinitionOrder(
     GemIcon,
     HighlightColorPicker,
     CdkScrollable,
-    CdkDropList,
-    CdkDrag,
-    CdkDragHandle,
   ],
   template: `
     <div
@@ -724,7 +714,7 @@ function sameDefinitionOrder(
             </button>
           </div>
         </header>
-        <div class="body" cdkScrollable>
+        <div #definitionBody class="body" cdkScrollable>
           @if (collision(); as matches) {
             <div class="collision" role="menu" aria-label="Matching elements">
               @for (match of matches; track match.elementId) {
@@ -738,30 +728,19 @@ function sameDefinitionOrder(
             <p class="error">{{ error() }}</p>
           }
           @if (element().definitions.length) {
-            <ol
-              class="definitions"
-              cdkDropList
-              cdkDropListLockAxis="y"
-              (cdkDropListDropped)="dropDefinition($event)"
-            >
-              @for (definition of shownDefinitions(); track $index; let index = $index) {
-                <li
-                  class="sense"
-                  cdkDrag
-                  cdkDragLockAxis="y"
-                  cdkDragPreviewContainer="parent"
-                  [cdkDragDisabled]="inPlay() || aiBusy() || element().definitions.length < 2"
-                  [class.fresh]="definitionIsNew(definition.text)"
-                >
+            @let definitions = shownDefinitions();
+            @let index = visibleDefinitionIndex();
+            @if (definitions[index]; as definition) {
+              <ol class="definitions">
+                <li class="sense" [class.fresh]="definitionIsNew(definition.text)">
                   <div class="sense-head">
                     <div class="sense-title">
                       @if (element().definitions.length > 1) {
                         <button
                           type="button"
                           class="icon-btn drag-handle"
-                          cdkDragHandle
                           aria-label="Reorder definition"
-                          title="Drag to reorder"
+                          title="Arrow keys reorder"
                           [disabled]="inPlay() || aiBusy()"
                           (keydown.arrowup)="nudgeDefinition($event, index, -1)"
                           (keydown.arrowdown)="nudgeDefinition($event, index, 1)"
@@ -1315,12 +1294,28 @@ function sameDefinitionOrder(
                     }
                   </section>
                 </li>
-              }
-            </ol>
+              </ol>
+            }
           } @else {
             <p class="empty">No definitions yet.</p>
           }
         </div>
+        @if (shownDefinitions().length > 1) {
+          <nav class="definition-switch" aria-label="Definitions">
+            @for (definition of shownDefinitions(); track $index) {
+              <button
+                type="button"
+                class="definition-dot"
+                [class.active]="$index === visibleDefinitionIndex()"
+                [attr.aria-current]="$index === visibleDefinitionIndex() ? 'true' : null"
+                [attr.aria-label]="'Definition ' + ($index + 1)"
+                (click)="showDefinition($index)"
+              >
+                <span aria-hidden="true"></span>
+              </button>
+            }
+          </nav>
+        }
 
         @if (editor(); as current) {
           <div class="sheet-backdrop" (click)="closeSheet($event)">
@@ -3952,11 +3947,7 @@ function sameDefinitionOrder(
     }
 
     .drag-handle {
-      cursor: grab;
-    }
-
-    .drag-handle:active {
-      cursor: grabbing;
+      cursor: pointer;
     }
 
     .sense-head h3 {
@@ -4235,6 +4226,46 @@ function sameDefinitionOrder(
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
+    }
+
+    .definition-switch {
+      flex: none;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 0.1rem;
+      padding: 0.35rem 1rem 0.65rem;
+    }
+
+    .definition-dot {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.35rem;
+      height: 1.35rem;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .definition-dot span {
+      width: 0.42rem;
+      height: 0.42rem;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--text-muted) 55%, transparent);
+    }
+
+    .definition-dot.active span,
+    .definition-dot:hover span {
+      background: var(--text);
+    }
+
+    .definition-dot.active span {
+      transform: scale(1.25);
     }
 
     .sense {
@@ -5655,6 +5686,13 @@ export class ElementModal {
   readonly shownDefinitions = computed(
     () => this.listedDefinitions() ?? this.element().definitions,
   );
+  /** Index of the definition panel on screen. */
+  readonly definitionPanel = signal(0);
+  readonly visibleDefinitionIndex = computed(() => {
+    const count = this.shownDefinitions().length;
+    if (count === 0) return 0;
+    return Math.min(this.definitionPanel(), count - 1);
+  });
   private readonly releaseListedDefinitions = effect(() => {
     const live = this.element().definitions;
     const listed = this.listedDefinitions();
@@ -5714,6 +5752,7 @@ export class ElementModal {
   private readonly exampleField = viewChild<ElementRef<HTMLTextAreaElement>>('exampleField');
   private readonly exampleSupportField =
     viewChild<ElementRef<HTMLTextAreaElement>>('exampleSupportField');
+  private readonly definitionBody = viewChild<ElementRef<HTMLElement>>('definitionBody');
   /** Which definition tab is showing. */
   readonly definitionSource = signal<'support' | 'working'>('support');
   readonly definitionPolishNote = signal<
@@ -5768,6 +5807,7 @@ export class ElementModal {
       this.exerciseEntry.set(-1);
       this.colorOpen.set(false);
       this.definitionExample.set('');
+      this.definitionPanel.set(0);
       this.addingDefinitions.set(null);
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
@@ -6380,7 +6420,11 @@ export class ElementModal {
     this.appendRework(target);
     const index = definitions.indexOf(target);
     if (!(await this.persist(definitions, element.equivalents))) return;
-    if (this.element().id === element.id) this.strike([index]);
+    if (this.element().id === element.id) {
+      this.definitionPanel.set(index);
+      this.scrollDefinitionPanel();
+      this.strike([index]);
+    }
     this.definitionExample.set('');
     this.closeDefinitionPrompts();
   }
@@ -6483,6 +6527,8 @@ export class ElementModal {
     rememberNewDefinitions(element.id, glosses);
     if (this.element().id === element.id) {
       this.shiftDefinitionIndexes(created.length);
+      this.definitionPanel.set(0);
+      this.scrollDefinitionPanel();
       this.newGlosses.set(new Set(readNewDefinitions(element.id)));
     }
     return true;
@@ -6539,6 +6585,7 @@ export class ElementModal {
         definitionIndex: map(definitionEngineer.definitionIndex),
       });
     }
+    this.definitionPanel.set(map(this.definitionPanel()));
   }
 
   private shiftDefinitionIndexes(by: number): void {
@@ -6579,6 +6626,7 @@ export class ElementModal {
         definitionIndex: definitionEngineer.definitionIndex + by,
       });
     }
+    this.definitionPanel.set(this.definitionPanel() + by);
   }
 
   async askForms(index: number): Promise<void> {
@@ -6652,15 +6700,15 @@ export class ElementModal {
     this.moveDefinition(index, delta);
   }
 
-  dropDefinition(event: CdkDragDrop<ElementDefinition[]>): void {
-    if (this.inPlay() || this.aiBusy()) return;
-    const from = event.previousIndex;
-    const to = event.currentIndex;
-    if (from === to) return;
-    const definitions = this.copyDefinitions();
-    if (!definitions[from] || !definitions[to]) return;
-    moveItemInArray(definitions, from, to);
-    this.applyDefinitionOrder(definitions, from, to);
+  showDefinition(index: number): void {
+    const count = this.shownDefinitions().length;
+    if (index < 0 || index >= count || index === this.visibleDefinitionIndex()) return;
+    this.definitionPanel.set(index);
+    this.scrollDefinitionPanel();
+  }
+
+  private scrollDefinitionPanel(): void {
+    this.definitionBody()?.nativeElement.scrollTo({ top: 0 });
   }
 
   private applyDefinitionOrder(definitions: ElementDefinition[], from: number, to: number): void {
@@ -7403,9 +7451,13 @@ export class ElementModal {
       };
       if (editor.index == null) unlinked.push(next);
       else unlinked[editor.index] = next;
-      const index = editor.index;
+      const index = editor.index ?? unlinked.length - 1;
       if (await this.persist(unlinked, linked.equivalents)) {
-        if (worked && index != null) this.strike([index]);
+        if (editor.index == null) {
+          this.definitionPanel.set(index);
+          this.scrollDefinitionPanel();
+        }
+        if (worked && editor.index != null) this.strike([editor.index]);
         this.editor.set(null);
       }
       return;
@@ -7610,6 +7662,13 @@ export class ElementModal {
       const wording = this.askingWording();
       if (wording === pending.index) this.askingWording.set(null);
       else if (wording != null && wording > pending.index) this.askingWording.set(wording - 1);
+      const panel = this.definitionPanel();
+      const removedVisible = panel === pending.index || panel >= definitions.length;
+      if (panel > pending.index) this.definitionPanel.set(panel - 1);
+      else if (panel >= definitions.length) {
+        this.definitionPanel.set(Math.max(0, definitions.length - 1));
+      }
+      if (removedVisible) this.scrollDefinitionPanel();
     }
     this.confirm.set(null);
     if (pending.kind === 'definition') this.editor.set(null);
