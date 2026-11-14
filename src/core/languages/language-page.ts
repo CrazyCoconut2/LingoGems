@@ -29,9 +29,10 @@ import {
   elementHighlightParts,
   elementMatchesColor,
   elementMatchesMetadata,
-  elementMatchesMode,
   elementMatchesPrefix,
+  elementModeHelp,
   elementModeLabel,
+  parsePassage,
   elementPrefixSearch,
   emptyElementCatalog,
   sanitizeElementColor,
@@ -59,7 +60,7 @@ import {
   type StoredElement,
 } from 'collection';
 
-type FilterSection = 'language' | 'mode' | 'color' | 'definitions' | 'examples' | 'forms';
+type FilterSection = 'language' | 'color' | 'definitions' | 'examples' | 'forms';
 
 type MetadataKind = 'definitions' | 'examples' | 'forms';
 
@@ -168,7 +169,7 @@ const MOVE_SLOP_PX = 10;
                   aria-label="Sort collection"
                   (click)="$event.stopPropagation()"
                 >
-                  @for (option of sortOptions(); track option.value) {
+                  @for (option of sortOptions; track option.value) {
                     <button
                       type="button"
                       class="popover-option"
@@ -318,11 +319,7 @@ const MOVE_SLOP_PX = 10;
                       }
                     </span>
                   </div>
-                  @if (
-                    element.mode &&
-                    ((modeGem(element)?.gems ?? 0) > 0 ||
-                      (!selecting() && element.definitions.length))
-                  ) {
+                  @if (earnedGems(element).length || (!selecting() && element.definitions.length)) {
                     <div class="action-row"></div>
                   }
                   <div class="stat-rail">
@@ -371,42 +368,37 @@ const MOVE_SLOP_PX = 10;
                   </div>
                 </div>
                 </button>
-                @if (element.mode; as mode) {
-                  @if (modeGem(element); as total) {
-                    @if (total.gems > 0 || (!selecting() && element.definitions.length)) {
-                      <div class="card-corner">
-                        @if (total.gems > 0) {
-                          <span
-                            class="earned-gems"
-                            [attr.data-game]="total.game"
-                            [attr.aria-label]="gemsLabel(total.game, total.gems)"
-                            [attr.title]="gemsLabel(total.game, total.gems)"
-                          >
-                            <app-mode-icon [mode]="mode" />
-                            <span>{{ total.gems }}</span>
-                          </span>
-                        }
-                        @if (!selecting() && element.definitions.length) {
-                          <button
-                            type="button"
-                            class="drill"
-                            [class.colored]="!!element.color"
-                            [style.--score-color]="element.color || null"
-                            [attr.aria-label]="drillLabel(mode)"
-                            [attr.title]="drillLabel(mode)"
-                            (click)="drillElement(element.id)"
-                          >
-                            <app-mode-icon [mode]="mode" />
-                            <span class="drill-label">Drill</span>
-                            <svg class="drill-arrow" viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M5 12h14" />
-                              <path d="m12 5 7 7-7 7" />
-                            </svg>
-                          </button>
-                        }
-                      </div>
+                @if (earnedGems(element).length || (!selecting() && element.definitions.length)) {
+                  <div class="card-corner">
+                    @for (total of earnedGems(element); track total.game) {
+                      <span
+                        class="earned-gems"
+                        [attr.data-game]="total.game"
+                        [attr.aria-label]="gemsLabel(total.game, total.gems)"
+                        [attr.title]="gemsLabel(total.game, total.gems)"
+                      >
+                        <app-mode-icon [mode]="gameMode(total.game)" />
+                        <span>{{ total.gems }}</span>
+                      </span>
                     }
-                  }
+                    @if (!selecting() && element.definitions.length) {
+                      <button
+                        type="button"
+                        class="drill"
+                        [class.colored]="!!element.color"
+                        [style.--score-color]="element.color || null"
+                        aria-label="Drill"
+                        title="Drill"
+                        (click)="askDrill(element.id)"
+                      >
+                        <span class="drill-label">Drill</span>
+                        <svg class="drill-arrow" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M5 12h14" />
+                          <path d="m12 5 7 7-7 7" />
+                        </svg>
+                      </button>
+                    }
+                  </div>
                 }
               </li>
             }
@@ -440,7 +432,7 @@ const MOVE_SLOP_PX = 10;
               <div>
                 <h2 class="filter-title">Filters</h2>
                 <p class="filter-subtitle">
-                  Keep elements by language, mode, color, counts, or metadata.
+                  Keep elements by language, color, counts, or metadata.
                 </p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
@@ -507,55 +499,6 @@ const MOVE_SLOP_PX = 10;
                         <option [value]="option">{{ languageName(option) }}</option>
                       }
                     </select>
-                  </div>
-                }
-              </section>
-
-              <section class="filter-section" [class.expanded]="expanded() === 'mode'">
-                <button
-                  type="button"
-                  class="section-header"
-                  [attr.aria-expanded]="expanded() === 'mode'"
-                  (click)="toggleSection('mode')"
-                >
-                  <span class="section-title">
-                    Mode
-                    @if (modeFilter().length) {
-                      <span class="section-count">{{ modeSummary() }}</span>
-                    }
-                  </span>
-                  <svg class="section-chevron" viewBox="0 0 24 24">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
-                @if (expanded() === 'mode') {
-                  <div class="section-body">
-                    <div class="section-actions">
-                      <button
-                        type="button"
-                        class="link-btn"
-                        [disabled]="modeFilter().length === 0"
-                        (click)="clearMode()"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    <p class="section-hint">Show elements in any selected mode.</p>
-                    <div class="mode-choices" role="group" aria-label="Mode">
-                      @for (mode of modes; track mode) {
-                        <button
-                          type="button"
-                          class="mode-choice"
-                          [attr.data-mode]="mode"
-                          [class.selected]="modeSelected(mode)"
-                          [attr.aria-pressed]="modeSelected(mode)"
-                          (click)="chooseMode(mode)"
-                        >
-                          <app-mode-icon [mode]="mode" />
-                          <span>{{ modeLabel(mode) }}</span>
-                        </button>
-                      }
-                    </div>
                   </div>
                 }
               </section>
@@ -759,6 +702,45 @@ const MOVE_SLOP_PX = 10;
         </div>
       }
 
+      @if (drillTarget(); as element) {
+        <div class="selection-backdrop" (click)="closeDrill($event)">
+          <section
+            class="selection-sheet drill-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Drill"
+            (click)="$event.stopPropagation()"
+          >
+            <div class="selection-head">
+              <h3>Drill</h3>
+              <button type="button" class="icon-btn" aria-label="Close" (click)="closeDrill()">
+                <svg viewBox="0 0 24 24">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </div>
+            <div class="drill-choices">
+              @for (mode of modes; track mode) {
+                <button
+                  type="button"
+                  class="drill-choice"
+                  [attr.data-mode]="mode"
+                  [disabled]="!drillReady(element, mode)"
+                  (click)="startDrill(mode)"
+                >
+                  <app-mode-icon [mode]="mode" />
+                  <span class="drill-copy">
+                    <strong>{{ modeLabel(mode) }}</strong>
+                    <span>{{ modeHelp(mode) }}</span>
+                  </span>
+                </button>
+              }
+            </div>
+          </section>
+        </div>
+      }
+
       @if (settingsOpen()) {
         <app-settings (closed)="closeSettings()" (changed)="onCollectionReplaced()" />
       }
@@ -774,6 +756,7 @@ const MOVE_SLOP_PX = 10;
           [colors]="colorOptions()"
           [canGoBack]="canGoBack()"
           [playing]="element.id === playId()"
+          [playMode]="element.id === playId() ? playMode() : null"
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
           (deleted)="onElementDeleted()"
@@ -1203,6 +1186,79 @@ const MOVE_SLOP_PX = 10;
       font-size: 0.88rem;
     }
 
+    .drill-sheet {
+      width: min(26rem, 100%);
+    }
+
+    .drill-choices {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .drill-choice[data-mode='1'] {
+      --hero-gem: var(--gem-translation);
+    }
+
+    .drill-choice[data-mode='2'] {
+      --hero-gem: var(--gem-example);
+    }
+
+    .drill-choice[data-mode='3'] {
+      --hero-gem: var(--gem-definition);
+    }
+
+    .drill-choice {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      width: 100%;
+      margin: 0;
+      padding: 0.75rem 0.85rem;
+      border: 1px solid color-mix(in srgb, var(--hero-gem) 48%, transparent);
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--hero-gem) 12%, transparent);
+      color: var(--text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .drill-choice:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--hero-gem) 18%, transparent);
+    }
+
+    .drill-choice:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    .drill-choice app-mode-icon {
+      flex: none;
+      width: 2.4rem;
+      height: 2.4rem;
+    }
+
+    .drill-copy {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.22rem;
+      min-width: 0;
+    }
+
+    .drill-copy strong {
+      font-size: 0.95rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .drill-copy span {
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
+
     .selection-actions {
       display: flex;
       justify-content: flex-end;
@@ -1571,12 +1627,6 @@ const MOVE_SLOP_PX = 10;
       background: oklch(from var(--score-color) 0.4 calc(min(c, 0.058)) h);
     }
 
-    .drill app-mode-icon {
-      flex: none;
-      width: 1.05rem;
-      height: 1.05rem;
-    }
-
     .drill-arrow {
       flex: none;
       width: 0.95rem;
@@ -1839,60 +1889,6 @@ const MOVE_SLOP_PX = 10;
       font: inherit;
     }
 
-    .mode-choices {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.45rem;
-    }
-
-    .mode-choice[data-mode='1'] {
-      --hero-gem: var(--gem-translation);
-    }
-
-    .mode-choice[data-mode='2'] {
-      --hero-gem: var(--gem-example);
-    }
-
-    .mode-choice[data-mode='3'] {
-      --hero-gem: var(--gem-definition);
-    }
-
-    .mode-choice {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.4rem;
-      width: 100%;
-      min-width: 0;
-      border: 1px solid color-mix(in srgb, var(--hero-gem) 48%, transparent);
-      border-radius: 0.75rem;
-      background: color-mix(in srgb, var(--hero-gem) 12%, transparent);
-      color: var(--text);
-      padding: 0.75rem 0.35rem 0.65rem;
-      font: inherit;
-      font-size: 0.8rem;
-      font-weight: 650;
-      text-align: center;
-      cursor: pointer;
-    }
-
-    .mode-choice:hover {
-      background: color-mix(in srgb, var(--hero-gem) 18%, transparent);
-    }
-
-    .mode-choice.selected {
-      border-color: color-mix(in srgb, var(--hero-gem) 72%, transparent);
-      background: color-mix(in srgb, var(--hero-gem) 22%, transparent);
-      color: var(--text);
-    }
-
-    .mode-choice app-mode-icon {
-      width: 2.55rem;
-      height: 2.55rem;
-      flex: none;
-    }
-
     .color-choices {
       display: flex;
       flex-wrap: wrap;
@@ -2090,6 +2086,7 @@ export class LanguagePage {
   readonly languageOptions = LEARNABLE_LANGUAGES;
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly modeLabel = elementModeLabel;
+  readonly modeHelp = elementModeHelp;
   readonly asking = signal(false);
   readonly translationInto = translationInto;
   readonly discoverOpen = signal(false);
@@ -2101,7 +2098,7 @@ export class LanguagePage {
   readonly colorOpen = signal(false);
   readonly deleteConfirm = signal(false);
   readonly skeletons = ELEMENT_SKELETONS;
-  private readonly baseSortOptions: { value: ElementSort; label: string }[] = [
+  readonly sortOptions: { value: ElementSort; label: string }[] = [
     { value: 'title-asc', label: 'Title A–Z' },
     { value: 'title-desc', label: 'Title Z–A' },
     { value: 'created-desc', label: 'Most recent' },
@@ -2110,15 +2107,9 @@ export class LanguagePage {
     { value: 'translations-desc', label: 'Most translations' },
     { value: 'clicks-desc', label: 'Most seen' },
     { value: 'clicks-asc', label: 'Least seen' },
+    { value: 'gems-desc', label: 'Most gems' },
+    { value: 'gems-asc', label: 'Least gems' },
   ];
-  readonly sortOptions = computed(() => {
-    if (!this.modeFilter().length) return this.baseSortOptions;
-    return [
-      ...this.baseSortOptions,
-      { value: 'gems-desc' as const, label: 'Most gems' },
-      { value: 'gems-asc' as const, label: 'Least gems' },
-    ];
-  });
   readonly code = signal('');
   readonly name = signal('');
   readonly ready = signal(false);
@@ -2147,7 +2138,6 @@ export class LanguagePage {
       empty: 'No form metadata yet. Recompute to collect it.',
     },
   ];
-  readonly modeFilter = signal<ElementMode[]>([]);
   readonly colorFilter = signal<string[]>([]);
   readonly definitionMetaFilter = signal<ElementMetadataVariability>({});
   readonly exampleMetaFilter = signal<ElementMetadataVariability>({});
@@ -2164,6 +2154,8 @@ export class LanguagePage {
   readonly settingsOpen = signal(false);
   readonly statsOpen = signal(false);
   readonly playId = signal('');
+  readonly playMode = signal<ElementMode | null>(null);
+  readonly drillId = signal('');
   readonly expanded = signal<FilterSection | null>('definitions');
   readonly elementId = signal('');
   readonly trail = signal<string[]>([]);
@@ -2173,9 +2165,13 @@ export class LanguagePage {
     if (!id) return null;
     return this.elements().find((element) => element.id === id) ?? null;
   });
+  readonly drillTarget = computed(() => {
+    const id = this.drillId();
+    if (!id) return null;
+    return this.elements().find((element) => element.id === id) ?? null;
+  });
   readonly optionalFilterCount = computed(
     () =>
-      this.modeFilter().length +
       this.colorFilter().length +
       metadataFilterSize(this.definitionMetaFilter()) +
       metadataFilterSize(this.exampleMetaFilter()) +
@@ -2188,14 +2184,12 @@ export class LanguagePage {
   });
   readonly visible = computed(() => {
     const search = this.search();
-    const mode = this.modeFilter();
     const color = this.colorFilter();
     const definitionMeta = this.definitionMetaFilter();
     const exampleMeta = this.exampleMetaFilter();
     const formMeta = this.formMetaFilter();
     const matched = this.elements().filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
-      if (!elementMatchesMode(element, mode)) return false;
       if (!elementMatchesColor(element, color)) return false;
       return elementMatchesMetadata(element, definitionMeta, exampleMeta, formMeta);
     });
@@ -2258,6 +2252,10 @@ export class LanguagePage {
       return;
     }
     if (this.elementId() || this.selectionBusy()) return;
+    if (this.drillId()) {
+      this.drillId.set('');
+      return;
+    }
     if (this.colorOpen()) {
       this.closeColorSheet();
       return;
@@ -2275,7 +2273,11 @@ export class LanguagePage {
 
   openElement(id: string): void {
     if (!id) return;
-    if (this.playId() !== id) this.playId.set('');
+    if (this.playId() !== id) {
+      this.playId.set('');
+      this.playMode.set(null);
+    }
+    this.drillId.set('');
     this.trail.set([id]);
     this.showElement(id);
   }
@@ -2285,12 +2287,41 @@ export class LanguagePage {
     this.openElement(id);
   }
 
-  drillElement(id: string): void {
+  askDrill(id: string): void {
     const element = this.elements().find((item) => item.id === id);
-    if (!element || element.mode === null || element.definitions.length === 0) return;
-    this.playId.set(id);
-    this.recordClick(id);
-    this.openElement(id);
+    if (!element || this.selecting() || element.definitions.length === 0) return;
+    this.drillId.set(id);
+  }
+
+  startDrill(mode: ElementMode): void {
+    const element = this.drillTarget();
+    if (!element || !this.drillReady(element, mode)) return;
+    this.playMode.set(mode);
+    this.playId.set(element.id);
+    this.recordClick(element.id);
+    this.openElement(element.id);
+  }
+
+  closeDrill(event?: MouseEvent): void {
+    if (event && event.target !== event.currentTarget) return;
+    this.drillId.set('');
+  }
+
+  drillReady(element: StoredElement, mode: ElementMode): boolean {
+    if (mode === 1) {
+      return element.definitions.some((definition) => {
+        const id = definition.equivalentId;
+        if (!id) return false;
+        const text = element.equivalents.find((item) => item.id === id)?.text ?? '';
+        return text.trim().length > 0;
+      });
+    }
+    if (mode === 2) {
+      return element.definitions.some(
+        (definition) => parsePassage(definition.text).text.trim().length > 0,
+      );
+    }
+    return element.definitions.length > 0;
   }
 
   isSelected(id: string): boolean {
@@ -2442,6 +2473,7 @@ export class LanguagePage {
 
   private beginSelection(id: string): void {
     if (this.selectionBusy() || !id) return;
+    this.drillId.set('');
     this.swallowClickUntil = Date.now() + 400;
     this.selecting.set(true);
     this.selectedIds.update((current) => {
@@ -2615,6 +2647,7 @@ export class LanguagePage {
   closeElement(): void {
     if (!this.elementId()) return;
     this.playId.set('');
+    this.playMode.set(null);
     this.trail.set([]);
     this.showElement(null);
   }
@@ -2650,14 +2683,16 @@ export class LanguagePage {
     return totals;
   }
 
-  modeGem(
+  earnedGems(
     element: StoredElement,
-  ): { game: 'translation' | 'example' | 'definition'; gems: number } | null {
-    const mode = element.mode;
-    const game =
-      mode === 1 ? 'translation' : mode === 2 ? 'example' : mode === 3 ? 'definition' : null;
-    if (!game) return null;
-    return this.gemTotals(element).find((total) => total.game === game) ?? null;
+  ): { game: 'translation' | 'example' | 'definition'; gems: number }[] {
+    return this.gemTotals(element).filter((total) => total.gems > 0);
+  }
+
+  gameMode(game: 'translation' | 'example' | 'definition'): ElementMode {
+    if (game === 'example') return 2;
+    if (game === 'definition') return 3;
+    return 1;
   }
 
   activityTotals(element: StoredElement): { opened: number; reworked: number; revealed: number } {
@@ -2675,10 +2710,6 @@ export class LanguagePage {
   gemsLabel(game: 'translation' | 'example' | 'definition', count: number): string {
     const amount = count === 1 ? '1 gem' : `${count} gems`;
     return `${amount} from ${game}`;
-  }
-
-  drillLabel(mode: ElementMode): string {
-    return `Drill ${this.modeLabel(mode)}`;
   }
 
   openedLabel(count: number): string {
@@ -2830,29 +2861,6 @@ export class LanguagePage {
     this.expanded.update((current) => (current === section ? null : section));
   }
 
-  modeSelected(mode: ElementMode): boolean {
-    return this.modeFilter().includes(mode);
-  }
-
-  modeSummary(): string {
-    const modes = this.modeFilter();
-    return modes.length === 1 ? this.modeLabel(modes[0]) : String(modes.length);
-  }
-
-  chooseMode(mode: ElementMode): void {
-    const current = this.modeFilter();
-    const next = current.includes(mode)
-      ? current.filter((item) => item !== mode)
-      : [...current, mode].sort((left, right) => left - right);
-    this.modeFilter.set(next);
-    if (!next.length) this.releaseGemSort();
-  }
-
-  clearMode(): void {
-    this.modeFilter.set([]);
-    this.releaseGemSort();
-  }
-
   colorSelected(color: string): boolean {
     return this.colorFilter().includes(color);
   }
@@ -2874,12 +2882,10 @@ export class LanguagePage {
   }
 
   clearFilters(): void {
-    this.modeFilter.set([]);
     this.colorFilter.set([]);
     this.definitionMetaFilter.set({});
     this.exampleMetaFilter.set({});
     this.formMetaFilter.set({});
-    this.releaseGemSort();
   }
 
   metadataEntries(kind: MetadataKind): { key: string; values: string[] }[] {
@@ -3019,6 +3025,8 @@ export class LanguagePage {
     const seq = ++this.loadId;
     const code = language.trim().toLowerCase();
     this.playId.set('');
+    this.playMode.set(null);
+    this.drillId.set('');
     this.clearSelection();
     this.sortOpen.set(false);
     if (this.discoverOpen()) this.closeDiscover();
@@ -3044,13 +3052,6 @@ export class LanguagePage {
     if (seq !== this.loadId) return;
     this.elements.set(elements);
     this.ready.set(true);
-  }
-
-  private releaseGemSort(): void {
-    const sort = this.sort();
-    if (this.modeFilter().length === 0 && (sort === 'gems-desc' || sort === 'gems-asc')) {
-      this.sort.set(DEFAULT_ELEMENT_SORT);
-    }
   }
 
   private overlayOpen(): boolean {

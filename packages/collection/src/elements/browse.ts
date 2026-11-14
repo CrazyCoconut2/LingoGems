@@ -1,4 +1,4 @@
-import { type ElementMode, type StoredElement } from './element-store';
+import { type StoredElement } from './element-store';
 import {
   normalizeMetadataVariability,
   type ElementMetadataVariability,
@@ -28,12 +28,6 @@ function elementTranslationCount(element: StoredElement): number {
 
 function elementDefinitionCount(element: StoredElement): number {
   return element.definitions.length;
-}
-
-/** Keep an element in one of the chosen modes. An empty list keeps every element. */
-export function elementMatchesMode(element: StoredElement, modes: readonly ElementMode[]): boolean {
-  if (modes.length === 0) return true;
-  return element.mode !== null && modes.includes(element.mode);
 }
 
 /** Keep an element in one of the chosen colors. An empty list keeps every element. */
@@ -94,21 +88,12 @@ function variabilityMatches(
   return true;
 }
 
-/** Gems earned in the element's current game. An element with no mode has none. */
-function elementModeGems(element: StoredElement): number {
-  const game =
-    element.mode === 1
-      ? 'translation'
-      : element.mode === 2
-        ? 'example'
-        : element.mode === 3
-          ? 'definition'
-          : null;
-  if (!game) return 0;
+/** Gems earned across Translation, Example, and Definition. */
+function elementGems(element: StoredElement): number {
   let gems = 0;
   for (const definition of element.definitions) {
     for (const entry of definition.log) {
-      if (entry.event === 'game' && entry.game === game) gems += entry.gems;
+      if (entry.event === 'game') gems += entry.gems;
     }
   }
   return gems;
@@ -131,7 +116,7 @@ export function compareElements(
     return (sort === 'clicks-desc' ? -diff : diff) || title;
   }
   if (sort === 'gems-desc' || sort === 'gems-asc') {
-    const diff = elementModeGems(left) - elementModeGems(right);
+    const diff = elementGems(left) - elementGems(right);
     return (sort === 'gems-desc' ? -diff : diff) || title;
   }
   const count = sort === 'definitions-desc' ? elementDefinitionCount : elementTranslationCount;

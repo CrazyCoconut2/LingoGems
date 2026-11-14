@@ -30,6 +30,7 @@ import {
   parsePassage,
   passageForEditing,
   readEditingDraft,
+  elementModeHelp,
   elementModeLabel,
   type ElementMode,
   formTexts,
@@ -518,7 +519,7 @@ function sameDefinitionOrder(
       [attr.aria-label]="dialogLabel()"
       (click)="onBackdrop($event)"
     >
-      <div class="panel" [attr.data-mode]="element().mode">
+      <div class="panel" [attr.data-mode]="playMode()">
         <ng-template #hearButton let-key="key" let-text="text" let-label="label" let-off="off">
           @if (canHear(text)) {
             <button
@@ -653,30 +654,23 @@ function sameDefinitionOrder(
             }
           }
           <div class="header-actions">
-            @let mode = element().mode;
-            <button
-              type="button"
-              class="mode-btn"
-              [class.play-focus]="translationGame() || exampleGame() || definitionCue()"
-              [attr.aria-label]="inPlay() ? 'What to do' : mode ? modeLabel(mode) : 'Set mode'"
-              [attr.title]="inPlay() ? 'What to do' : mode ? modeLabel(mode) : 'Set mode'"
-              [attr.aria-expanded]="inPlay() ? helpOpen() : modeOpen()"
-              [disabled]="busy()"
-              (click)="openMode()"
-            >
-              @if (mode) {
+            @if (playMode(); as mode) {
+              <button
+                type="button"
+                class="mode-btn"
+                [class.play-focus]="translationGame() || exampleGame() || definitionCue()"
+                aria-label="What to do"
+                title="What to do"
+                [attr.aria-expanded]="helpOpen()"
+                [disabled]="busy()"
+                (click)="openHelp()"
+              >
                 <app-mode-icon
                   [mode]="mode"
                   [class.scintillate]="translationGame() || exampleGame() || definitionCue()"
                 />
-              } @else {
-                <svg class="empty-stone" viewBox="0 0 100 100" aria-hidden="true">
-                  <polygon
-                    points="32.4,7.5 67.6,7.5 92.5,32.4 92.5,67.6 67.6,92.5 32.4,92.5 7.5,67.6 7.5,32.4"
-                  />
-                </svg>
-              }
-            </button>
+              </button>
+            }
             <button
               type="button"
               class="icon-btn color-btn"
@@ -850,11 +844,6 @@ function sameDefinitionOrder(
                             <svg viewBox="0 0 24 24" aria-hidden="true">
                               <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                             </svg>
-                            @if (element().mode === 1 && !definition.equivalentId) {
-                              <span class="notify-mode" aria-hidden="true">
-                                <app-mode-icon [mode]="1" />
-                              </span>
-                            }
                           </button>
                           <button
                             type="button"
@@ -3282,74 +3271,6 @@ function sameDefinitionOrder(
           </div>
         }
 
-        @if (modeOpen()) {
-          <div class="sheet-backdrop" (click)="closeMode($event)">
-            <section
-              class="sheet"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Mode"
-              (click)="$event.stopPropagation()"
-            >
-              <div class="sheet-head">
-                <h3>Mode</h3>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  [disabled]="busy()"
-                  (click)="modeOpen.set(false)"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div class="mode-editor" role="group" aria-label="Mode">
-                @let mode = element().mode;
-                @for (step of modes; track step) {
-                  <button
-                    type="button"
-                    class="mode-hero"
-                    [attr.data-mode]="step"
-                    [class.current]="step === mode"
-                    [attr.aria-pressed]="step === mode"
-                    [disabled]="busy()"
-                    (click)="showMode(step)"
-                  >
-                    <app-mode-icon [mode]="step" />
-                    <span class="mode-copy">
-                      <strong>{{ modeLabel(step) }}</strong>
-                      <span class="hint">{{ playHelp(step) }}</span>
-                    </span>
-                  </button>
-                }
-                <button
-                  type="button"
-                  class="mode-hero"
-                  [class.current]="!mode"
-                  [attr.aria-pressed]="!mode"
-                  [disabled]="busy()"
-                  (click)="showMode(null)"
-                >
-                  <svg class="empty-stone" viewBox="0 0 100 100" aria-hidden="true">
-                    <polygon
-                      points="32.4,7.5 67.6,7.5 92.5,32.4 92.5,67.6 67.6,92.5 32.4,92.5 7.5,67.6 7.5,32.4"
-                    />
-                  </svg>
-                  <span class="mode-copy">
-                    <strong>No game</strong>
-                    <span class="hint"
-                      >Leave this element out of Translation, Example, and Definition.</span
-                    >
-                  </span>
-                </button>
-              </div>
-            </section>
-          </div>
-        }
-
         @if (!inPlay() && exerciseLog() >= 0) {
           @let index = exerciseLog();
           @if (element().definitions[index]; as definition) {
@@ -3597,7 +3518,7 @@ function sameDefinitionOrder(
         }
 
         @if (helpOpen()) {
-          @if (element().mode; as mode) {
+          @if (playMode(); as mode) {
             <div class="sheet-backdrop" (click)="closeHelp($event)">
               <section
                 class="sheet"
@@ -3620,7 +3541,7 @@ function sameDefinitionOrder(
                     </svg>
                   </button>
                 </div>
-                <p class="hint">{{ playHelp(mode) }}</p>
+                <p class="hint">{{ modeHelp(mode) }}</p>
                 <div class="sheet-actions">
                   <button type="button" class="btn btn-secondary" (click)="giveUpGame()">
                     Give up
@@ -3793,22 +3714,9 @@ function sameDefinitionOrder(
       border-radius: 0.4rem;
     }
 
-    .header-actions .mode-btn app-mode-icon,
-    .header-actions .mode-btn .empty-stone {
+    .header-actions .mode-btn app-mode-icon {
       width: 1.35rem;
       height: 1.35rem;
-    }
-
-    .empty-stone {
-      display: block;
-      color: var(--text-muted);
-    }
-
-    .empty-stone polygon {
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 4.5;
-      stroke-linejoin: round;
     }
 
     .panel[data-mode='1'] {
@@ -3973,90 +3881,6 @@ function sameDefinitionOrder(
     .mode-btn app-mode-icon {
       width: 1.5rem;
       height: 1.5rem;
-    }
-
-    .mode-sheet {
-      width: min(100%, 24rem);
-    }
-
-    .mode-editor {
-      display: flex;
-      flex-direction: column;
-      gap: 0.55rem;
-    }
-
-    .mode-hero {
-      display: flex;
-      align-items: center;
-      gap: 0.85rem;
-      width: 100%;
-      margin: 0;
-      padding: 0.75rem 0.85rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: transparent;
-      color: var(--text);
-      font: inherit;
-      text-align: left;
-      cursor: pointer;
-    }
-
-    .mode-hero app-mode-icon,
-    .mode-hero .empty-stone {
-      flex: none;
-      width: 2.4rem;
-      height: 2.4rem;
-    }
-
-    .mode-copy {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.22rem;
-      min-width: 0;
-    }
-
-    .mode-hero strong {
-      font-size: 0.95rem;
-      font-weight: 700;
-      line-height: 1.2;
-    }
-
-    .mode-hero .hint {
-      line-height: 1.4;
-    }
-
-    .mode-hero.current {
-      border-color: color-mix(in srgb, var(--text) 45%, transparent);
-      background: color-mix(in srgb, var(--text) 8%, transparent);
-      cursor: default;
-    }
-
-    .mode-hero[data-mode='1'] {
-      --hero-gem: var(--gem-translation);
-    }
-
-    .mode-hero[data-mode='2'] {
-      --hero-gem: var(--gem-example);
-    }
-
-    .mode-hero[data-mode='3'] {
-      --hero-gem: var(--gem-definition);
-    }
-
-    .mode-hero[data-mode] {
-      border-color: color-mix(in srgb, var(--hero-gem) 48%, transparent);
-      background: color-mix(in srgb, var(--hero-gem) 12%, transparent);
-    }
-
-    .mode-hero[data-mode].current {
-      border-color: color-mix(in srgb, var(--hero-gem) 72%, transparent);
-      background: color-mix(in srgb, var(--hero-gem) 22%, transparent);
-    }
-
-    .mode-hero:disabled {
-      opacity: 0.45;
-      cursor: default;
     }
 
     .title-edit {
@@ -4436,22 +4260,6 @@ function sameDefinitionOrder(
     .saved-example:has(.example-quote > .spoken > .icon-btn.hear-inline):has(.lookup-actions)
       > .item-actions {
       margin-inline-start: calc(3px + 0.85rem + 1.5rem + 0.15rem);
-    }
-
-    .notify-mode {
-      position: absolute;
-      top: -0.08rem;
-      right: -0.08rem;
-      width: 0.72rem;
-      height: 0.72rem;
-      pointer-events: none;
-      filter: drop-shadow(0 0 1px var(--surface));
-    }
-
-    .notify-mode app-mode-icon {
-      display: block;
-      width: 100%;
-      height: 100%;
     }
 
     .icon-btn:disabled,
@@ -6086,8 +5894,10 @@ export class ElementModal {
   /** Presets and custom colors already saved, for the highlight picker. */
   readonly colors = input<readonly string[]>([]);
   readonly canGoBack = input(false);
-  /** Play uses this card. The element's mode decides which field is typed. */
+  /** Play uses this card. `playMode` decides which field is typed. */
   readonly playing = input(false);
+  /** Exercise for this session. Null while editing. */
+  readonly playMode = input<ElementMode | null>(null);
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
   readonly deleted = output<void>();
@@ -6123,7 +5933,7 @@ export class ElementModal {
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
   readonly modeLabel = elementModeLabel;
-  readonly modes: readonly ElementMode[] = [1, 2, 3];
+  readonly modeHelp = elementModeHelp;
   readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
   readonly relatedPickMax = MAX_RELATED_PICKS;
@@ -6186,7 +5996,6 @@ export class ElementModal {
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly exampleTranslationOpen = signal(false);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
-  readonly modeOpen = signal(false);
   readonly helpOpen = signal(false);
   readonly exerciseLog = signal(-1);
   readonly exerciseEntry = signal(-1);
@@ -6268,7 +6077,6 @@ export class ElementModal {
       this.examplePrompt.set(-1);
       this.closeDefinitionPrompts();
       this.unveiledEquivalents.set(new Set());
-      this.modeOpen.set(false);
       this.helpOpen.set(false);
       this.exerciseLog.set(-1);
       this.exerciseEntry.set(-1);
@@ -6357,10 +6165,6 @@ export class ElementModal {
     }
     if (this.helpOpen()) {
       this.helpOpen.set(false);
-      return;
-    }
-    if (this.modeOpen()) {
-      if (!this.busy()) this.modeOpen.set(false);
       return;
     }
     if (this.definitionMenuOpen()) {
@@ -7805,33 +7609,14 @@ export class ElementModal {
     this.colorOpen.set(false);
   }
 
-  closeMode(event: MouseEvent): void {
-    if (event.target !== event.currentTarget || this.busy()) return;
-    this.modeOpen.set(false);
-  }
-
-  openMode(): void {
-    if (this.busy()) return;
-    if (this.inPlay()) {
-      this.helpOpen.set(true);
-      return;
-    }
-    this.modeOpen.set(true);
+  openHelp(): void {
+    if (this.busy() || !this.inPlay()) return;
+    this.helpOpen.set(true);
   }
 
   closeHelp(event: MouseEvent): void {
     if (event.target !== event.currentTarget) return;
     this.helpOpen.set(false);
-  }
-
-  playHelp(mode: ElementMode): string {
-    if (mode === 1) {
-      return `Write the equivalent for each definition. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI.`;
-    }
-    if (mode === 2) {
-      return `Write an example for each definition. The AI checks that it uses a valid form of the word and that the other words show that sense, then scores it from 0 to ${TRANSLATION_GEM_MAX}.`;
-    }
-    return `Write each hidden definition and submit it. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI. Or give up to see it.`;
   }
 
   /** Stop this round and show the card. */
@@ -7844,13 +7629,8 @@ export class ElementModal {
     this.writeRound({ ...this.round(), givenUp: true });
   }
 
-  async showMode(mode: ElementMode | null): Promise<void> {
-    if (this.busy() || this.element().mode === mode) return;
-    await this.saveAppearance({ mode });
-  }
-
   private async saveAppearance(
-    patch: Partial<Pick<StoredElement, 'mode' | 'color'>>,
+    patch: Partial<Pick<StoredElement, 'color'>>,
   ): Promise<boolean> {
     if (this.busy()) return false;
     const current = this.currentElement();
@@ -8572,14 +8352,14 @@ export class ElementModal {
     if (this.equivalentPromptOpen() || this.definitionPromptOpen() || this.examplePromptOpen()) {
       return true;
     }
-    if (this.element().mode === 1) return !this.equivalentGameDone();
-    if (this.element().mode === 2) return !this.exampleGameDone();
-    if (this.element().mode === 3) return !this.definitionGameDone();
+    if (this.playMode() === 1) return !this.equivalentGameDone();
+    if (this.playMode() === 2) return !this.exampleGameDone();
+    if (this.playMode() === 3) return !this.definitionGameDone();
     return false;
   }
 
   equivalentGameDone(): boolean {
-    if (this.element().mode !== 1) return false;
+    if (this.playMode() !== 1) return false;
     const definitions = this.element().definitions;
     let prompted = 0;
     for (let index = 0; index < definitions.length; index += 1) {
@@ -8593,7 +8373,7 @@ export class ElementModal {
 
   /** Every prompted definition has been graded. The result sheet is separate. */
   definitionGameDone(): boolean {
-    if (this.element().mode !== 3) return false;
+    if (this.playMode() !== 3) return false;
     const definitions = this.element().definitions;
     let prompted = 0;
     for (let index = 0; index < definitions.length; index += 1) {
@@ -8606,16 +8386,16 @@ export class ElementModal {
   }
 
   translationGame(): boolean {
-    return this.inPlay() && this.element().mode === 1;
+    return this.inPlay() && this.playMode() === 1;
   }
 
   exampleGame(): boolean {
-    return this.inPlay() && this.element().mode === 2;
+    return this.inPlay() && this.playMode() === 2;
   }
 
   /** Every definition with a gloss has been scored. The result sheet is separate. */
   exampleGameDone(): boolean {
-    if (this.element().mode !== 2) return false;
+    if (this.playMode() !== 2) return false;
     const definitions = this.element().definitions;
     let prompted = 0;
     for (let index = 0; index < definitions.length; index += 1) {
@@ -8636,7 +8416,7 @@ export class ElementModal {
   }
 
   definitionGame(): boolean {
-    return this.inPlay() && this.element().mode === 3;
+    return this.inPlay() && this.playMode() === 3;
   }
 
   /** A definition is still hidden, so the mode icon points at that click. */

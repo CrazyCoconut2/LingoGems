@@ -82,14 +82,23 @@ export function elementModeLabel(mode: ElementMode): string {
   return ELEMENT_MODE_LABELS[mode];
 }
 
+/** What the player does in one exercise. */
+export function elementModeHelp(mode: ElementMode): string {
+  if (mode === 1) {
+    return `Write the equivalent for each definition. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI.`;
+  }
+  if (mode === 2) {
+    return `Write an example for each definition. The AI checks that it uses a valid form of the word and that the other words show that sense, then scores it from 0 to ${TRANSLATION_GEM_MAX}.`;
+  }
+  return `Write each hidden definition and submit it. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI. Or give up to see it.`;
+}
+
 export type StoredElement = {
   id: string;
   language: LearnableLanguage;
   title: string;
   equivalents: ElementEquivalent[];
   definitions: ElementDefinition[];
-  /** Unset until the user chooses a mode. */
-  mode: ElementMode | null;
   /** Optional swatch. Missing or invalid values are unset. */
   color: string | null;
   /** Times this card was opened from the edition list. Missing values are 0. */
@@ -196,7 +205,6 @@ export async function addElement(language: string, title: string): Promise<Store
     title: name,
     equivalents: [],
     definitions: [],
-    mode: null,
     color: ELEMENT_COLOR_PRESETS[0],
     clicks: 0,
     log: [],
@@ -239,7 +247,6 @@ export async function saveElement(
     title,
     equivalents: content.equivalents,
     definitions,
-    mode: normalizeElementMode(element?.mode),
     color: normalizeColor(element?.color),
     clicks: normalizeClicks(element?.clicks),
     log: normalizeElementLog(element?.log),
@@ -348,7 +355,6 @@ function normalizeElement(raw: unknown): StoredElement | null {
     title,
     equivalents: content.equivalents,
     definitions: content.definitions,
-    mode: normalizeElementMode(source.mode),
     color: normalizeColor(source.color),
     clicks: normalizeClicks(source.clicks),
     log: normalizeElementLog(source.log),
@@ -361,13 +367,6 @@ function normalizeElement(raw: unknown): StoredElement | null {
 
 function deletedAtOf(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
-}
-
-/** Missing or unknown values are unset. */
-function normalizeElementMode(value: unknown): ElementMode | null {
-  const mode = Math.round(Number(value));
-  if (mode === 1 || mode === 2 || mode === 3) return mode;
-  return null;
 }
 
 function normalizeElementLog(value: unknown): ElementLogEntry[] {
