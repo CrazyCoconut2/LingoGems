@@ -129,20 +129,6 @@ const MOVE_SLOP_PX = 10;
             <button
               type="button"
               class="toolbar-icon-btn"
-              [class.active]="discoverOpen()"
-              [disabled]="!code()"
-              aria-label="Discover"
-              title="Discover"
-              (click)="openDiscover($event)"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="toolbar-icon-btn"
               [class.active]="filtersOpen() || filterCount() > 0"
               [attr.aria-expanded]="filtersOpen()"
               aria-label="Filter collection"
@@ -817,6 +803,20 @@ const MOVE_SLOP_PX = 10;
           </button>
           <button
             type="button"
+            class="app-bar-btn explore"
+            [class.active]="discoverOpen()"
+            [disabled]="!code()"
+            aria-label="Discover"
+            title="Discover"
+            (click)="openDiscover($event)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+            </svg>
+          </button>
+          <button
+            type="button"
             class="app-bar-btn"
             [class.active]="settingsOpen()"
             aria-label="Settings"
@@ -885,7 +885,8 @@ const MOVE_SLOP_PX = 10;
     .app-bar-row {
       display: flex;
       justify-content: center;
-      align-items: flex-end;
+      align-items: center;
+      gap: 1.35rem;
       min-height: 3.7rem;
     }
 
@@ -917,6 +918,11 @@ const MOVE_SLOP_PX = 10;
       background: rgba(var(--accent-rgb), 0.16);
     }
 
+    .app-bar-btn.explore {
+      width: 3.25rem;
+      height: 3.25rem;
+    }
+
     .app-bar-btn svg {
       width: 1.35rem;
       height: 1.35rem;
@@ -925,6 +931,11 @@ const MOVE_SLOP_PX = 10;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .app-bar-btn.explore svg {
+      width: 1.75rem;
+      height: 1.75rem;
     }
 
     .entries-toolbar {
