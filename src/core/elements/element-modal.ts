@@ -829,6 +829,23 @@ function sameDefinitionOrder(
                               <path d="M8 17v-3" />
                             </svg>
                           </button>
+                          @if (reworkCount(definition) > 0) {
+                            <span
+                              class="hammer-count"
+                              [class.struck]="struck(index)"
+                              [attr.aria-label]="reworkLabel(reworkCount(definition))"
+                              [attr.title]="reworkLabel(reworkCount(definition))"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                                <path d="m18 15 4-4" />
+                                <path
+                                  d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                                />
+                              </svg>
+                              <span>{{ reworkCount(definition) }}</span>
+                            </span>
+                          }
                           <button
                             type="button"
                             class="icon-btn"
@@ -842,7 +859,11 @@ function sameDefinitionOrder(
                             (click)="openDefinition(index)"
                           >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                              <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                              <path d="m18 15 4-4" />
+                              <path
+                                d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                              />
                             </svg>
                           </button>
                           <button
@@ -1754,6 +1775,13 @@ function sameDefinitionOrder(
                   [disabled]="busy() || translating() || askingEquivalent() || !draftGloss()"
                   (click)="saveEditor()"
                 >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                    <path d="m18 15 4-4" />
+                    <path
+                      d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                    />
+                  </svg>
                   Save
                 </button>
               </div>
@@ -3325,7 +3353,11 @@ function sameDefinitionOrder(
                         <li [attr.aria-label]="reworkLabel(reworkCount(definition))">
                           <span class="stats-well" aria-hidden="true">
                             <svg class="stats-mark" viewBox="0 0 24 24">
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                              <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                              <path d="m18 15 4-4" />
+                              <path
+                                d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                              />
                             </svg>
                           </span>
                           <span class="stats-count">{{ reworkCount(definition) }}</span>
@@ -4311,6 +4343,7 @@ function sameDefinitionOrder(
 
     .close svg,
     .icon-btn svg,
+    .hammer-count svg,
     h3.section-title svg,
     .lookup-chip svg,
     .equivalent-prompt svg,
@@ -4362,6 +4395,41 @@ function sameDefinitionOrder(
 
     .item-actions {
       justify-content: flex-end;
+    }
+
+    .hammer-count {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.18rem;
+      height: 1.8rem;
+      padding-inline: 0.28rem 0.38rem;
+      border-radius: 999px;
+      color: var(--text);
+      font-size: 0.78rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hammer-count svg {
+      width: 0.95rem;
+      height: 0.95rem;
+    }
+
+    .hammer-count.struck {
+      color: var(--accent-text);
+      animation: hammer-strike 0.9s ease;
+    }
+
+    @keyframes hammer-strike {
+      40% {
+        transform: scale(1.12);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .hammer-count.struck {
+        animation: none;
+      }
     }
 
     .lookup-actions {
@@ -5132,6 +5200,21 @@ function sameDefinitionOrder(
       display: flex;
       flex-direction: column;
       gap: 0.55rem;
+    }
+
+    .editor-sheet > .sheet-footer .btn {
+      gap: 0.4rem;
+    }
+
+    .editor-sheet > .sheet-footer .btn svg {
+      width: 1rem;
+      height: 1rem;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .editor-sheet > .sheet-footer {
@@ -6043,6 +6126,7 @@ export class ElementModal {
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       this.alive = false;
+      window.clearTimeout(this.strikeTimer);
       stopSpeaking();
     });
     effect(() => {
@@ -6053,6 +6137,7 @@ export class ElementModal {
       if (id === this.trackedElementId) return;
       this.trackedElementId = id;
       this.written = null;
+      this.clearStrike();
       this.stopSpeech();
       this.editor.set(null);
       this.formEdit.set(null);
@@ -6787,7 +6872,10 @@ export class ElementModal {
       return;
     }
     target.examples.push({ text: example, metadata: {} });
+    this.appendRework(target);
+    const index = definitions.indexOf(target);
     if (!(await this.persist(definitions, element.equivalents))) return;
+    if (this.element().id === element.id) this.strike([index]);
     this.definitionExample.set('');
     this.closeDefinitionPrompts();
   }
@@ -7445,7 +7533,10 @@ export class ElementModal {
       target.examples.push({ text: sentence.text, metadata: sentence.metadata });
       this.appendRework(target);
       if (!(await this.persist(definitions, this.element().equivalents))) return;
-      if (this.element().id === element.id) this.exampleEngineer.set(null);
+      if (this.element().id !== element.id) return;
+      const worked = this.element().definitions.findIndex((item) => senseKey(item.text) === sense);
+      this.strike([worked]);
+      this.exampleEngineer.set(null);
     } catch {
       if (this.element().id === element.id) this.error.set('Could not ask for examples.');
     } finally {
@@ -7806,6 +7897,7 @@ export class ElementModal {
           ? { ...definition, equivalentId: null }
           : definition,
       );
+      const worked = editor.index != null && current != null && text !== current.text;
       const next: ElementDefinition = {
         text,
         equivalentId: linked.equivalentId,
@@ -7816,7 +7908,11 @@ export class ElementModal {
       };
       if (editor.index == null) unlinked.push(next);
       else unlinked[editor.index] = next;
-      if (await this.persist(unlinked, linked.equivalents)) this.editor.set(null);
+      const index = editor.index;
+      if (await this.persist(unlinked, linked.equivalents)) {
+        if (worked && index != null) this.strike([index]);
+        this.editor.set(null);
+      }
       return;
     }
     const definition = definitions[editor.definitionIndex];
@@ -7827,9 +7923,16 @@ export class ElementModal {
       text,
       metadata: this.metadataToStore(),
     };
-    if (editor.exampleIndex == null) definition.examples.push(next);
-    else definition.examples[editor.exampleIndex] = next;
-    if (await this.persist(definitions, this.element().equivalents)) this.editor.set(null);
+    const exampleIndex = editor.exampleIndex;
+    if (exampleIndex == null) {
+      definition.examples.push(next);
+      this.appendRework(definition);
+    } else definition.examples[exampleIndex] = next;
+    const definitionIndex = editor.definitionIndex;
+    if (await this.persist(definitions, this.element().equivalents)) {
+      if (exampleIndex == null) this.strike([definitionIndex]);
+      this.editor.set(null);
+    }
   }
 
   async saveForm(): Promise<void> {
@@ -7970,11 +8073,7 @@ export class ElementModal {
     const removed =
       pending.kind === 'definition' ? senseKey(definitions[pending.index]?.text ?? '') : '';
     if (pending.kind === 'definition') definitions.splice(pending.index, 1);
-    else {
-      const definition = definitions[pending.definitionIndex];
-      const removedExample = definition?.examples.splice(pending.exampleIndex, 1) ?? [];
-      if (definition && removedExample.length) this.appendRework(definition);
-    }
+    else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
     if (!(await this.persist(definitions, this.element().equivalents))) return;
     if (pending.kind === 'definition') {
       if (removed && !definitions.some((definition) => senseKey(definition.text) === removed)) {
@@ -8134,24 +8233,28 @@ export class ElementModal {
       return;
     }
     const definitions = this.copyDefinitions();
-    let changed = false;
-    for (const definition of definitions) {
+    const worked: number[] = [];
+    for (let index = 0; index < definitions.length; index++) {
+      const definition = definitions[index];
+      if (!definition) continue;
       const sense = senseKey(definition.text);
       const list = sense ? stored[sense] : undefined;
       if (!list?.length) continue;
       const saved = new Set(
         definition.examples.map((example) => senseKey(example.text)).filter(Boolean),
       );
+      let added = false;
       for (const item of list) {
         const key = senseKey(item.text);
         if (!key || saved.has(key)) continue;
         definition.examples.push({ text: item.text, metadata: {} });
         this.appendRework(definition);
         saved.add(key);
-        changed = true;
+        added = true;
       }
+      if (added) worked.push(index);
     }
-    if (!changed) {
+    if (!worked.length) {
       writeExampleSuggestions(id, {});
       this.exampleSuggestions.set({});
       return;
@@ -8159,6 +8262,7 @@ export class ElementModal {
     if (this.element().id !== id) return;
     if (!(await this.persist(definitions, this.element().equivalents))) return;
     if (this.element().id !== id) return;
+    this.strike(worked);
     writeExampleSuggestions(id, {});
     this.exampleSuggestions.set({});
   }
@@ -8204,9 +8308,37 @@ export class ElementModal {
     return log;
   }
 
-  /** A generated example is one rework of the definition it was added to. */
+  /** Adding an example is one rework of the definition it was added to. */
   private appendRework(definition: ElementDefinition): void {
     definition.log = [...definition.log, { event: 'rework', at: Date.now() }];
+  }
+
+  private readonly struckDefinitions = signal<ReadonlySet<number>>(new Set());
+  private strikeTimer = 0;
+
+  struck(index: number): boolean {
+    return this.struckDefinitions().has(index);
+  }
+
+  /** Pulse the hammer count on the definitions this save reworked. */
+  private strike(indexes: readonly number[]): void {
+    const next = new Set(indexes.filter((index) => index >= 0));
+    if (!next.size || !this.alive) return;
+    this.struckDefinitions.set(new Set());
+    window.clearTimeout(this.strikeTimer);
+    this.strikeTimer = window.setTimeout(() => {
+      if (!this.alive) return;
+      this.struckDefinitions.set(next);
+      this.strikeTimer = window.setTimeout(() => {
+        if (this.alive) this.struckDefinitions.set(new Set());
+      }, 1200);
+    });
+  }
+
+  private clearStrike(): void {
+    window.clearTimeout(this.strikeTimer);
+    this.strikeTimer = 0;
+    if (this.struckDefinitions().size) this.struckDefinitions.set(new Set());
   }
 
   noteReveal(index: number): void {
