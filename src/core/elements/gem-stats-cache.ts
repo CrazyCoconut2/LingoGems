@@ -1,6 +1,6 @@
 import type { DayStats, ElementDayStats, GemCounts } from './gem-stats.worker';
 
-const KEY_PREFIX = 'lingogem.stats.v6.';
+const KEY_PREFIX = 'lingogem.stats.v7.';
 
 export type StatsPhase = 'empty' | 'pending' | 'ready' | 'error';
 

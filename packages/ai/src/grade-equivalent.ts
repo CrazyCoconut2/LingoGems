@@ -9,7 +9,7 @@ JSON keys stay in English.
 answer is the learner's word or phrase. Read it in the language it is written in, which may differ from writeFieldsIn.
 definition is the sense, in the language named by writeFieldsIn.
 lemma is the headword of that sense, also in writeFieldsIn.
-Score gems from 0 to ${TRANSLATION_GEM_MAX} for how well answer applies to this definition.
+Score from 0 to ${TRANSLATION_GEM_MAX} for how well answer applies to this definition.
 - ${TRANSLATION_GEM_MAX} means answer names this sense
 - Partial credit means a nearby sense, or the right sense with the wrong specificity
 - 0 means a different sense, or unrelated

@@ -135,19 +135,6 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
               (click)="submit()"
             >
               {{ results().length ? 'More' : 'Search' }}
-              @if (translationTarget(); as code) {
-                <span class="discover-translation">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m5 8 6 6" />
-                    <path d="m4 14 6-6 2-3" />
-                    <path d="M2 5h12" />
-                    <path d="M7 2h1" />
-                    <path d="m22 22-5-10-5 10" />
-                    <path d="M14 18h6" />
-                  </svg>
-                  {{ languageName(code) }}
-                </span>
-              }
             </button>
             <button
               type="button"
@@ -605,18 +592,16 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     .discover-main {
       display: flex;
       flex: none;
-      flex-direction: column;
       align-items: center;
       align-self: flex-end;
       justify-content: center;
-      gap: 0.12rem;
       border: 0;
       border-radius: 999px;
       background: var(--accent);
       color: white;
       font: inherit;
       font-weight: 650;
-      padding: 0.4rem 1rem 0.42rem;
+      padding: 0.55rem 1rem;
       font-size: 0.9375rem;
       line-height: 1.1;
       cursor: pointer;
@@ -629,28 +614,6 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     .discover-main:disabled {
       cursor: not-allowed;
       opacity: 0.45;
-    }
-
-    .discover-translation {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.22rem;
-      color: white;
-      font-size: 0.72rem;
-      font-weight: 650;
-      line-height: 1;
-    }
-
-    .discover-translation svg {
-      display: block;
-      flex: none;
-      width: 0.72rem;
-      height: 0.72rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
     }
 
     .note span,

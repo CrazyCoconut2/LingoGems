@@ -74,7 +74,6 @@ import {
 import { Reveal } from './reveal';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { supportLanguageFor } from '../languages/translation-language';
-import { GemIcon } from './gem-icon';
 import { HighlightColorPicker } from './highlight-color-picker';
 import { ModeIcon } from './mode-icon';
 import { translatePhrase } from '../translate/translate';
@@ -483,7 +482,6 @@ function writeExampleSuggestions(
     NgTemplateOutlet,
     Reveal,
     ModeIcon,
-    GemIcon,
     HighlightColorPicker,
     CdkScrollable,
   ],
@@ -1247,37 +1245,20 @@ function writeExampleSuggestions(
                       <button
                         type="button"
                         class="generate-main"
-                        [attr.aria-label]="
-                          translating()
-                            ? 'Translating…'
-                            : translationTarget()
-                              ? 'Translate into ' + languageName(translationTarget())
-                              : 'Translate'
-                        "
-                        [attr.title]="
-                          translating()
-                            ? 'Translating…'
-                            : translationTarget()
-                              ? 'Translate into ' + languageName(translationTarget())
-                              : 'Translate'
-                        "
+                        [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
+                        [attr.title]="translating() ? 'Translating…' : 'Translate'"
                         [attr.aria-busy]="translating() ? true : null"
                         [disabled]="!canTranslate()"
                         (click)="translateDraft()"
                       >
-                        <span class="generate-translation">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                          @if (translationTarget(); as code) {
-                            {{ languageName(code) }}
-                          }
-                        </span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m5 8 6 6" />
+                          <path d="m4 14 6-6 2-3" />
+                          <path d="M2 5h12" />
+                          <path d="M7 2h1" />
+                          <path d="m22 22-5-10-5 10" />
+                          <path d="M14 18h6" />
+                        </svg>
                       </button>
                     </span>
                     @if (current.kind === 'definition' && current.index != null) {
@@ -1716,19 +1697,6 @@ function writeExampleSuggestions(
                     (click)="generateEngineeredExample()"
                   >
                     Generate
-                    @if (translationTarget(); as code) {
-                      <span class="generate-translation">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m5 8 6 6" />
-                          <path d="m4 14 6-6 2-3" />
-                          <path d="M2 5h12" />
-                          <path d="M7 2h1" />
-                          <path d="m22 22-5-10-5 10" />
-                          <path d="M14 18h6" />
-                        </svg>
-                        {{ languageName(code) }}
-                      </span>
-                    }
                   </button>
                 </div>
                 <button
@@ -2017,19 +1985,6 @@ function writeExampleSuggestions(
                       (click)="addDefinitionFromExample()"
                     >
                       Ask
-                      @if (translationTarget(); as code) {
-                        <span class="generate-translation">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                          {{ languageName(code) }}
-                        </span>
-                      }
                     </button>
                   </div>
                 </div>
@@ -2045,19 +2000,6 @@ function writeExampleSuggestions(
                       (click)="addMissingDefinitions()"
                     >
                       Generate
-                      @if (translationTarget(); as code) {
-                        <span class="generate-translation">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                          {{ languageName(code) }}
-                        </span>
-                      }
                     </button>
                   </div>
                 </div>
@@ -2164,33 +2106,21 @@ function writeExampleSuggestions(
                           <p>{{ equivalentDraftAt(prompt) }}</p>
                         </div>
                       </div>
-                      <p class="field-label">Gems</p>
-                      <div class="gem-pick" data-game="translation" role="group" aria-label="Gems">
-                        @for (gems of gemScores; track gems) {
-                          @if (gems > 0) {
-                            <button
-                              type="button"
-                              class="gem-pick-stone"
-                              [class.on]="(reward?.gems ?? -1) >= gems"
-                              [attr.aria-pressed]="reward?.gems === gems"
-                              [attr.aria-label]="gems + ' gems'"
-                              [disabled]="aiBusy()"
-                              (click)="awardEquivalent(prompt, gems)"
-                            >
-                              <app-gem-icon class="gem-gain-stone" game="translation" />
-                            </button>
-                          }
+                      <p class="field-label">Score</p>
+                      <div class="score-pick" data-game="translation" role="group" aria-label="Score">
+                        @for (score of scores; track score) {
+                          <button
+                            type="button"
+                            class="score-pick-value"
+                            [class.on]="reward?.score === score"
+                            [attr.aria-pressed]="reward?.score === score"
+                            [attr.aria-label]="'Score ' + score"
+                            [disabled]="aiBusy()"
+                            (click)="awardEquivalent(prompt, score)"
+                          >
+                            {{ score }}
+                          </button>
                         }
-                        <button
-                          type="button"
-                          class="btn btn-secondary"
-                          [class.on]="reward?.gems === 0"
-                          [attr.aria-pressed]="reward?.gems === 0"
-                          [disabled]="aiBusy()"
-                          (click)="awardEquivalent(prompt, 0)"
-                        >
-                          None
-                        </button>
                         <button
                           type="button"
                           class="btn btn-secondary"
@@ -2352,33 +2282,21 @@ function writeExampleSuggestions(
                         <p>{{ definitionDraftAt(prompt) }}</p>
                       </div>
                     </div>
-                    <p class="field-label">Gems</p>
-                    <div class="gem-pick" data-game="definition" role="group" aria-label="Gems">
-                      @for (gems of gemScores; track gems) {
-                        @if (gems > 0) {
-                          <button
-                            type="button"
-                            class="gem-pick-stone"
-                            [class.on]="(reward?.gems ?? -1) >= gems"
-                            [attr.aria-pressed]="reward?.gems === gems"
-                            [attr.aria-label]="gems + ' gems'"
-                            [disabled]="aiBusy()"
-                            (click)="awardDefinition(prompt, gems)"
-                          >
-                            <app-gem-icon class="gem-gain-stone" game="definition" />
-                          </button>
-                        }
+                    <p class="field-label">Score</p>
+                    <div class="score-pick" data-game="definition" role="group" aria-label="Score">
+                      @for (score of scores; track score) {
+                        <button
+                          type="button"
+                          class="score-pick-value"
+                          [class.on]="reward?.score === score"
+                          [attr.aria-pressed]="reward?.score === score"
+                          [attr.aria-label]="'Score ' + score"
+                          [disabled]="aiBusy()"
+                          (click)="awardDefinition(prompt, score)"
+                        >
+                          {{ score }}
+                        </button>
                       }
-                      <button
-                        type="button"
-                        class="btn btn-secondary"
-                        [class.on]="reward?.gems === 0"
-                        [attr.aria-pressed]="reward?.gems === 0"
-                        [disabled]="aiBusy()"
-                        (click)="awardDefinition(prompt, 0)"
-                      >
-                        None
-                      </button>
                       <button
                         type="button"
                         class="btn btn-secondary"
@@ -2443,37 +2361,20 @@ function writeExampleSuggestions(
                         <button
                           type="button"
                           class="generate-main"
-                          [attr.aria-label]="
-                            translating()
-                              ? 'Translating…'
-                              : translationTarget()
-                                ? 'Translate into ' + languageName(translationTarget())
-                                : 'Translate'
-                          "
-                          [attr.title]="
-                            translating()
-                              ? 'Translating…'
-                              : translationTarget()
-                                ? 'Translate into ' + languageName(translationTarget())
-                                : 'Translate'
-                          "
+                          [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
+                          [attr.title]="translating() ? 'Translating…' : 'Translate'"
                           [attr.aria-busy]="translating() ? true : null"
                           [disabled]="!canTranslateDefinition(prompt)"
                           (click)="translateDefinition(prompt)"
                         >
-                          <span class="generate-translation">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
-                            @if (translationTarget(); as code) {
-                              {{ languageName(code) }}
-                            }
-                          </span>
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
                         </button>
                       </span>
                       @if (!supportAvailable() || definitionSource() === 'working') {
@@ -2661,24 +2562,18 @@ function writeExampleSuggestions(
                       <p class="field-label">Your example</p>
                       <p>{{ exampleDraftAt(prompt) }}</p>
                     </div>
-                    <p class="field-label">Gems</p>
+                    <p class="field-label">Score</p>
                     @if (askingExampleGrade() === prompt) {
                       <p class="hint">Asking…</p>
                     } @else if (exampleRewardAt(prompt); as reward) {
-                      <div
-                        class="gem-pick"
+                      <p
+                        class="score-readout"
                         data-game="example"
                         role="img"
-                        [attr.aria-label]="reward.gems + ' gems'"
+                        [attr.aria-label]="'Score ' + reward.score + ' out of 5'"
                       >
-                        @for (gems of gemScores; track gems) {
-                          @if (gems > 0) {
-                            <span class="gem-pick-stone" [class.on]="reward.gems >= gems">
-                              <app-gem-icon class="gem-gain-stone" game="example" />
-                            </span>
-                          }
-                        }
-                      </div>
+                        {{ reward.score }}<span class="score-max">/5</span>
+                      </p>
                       @if (reward.explanation) {
                         <p>{{ reward.explanation }}</p>
                       }
@@ -2742,37 +2637,20 @@ function writeExampleSuggestions(
                         <button
                           type="button"
                           class="generate-main"
-                          [attr.aria-label]="
-                            translating()
-                              ? 'Translating…'
-                              : translationTarget()
-                                ? 'Translate into ' + languageName(translationTarget())
-                                : 'Translate'
-                          "
-                          [attr.title]="
-                            translating()
-                              ? 'Translating…'
-                              : translationTarget()
-                                ? 'Translate into ' + languageName(translationTarget())
-                                : 'Translate'
-                          "
+                          [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
+                          [attr.title]="translating() ? 'Translating…' : 'Translate'"
                           [attr.aria-busy]="translating() ? true : null"
                           [disabled]="!canTranslateExample(prompt)"
                           (click)="translateExample(prompt)"
                         >
-                          <span class="generate-translation">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
-                            @if (translationTarget(); as code) {
-                              {{ languageName(code) }}
-                            }
-                          </span>
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
                         </button>
                       </span>
                       @if (!supportAvailable() || exampleSource() === 'working') {
@@ -2976,20 +2854,6 @@ function writeExampleSuggestions(
                       <p class="stats-hero-value">{{ exerciseCount(definition) }}</p>
                     </div>
                     <section class="stats-block">
-                      <h3>Gems</h3>
-                      <ul class="stats-gems">
-                        @for (total of definitionGems(definition); track total.game) {
-                          <li [attr.data-game]="total.game">
-                            <span class="stats-stone" aria-hidden="true">
-                              <app-gem-icon class="stats-stone-icon" [game]="total.game" />
-                            </span>
-                            <span class="stats-count">{{ total.gems }}</span>
-                            <span class="stats-caption">{{ modeLabel(logMode(total.game)) }}</span>
-                          </li>
-                        }
-                      </ul>
-                    </section>
-                    <section class="stats-block">
                       <h3>Activity</h3>
                       <ul class="stats-activity">
                         <li [attr.aria-label]="reworkLabel(reworkCount(definition))">
@@ -3028,9 +2892,9 @@ function writeExampleSuggestions(
                             class="btn btn-secondary add-choice log-row"
                             [attr.aria-label]="
                               modeLabel(logMode(entry.game)) +
-                              ', ' +
-                              entry.gems +
-                              ' gems, ' +
+                              ', score ' +
+                              entry.score +
+                              ' out of 5, ' +
                               exerciseWhen(entry.at)
                             "
                             (click)="exerciseEntry.set($index)"
@@ -3039,14 +2903,8 @@ function writeExampleSuggestions(
                               <span class="log-game">{{ modeLabel(logMode(entry.game)) }}</span>
                               <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                             </span>
-                            <span class="gem-pick" [attr.data-game]="entry.game" aria-hidden="true">
-                              @for (gems of gemScores; track gems) {
-                                @if (gems > 0) {
-                                  <span class="gem-pick-stone" [class.on]="entry.gems >= gems">
-                                    <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
-                                  </span>
-                                }
-                              }
+                            <span class="score-readout" [attr.data-game]="entry.game" aria-hidden="true">
+                              {{ entry.score }}<span class="score-max">/5</span>
                             </span>
                           </button>
                         }
@@ -3150,16 +3008,15 @@ function writeExampleSuggestions(
                         </div>
                       </div>
                     }
-                    <p class="field-label">Gems</p>
-                    <div class="gem-pick" [attr.data-game]="entry.game">
-                      @for (gems of gemScores; track gems) {
-                        @if (gems > 0) {
-                          <span class="gem-pick-stone" [class.on]="entry.gems >= gems">
-                            <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
-                          </span>
-                        }
-                      }
-                    </div>
+                    <p class="field-label">Score</p>
+                    <p
+                      class="score-readout"
+                      [attr.data-game]="entry.game"
+                      role="img"
+                      [attr.aria-label]="'Score ' + entry.score + ' out of 5'"
+                    >
+                      {{ entry.score }}<span class="score-max">/5</span>
+                    </p>
                     @if (entry.explanation) {
                       <p>{{ entry.explanation }}</p>
                     }
@@ -5161,17 +5018,15 @@ function writeExampleSuggestions(
 
     .generate-main {
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 0.12rem;
       border: 0;
       border-radius: 999px;
       background: var(--accent);
       color: white;
       font: inherit;
       font-weight: 650;
-      padding: 0.4rem 1rem 0.42rem;
+      padding: 0.55rem 1rem;
       font-size: 0.9375rem;
       line-height: 1.1;
       cursor: pointer;
@@ -5186,19 +5041,18 @@ function writeExampleSuggestions(
       opacity: 0.45;
     }
 
-    .generate-translation {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.22rem;
-      color: white;
-      font-size: 0.72rem;
-      font-weight: 650;
-      line-height: 1;
+    .field-heading .header-actions {
+      gap: 0.4rem;
     }
 
-    .generate-translation svg {
-      width: 0.72rem;
-      height: 0.72rem;
+    .translate-split .generate-main {
+      padding: 0.28rem 0.65rem;
+      opacity: 1;
+    }
+
+    .translate-split .generate-main svg {
+      width: 0.95rem;
+      height: 0.95rem;
       flex: none;
       fill: none;
       stroke: currentColor;
@@ -5207,31 +5061,9 @@ function writeExampleSuggestions(
       stroke-linejoin: round;
     }
 
-    .field-heading .header-actions {
-      gap: 0.4rem;
-    }
-
-    .translate-split .generate-main {
-      flex-direction: row;
-      gap: 0.35rem;
-      padding: 0.22rem 0.65rem;
-      font-size: 0.78rem;
-      opacity: 1;
-    }
-
-    .translate-split .generate-main:disabled,
-    .translate-split .generate-main:disabled .generate-translation {
+    .translate-split .generate-main:disabled {
       color: rgba(255, 255, 255, 0.4);
       opacity: 1;
-    }
-
-    .translate-split .generate-translation {
-      font-size: inherit;
-    }
-
-    .translate-split .generate-translation svg {
-      width: 0.95rem;
-      height: 0.95rem;
     }
 
     .btn-danger {
@@ -5401,6 +5233,63 @@ function writeExampleSuggestions(
       color: white;
     }
 
+    .score-pick {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .score-pick-value {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.15rem;
+      height: 2.15rem;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 0.65rem;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.95rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+    }
+
+    .score-pick-value.on,
+    .score-pick-value.on:disabled {
+      background: var(--exercise-gem, var(--accent));
+      border-color: var(--exercise-gem, var(--accent));
+      color: white;
+      opacity: 1;
+    }
+
+    .score-pick-value:disabled {
+      cursor: default;
+    }
+
+    .score-readout {
+      margin: 0;
+      color: var(--exercise-gem, var(--text));
+      font-size: 1.35rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .score-readout .score-max {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 650;
+    }
+
+    button.log-row .score-readout {
+      flex: none;
+      font-size: 1rem;
+    }
+
     @media (max-width: 720px) {
       .backdrop {
         align-items: flex-end;
@@ -5494,11 +5383,10 @@ export class ElementModal {
   readonly addSelection = output<{ title: string; language: string }>();
   readonly addPrepared = output<PreparedElement>();
 
-  readonly gemScores = Array.from({ length: TRANSLATION_GEM_MAX + 1 }, (_, gems) => gems);
+  readonly scores = Array.from({ length: TRANSLATION_GEM_MAX + 1 }, (_, score) => score);
   readonly equivalentMax = EQUIVALENT_MAX;
   readonly definitionMax = DEFINITION_MAX;
   readonly supportAvailable = computed(() => this.translationTarget() !== '');
-  readonly languageName = languageDisplayName;
   readonly originalLanguageName = computed(
     () => languageDisplayName(this.element().language) || this.element().language,
   );
@@ -5595,9 +5483,9 @@ export class ElementModal {
   private relatedJob = 0;
   private wordingJob = 0;
   private trackedElementId = '';
-  /** Element and definition index last recorded as viewed. */
+  /** Element and definition last recorded as viewed. */
   private viewedDefinitionKey = '';
-  /** Element whose definitions were all marked viewed for this open. */
+  /** Element whose on-screen definition was marked viewed for this open. */
   private viewedElementKey = '';
   private engineerDrafts = new Map<string, EngineerDraft>();
   private definitionEngineerDrafts = new Map<string, DefinitionEngineerDraft>();
@@ -5696,9 +5584,10 @@ export class ElementModal {
         if (!this.alive || this.element().id !== id) return;
         if (!count) {
           this.viewedElementKey = '';
+          this.viewedDefinitionKey = '';
           return;
         }
-        this.noteAllDefinitionsViewed(id);
+        this.noteOpenedDefinition(id);
       });
     });
     const stopWatchingExamples = watchExampleSuggestions((elementId) => {
@@ -6399,11 +6288,10 @@ export class ElementModal {
     const glosses = created.map((definition) => definitionGloss(definition.text)).filter(Boolean);
     rememberNewDefinitions(element.id, glosses);
     if (this.element().id === element.id) {
-      const alreadyShowingFirst = this.visibleDefinitionIndex() === 0;
       this.shiftDefinitionIndexes(created.length);
       this.definitionPanel.set(0);
       this.scrollDefinitionPanel();
-      if (alreadyShowingFirst) this.noteDefinitionView(0, true);
+      this.noteDefinitionView(0);
       this.newGlosses.set(new Set(readNewDefinitions(element.id)));
     }
     return true;
@@ -6515,32 +6403,29 @@ export class ElementModal {
     if (index < 0 || index >= count || index === this.visibleDefinitionIndex()) return;
     this.definitionPanel.set(index);
     this.scrollDefinitionPanel();
+    this.noteDefinitionView(index);
   }
 
-  /** Record a view for every definition on this element. `at` is the UTC instant. */
-  private noteAllDefinitionsViewed(id: string): void {
+  /** Record a view for the definition on screen when this element is opened. */
+  private noteOpenedDefinition(id: string): void {
     if (this.viewedElementKey === id) return;
     const element = this.currentElement();
-    if (element.id !== id || !element.definitions.length) return;
+    const index = this.visibleDefinitionIndex();
+    if (element.id !== id || !element.definitions[index]) return;
     this.viewedElementKey = id;
-    const at = Date.now();
-    const definitions = this.copyDefinitions();
-    for (const definition of definitions) {
-      definition.log = [...definition.log, { event: 'view', at }];
-    }
-    void this.persist(definitions, element.equivalents, { busy: false });
+    this.noteDefinitionView(index);
   }
 
   /** Record that this definition is on screen. `at` is the UTC instant. */
-  private noteDefinitionView(index: number, force = false): void {
+  private noteDefinitionView(index: number): void {
     const element = this.currentElement();
-    if (!element.definitions[index]) return;
-    const key = `${element.id}:${index}`;
-    if (!force && key === this.viewedDefinitionKey) return;
-    this.viewedDefinitionKey = key;
     const definitions = this.copyDefinitions();
     const definition = definitions[index];
     if (!definition) return;
+    const gloss = definitionGloss(definition.text);
+    const key = `${element.id}:${gloss || index}`;
+    if (key === this.viewedDefinitionKey) return;
+    this.viewedDefinitionKey = key;
     definition.log = [...definition.log, { event: 'view', at: Date.now() }];
     void this.persist(definitions, element.equivalents, { busy: false });
   }
@@ -8021,7 +7906,7 @@ export class ElementModal {
     this.equivalentPrompt.set(-1);
   }
 
-  /** A submitted answer still needs gems before the sheet can close. */
+  /** A submitted answer still needs a score before the sheet can close. */
   equivalentAwaitingScore(index = this.equivalentPrompt()): boolean {
     if (index < 0 || !this.equivalentSubmitted(index)) return false;
     return !this.equivalentRewardAt(index);
@@ -8060,12 +7945,12 @@ export class ElementModal {
     this.writeRound({ ...this.round(), equivalentSubmitted });
   }
 
-  /** Concede this equivalent. The answer is shown and the attempt earns no gems. */
+  /** Concede this equivalent. The answer is shown and the attempt scores 0. */
   async giveUpEquivalent(index: number): Promise<void> {
     if (!this.translationGame() || this.equivalentSubmitted(index) || this.aiBusy()) return;
     this.equivalentGradeError.set('');
     const logIndex = await this.recordEquivalentReward(index, {
-      gems: 0,
+      score: 0,
       by: 'user',
       answer: '',
     });
@@ -8081,7 +7966,7 @@ export class ElementModal {
     while (equivalentSubmitted.length <= index) equivalentSubmitted.push(false);
     equivalentSubmitted[index] = true;
     this.writeRound({ ...this.round(), equivalentDrafts, equivalentSubmitted });
-    this.writeEquivalentReward(index, { gems: 0, by: 'user', explanation: '' }, logIndex);
+    this.writeEquivalentReward(index, { score: 0, by: 'user', explanation: '' }, logIndex);
   }
 
   equivalentRewardAt(index: number): EquivalentReward | null {
@@ -8091,21 +7976,6 @@ export class ElementModal {
   /** Game entries recorded on this definition. */
   exerciseCount(definition: ElementDefinition): number {
     return definition.log.filter((entry) => entry.event === 'game').length;
-  }
-
-  /** Gem totals for every exercise color, including colors with nothing earned. */
-  definitionGems(
-    definition: ElementDefinition,
-  ): { game: DefinitionGameLog['game']; gems: number }[] {
-    const sums = new Map<DefinitionGameLog['game'], number>();
-    for (const entry of definition.log) {
-      if (entry.event !== 'game') continue;
-      sums.set(entry.game, (sums.get(entry.game) ?? 0) + entry.gems);
-    }
-    return (['translation', 'example', 'definition'] as const).map((game) => ({
-      game,
-      gems: sums.get(game) ?? 0,
-    }));
   }
 
   logMode(game: DefinitionGameLog['game']): ElementMode {
@@ -8146,22 +8016,22 @@ export class ElementModal {
     return this.equivalentSubmitted(index) && !this.equivalentDraftAt(index).trim();
   }
 
-  async awardEquivalent(index: number, gems: number): Promise<void> {
+  async awardEquivalent(index: number, score: number): Promise<void> {
     if (!this.translationGame() || this.aiBusy() || !this.equivalentSubmitted(index)) return;
-    if (this.equivalentGaveUp(index) || gems < 0 || gems > TRANSLATION_GEM_MAX) return;
+    if (this.equivalentGaveUp(index) || score < 0 || score > TRANSLATION_GEM_MAX) return;
     const current = this.equivalentRewardAt(index);
-    if (current?.by === 'user' && current.gems === gems) return;
+    if (current?.by === 'user' && current.score === score) return;
     const answer = this.equivalentDraftAt(index).trim();
     if (!answer) return;
     this.equivalentGradeError.set('');
-    const logIndex = await this.recordEquivalentReward(index, { gems, by: 'user', answer });
+    const logIndex = await this.recordEquivalentReward(index, { score, by: 'user', answer });
     if (!this.alive) return;
     if (logIndex == null) {
       this.equivalentGradeError.set('Could not save this score.');
       return;
     }
     if (this.equivalentDraftAt(index).trim() !== answer) return;
-    this.writeEquivalentReward(index, { gems, by: 'user', explanation: '' }, logIndex);
+    this.writeEquivalentReward(index, { score, by: 'user', explanation: '' }, logIndex);
   }
 
   async judgeEquivalent(index: number): Promise<void> {
@@ -8186,7 +8056,7 @@ export class ElementModal {
         return;
       if (this.equivalentDraftAt(index).trim() !== answer) return;
       const logIndex = await this.recordEquivalentReward(index, {
-        gems: grade.score,
+        score: grade.score,
         by: 'ai',
         answer,
         explanation: grade.explanation,
@@ -8200,7 +8070,7 @@ export class ElementModal {
       }
       this.writeEquivalentReward(
         index,
-        { gems: grade.score, by: 'ai', explanation: grade.explanation },
+        { score: grade.score, by: 'ai', explanation: grade.explanation },
         logIndex,
       );
     } catch {
@@ -8225,7 +8095,7 @@ export class ElementModal {
   /** Append this attempt, or replace it when the learner changes the score. */
   private async recordEquivalentReward(
     index: number,
-    entry: { gems: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
+    entry: { score: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
   ): Promise<number | null> {
     const elementId = this.element().id;
     const definitions = this.copyDefinitions();
@@ -8235,7 +8105,7 @@ export class ElementModal {
     const stored: DefinitionGameLog = {
       event: 'game',
       game: 'translation',
-      gems: entry.gems,
+      score: entry.score,
       by: entry.by,
       at: Date.now(),
       answer: entry.answer,
@@ -8458,13 +8328,13 @@ export class ElementModal {
     this.writeRound({ ...this.round(), definitionDrafts });
   }
 
-  /** Concede this definition. The gloss is shown and the attempt earns no gems. */
+  /** Concede this definition. The gloss is shown and the attempt scores 0. */
   async giveUpDefinition(index: number): Promise<void> {
     if (!this.definitionGame() || this.aiBusy() || this.definitionSubmitted(index)) return;
     const definition = this.element().definitions[index];
     if (!definition) return;
     this.error.set('');
-    const logIndex = await this.recordDefinitionReward(index, { gems: 0, by: 'user', answer: '' });
+    const logIndex = await this.recordDefinitionReward(index, { score: 0, by: 'user', answer: '' });
     if (!this.alive) return;
     if (logIndex == null) {
       this.error.set('Could not save this score.');
@@ -8481,25 +8351,25 @@ export class ElementModal {
       definitionDrafts,
       definitionSubmitted,
     });
-    this.writeDefinitionReward(index, { gems: 0, by: 'user', explanation: '' }, logIndex);
+    this.writeDefinitionReward(index, { score: 0, by: 'user', explanation: '' }, logIndex);
   }
 
-  async awardDefinition(index: number, gems: number): Promise<void> {
+  async awardDefinition(index: number, score: number): Promise<void> {
     if (!this.definitionGame() || this.aiBusy() || !this.definitionSubmitted(index)) return;
-    if (this.definitionGaveUp(index) || gems < 0 || gems > TRANSLATION_GEM_MAX) return;
+    if (this.definitionGaveUp(index) || score < 0 || score > TRANSLATION_GEM_MAX) return;
     const current = this.definitionRewardAt(index);
-    if (current?.by === 'user' && current.gems === gems) return;
+    if (current?.by === 'user' && current.score === score) return;
     const answer = this.definitionDraftAt(index).trim();
     if (!answer) return;
     this.error.set('');
-    const logIndex = await this.recordDefinitionReward(index, { gems, by: 'user', answer });
+    const logIndex = await this.recordDefinitionReward(index, { score, by: 'user', answer });
     if (!this.alive) return;
     if (logIndex == null) {
       this.error.set('Could not save this score.');
       return;
     }
     if (this.definitionDraftAt(index).trim() !== answer) return;
-    this.writeDefinitionReward(index, { gems, by: 'user', explanation: '' }, logIndex);
+    this.writeDefinitionReward(index, { score, by: 'user', explanation: '' }, logIndex);
   }
 
   async evaluateDefinition(index: number): Promise<void> {
@@ -8524,7 +8394,7 @@ export class ElementModal {
       if (!this.alive || job !== this.gradeJob || this.element().id !== element.id) return;
       if (this.definitionDraftAt(index).trim() !== answer) return;
       const logIndex = await this.recordDefinitionReward(index, {
-        gems: grade.score,
+        score: grade.score,
         by: 'ai',
         answer,
         explanation: grade.explanation,
@@ -8537,7 +8407,7 @@ export class ElementModal {
       }
       this.writeDefinitionReward(
         index,
-        { gems: grade.score, by: 'ai', explanation: grade.explanation },
+        { score: grade.score, by: 'ai', explanation: grade.explanation },
         logIndex,
       );
     } catch {
@@ -8562,7 +8432,7 @@ export class ElementModal {
   /** Append this attempt, or replace it when the learner changes the score. */
   private async recordDefinitionReward(
     index: number,
-    entry: { gems: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
+    entry: { score: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
   ): Promise<number | null> {
     const elementId = this.element().id;
     const definitions = this.copyDefinitions();
@@ -8572,7 +8442,7 @@ export class ElementModal {
     const stored: DefinitionGameLog = {
       event: 'game',
       game: 'definition',
-      gems: entry.gems,
+      score: entry.score,
       by: entry.by,
       at: Date.now(),
       answer: entry.answer,
@@ -8793,13 +8663,13 @@ export class ElementModal {
     void this.evaluateExample(index);
   }
 
-  /** Concede this example. The attempt earns no gems and the saved examples stay hidden. */
+  /** Concede this example. The attempt scores 0 and the saved examples stay hidden. */
   async giveUpExample(index: number): Promise<void> {
     if (!this.exampleGame() || this.aiBusy() || this.exampleSubmitted(index)) return;
     const text = parsePassage(this.element().definitions[index]?.text ?? '').text.trim();
     if (!text) return;
     this.error.set('');
-    const logIndex = await this.recordExampleReward(index, { gems: 0, by: 'user', answer: '' });
+    const logIndex = await this.recordExampleReward(index, { score: 0, by: 'user', answer: '' });
     if (!this.alive) return;
     if (logIndex == null) {
       this.error.set('Could not save this score.');
@@ -8812,7 +8682,7 @@ export class ElementModal {
     while (exampleSubmitted.length <= index) exampleSubmitted.push(false);
     exampleSubmitted[index] = true;
     this.writeRound({ ...this.round(), exampleDrafts, exampleSubmitted });
-    this.writeExampleReward(index, { gems: 0, by: 'user', explanation: '' }, logIndex);
+    this.writeExampleReward(index, { score: 0, by: 'user', explanation: '' }, logIndex);
   }
 
   async evaluateExample(index: number): Promise<void> {
@@ -8838,7 +8708,7 @@ export class ElementModal {
       if (!this.alive || job !== this.exampleGradeJob || this.element().id !== element.id) return;
       if (this.exampleDraftAt(index).trim() !== answer) return;
       const logIndex = await this.recordExampleReward(index, {
-        gems: grade.score,
+        score: grade.score,
         by: 'ai',
         answer,
         explanation: grade.explanation,
@@ -8851,7 +8721,7 @@ export class ElementModal {
       }
       this.writeExampleReward(
         index,
-        { gems: grade.score, by: 'ai', explanation: grade.explanation },
+        { score: grade.score, by: 'ai', explanation: grade.explanation },
         logIndex,
       );
     } catch {
@@ -8876,7 +8746,7 @@ export class ElementModal {
   /** Append this attempt, or replace it when the learner tries again. */
   private async recordExampleReward(
     index: number,
-    entry: { gems: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
+    entry: { score: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
   ): Promise<number | null> {
     const elementId = this.element().id;
     const definitions = this.copyDefinitions();
@@ -8886,7 +8756,7 @@ export class ElementModal {
     const stored: DefinitionGameLog = {
       event: 'game',
       game: 'example',
-      gems: entry.gems,
+      score: entry.score,
       by: entry.by,
       at: Date.now(),
       answer: entry.answer,

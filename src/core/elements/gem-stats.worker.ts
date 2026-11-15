@@ -125,11 +125,6 @@ function tally(records: unknown[], language: string): DayStats[] {
         if (entry.event === 'game' && isGame(entry.game)) {
           day.exercises += 1;
           elementOf(day, id, title).exercises += 1;
-          const gems = entry.gems;
-          if (typeof gems === 'number' && Number.isFinite(gems) && gems > 0) {
-            day.gems[entry.game] += gems;
-            elementOf(day, id, title).gems[entry.game] += gems;
-          }
         }
       }
     }

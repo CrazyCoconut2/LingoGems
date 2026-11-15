@@ -3,9 +3,9 @@ import { type DefinitionLogBy } from 'collection';
 export const EQUIVALENT_MAX = 200;
 export const DEFINITION_MAX = 500;
 
-/** Gems attributed to one answer in the current round. */
+/** Score attributed to one answer in the current round. */
 export type EquivalentReward = {
-  gems: number;
+  score: number;
   by: DefinitionLogBy;
   explanation: string;
 };

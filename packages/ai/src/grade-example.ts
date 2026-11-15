@@ -13,7 +13,7 @@ First judge the form, before the sense:
 - That form must be a real, correctly spelled form of the lemma. A form on the list is valid. A real form missing from the list is also valid
 - No form of the lemma scores 0
 - A form that is not a real form of the lemma, including a misspelled form, scores 0
-When a valid form is present, score gems from 0 to ${TRANSLATION_GEM_MAX} for whether the rest of the sentence shows that the learner used the word in the sense of the gloss.
+When a valid form is present, score from 0 to ${TRANSLATION_GEM_MAX} for whether the rest of the sentence shows that the learner used the word in the sense of the gloss.
 - ${TRANSLATION_GEM_MAX} means the other words make this sense clear. Someone who did not know the lemma could tell what it means here
 - Partial credit means the sense is only partly shown, or the context is thin but still real
 - 0 means the sentence does not show the sense. The lemma alone scores 0. The lemma with only a function word, such as an article, also scores 0. A different sense scores 0

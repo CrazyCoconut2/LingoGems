@@ -30,7 +30,7 @@ export type ElementForm = {
   metadata: ElementMetadata;
 };
 
-/** Highest gem score one translation answer can earn. */
+/** Highest score one answer can receive. */
 export const TRANSLATION_GEM_MAX = 5;
 
 export type DefinitionLogBy = 'user' | 'ai';
@@ -41,7 +41,8 @@ export type DefinitionGame = 'translation' | 'example' | 'definition';
 export type DefinitionGameLog = {
   event: 'game';
   game: DefinitionGame;
-  gems: number;
+  /** Score from 0 to {@link TRANSLATION_GEM_MAX}. Older records stored this as `gems`. */
+  score: number;
   by: DefinitionLogBy;
   at: number;
   answer: string;
@@ -489,6 +490,8 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   const source = raw as {
     event?: unknown;
     game?: unknown;
+    score?: unknown;
+    /** Older records stored the score in `gems`. */
     gems?: unknown;
     by?: unknown;
     at?: unknown;
@@ -503,8 +506,8 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   if (source.game !== 'translation' && source.game !== 'example' && source.game !== 'definition') {
     return null;
   }
-  const gems = Math.round(Number(source.gems));
-  if (!Number.isInteger(gems) || gems < 0 || gems > TRANSLATION_GEM_MAX) return null;
+  const score = Math.round(Number(source.score ?? source.gems));
+  if (!Number.isInteger(score) || score < 0 || score > TRANSLATION_GEM_MAX) return null;
   if (source.by !== 'user' && source.by !== 'ai') return null;
   if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
   const answer = typeof source.answer === 'string' ? source.answer : '';
@@ -513,7 +516,7 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   const entry: DefinitionGameLog = {
     event: 'game',
     game: source.game,
-    gems,
+    score,
     by: source.by,
     at: source.at,
     answer,

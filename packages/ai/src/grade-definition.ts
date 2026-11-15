@@ -7,7 +7,7 @@ import type { CompleteJsonInput } from './types';
 const GRADE_DEFINITION_SYSTEM_PROMPT = `You compare a learner's definition to the stored dictionary gloss for one sense.
 JSON keys stay in English.
 The answer and the gloss are both in the language named by writeFieldsIn.
-Score gems from 0 to ${TRANSLATION_GEM_MAX}. Judge meaning, not wording.
+Score from 0 to ${TRANSLATION_GEM_MAX}. Judge meaning, not wording.
 - ${TRANSLATION_GEM_MAX} means the same sense, with acceptable wording
 - Partial credit means the right sense with missing or extra detail
 - 0 means a different sense, or unrelated

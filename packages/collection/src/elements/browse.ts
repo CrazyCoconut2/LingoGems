@@ -99,15 +99,9 @@ function elementViews(element: StoredElement): number {
   return views;
 }
 
-/** Gems earned across Translation, Example, and Definition. */
-function elementGems(element: StoredElement): number {
-  let gems = 0;
-  for (const definition of element.definitions) {
-    for (const entry of definition.log) {
-      if (entry.event === 'game') gems += entry.gems;
-    }
-  }
-  return gems;
+/** Gems are not awarded from scores yet, so every element ties. */
+function elementGems(_element: StoredElement): number {
+  return 0;
 }
 
 export function compareElements(

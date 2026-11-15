@@ -100,8 +100,8 @@ const MOVE_SLOP_PX = 10;
                 <button
                   type="button"
                   class="search-add"
-                  [attr.aria-label]="askLabel()"
-                  [attr.title]="askLabel()"
+                  aria-label="Ask AI"
+                  title="Ask AI"
                   [disabled]="asking()"
                   [attr.aria-busy]="asking() ? true : null"
                   (click)="askFromSearch()"
@@ -2679,26 +2679,15 @@ export class LanguagePage {
     return elementHighlightParts(displayTitle(text, this.code()), this.search());
   }
 
+  /** Scores are not gems. Totals stay empty until gems are attributed. */
   gemTotals(
-    element: StoredElement,
+    _element: StoredElement,
   ): { game: 'translation' | 'example' | 'definition'; gems: number }[] {
-    let translation = 0;
-    let example = 0;
-    let definition = 0;
-    for (const item of element.definitions) {
-      for (const entry of item.log) {
-        if (entry.event !== 'game') continue;
-        if (entry.game === 'translation') translation += entry.gems;
-        else if (entry.game === 'example') example += entry.gems;
-        else definition += entry.gems;
-      }
-    }
-    const totals: { game: 'translation' | 'example' | 'definition'; gems: number }[] = [
-      { game: 'translation', gems: translation },
-      { game: 'example', gems: example },
-      { game: 'definition', gems: definition },
+    return [
+      { game: 'translation', gems: 0 },
+      { game: 'example', gems: 0 },
+      { game: 'definition', gems: 0 },
     ];
-    return totals;
   }
 
   earnedGems(
@@ -2955,12 +2944,6 @@ export class LanguagePage {
 
   languageName(code: string): string {
     return languageDisplayName(code);
-  }
-
-  askLabel(): string {
-    const into = this.translationTarget();
-    if (!into) return 'Ask AI';
-    return `Ask AI with a ${this.languageName(into)} translation`;
   }
 
   private translationTarget(): string {
