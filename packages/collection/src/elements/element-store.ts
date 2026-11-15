@@ -48,9 +48,12 @@ export type DefinitionGameLog = {
   explanation?: string;
 };
 
-/** One interaction on a definition: a scored game, a rework, or a reveal. */
+/** One interaction on a definition: a view, a scored game, a rework, or a reveal. `at` is Unix time in UTC. */
 export type DefinitionLogEntry =
-  DefinitionGameLog | { event: 'rework'; at: number } | { event: 'reveal'; at: number };
+  | DefinitionGameLog
+  | { event: 'view'; at: number }
+  | { event: 'rework'; at: number }
+  | { event: 'reveal'; at: number };
 
 /** An open. `at` is when it happened. */
 export type ElementLogEntry = { event: 'click'; at: number };
@@ -492,7 +495,7 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     answer?: unknown;
     explanation?: unknown;
   };
-  if (source.event === 'rework' || source.event === 'reveal') {
+  if (source.event === 'view' || source.event === 'rework' || source.event === 'reveal') {
     if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
     return { event: source.event, at: source.at };
   }

@@ -5595,6 +5595,10 @@ export class ElementModal {
   private relatedJob = 0;
   private wordingJob = 0;
   private trackedElementId = '';
+  /** Element and definition index last recorded as viewed. */
+  private viewedDefinitionKey = '';
+  /** Element whose definitions were all marked viewed for this open. */
+  private viewedElementKey = '';
   private engineerDrafts = new Map<string, EngineerDraft>();
   private definitionEngineerDrafts = new Map<string, DefinitionEngineerDraft>();
   private readonly editorSheet = viewChild<ElementRef<HTMLElement>>('editorSheet');
@@ -5684,6 +5688,18 @@ export class ElementModal {
       void this.commitStoredExamples(id);
       this.refreshNewDefinitions(id);
       void this.adoptStoredSuggestions(id);
+    });
+    effect(() => {
+      const id = this.element().id;
+      const count = this.element().definitions.length;
+      queueMicrotask(() => {
+        if (!this.alive || this.element().id !== id) return;
+        if (!count) {
+          this.viewedElementKey = '';
+          return;
+        }
+        this.noteAllDefinitionsViewed(id);
+      });
     });
     const stopWatchingExamples = watchExampleSuggestions((elementId) => {
       if (elementId !== this.trackedElementId) return;
@@ -6383,9 +6399,11 @@ export class ElementModal {
     const glosses = created.map((definition) => definitionGloss(definition.text)).filter(Boolean);
     rememberNewDefinitions(element.id, glosses);
     if (this.element().id === element.id) {
+      const alreadyShowingFirst = this.visibleDefinitionIndex() === 0;
       this.shiftDefinitionIndexes(created.length);
       this.definitionPanel.set(0);
       this.scrollDefinitionPanel();
+      if (alreadyShowingFirst) this.noteDefinitionView(0, true);
       this.newGlosses.set(new Set(readNewDefinitions(element.id)));
     }
     return true;
@@ -6497,6 +6515,34 @@ export class ElementModal {
     if (index < 0 || index >= count || index === this.visibleDefinitionIndex()) return;
     this.definitionPanel.set(index);
     this.scrollDefinitionPanel();
+  }
+
+  /** Record a view for every definition on this element. `at` is the UTC instant. */
+  private noteAllDefinitionsViewed(id: string): void {
+    if (this.viewedElementKey === id) return;
+    const element = this.currentElement();
+    if (element.id !== id || !element.definitions.length) return;
+    this.viewedElementKey = id;
+    const at = Date.now();
+    const definitions = this.copyDefinitions();
+    for (const definition of definitions) {
+      definition.log = [...definition.log, { event: 'view', at }];
+    }
+    void this.persist(definitions, element.equivalents, { busy: false });
+  }
+
+  /** Record that this definition is on screen. `at` is the UTC instant. */
+  private noteDefinitionView(index: number, force = false): void {
+    const element = this.currentElement();
+    if (!element.definitions[index]) return;
+    const key = `${element.id}:${index}`;
+    if (!force && key === this.viewedDefinitionKey) return;
+    this.viewedDefinitionKey = key;
+    const definitions = this.copyDefinitions();
+    const definition = definitions[index];
+    if (!definition) return;
+    definition.log = [...definition.log, { event: 'view', at: Date.now() }];
+    void this.persist(definitions, element.equivalents, { busy: false });
   }
 
   private scrollDefinitionPanel(): void {

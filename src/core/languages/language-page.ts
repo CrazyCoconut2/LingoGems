@@ -45,7 +45,6 @@ import {
   saveElement,
   type ElementCatalog,
   type ElementDefinition,
-  type ElementLogEntry,
   type ElementMetadataVariability,
   type ElementMode,
   type ElementSearch,
@@ -2319,7 +2318,6 @@ export class LanguagePage {
   }
 
   openCard(id: string): void {
-    this.recordClick(id);
     this.openElement(id);
   }
 
@@ -2334,7 +2332,6 @@ export class LanguagePage {
     if (!element || !this.drillReady(element, mode)) return;
     this.playMode.set(mode);
     this.playId.set(element.id);
-    this.recordClick(element.id);
     this.openElement(element.id);
   }
 
@@ -2586,21 +2583,6 @@ export class LanguagePage {
     }
   }
 
-  private recordClick(id: string): void {
-    const current = this.elements().find((element) => element.id === id);
-    if (!current) return;
-    const opened: ElementLogEntry = { event: 'click', at: Date.now() };
-    const next: StoredElement = {
-      ...current,
-      clicks: current.clicks + 1,
-      log: [...current.log, opened],
-    };
-    this.elements.update((list) => list.map((item) => (item.id === id ? next : item)));
-    void saveElement(next).then((saved) => {
-      if (this.elements().some((item) => item.id === saved.id)) this.replaceElement(saved);
-    });
-  }
-
   visitElement(id: string): void {
     if (!id || id === this.elementId()) return;
     this.trail.update((trail) => [...trail, id]);
@@ -2732,15 +2714,17 @@ export class LanguagePage {
   }
 
   activityTotals(element: StoredElement): { opened: number; reworked: number; revealed: number } {
+    let opened = 0;
     let reworked = 0;
     let revealed = 0;
     for (const item of element.definitions) {
       for (const entry of item.log) {
-        if (entry.event === 'rework') reworked += 1;
+        if (entry.event === 'view') opened += 1;
+        else if (entry.event === 'rework') reworked += 1;
         else if (entry.event === 'reveal') revealed += 1;
       }
     }
-    return { opened: element.clicks, reworked, revealed };
+    return { opened, reworked, revealed };
   }
 
   gemsLabel(game: 'translation' | 'example' | 'definition', count: number): string {

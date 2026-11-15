@@ -29,7 +29,11 @@ const GAMES: readonly { game: GemGame; label: string }[] = [
   { game: 'definition', label: 'Definition' },
 ];
 
-const ACTIVITIES: readonly { key: 'opened' | 'reworked' | 'revealed'; label: string }[] = [
+const ACTIVITIES: readonly {
+  key: 'added' | 'opened' | 'reworked' | 'revealed';
+  label: string;
+}[] = [
+  { key: 'added', label: 'Added' },
   { key: 'opened', label: 'Opened' },
   { key: 'reworked', label: 'Reworked' },
   { key: 'revealed', label: 'Revealed' },
@@ -38,11 +42,13 @@ const ACTIVITIES: readonly { key: 'opened' | 'reworked' | 'revealed'; label: str
 type GoalKind = keyof DailyGoals;
 
 const LOADING_CARDS = [0, 1, 2];
+const LOADING_ACTIVITY = [0, 1, 2, 3];
 const LOADING_ROWS = [0, 1, 2, 3];
 
 const EMPTY_DAY: DayStats = {
   day: '',
   gems: { translation: 0, example: 0, definition: 0 },
+  added: 0,
   opened: 0,
   reworked: 0,
   revealed: 0,
@@ -159,7 +165,7 @@ const EMPTY_DAY: DayStats = {
                   <h3>Activity</h3>
                 </div>
                 <ul class="activity">
-                  @for (item of loadingCards; track item) {
+                  @for (item of loadingActivity; track item) {
                     <li class="loading-card">
                       <span class="bone bone-stone"></span>
                       <span class="bone bone-count"></span>
@@ -409,6 +415,12 @@ const EMPTY_DAY: DayStats = {
     </ng-template>
     <ng-template #activityIcon let-key>
       @switch (key) {
+        @case ('added') {
+          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h14" />
+            <path d="M12 5v14" />
+          </svg>
+        }
         @case ('opened') {
           <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -830,8 +842,15 @@ const EMPTY_DAY: DayStats = {
     .gems,
     .activity {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 0.45rem;
+    }
+
+    .gems {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .activity {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
     .gems li,
@@ -1242,6 +1261,10 @@ const EMPTY_DAY: DayStats = {
         margin-bottom: 0;
         border-radius: 14px 14px 0 0;
       }
+
+      .activity {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
   `,
 })
@@ -1251,6 +1274,7 @@ export class GemStatsModal {
   readonly games = GAMES;
   readonly activities = ACTIVITIES;
   readonly loadingCards = LOADING_CARDS;
+  readonly loadingActivity = LOADING_ACTIVITY;
   readonly loadingRows = LOADING_ROWS;
   readonly goalsOpen = signal(false);
   readonly goals = signal<DailyGoals>(emptyDailyGoals());
@@ -1378,6 +1402,7 @@ export class GemStatsModal {
       element.gems.translation +
         element.gems.example +
         element.gems.definition +
+        element.added +
         element.opened +
         element.reworked +
         element.revealed >

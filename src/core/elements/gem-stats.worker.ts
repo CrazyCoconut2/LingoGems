@@ -10,6 +10,7 @@ export type ElementDayStats = {
   id: string;
   title: string;
   gems: GemCounts;
+  added: number;
   opened: number;
   reworked: number;
   revealed: number;
@@ -19,6 +20,7 @@ export type ElementDayStats = {
 export type DayStats = {
   day: string;
   gems: GemCounts;
+  added: number;
   opened: number;
   reworked: number;
   revealed: number;
@@ -34,6 +36,7 @@ type MutableElement = ElementDayStats;
 
 type MutableDay = {
   gems: GemCounts;
+  added: number;
   opened: number;
   reworked: number;
   revealed: number;
@@ -74,7 +77,7 @@ function tally(records: unknown[], language: string): DayStats[] {
       language?: unknown;
       id?: unknown;
       title?: unknown;
-      log?: unknown;
+      createdAt?: unknown;
       definitions?: unknown;
     };
     if (source.deletedAt != null) continue;
@@ -88,13 +91,12 @@ function tally(records: unknown[], language: string): DayStats[] {
     const title = String(source.title ?? '').trim();
     if (!id || !title) continue;
 
-    if (Array.isArray(source.log)) {
-      for (const entry of source.log) {
-        if (!isRecord(entry) || entry.event !== 'click') continue;
-        const day = bucket(days, entry.at);
-        if (!day) continue;
-        day.opened += 1;
-        elementOf(day, id, title).opened += 1;
+    const createdAt = source.createdAt;
+    if (typeof createdAt === 'number' && Number.isFinite(createdAt) && createdAt > 0) {
+      const created = bucket(days, createdAt);
+      if (created) {
+        created.added += 1;
+        elementOf(created, id, title).added = 1;
       }
     }
 
@@ -105,6 +107,11 @@ function tally(records: unknown[], language: string): DayStats[] {
         if (!isRecord(entry)) continue;
         const day = bucket(days, entry.at);
         if (!day) continue;
+        if (entry.event === 'view') {
+          day.opened += 1;
+          elementOf(day, id, title).opened += 1;
+          continue;
+        }
         if (entry.event === 'rework') {
           day.reworked += 1;
           elementOf(day, id, title).reworked += 1;
@@ -137,6 +144,7 @@ function tally(records: unknown[], language: string): DayStats[] {
     result.push({
       day,
       gems: stats.gems,
+      added: stats.added,
       opened: stats.opened,
       reworked: stats.reworked,
       revealed: stats.revealed,
@@ -155,6 +163,7 @@ function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {
   if (!day) {
     day = {
       gems: { translation: 0, example: 0, definition: 0 },
+      added: 0,
       opened: 0,
       reworked: 0,
       revealed: 0,
@@ -173,6 +182,7 @@ function elementOf(day: MutableDay, id: string, title: string): MutableElement {
       id,
       title,
       gems: { translation: 0, example: 0, definition: 0 },
+      added: 0,
       opened: 0,
       reworked: 0,
       revealed: 0,
@@ -193,7 +203,7 @@ function dayKey(at: number): string {
 function hasActivity(element: ElementDayStats): boolean {
   return (
     gemTotal(element.gems) > 0 ||
-    element.opened + element.reworked + element.revealed > 0 ||
+    element.added + element.opened + element.reworked + element.revealed > 0 ||
     element.exercises > 0
   );
 }

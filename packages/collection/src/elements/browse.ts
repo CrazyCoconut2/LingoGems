@@ -88,6 +88,17 @@ function variabilityMatches(
   return true;
 }
 
+/** Definition views. */
+function elementViews(element: StoredElement): number {
+  let views = 0;
+  for (const definition of element.definitions) {
+    for (const entry of definition.log) {
+      if (entry.event === 'view') views += 1;
+    }
+  }
+  return views;
+}
+
 /** Gems earned across Translation, Example, and Definition. */
 function elementGems(element: StoredElement): number {
   let gems = 0;
@@ -112,7 +123,7 @@ export function compareElements(
     return (sort === 'created-desc' ? -diff : diff) || title;
   }
   if (sort === 'clicks-desc' || sort === 'clicks-asc') {
-    const diff = left.clicks - right.clicks;
+    const diff = elementViews(left) - elementViews(right);
     return (sort === 'clicks-desc' ? -diff : diff) || title;
   }
   if (sort === 'gems-desc' || sort === 'gems-asc') {
