@@ -155,29 +155,6 @@ const MODE_GEM: Record<ElementMode, GemFace> = {
     .mark {
       stroke: var(--gem-ink);
     }
-
-    :host(.scintillate) .mark {
-      animation: mark-scintillate 1s linear infinite;
-    }
-
-    @keyframes mark-scintillate {
-      0%,
-      62%,
-      100% {
-        stroke: var(--gem-ink);
-      }
-
-      74%,
-      86% {
-        stroke: #fff;
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      :host(.scintillate) .mark {
-        animation: none;
-      }
-    }
   `,
   host: {
     '[style.--gem-ink]': 'gem().ink',

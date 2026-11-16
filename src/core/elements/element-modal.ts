@@ -660,17 +660,13 @@ function writeExampleSuggestions(
               <button
                 type="button"
                 class="mode-btn"
-                [class.play-focus]="translationGame() || exampleGame() || definitionCue()"
                 aria-label="What to do"
                 title="What to do"
                 [attr.aria-expanded]="helpOpen()"
                 [disabled]="busy()"
                 (click)="openHelp()"
               >
-                <app-mode-icon
-                  [mode]="mode"
-                  [class.scintillate]="translationGame() || exampleGame() || definitionCue()"
-                />
+                <app-mode-icon [mode]="mode" />
               </button>
             }
             @if (element().definitions.length) {
@@ -947,7 +943,7 @@ function writeExampleSuggestions(
                       <ng-template #definitionGloss>
                         @let equivalent = equivalentText(definition);
                         @if (supportAvailable() && equivalent) {
-                          <p class="sense-gloss" [class.play-focus]="translationGame()">
+                          <p class="sense-gloss">
                             @if (translationGame()) {
                               <button
                                 type="button"
@@ -3818,40 +3814,6 @@ function writeExampleSuggestions(
       --scintilla-hot: #b8f5bc;
     }
 
-    .header-actions .mode-btn.play-focus,
-    .header-actions .mode-btn.play-focus:disabled {
-      opacity: 1;
-      color: var(--scintilla);
-      border-color: rgba(var(--scintilla-rgb), 0.78);
-      background: rgba(var(--scintilla-rgb), 0.14);
-      box-shadow: 0 0 12px rgba(var(--scintilla-rgb), 0.28);
-      cursor: pointer;
-    }
-
-    .header-actions .mode-btn.play-focus app-mode-icon {
-      filter: drop-shadow(0 0 3px rgba(var(--scintilla-rgb), 0.55));
-      animation: gem-scintillate 1s linear infinite;
-    }
-
-    .icon-btn.play-focus,
-    .icon-btn.play-focus:disabled {
-      opacity: 1;
-      color: var(--scintilla);
-      border-color: rgba(var(--scintilla-rgb), 0.78);
-      background: rgba(var(--scintilla-rgb), 0.14);
-      box-shadow: 0 0 12px rgba(var(--scintilla-rgb), 0.28);
-      cursor: pointer;
-    }
-
-    .icon-btn.play-focus svg {
-      animation: icon-scintillate 1s linear infinite;
-    }
-
-    .guess-open.needs-click app-mode-icon {
-      filter: drop-shadow(0 0 3px rgba(var(--scintilla-rgb), 0.55));
-      animation: gem-scintillate 1s linear infinite;
-    }
-
     .definition-cue {
       display: block;
       width: 100%;
@@ -3871,6 +3833,7 @@ function writeExampleSuggestions(
       white-space: pre-wrap;
       filter: blur(0.55em);
       user-select: none;
+      animation: blur-scintillate 1s linear infinite;
     }
 
     @keyframes blur-scintillate {
@@ -3888,39 +3851,25 @@ function writeExampleSuggestions(
       }
     }
 
-    @keyframes gem-scintillate {
-      0%,
-      62%,
-      100% {
-        filter: drop-shadow(0 0 3px rgba(var(--scintilla-rgb), 0.55));
-      }
-
-      74%,
-      86% {
-        filter: brightness(1.6) drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px var(--scintilla-hot));
-      }
-    }
-
-    @keyframes icon-scintillate {
+    @keyframes click-scintillate {
       0%,
       62%,
       100% {
         color: var(--scintilla);
-        filter: none;
+        box-shadow: 0 0 10px rgba(var(--scintilla-rgb), 0.28);
       }
 
       74%,
       86% {
         color: #fff;
-        filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px var(--scintilla-hot));
+        box-shadow: 0 0 2px #fff, 0 0 8px var(--scintilla-hot);
       }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .header-actions .mode-btn.play-focus app-mode-icon,
-      .icon-btn.play-focus svg,
-      .guess-open.needs-click app-mode-icon,
-      .definition-cue-text {
+      .definition-cue-text,
+      .guess-open.needs-click,
+      .write-example {
         animation: none;
       }
     }
@@ -4836,6 +4785,7 @@ function writeExampleSuggestions(
       border-color: rgba(var(--scintilla-rgb), 0.78);
       background: rgba(var(--scintilla-rgb), 0.14);
       box-shadow: 0 0 10px rgba(var(--scintilla-rgb), 0.28);
+      animation: click-scintillate 1s linear infinite;
     }
 
     .guess-open.needs-click:hover {
@@ -5567,6 +5517,11 @@ function writeExampleSuggestions(
 
     .write-example {
       margin-top: 0.35rem;
+      color: var(--scintilla);
+      border-color: rgba(var(--scintilla-rgb), 0.78);
+      background: rgba(var(--scintilla-rgb), 0.14);
+      box-shadow: 0 0 10px rgba(var(--scintilla-rgb), 0.28);
+      animation: click-scintillate 1s linear infinite;
     }
 
     .editor-sheet > .sheet-footer .btn {
@@ -9433,7 +9388,7 @@ export class ElementModal {
     return this.inPlay() && this.playMode() === 3;
   }
 
-  /** A definition is still hidden, so the mode icon points at that click. */
+  /** A definition is still hidden, so that blurred text is the click. */
   definitionCue(): boolean {
     if (!this.definitionGame()) return false;
     return this.element().definitions.some((_, index) => this.definitionConcealed(index));
