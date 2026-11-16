@@ -1163,13 +1163,17 @@ function writeExampleSuggestions(
                 </div>
               }
               <ng-template #editorFields>
-                <div class="field-heading">
+                <div
+                  class="field-heading"
+                  [class.work-title]="current.kind === 'definition'"
+                >
                   <label
+                    class="work-title-text"
                     [attr.for]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
                   >
                     {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
                   </label>
-                  <span class="header-actions">
+                  <span class="header-actions work-title-actions">
                     @if (supportAvailable()) {
                       <span class="generate-bundle translate-split">
                         <button
@@ -1522,11 +1526,11 @@ function writeExampleSuggestions(
                     @let workIndex = current.index;
                     @let worked = sheetDefinition(workIndex);
                     <section class="sheet-part work-section">
-                      <div class="section-heading">
-                        <span class="section-title">Examples</span>
+                      <div class="section-heading work-title">
+                        <span class="section-title work-title-text">Examples</span>
                         <button
                           type="button"
-                          class="icon-btn"
+                          class="icon-btn work-title-actions"
                           aria-label="Add an example"
                           title="Add an example"
                           [disabled]="aiBusy()"
@@ -1799,9 +1803,9 @@ function writeExampleSuggestions(
                     @let workIndex = current.index;
                     @let worked = sheetDefinition(workIndex);
                     <section class="sheet-part work-section">
-                      <div class="section-heading">
-                        <span class="section-title">Forms</span>
-                        <div class="header-actions">
+                      <div class="section-heading work-title">
+                        <span class="section-title work-title-text">Forms</span>
+                        <div class="header-actions work-title-actions">
                           <button
                             type="button"
                             class="icon-btn"
@@ -5207,8 +5211,14 @@ function writeExampleSuggestions(
 
     .editor-sheet > .sheet-scroll {
       flex: 1 1 auto;
+      min-width: 0;
       min-height: 0;
-      overflow: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    .sheet-scroll > .work-section {
+      min-width: 0;
     }
 
     .sheet-scroll > .work-section:first-child {
@@ -5913,11 +5923,39 @@ function writeExampleSuggestions(
     .lang.work-tabs {
       display: flex;
       align-self: stretch;
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      padding-inline: 0;
     }
 
     .lang.work-tabs button {
-      flex: 1;
-      text-align: center;
+      flex: 1 1 0;
+      min-width: 0;
+      text-align: start;
+      padding-inline: 0.7rem;
+    }
+
+    .work-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      min-width: 0;
+      min-height: 1.8rem;
+    }
+
+    .work-title .work-title-text {
+      min-width: 0;
+      padding-inline-start: 0.7rem;
+      font-size: 0.78rem;
+      font-weight: 650;
+      line-height: 1.2;
+      color: var(--text-muted);
+    }
+
+    .work-title .work-title-actions {
+      flex: none;
     }
 
     .score {
