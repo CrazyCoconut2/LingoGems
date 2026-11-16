@@ -1746,7 +1746,7 @@ const MOVE_SLOP_PX = 10;
       display: flex;
       align-items: flex-start;
       justify-content: center;
-      overflow: auto;
+      overflow: hidden;
       padding: 1.25rem;
       background: rgba(8, 10, 16, 0.78);
       backdrop-filter: blur(6px);
@@ -1755,6 +1755,7 @@ const MOVE_SLOP_PX = 10;
     .filter-panel {
       box-sizing: border-box;
       width: min(520px, 100%);
+      height: calc(100dvh - 2.5rem);
       max-height: calc(100dvh - 2.5rem);
       margin-top: auto;
       margin-bottom: auto;
@@ -2117,6 +2118,7 @@ const MOVE_SLOP_PX = 10;
 
       .filter-panel {
         width: 100%;
+        height: calc(100dvh - 1.3rem);
         max-height: calc(100dvh - 1.3rem);
         margin-top: auto;
         margin-bottom: 0;

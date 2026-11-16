@@ -1134,7 +1134,7 @@ function writeExampleSuggestions(
                     [attr.aria-selected]="workTab() === 'definitions'"
                     (click)="showWorkTab('definitions')"
                   >
-                    Definitions
+                    Definition
                   </button>
                   <button
                     type="button"
@@ -5118,8 +5118,11 @@ function writeExampleSuggestions(
     }
 
     .editor-sheet {
-      max-height: none;
-      overflow: visible;
+      align-self: stretch;
+      height: 100%;
+      min-height: 0;
+      max-height: 100%;
+      overflow: hidden;
       gap: 0;
       padding-bottom: 0;
     }
@@ -5140,6 +5143,12 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       gap: 0.55rem;
+    }
+
+    .editor-sheet > .sheet-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
     }
 
     .sheet-scroll > .work-section:first-child {
@@ -6543,10 +6552,10 @@ export class ElementModal {
   }
 
   workSectionLabel(editor: Editor): string {
-    if (editor.kind !== 'definition' || editor.index == null) return 'Definitions';
+    if (editor.kind !== 'definition' || editor.index == null) return 'Definition';
     if (this.workTab() === 'examples') return 'Examples';
     if (this.workTab() === 'forms') return 'Forms';
-    return 'Definitions';
+    return 'Definition';
   }
 
   workSaveDisabled(): boolean {
