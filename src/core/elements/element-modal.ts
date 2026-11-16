@@ -1054,10 +1054,15 @@ function writeExampleSuggestions(
                       <ul class="forms" aria-label="Forms">
                         @for (form of definition.forms; track form.text) {
                           <li>
-                            <span class="form-chip readonly">
+                            <button
+                              type="button"
+                              class="form-chip readonly"
+                              [attr.aria-label]="'Attributes for ' + form.text"
+                              (click)="showFormAttributes(form)"
+                            >
                               <ng-container [ngTemplateOutlet]="formIcon" />
                               {{ form.text }}
-                            </span>
+                            </button>
                           </li>
                         }
                       </ul>
@@ -1856,11 +1861,23 @@ function writeExampleSuggestions(
                                 <button
                                   type="button"
                                   [disabled]="busy()"
-                                  [attr.aria-label]="'Edit form ' + form.text"
-                                  (click)="openExistingForm(workIndex, form.text)"
+                                  [attr.aria-label]="'Attributes for ' + form.text"
+                                  (click)="showFormAttributes(form)"
                                 >
                                   <ng-container [ngTemplateOutlet]="formIcon" />
                                   {{ form.text }}
+                                </button>
+                                <button
+                                  type="button"
+                                  class="form-edit"
+                                  [disabled]="busy()"
+                                  [attr.aria-label]="'Edit form ' + form.text"
+                                  title="Edit form"
+                                  (click)="openExistingForm(workIndex, form.text)"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                  </svg>
                                 </button>
                                 <button
                                   type="button"
@@ -1882,10 +1899,15 @@ function writeExampleSuggestions(
                           <ul class="forms">
                             @for (form of pending; track form.text) {
                               <li>
-                                <span class="form-chip readonly">
+                                <button
+                                  type="button"
+                                  class="form-chip readonly"
+                                  [attr.aria-label]="'Attributes for ' + form.text"
+                                  (click)="showFormAttributes(form)"
+                                >
                                   <ng-container [ngTemplateOutlet]="formIcon" />
                                   {{ form.text }}
-                                </span>
+                                </button>
                               </li>
                             }
                           </ul>
@@ -2120,6 +2142,53 @@ function writeExampleSuggestions(
                   Save
                 </button>
               </div>
+            </section>
+          </div>
+        }
+
+        @if (formAttributesView(); as form) {
+          <div class="sheet-backdrop" (click)="closeFormAttributes($event)">
+            <section
+              class="sheet"
+              role="dialog"
+              aria-modal="true"
+              [attr.aria-label]="form.text + ' attributes'"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3 class="form-attributes-title">
+                  <ng-container [ngTemplateOutlet]="formIcon" />
+                  <span>{{ form.text }}</span>
+                </h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  (click)="closeFormAttributes()"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              @if (entries(form.metadata); as meta) {
+                @if (meta.length) {
+                  <ul class="pills" aria-label="Attributes">
+                    @for (entry of meta; track entry.key) {
+                      @let color = metaColor('forms', entry.key);
+                      <li [class.colored]="color" [style.--meta-color]="color">
+                        <span>
+                          <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                          <span class="sense-meta-value">{{ label(entry.value) }}</span>
+                        </span>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="hint">No attributes</p>
+                }
+              }
             </section>
           </div>
         }
@@ -4156,6 +4225,7 @@ function writeExampleSuggestions(
     .equivalent-prompt svg,
     .forms-toggle svg,
     .form-chip svg,
+    .form-attributes-title svg,
     .engineer-forms .equivalent-choices svg,
     .equivalent-result svg {
       fill: none;
@@ -4729,6 +4799,37 @@ function writeExampleSuggestions(
       background: transparent;
       color: var(--text);
       font-size: 0.75rem;
+    }
+
+    button.form-chip {
+      font: inherit;
+      line-height: inherit;
+      text-align: start;
+      cursor: pointer;
+    }
+
+    .form-attributes-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      min-width: 0;
+    }
+
+    .form-attributes-title svg {
+      width: 1rem;
+      height: 1rem;
+      flex: none;
+    }
+
+    .form-chip > button.form-edit {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.2rem 0.2rem 0.1rem;
+    }
+
+    .form-chip > button.form-edit svg {
+      width: 0.85rem;
+      height: 0.85rem;
     }
 
     .meta {
@@ -5886,6 +5987,7 @@ export class ElementModal {
   readonly askingForms = signal<number | null>(null);
   readonly askingExamples = signal<number | null>(null);
   readonly workTab = signal<WorkTab>('definitions');
+  readonly formAttributesView = signal<ElementForm | null>(null);
   /** Generated example waiting to be saved. */
   readonly exampleDraft = signal<ExampleDraft | null>(null);
   /** Generated forms waiting to be saved. */
@@ -5996,6 +6098,7 @@ export class ElementModal {
       this.exerciseLog.set(-1);
       this.exerciseEntry.set(-1);
       this.definitionExample.set('');
+      this.formAttributesView.set(null);
       this.definitionPanel.set(0);
       this.addingDefinitions.set(null);
       this.equivalentTicket += 1;
@@ -6085,6 +6188,10 @@ export class ElementModal {
     }
     if (this.confirm()) {
       this.confirm.set(null);
+      return;
+    }
+    if (this.formAttributesView()) {
+      this.formAttributesView.set(null);
       return;
     }
     if (this.formFeatureEdit()) {
@@ -6754,6 +6861,7 @@ export class ElementModal {
     rememberNewDefinitions(element.id, glosses);
     if (this.element().id === element.id) {
       this.shiftDefinitionIndexes(created.length);
+      this.formAttributesView.set(null);
       this.definitionPanel.set(0);
       this.scrollDefinitionPanel();
       this.noteDefinitionView(0);
@@ -6907,9 +7015,19 @@ export class ElementModal {
     this.speaking.set(started ? key : null);
   }
 
+  showFormAttributes(form: ElementForm): void {
+    this.formAttributesView.set({ text: form.text, metadata: { ...form.metadata } });
+  }
+
+  closeFormAttributes(event?: MouseEvent): void {
+    if (event && event.target !== event.currentTarget) return;
+    this.formAttributesView.set(null);
+  }
+
   showDefinition(index: number): void {
     const count = this.shownDefinitions().length;
     if (index < 0 || index >= count || index === this.visibleDefinitionIndex()) return;
+    this.formAttributesView.set(null);
     this.definitionPanel.set(index);
     this.scrollDefinitionPanel();
     this.noteDefinitionView(index);
@@ -8263,6 +8381,7 @@ export class ElementModal {
     this.askingWording.set(null);
     this.editor.set(null);
     this.formEdit.set(null);
+    this.formAttributesView.set(null);
     this.definitionPanel.set(0);
     this.scrollDefinitionPanel();
     this.confirm.set(null);
