@@ -3155,13 +3155,33 @@ function writeExampleSuggestions(
               </p>
                 @if (exerciseEntry() < 0) {
                   <div class="stats-summary">
-                    <div
-                      class="stats-hero"
-                      [attr.aria-label]="exerciseCount(definition) + ' exercises'"
-                    >
-                      <p class="stats-eyebrow">Exercises</p>
-                      <p class="stats-hero-value">{{ exerciseCount(definition) }}</p>
-                    </div>
+                    <section class="stats-block">
+                      <h3>Exercises</h3>
+                      <ul class="stats-gems">
+                        @for (row of exerciseStats; track row.game) {
+                          @if (row.game !== 'translation' || supportAvailable()) {
+                            <li
+                              [attr.data-game]="row.game"
+                              [attr.aria-label]="
+                                exerciseAverageLabel(definition, row.game, modeLabel(row.mode))
+                              "
+                            >
+                              <span class="stats-stone" aria-hidden="true">
+                                <app-mode-icon class="stats-stone-icon" [mode]="row.mode" />
+                              </span>
+                              @if (exerciseAverage(definition, row.game); as average) {
+                                <span class="stats-count">
+                                  {{ average }}<span class="score-max">/5</span>
+                                </span>
+                              } @else {
+                                <span class="stats-count stats-na">N/A</span>
+                              }
+                              <span class="stats-caption">{{ modeLabel(row.mode) }}</span>
+                            </li>
+                          }
+                        }
+                      </ul>
+                    </section>
                     <section class="stats-block">
                       <h3>Activity</h3>
                       <ul class="stats-activity">
@@ -5096,7 +5116,28 @@ function writeExampleSuggestions(
     }
 
     .stats-stone-icon {
-      --gem-size: 1.45rem;
+      width: 1.45rem;
+      height: 1.45rem;
+    }
+
+    .stats-gems .stats-count {
+      color: var(--exercise-gem);
+    }
+
+    .stats-count .score-max {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 650;
+    }
+
+    .stats-gems .stats-count.stats-na {
+      color: var(--text-muted);
+      font-size: 1.15rem;
+      letter-spacing: 0.04em;
+    }
+
+    .stats-gems:not(:has(> li:nth-child(3))) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .stats-well {
@@ -6035,6 +6076,11 @@ export class ElementModal {
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
   readonly helpOpen = signal(false);
+  readonly exerciseStats: readonly { game: DefinitionGameLog['game']; mode: ElementMode }[] = [
+    { game: 'translation', mode: 1 },
+    { game: 'example', mode: 2 },
+    { game: 'definition', mode: 3 },
+  ];
   readonly exerciseLog = signal(-1);
   readonly exerciseEntry = signal(-1);
   readonly error = signal('');
@@ -9104,10 +9150,30 @@ export class ElementModal {
     return this.round().equivalentRewards[index] ?? null;
   }
 
-  /** Definition exercises on this definition. Other games stay out of this count. */
-  exerciseCount(definition: ElementDefinition): number {
-    return definition.log.filter((entry) => entry.event === 'game' && entry.game === 'definition')
-      .length;
+  /** Mean score for one exercise on this definition. Null when it has not been played. */
+  exerciseAverage(
+    definition: ElementDefinition,
+    game: DefinitionGameLog['game'],
+  ): string | null {
+    let total = 0;
+    let count = 0;
+    for (const entry of definition.log) {
+      if (entry.event !== 'game' || entry.game !== game || !Number.isFinite(entry.score)) continue;
+      total += entry.score;
+      count += 1;
+    }
+    if (!count) return null;
+    return (total / count).toFixed(1);
+  }
+
+  exerciseAverageLabel(
+    definition: ElementDefinition,
+    game: DefinitionGameLog['game'],
+    label: string,
+  ): string {
+    const average = this.exerciseAverage(definition, game);
+    if (average == null) return `${label}, non applicable`;
+    return `${label} average ${average} out of 5`;
   }
 
   logMode(game: DefinitionGameLog['game']): ElementMode {
@@ -9116,7 +9182,7 @@ export class ElementModal {
     return 1;
   }
 
-  /** Reworks, saved examples, saved forms, and definition exercises for this definition. */
+  /** Reworks, saved examples, saved forms, and exercises for this definition. */
   definitionHistory(definition: ElementDefinition): DefinitionHistoryEntry[] {
     return definition.log
       .filter((entry): entry is DefinitionHistoryEntry => this.listedHistory(entry))
@@ -9140,7 +9206,7 @@ export class ElementModal {
 
   private listedHistory(entry: DefinitionLogEntry): entry is DefinitionHistoryEntry {
     if (entry.event === 'rework' || entry.event === 'example' || entry.event === 'form') return true;
-    return entry.event === 'game' && entry.game === 'definition';
+    return entry.event === 'game';
   }
 
   exerciseWhen(at: number): string {
