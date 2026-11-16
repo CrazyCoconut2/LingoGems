@@ -44,6 +44,7 @@ import {
   isValidForm,
   LEARNABLE_LANGUAGES,
   languageDisplayName,
+  loggedDefinitions,
   mergeMetadataVariability,
   metadataFilterSize,
   parseMetadataFilter,
@@ -1559,23 +1560,28 @@ const MOVE_SLOP_PX = 10;
     }
 
     .element.colored {
-      --text-muted: #d0d3e6;
-      --level-line: oklch(from var(--score-color) 0.46 calc(min(c, 0.05)) h);
-      border-color: var(--level-line);
-      background: oklch(from var(--score-color) 0.3 calc(min(c, 0.058)) h);
+      --card-color: oklch(from var(--score-color) 0.62 calc(min(max(c, 0.09), 0.13)) h);
+      --level-line: var(--card-color);
+      border-width: 2px;
+      border-color: var(--card-color);
+      background: var(--surface);
       color: var(--text);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--card-color) 42%, transparent);
     }
 
     .element.colored:hover {
-      background: oklch(from var(--score-color) 0.34 calc(min(c, 0.058)) h);
+      background: var(--surface);
+      box-shadow: 0 6px 16px color-mix(in srgb, var(--card-color) 55%, transparent);
     }
 
     .element.colored.selected,
     .element.colored.selected:hover {
-      --level-line: oklch(from var(--score-color) 0.55 calc(min(c, 0.05)) h);
-      border-color: var(--level-line);
-      background: oklch(from var(--score-color) 0.38 calc(min(c, 0.058)) h);
-      box-shadow: inset 0 0 0 1px oklch(from var(--score-color) 0.55 calc(min(c, 0.05)) h);
+      --level-line: var(--card-color);
+      border-color: var(--card-color);
+      background: var(--surface);
+      box-shadow:
+        0 4px 14px color-mix(in srgb, var(--card-color) 50%, transparent),
+        inset 0 0 0 1px var(--card-color);
     }
 
     .title {
@@ -1588,6 +1594,10 @@ const MOVE_SLOP_PX = 10;
       letter-spacing: -0.02em;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .elements > li:has(.element.colored) .card-corner {
+      bottom: calc(2rem + 3px);
     }
 
     .card-corner {
@@ -1648,10 +1658,9 @@ const MOVE_SLOP_PX = 10;
     }
 
     .drill.colored {
-      --text-muted: #d0d3e6;
-      --level-line: oklch(from var(--score-color) 0.46 calc(min(c, 0.05)) h);
-      background: oklch(from var(--score-color) 0.34 calc(min(c, 0.058)) h);
-      color: var(--text-muted);
+      --level-line: oklch(from var(--score-color) 0.46 calc(min(max(c, 0.07), 0.1)) h);
+      background: oklch(from var(--score-color) 0.3 calc(min(max(c, 0.05), 0.075)) h);
+      color: oklch(from var(--score-color) 0.78 calc(min(max(c, 0.12), 0.16)) h);
     }
 
     .drill:hover {
@@ -1659,7 +1668,7 @@ const MOVE_SLOP_PX = 10;
     }
 
     .drill.colored:hover {
-      background: oklch(from var(--score-color) 0.4 calc(min(c, 0.058)) h);
+      background: oklch(from var(--score-color) 0.36 calc(min(max(c, 0.055), 0.085)) h);
     }
 
     .drill-arrow {
@@ -2726,7 +2735,7 @@ export class LanguagePage {
     let opened = 0;
     let reworked = 0;
     let revealed = 0;
-    for (const item of element.definitions) {
+    for (const item of loggedDefinitions(element)) {
       for (const entry of item.log) {
         if (entry.event === 'view') opened += 1;
         else if (entry.event === 'rework') reworked += 1;

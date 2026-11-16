@@ -47,6 +47,7 @@ import {
   type DefinitionHighlightPart,
   type ElementDefinition,
   type ElementEquivalent,
+  type RemovedDefinition,
   type ElementForm,
   type ElementMetadata,
   type StoredElement,
@@ -1099,20 +1100,64 @@ function writeExampleSuggestions(
               class="sheet editor-sheet"
               role="dialog"
               aria-modal="true"
-              [attr.aria-label]="sheetTitle(current)"
-              [style.height.px]="editorSheetHeight()"
+              [attr.aria-label]="
+                current.kind === 'definition' ? workSectionLabel(current) : sheetTitle(current)
+              "
             >
-              <div class="sheet-head">
-                <h3>{{ sheetTitle(current) }}</h3>
-                <span class="sheet-tools">
-                  <button type="button" class="icon-btn" aria-label="Close" (click)="closeEditor()">
-                    <svg viewBox="0 0 24 24">
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
-                    </svg>
+              @if (current.kind === 'example') {
+                <div class="sheet-head">
+                  <h3>{{ sheetTitle(current) }}</h3>
+                  <span class="sheet-tools">
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Close"
+                      (click)="closeEditor()"
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                </div>
+              } @else {
+                <div
+                  class="lang work-tabs"
+                  role="tablist"
+                  [attr.aria-label]="workSectionLabel(current)"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    [class.on]="workTab() === 'definitions'"
+                    [attr.aria-selected]="workTab() === 'definitions'"
+                    (click)="showWorkTab('definitions')"
+                  >
+                    Definitions
                   </button>
-                </span>
-              </div>
+                  <button
+                    type="button"
+                    role="tab"
+                    [class.on]="workTab() === 'examples'"
+                    [attr.aria-selected]="workTab() === 'examples'"
+                    [disabled]="current.index == null"
+                    (click)="showWorkTab('examples')"
+                  >
+                    Examples
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    [class.on]="workTab() === 'forms'"
+                    [attr.aria-selected]="workTab() === 'forms'"
+                    [disabled]="current.index == null"
+                    (click)="showWorkTab('forms')"
+                  >
+                    Forms
+                  </button>
+                </div>
+              }
               <ng-template #editorFields>
                 <div class="field-heading">
                   <label
@@ -1464,57 +1509,9 @@ function writeExampleSuggestions(
               </ng-template>
               <div class="sheet-scroll">
                 @if (current.kind === 'definition') {
-                  <div class="lang work-tabs" role="tablist" aria-label="Work">
-                    <button
-                      type="button"
-                      role="tab"
-                      [class.on]="workTab() === 'definitions'"
-                      [attr.aria-selected]="workTab() === 'definitions'"
-                      (click)="showWorkTab('definitions')"
-                    >
-                      Definitions
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      [class.on]="workTab() === 'examples'"
-                      [attr.aria-selected]="workTab() === 'examples'"
-                      [disabled]="current.index == null"
-                      (click)="showWorkTab('examples')"
-                    >
-                      Examples
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      [class.on]="workTab() === 'forms'"
-                      [attr.aria-selected]="workTab() === 'forms'"
-                      [disabled]="current.index == null"
-                      (click)="showWorkTab('forms')"
-                    >
-                      Forms
-                    </button>
-                  </div>
                   @if (workTab() === 'definitions' || current.index == null) {
                   <section class="sheet-part work-section">
                     <ng-container [ngTemplateOutlet]="editorFields" />
-                    <div class="sheet-actions">
-                      <button
-                        type="button"
-                        class="btn btn-primary"
-                        [disabled]="busy() || translating() || askingEquivalent() || !draftGloss()"
-                        (click)="saveEditor()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                          <path d="m18 15 4-4" />
-                          <path
-                            d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
-                          />
-                        </svg>
-                        Save
-                      </button>
-                    </div>
                   </section>
                   }
                   @if (current.index != null && workTab() === 'examples') {
@@ -1712,24 +1709,6 @@ function writeExampleSuggestions(
                             }
                           }
                         </div>
-                        <div class="sheet-actions">
-                          <button
-                            type="button"
-                            class="btn btn-primary"
-                            [disabled]="busy() || askingExamples() !== null"
-                            (click)="saveExampleDraft()"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            class="btn btn-secondary"
-                            [disabled]="askingExamples() !== null"
-                            (click)="discardExampleDraft()"
-                          >
-                            Discard
-                          </button>
-                        </div>
                       }
                       @if (exampleEngineer(); as engineer) {
                         @if (engineer.definitionIndex === workIndex) {
@@ -1911,24 +1890,6 @@ function writeExampleSuggestions(
                               </li>
                             }
                           </ul>
-                          <div class="sheet-actions">
-                            <button
-                              type="button"
-                              class="btn btn-primary"
-                              [disabled]="busy() || askingForms() !== null"
-                              (click)="savePendingForms()"
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              class="btn btn-secondary"
-                              [disabled]="askingForms() !== null"
-                              (click)="discardPendingForms()"
-                            >
-                              Discard
-                            </button>
-                          </div>
                         }
                       }
                       @if (formsError()) {
@@ -1940,6 +1901,35 @@ function writeExampleSuggestions(
                   <ng-container [ngTemplateOutlet]="editorFields" />
                 }
               </div>
+              @if (current.kind === 'definition') {
+                <div class="sheet-actions sheet-footer">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    [disabled]="workSaveDisabled()"
+                    (click)="saveWork()"
+                  >
+                    @if (workTab() === 'definitions' || current.index == null) {
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                        <path d="m18 15 4-4" />
+                        <path
+                          d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                        />
+                      </svg>
+                    }
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    [disabled]="workCloseDisabled()"
+                    (click)="closeEditor()"
+                  >
+                    Close
+                  </button>
+                </div>
+              }
               @if (current.kind === 'example') {
                 <div class="sheet-actions sheet-footer">
                   <button
@@ -5128,21 +5118,25 @@ function writeExampleSuggestions(
     }
 
     .editor-sheet {
-      min-height: 0;
-      overflow: hidden;
+      max-height: none;
+      overflow: visible;
       gap: 0;
       padding-bottom: 0;
     }
 
-    .editor-sheet > .sheet-head {
+    .editor-sheet textarea {
+      resize: none;
+    }
+
+    .editor-sheet > .sheet-head,
+    .editor-sheet > .lang.work-tabs {
       flex: none;
       margin-bottom: 0.55rem;
     }
 
     .sheet-scroll {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
+      flex: none;
+      overflow: visible;
       display: flex;
       flex-direction: column;
       gap: 0.55rem;
@@ -5229,8 +5223,7 @@ function writeExampleSuggestions(
     }
 
     .engineer-forms {
-      max-height: 9rem;
-      overflow: auto;
+      overflow: visible;
     }
 
     .engineer-forms .equivalent-choices button {
@@ -6038,7 +6031,6 @@ export class ElementModal {
   private engineerDrafts = new Map<string, EngineerDraft>();
   private definitionEngineerDrafts = new Map<string, DefinitionEngineerDraft>();
   private readonly editorSheet = viewChild<ElementRef<HTMLElement>>('editorSheet');
-  readonly editorSheetHeight = signal<number | null>(null);
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly draftField = viewChild<ElementRef<HTMLTextAreaElement>>('draftField');
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
@@ -6066,9 +6058,6 @@ export class ElementModal {
       this.alive = false;
       this.endDeletePress();
       stopSpeaking();
-    });
-    effect(() => {
-      if (!this.definitionEngineer()) this.editorSheetHeight.set(null);
     });
     effect(() => {
       if (this.supportAvailable()) return;
@@ -6551,6 +6540,60 @@ export class ElementModal {
 
   inputValue(event: Event): string {
     return (event.target as HTMLInputElement | HTMLTextAreaElement).value;
+  }
+
+  workSectionLabel(editor: Editor): string {
+    if (editor.kind !== 'definition' || editor.index == null) return 'Definitions';
+    if (this.workTab() === 'examples') return 'Examples';
+    if (this.workTab() === 'forms') return 'Forms';
+    return 'Definitions';
+  }
+
+  workSaveDisabled(): boolean {
+    const editor = this.editor();
+    if (!editor || editor.kind !== 'definition') return true;
+    if (editor.index != null && this.workTab() === 'examples') {
+      const draft = this.exampleDraft();
+      return (
+        this.busy() ||
+        this.askingExamples() !== null ||
+        draft?.definitionIndex !== editor.index ||
+        !draft.text.trim()
+      );
+    }
+    if (editor.index != null && this.workTab() === 'forms') {
+      const pending = this.pendingForms();
+      return (
+        this.busy() ||
+        this.askingForms() !== null ||
+        pending?.definitionIndex !== editor.index ||
+        !pending.forms.length
+      );
+    }
+    return this.busy() || this.translating() || this.askingEquivalent() || !this.draftGloss();
+  }
+
+  workCloseDisabled(): boolean {
+    return (
+      this.busy() ||
+      this.definitionSheetBusy() ||
+      this.askingExamples() !== null ||
+      this.askingForms() !== null
+    );
+  }
+
+  saveWork(): void {
+    const editor = this.editor();
+    if (!editor || editor.kind !== 'definition' || this.workSaveDisabled()) return;
+    if (editor.index != null && this.workTab() === 'examples') {
+      void this.saveExampleDraft();
+      return;
+    }
+    if (editor.index != null && this.workTab() === 'forms') {
+      void this.savePendingForms();
+      return;
+    }
+    void this.saveEditor();
   }
 
   sheetTitle(editor: Editor): string {
@@ -7227,8 +7270,6 @@ export class ElementModal {
       selected: [],
     };
     const known = new Set(draft.words.map((word) => word.text.toLowerCase()));
-    const sheet = this.editorSheet()?.nativeElement;
-    if (sheet) this.editorSheetHeight.set(sheet.offsetHeight);
     this.sheetError.set('');
     this.definitionEngineer.set({
       definitionIndex: editor.index,
@@ -8306,11 +8347,23 @@ export class ElementModal {
       return;
     }
     const definitions = this.copyDefinitions();
-    const removed =
-      pending.kind === 'definition' ? senseKey(definitions[pending.index]?.text ?? '') : '';
-    if (pending.kind === 'definition') definitions.splice(pending.index, 1);
-    else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
-    if (!(await this.persist(definitions, this.element().equivalents))) return;
+    const archived = pending.kind === 'definition' ? definitions[pending.index] : undefined;
+    const removed = archived ? senseKey(archived.text) : '';
+    if (pending.kind === 'definition') {
+      if (!archived) {
+        this.confirm.set(null);
+        return;
+      }
+      definitions.splice(pending.index, 1);
+    } else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
+    if (
+      !(await this.persist(definitions, this.element().equivalents, {
+        removedDefinitions: archived
+          ? [...this.copyRemovedDefinitions(), { ...archived, deletedAt: Date.now() }]
+          : undefined,
+      }))
+    )
+      return;
     if (pending.kind === 'definition') {
       if (removed && !definitions.some((definition) => senseKey(definition.text) === removed)) {
         this.engineerDrafts.delete(removed);
@@ -8378,7 +8431,11 @@ export class ElementModal {
   private async removeAllDefinitions(): Promise<void> {
     const definitions = this.copyDefinitions();
     const removed = definitions.map((definition) => senseKey(definition.text)).filter(Boolean);
-    if (!(await this.persist([], this.element().equivalents))) return;
+    const removedDefinitions = [
+      ...this.copyRemovedDefinitions(),
+      ...definitions.map((definition) => ({ ...definition, deletedAt: Date.now() })),
+    ];
+    if (!(await this.persist([], this.element().equivalents, { removedDefinitions }))) return;
     for (const key of removed) {
       this.engineerDrafts.delete(key);
       this.definitionEngineerDrafts.delete(key);
@@ -8568,7 +8625,18 @@ export class ElementModal {
   }
 
   private copyDefinitions(): ElementDefinition[] {
-    return this.currentElement().definitions.map((definition) => ({
+    return this.currentElement().definitions.map((definition) => this.copyDefinition(definition));
+  }
+
+  private copyRemovedDefinitions(): RemovedDefinition[] {
+    return (this.currentElement().removedDefinitions ?? []).map((definition) => ({
+      ...this.copyDefinition(definition),
+      deletedAt: definition.deletedAt,
+    }));
+  }
+
+  private copyDefinition(definition: ElementDefinition): ElementDefinition {
+    return {
       ...definition,
       equivalentIds: { ...definition.equivalentIds },
       forms: definition.forms.map((form) => ({ text: form.text, metadata: { ...form.metadata } })),
@@ -8578,7 +8646,7 @@ export class ElementModal {
       })),
       metadata: { ...definition.metadata },
       log: definition.log.map((entry) => ({ ...entry })),
-    }));
+    };
   }
 
   /** Keep the log, and append a rework when the passage or equivalent wording changed. */
@@ -8671,9 +8739,18 @@ export class ElementModal {
   private async persist(
     definitions: ElementDefinition[],
     equivalents: ElementEquivalent[],
-    options?: { busy?: boolean; report?: boolean },
+    options?: { busy?: boolean; report?: boolean; removedDefinitions?: RemovedDefinition[] },
   ): Promise<boolean> {
-    return this.commit({ ...this.currentElement(), definitions, equivalents }, options);
+    const current = this.currentElement();
+    return this.commit(
+      {
+        ...current,
+        definitions,
+        equivalents,
+        removedDefinitions: options?.removedDefinitions ?? current.removedDefinitions ?? [],
+      },
+      options,
+    );
   }
 
   /** Save in order. A later edit is applied before an earlier save can replace it. */

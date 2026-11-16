@@ -109,6 +109,17 @@ export type ElementDefinition = {
   log: DefinitionLogEntry[];
 };
 
+/** A definition taken out of the editor. Its log still counts in stats. */
+export type RemovedDefinition = ElementDefinition & { deletedAt: number };
+
+/** Live definitions and removed ones. Stats count both logs. */
+export function loggedDefinitions(element: {
+  definitions: readonly ElementDefinition[];
+  removedDefinitions?: readonly ElementDefinition[];
+}): ElementDefinition[] {
+  return [...element.definitions, ...(element.removedDefinitions ?? [])];
+}
+
 /** The strings a form list is matched and highlighted with. */
 export function formTexts(forms: readonly ElementForm[]): string[] {
   return forms.map((form) => form.text);
@@ -144,6 +155,8 @@ export type StoredElement = {
   title: string;
   equivalents: ElementEquivalent[];
   definitions: ElementDefinition[];
+  /** Definitions removed from the editor. Their logs stay so stats do not drop. */
+  removedDefinitions: RemovedDefinition[];
   /** Optional swatch. Missing or invalid values are unset. */
   color: string | null;
   /** Times this card was opened from the edition list. Missing values are 0. */
@@ -307,6 +320,7 @@ export async function addElement(language: string, title: string): Promise<Store
     title: name,
     equivalents: [],
     definitions: [],
+    removedDefinitions: [],
     color: ELEMENT_COLOR_PRESETS[0],
     clicks: 0,
     log: [],
@@ -333,15 +347,11 @@ export async function saveElement(
   if (!id) throw new Error('Id is required');
   const createdAtValue = element?.createdAt;
   const content = normalizeContent(element?.equivalents, element?.definitions);
-  const definitions = content.definitions.map((definition) => ({
-    ...definition,
-    text: capitalizePassage(definition.text),
-    examples: definition.examples.map((example) => ({
-      ...example,
-      text: capitalizePassage(example.text),
-    })),
-    log: presentLog(definition.log),
-  }));
+  const definitions = content.definitions.map(presentDefinition);
+  const removedDefinitions = normalizeRemovedDefinitions(
+    element?.removedDefinitions,
+    content.equivalents,
+  ).map(presentDefinition);
   const indexes = collectMetadataIndexes(definitions);
   const saved: StoredElement = {
     id,
@@ -349,6 +359,7 @@ export async function saveElement(
     title,
     equivalents: content.equivalents,
     definitions,
+    removedDefinitions,
     color: normalizeColor(element?.color),
     clicks: normalizeClicks(element?.clicks),
     log: normalizeElementLog(element?.log),
@@ -459,6 +470,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     title,
     equivalents: content.equivalents,
     definitions: content.definitions,
+    removedDefinitions: normalizeRemovedDefinitions(source.removedDefinitions, content.equivalents),
     color: normalizeColor(source.color),
     clicks: normalizeClicks(source.clicks),
     log: normalizeElementLog(source.log),
@@ -582,6 +594,24 @@ function normalizeDefinitions(
     });
   }
   return definitions;
+}
+
+/** Drop a removed definition whose stamp or text does not survive. */
+function normalizeRemovedDefinitions(
+  value: unknown,
+  equivalents: ElementEquivalent[],
+): RemovedDefinition[] {
+  if (!Array.isArray(value)) return [];
+  const removed: RemovedDefinition[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue;
+    const deletedAt = (raw as { deletedAt?: unknown }).deletedAt;
+    if (typeof deletedAt !== 'number' || !Number.isFinite(deletedAt) || deletedAt <= 0) continue;
+    const [definition] = normalizeDefinitions([raw], equivalents);
+    if (!definition) continue;
+    removed.push({ ...definition, deletedAt });
+  }
+  return removed;
 }
 
 function resolveEquivalentIds(
@@ -736,6 +766,18 @@ function normalizeSnapshot(value: unknown): DefinitionSnapshot | undefined {
 }
 
 /** Match stored passages: the gloss and an added example are capitalized, the equivalent wording is not. */
+function presentDefinition<T extends ElementDefinition>(definition: T): T {
+  return {
+    ...definition,
+    text: capitalizePassage(definition.text),
+    examples: definition.examples.map((example) => ({
+      ...example,
+      text: capitalizePassage(example.text),
+    })),
+    log: presentLog(definition.log),
+  };
+}
+
 function presentLog(log: DefinitionLogEntry[]): DefinitionLogEntry[] {
   return log.map((entry) => {
     if (entry.event === 'game') {

@@ -1,4 +1,4 @@
-import { type StoredElement } from './element-store';
+import { loggedDefinitions, type StoredElement } from './element-store';
 import {
   normalizeMetadataVariability,
   type ElementMetadataVariability,
@@ -91,7 +91,7 @@ function variabilityMatches(
 /** Definition views. */
 function elementViews(element: StoredElement): number {
   let views = 0;
-  for (const definition of element.definitions) {
+  for (const definition of loggedDefinitions(element)) {
     for (const entry of definition.log) {
       if (entry.event === 'view') views += 1;
     }

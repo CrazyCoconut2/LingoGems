@@ -79,6 +79,7 @@ function tally(records: unknown[], language: string): DayStats[] {
       title?: unknown;
       createdAt?: unknown;
       definitions?: unknown;
+      removedDefinitions?: unknown;
     };
     if (source.deletedAt != null) continue;
     if (
@@ -100,8 +101,11 @@ function tally(records: unknown[], language: string): DayStats[] {
       }
     }
 
-    if (!Array.isArray(source.definitions)) continue;
-    for (const definition of source.definitions) {
+    const definitions = [
+      ...(Array.isArray(source.definitions) ? source.definitions : []),
+      ...(Array.isArray(source.removedDefinitions) ? source.removedDefinitions : []),
+    ];
+    for (const definition of definitions) {
       if (!isRecord(definition) || !Array.isArray(definition.log)) continue;
       for (const entry of definition.log) {
         if (!isRecord(entry)) continue;
