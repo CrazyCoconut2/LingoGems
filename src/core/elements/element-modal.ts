@@ -3136,31 +3136,33 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (!inPlay() && exerciseLog() >= 0) {
+        @if (!inPlay() && statsDefinition(); as definition) {
           @let index = exerciseLog();
-          @if (element().definitions[index]; as definition) {
-            <div class="sheet-backdrop" (click)="closeExerciseLog($event)">
-              <section
-                class="sheet definition-stats"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Stats"
-                (click)="$event.stopPropagation()"
-              >
-                <div class="sheet-head">
-                  <h3>Stats</h3>
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Close"
-                    (click)="closeExerciseLog()"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
-                    </svg>
-                  </button>
-                </div>
+          <div class="sheet-backdrop" (click)="closeExerciseLog($event)">
+            <section
+              class="sheet definition-stats"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Stats"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="sheet-head">
+                <h3>Stats</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Close"
+                  (click)="closeExerciseLog()"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p class="stats-definition">
+                {{ shownDefinition(parsePassage(definition.text).text) }}
+              </p>
                 @if (exerciseEntry() < 0) {
                   <div class="stats-summary">
                     <div
@@ -3186,16 +3188,18 @@ function writeExampleSuggestions(
                           <span class="stats-count">{{ reworkCount(definition) }}</span>
                           <span class="stats-caption">Reworked</span>
                         </li>
-                        <li [attr.aria-label]="revealLabel(revealCount(definition))">
-                          <span class="stats-well" aria-hidden="true">
-                            <svg class="stats-mark" viewBox="0 0 24 24">
-                              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                              <circle cx="12" cy="12" r="3" />
-                            </svg>
-                          </span>
-                          <span class="stats-count">{{ revealCount(definition) }}</span>
-                          <span class="stats-caption">Revealed</span>
-                        </li>
+                        @if (supportAvailable()) {
+                          <li [attr.aria-label]="revealLabel(revealCount(definition))">
+                            <span class="stats-well" aria-hidden="true">
+                              <svg class="stats-mark" viewBox="0 0 24 24">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </svg>
+                            </span>
+                            <span class="stats-count">{{ revealCount(definition) }}</span>
+                            <span class="stats-caption">Revealed</span>
+                          </li>
+                        }
                       </ul>
                     </section>
                   </div>
@@ -3494,7 +3498,6 @@ function writeExampleSuggestions(
                 }
               </section>
             </div>
-          }
         }
 
         @if (helpOpen()) {
@@ -4959,6 +4962,13 @@ function writeExampleSuggestions(
       gap: 0.85rem;
     }
 
+    .stats-definition {
+      margin: 0;
+      color: var(--text);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
     .stats-summary,
     .stats-log {
       display: flex;
@@ -5033,6 +5043,10 @@ function writeExampleSuggestions(
 
     .stats-activity {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .stats-activity:has(> li:only-child) {
+      grid-template-columns: minmax(0, 1fr);
     }
 
     .stats-gems li,
@@ -8958,9 +8972,10 @@ export class ElementModal {
     return this.round().equivalentRewards[index] ?? null;
   }
 
-  /** Visible game entries. Translation stays in the log and is omitted without a support language. */
+  /** Definition exercises on this definition. Other games stay out of this count. */
   exerciseCount(definition: ElementDefinition): number {
-    return this.exerciseHistory(definition).length;
+    return definition.log.filter((entry) => entry.event === 'game' && entry.game === 'definition')
+      .length;
   }
 
   logMode(game: DefinitionGameLog['game']): ElementMode {
@@ -8969,15 +8984,7 @@ export class ElementModal {
     return 1;
   }
 
-  /** Newest game first. Reworks, examples, views, and reveals stay out of this count. */
-  exerciseHistory(definition: ElementDefinition): DefinitionGameLog[] {
-    return definition.log
-      .filter((entry): entry is DefinitionGameLog => entry.event === 'game')
-      .filter((entry) => this.supportAvailable() || entry.game !== 'translation')
-      .reverse();
-  }
-
-  /** Newest rework, added example, and exercise. Views and reveals stay in the counts. */
+  /** Reworks, saved examples, saved forms, and definition exercises for this definition. */
   definitionHistory(definition: ElementDefinition): DefinitionHistoryEntry[] {
     return definition.log
       .filter((entry): entry is DefinitionHistoryEntry => this.listedHistory(entry))
@@ -9000,9 +9007,8 @@ export class ElementModal {
   }
 
   private listedHistory(entry: DefinitionLogEntry): entry is DefinitionHistoryEntry {
-    if (entry.event === 'rework' || entry.event === 'example' || entry.event === 'form')
-      return true;
-    return entry.event === 'game' && (this.supportAvailable() || entry.game !== 'translation');
+    if (entry.event === 'rework' || entry.event === 'example' || entry.event === 'form') return true;
+    return entry.event === 'game' && entry.game === 'definition';
   }
 
   exerciseWhen(at: number): string {
@@ -9014,8 +9020,15 @@ export class ElementModal {
     }).format(at);
   }
 
+  /** The definition on screen. Stats read this definition only. */
+  statsDefinition(): ElementDefinition | null {
+    const index = this.exerciseLog();
+    if (index < 0) return null;
+    return this.currentElement().definitions[index] ?? null;
+  }
+
   openExerciseLog(index: number): void {
-    if (this.inPlay() || !this.element().definitions[index]) return;
+    if (this.inPlay() || !this.currentElement().definitions[index]) return;
     this.exerciseEntry.set(-1);
     this.exerciseLog.set(index);
   }
