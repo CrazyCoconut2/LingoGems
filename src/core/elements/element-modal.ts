@@ -20,7 +20,6 @@ import {
   displayTitle,
   embedTranslation,
   equivalentTextFor,
-  labeledSupportText,
   linkEquivalent,
   parsePassage,
   passageForEditing,
@@ -542,6 +541,16 @@ function writeExampleSuggestions(
             </button>
           }
         </ng-template>
+        <ng-template #translationIcon>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m5 8 6 6" />
+            <path d="m4 14 6-6 2-3" />
+            <path d="M2 5h12" />
+            <path d="M7 2h1" />
+            <path d="m22 22-5-10-5 10" />
+            <path d="M14 18h6" />
+          </svg>
+        </ng-template>
         <ng-template #formIcon>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -903,10 +912,7 @@ function writeExampleSuggestions(
                                   "
                                   (click)="openEquivalentPrompt(index)"
                                 >
-                                  <app-mode-icon
-                                    [mode]="1"
-                                    [class.scintillate]="!equivalentSubmitted(index)"
-                                  />
+                                  <ng-container [ngTemplateOutlet]="translationIcon" />
                                   <span
                                     class="guess-answer"
                                     [class.play-blur]="!equivalentSubmitted(index)"
@@ -915,9 +921,7 @@ function writeExampleSuggestions(
                                   >
                                 </button>
                               } @else {
-                                @if (supportAvailable()) {
-                                  <app-mode-icon [mode]="1" />
-                                }
+                                <ng-container [ngTemplateOutlet]="translationIcon" />
                                 <app-reveal
                                   [text]="labeledEquivalent(equivalent)"
                                   [locked]="inPlay()"
@@ -4258,6 +4262,7 @@ function writeExampleSuggestions(
     .form-chip svg,
     .form-attributes-title svg,
     .engineer-forms .equivalent-choices svg,
+    .sense-equivalent svg,
     .equivalent-result svg {
       fill: none;
       stroke: currentColor;
@@ -4506,25 +4511,21 @@ function writeExampleSuggestions(
       height: 1.85rem;
       min-height: 1.85rem;
       padding-block: 0;
-      border-color: color-mix(in srgb, var(--gem-translation) 58%, transparent);
-      background: color-mix(in srgb, var(--gem-translation) 16%, transparent);
-      color: color-mix(in srgb, var(--gem-translation) 42%, white);
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+      color: var(--accent-text);
       font-weight: 600;
     }
 
-    .sense-equivalent app-mode-icon {
-      width: 1.15rem;
-      height: 1.15rem;
+    .sense-equivalent svg {
+      width: 0.95rem;
+      height: 0.95rem;
       flex: none;
     }
 
     .sense-meta li.sense-equivalent app-reveal,
     .sense-meta li.sense-equivalent .guess-answer {
       color: var(--text);
-    }
-
-    .sense-meta li.sense-equivalent.play-focus .guess-open:not(.needs-click) svg {
-      color: var(--accent);
     }
 
     .sense-meta li.sense-equivalent:has(.guess-open) {
@@ -4541,10 +4542,10 @@ function writeExampleSuggestions(
       height: 1.85rem;
       margin: 0;
       padding: 0 0.5rem;
-      border: 1px solid color-mix(in srgb, var(--gem-translation) 70%, transparent);
+      border: 1px solid var(--accent-border);
       border-radius: 0.4rem;
-      background: color-mix(in srgb, var(--gem-translation) 16%, transparent);
-      color: color-mix(in srgb, var(--gem-translation) 42%, white);
+      background: var(--accent-soft);
+      color: var(--accent-text);
       font: inherit;
       font-size: 0.75rem;
       font-weight: 600;
@@ -4552,8 +4553,8 @@ function writeExampleSuggestions(
       cursor: pointer;
     }
 
-    .guess-open:hover {
-      background: color-mix(in srgb, var(--gem-translation) 26%, transparent);
+    .guess-open:hover:not(.needs-click) {
+      background: rgba(var(--accent-rgb), 0.16);
     }
 
     .guess-open.needs-click {
@@ -5975,12 +5976,12 @@ export class ElementModal {
     return passage.translations.filter((item) => item.language === target);
   }
 
-  labeledTranslation(translation: { language: string; text: string }): string {
-    return labeledSupportText(translation.language, translation.text);
+  labeledTranslation(translation: { text: string }): string {
+    return translation.text.trim();
   }
 
   labeledEquivalent(text: string): string {
-    return labeledSupportText(this.translationTarget(), text);
+    return text.trim();
   }
 
   definitionActionLabel(definition: ElementDefinition): string {

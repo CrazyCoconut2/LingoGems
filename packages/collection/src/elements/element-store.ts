@@ -227,7 +227,7 @@ export function pruneEquivalentLinks(
   return next;
 }
 
-/** On-screen wording, such as `[English: this and that]`. */
+/** Editing line for one translation, such as `[English: this and that]`. */
 export function labeledSupportText(language: string, text: string): string {
   const body = text.trim();
   if (!body) return '';

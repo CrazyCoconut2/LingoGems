@@ -12,7 +12,6 @@ import {
   addElement,
   displayTitle,
   formMatchesTerm,
-  labeledSupportText,
   languageDisplayName,
   mergeMetadataVariability,
   normalizeMetadataVariability,
@@ -247,7 +246,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                                   @for (translation of translations; track $index) {
                                     <li>
                                       <app-reveal
-                                        [text]="labeledSupportText(translation.language, translation.text)"
+                                        [text]="translation.text"
                                       />
                                     </li>
                                   }
@@ -1509,8 +1508,6 @@ export class DiscoverModal implements OnInit {
   private translationTarget(): string {
     return supportLanguageFor(this.language());
   }
-
-  readonly labeledSupportText = labeledSupportText;
 
   /** Sense translations for the current support language, or none. */
   shownTranslations(passage: ParsedPassage): ParsedPassage['translations'] {
