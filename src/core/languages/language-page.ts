@@ -27,6 +27,7 @@ import {
   deleteElement,
   displayTitle,
   ELEMENT_COLOR_PRESETS,
+  equivalentTextFor,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
   elementMatchesColor,
@@ -2358,12 +2359,13 @@ export class LanguagePage {
 
   drillReady(element: StoredElement, mode: ElementMode): boolean {
     if (mode === 1) {
-      return element.definitions.some((definition) => {
-        const id = definition.equivalentId;
-        if (!id) return false;
-        const text = element.equivalents.find((item) => item.id === id)?.text ?? '';
-        return text.trim().length > 0;
-      });
+      const language = this.supportFor(element.language);
+      if (!language) return false;
+      return element.definitions.some(
+        (definition) =>
+          equivalentTextFor(element.equivalents, definition.equivalentIds, language).trim()
+            .length > 0,
+      );
     }
     if (mode === 2) {
       return element.definitions.some(
@@ -2802,7 +2804,7 @@ export class LanguagePage {
           title: generated.lemma,
           definitions: generated.definitions.map((sense) => ({
             text: sense.text,
-            equivalentId: null,
+            equivalentIds: {},
             forms: searchForms(generated.lemma, selected),
             examples: [],
             metadata: { ...sense.metadata },

@@ -12,6 +12,7 @@ import {
   addElement,
   displayTitle,
   formMatchesTerm,
+  labeledSupportText,
   languageDisplayName,
   mergeMetadataVariability,
   normalizeMetadataVariability,
@@ -245,7 +246,9 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                                 <ul class="sense-translations">
                                   @for (translation of translations; track $index) {
                                     <li>
-                                      <app-reveal [text]="translation.text" />
+                                      <app-reveal
+                                        [text]="labeledSupportText(translation.language, translation.text)"
+                                      />
                                     </li>
                                   }
                                 </ul>
@@ -1507,11 +1510,13 @@ export class DiscoverModal implements OnInit {
     return supportLanguageFor(this.language());
   }
 
-  readonly supportAvailable = computed(() => this.translationTarget() !== '');
+  readonly labeledSupportText = labeledSupportText;
 
-  /** Sense translations, hidden when this language has no support language. */
+  /** Sense translations for the current support language, or none. */
   shownTranslations(passage: ParsedPassage): ParsedPassage['translations'] {
-    return this.supportAvailable() ? passage.translations : [];
+    const target = this.translationTarget();
+    if (!target) return [];
+    return passage.translations.filter((item) => item.language === target);
   }
 
   canClear(): boolean {
@@ -1708,7 +1713,7 @@ async function saveDiscoveredElement(language: string, hit: DiscoverHit): Promis
   if (created.definitions.length || !hit.senses.length) return;
   const definitions: ElementDefinition[] = hit.senses.map((sense) => ({
     text: sense.text,
-    equivalentId: null,
+    equivalentIds: {},
     forms: [],
     examples: [],
     metadata: { ...sense.metadata },

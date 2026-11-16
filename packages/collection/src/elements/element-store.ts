@@ -2,6 +2,7 @@ import { CATALOG_ID, CATALOG_STORE, ELEMENTS_STORE, idbRequest, openDatabase } f
 import {
   isLearnableLanguage,
   languageCodeFromLabel,
+  languageDisplayName,
   type LearnableLanguage,
 } from '../languages/catalog';
 import { customElementColor, ELEMENT_COLOR_PRESETS, sanitizeElementColor } from './element-color';
@@ -23,7 +24,12 @@ type ElementExample = {
 export type ElementEquivalent = {
   id: string;
   text: string;
+  /** Learnable code this equivalent was written in. Empty on older records, which stay hidden. */
+  language: string;
 };
+
+/** Support-language code to the equivalent id written in that language. */
+export type EquivalentLinks = Record<string, string>;
 
 export type ElementForm = {
   text: string;
@@ -37,6 +43,12 @@ export type DefinitionLogBy = 'user' | 'ai';
 
 export type DefinitionGame = 'translation' | 'example' | 'definition';
 
+/** The definition passage and equivalent wording at one moment. */
+export type DefinitionSnapshot = {
+  text: string;
+  equivalent: string;
+};
+
 /** A scored answer. `game` through `explanation` is the metadata for that answer. */
 export type DefinitionGameLog = {
   event: 'game';
@@ -47,13 +59,32 @@ export type DefinitionGameLog = {
   at: number;
   answer: string;
   explanation?: string;
+  /** Definition when this attempt was first scored. */
+  snapshot?: DefinitionSnapshot;
 };
 
-/** One interaction on a definition: a view, a scored game, a rework, or a reveal. `at` is Unix time in UTC. */
+/** A change to the definition passage or its equivalent. */
+export type DefinitionReworkLog = {
+  event: 'rework';
+  at: number;
+  before?: DefinitionSnapshot;
+  after?: DefinitionSnapshot;
+};
+
+/** An example added to the definition. */
+export type DefinitionExampleLog = {
+  event: 'example';
+  at: number;
+  example: string;
+  snapshot?: DefinitionSnapshot;
+};
+
+/** One interaction on a definition. `at` is Unix time in UTC. */
 export type DefinitionLogEntry =
   | DefinitionGameLog
+  | DefinitionReworkLog
+  | DefinitionExampleLog
   | { event: 'view'; at: number }
-  | { event: 'rework'; at: number }
   | { event: 'reveal'; at: number };
 
 /** An open. `at` is when it happened. */
@@ -61,7 +92,8 @@ export type ElementLogEntry = { event: 'click'; at: number };
 
 export type ElementDefinition = {
   text: string;
-  equivalentId: string | null;
+  /** One equivalent per support language. Other languages stay when one of them changes. */
+  equivalentIds: EquivalentLinks;
   forms: ElementForm[];
   examples: ElementExample[];
   metadata: ElementMetadata;
@@ -116,21 +148,75 @@ export type StoredElement = {
   /** Distinct metadata values across this element's forms. */
   formMetadata: ElementMetadataVariability;
   createdAt: number;
-  /** Set when the element was removed from the collection. The record stays. */
-  deletedAt: number | null;
 };
 
-/** Empty text clears the link. An exact text match reuses that equivalent. */
+/** Empty text clears the link. An exact text match reuses that equivalent in the same language. */
 export function assignEquivalent(
   equivalents: readonly ElementEquivalent[],
   draft: string,
+  language: string,
 ): { equivalents: ElementEquivalent[]; equivalentId: string | null } {
   const text = draft.trim();
-  if (!text) return { equivalents: [...equivalents], equivalentId: null };
-  const existing = equivalents.find((item) => item.text === text);
+  const code = supportCode(language);
+  if (!text || !code) return { equivalents: [...equivalents], equivalentId: null };
+  const existing = equivalents.find((item) => item.language === code && item.text === text);
   if (existing) return { equivalents: [...equivalents], equivalentId: existing.id };
-  const created: ElementEquivalent = { id: crypto.randomUUID(), text };
+  const created: ElementEquivalent = { id: crypto.randomUUID(), text, language: code };
   return { equivalents: [...equivalents, created], equivalentId: created.id };
+}
+
+/** Wording linked for one support language, or '' when that language has none. */
+export function equivalentTextFor(
+  equivalents: readonly ElementEquivalent[],
+  links: EquivalentLinks,
+  language: string,
+): string {
+  const code = supportCode(language);
+  if (!code) return '';
+  const id = links[code];
+  if (!id) return '';
+  return equivalents.find((item) => item.id === id && item.language === code)?.text ?? '';
+}
+
+/** Set or clear one language without dropping the others. */
+export function linkEquivalent(
+  links: EquivalentLinks,
+  language: string,
+  equivalentId: string | null,
+): EquivalentLinks {
+  const code = supportCode(language);
+  const next = { ...links };
+  if (!code) return next;
+  if (!equivalentId) delete next[code];
+  else next[code] = equivalentId;
+  return next;
+}
+
+/** Drop links whose equivalent is no longer in the pool. */
+export function pruneEquivalentLinks(
+  links: EquivalentLinks,
+  kept: ReadonlySet<string>,
+): EquivalentLinks {
+  const next: EquivalentLinks = {};
+  for (const [language, id] of Object.entries(links)) {
+    if (kept.has(id)) next[language] = id;
+  }
+  return next;
+}
+
+/** On-screen wording, such as `[English: this and that]`. */
+export function labeledSupportText(language: string, text: string): string {
+  const body = text.trim();
+  if (!body) return '';
+  const code = supportCode(language);
+  const name = code ? languageDisplayName(code) : '';
+  if (!name) return body;
+  return `[${name}: ${body}]`;
+}
+
+function supportCode(language: string): string {
+  const code = language.trim().toLowerCase().split('-')[0] ?? '';
+  return isLearnableLanguage(code) ? code : '';
 }
 
 export async function readElements(language: string): Promise<StoredElement[]> {
@@ -160,7 +246,12 @@ async function materializeElements(
   records: unknown[],
   language?: LearnableLanguage,
 ): Promise<StoredElement[]> {
-  const stale = records.filter(recordHasDefinitionGem);
+  const removed = records
+    .map(removedRecord)
+    .filter((record): record is RemovedRecord => record !== null);
+  if (removed.length) await purgeElements(removed);
+  const live = records.filter((record) => !removedRecord(record));
+  const stale = live.filter(recordHasDefinitionGem);
   if (stale.length) {
     await Promise.all(
       stale.map(async (record) => {
@@ -169,13 +260,11 @@ async function materializeElements(
       }),
     );
   }
-  return records
+  return live
     .map(normalizeElement)
     .filter(
       (element): element is StoredElement =>
-        element !== null &&
-        element.deletedAt == null &&
-        (!language || element.language === language),
+        element !== null && (!language || element.language === language),
     )
     .sort(
       (left, right) => left.createdAt - right.createdAt || left.title.localeCompare(right.title),
@@ -214,7 +303,6 @@ export async function addElement(language: string, title: string): Promise<Store
     log: [],
     ...emptyMetadataIndexes(),
     createdAt: Date.now(),
-    deletedAt: null,
   };
   await putElement(created);
   return created;
@@ -243,6 +331,7 @@ export async function saveElement(
       ...example,
       text: capitalizePassage(example.text),
     })),
+    log: presentLog(definition.log),
   }));
   const indexes = collectMetadataIndexes(definitions);
   const saved: StoredElement = {
@@ -257,7 +346,6 @@ export async function saveElement(
     ...indexes,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
-    deletedAt: deletedAtOf(element?.deletedAt),
   };
   await putElement(saved);
   if (
@@ -285,8 +373,9 @@ export async function replaceCollection(
   const saved: StoredElement[] = [];
   const seen = new Set<string>();
   for (const raw of elements) {
+    if (removedRecord(raw)) continue;
     const element = normalizeElement(raw);
-    if (!element || element.deletedAt != null || seen.has(element.id)) continue;
+    if (!element || seen.has(element.id)) continue;
     seen.add(element.id);
     saved.push(element);
   }
@@ -311,9 +400,11 @@ export async function deleteElement(id: string): Promise<void> {
   const raw = await idbRequest(
     db.transaction(ELEMENTS_STORE, 'readonly').objectStore(ELEMENTS_STORE).get(key),
   );
-  const element = normalizeElement(raw);
-  if (!element || element.deletedAt != null) return;
-  await putElement({ ...element, deletedAt: Date.now() });
+  await idbRequest(
+    db.transaction(ELEMENTS_STORE, 'readwrite').objectStore(ELEMENTS_STORE).delete(key),
+  );
+  const language = languageOf(raw);
+  if (language) elementWriteListener?.(language);
 }
 
 function transactionDone(tx: IDBTransaction): Promise<void> {
@@ -365,12 +456,39 @@ function normalizeElement(raw: unknown): StoredElement | null {
     ...collectMetadataIndexes(content.definitions),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
-    deletedAt: deletedAtOf(source.deletedAt),
   };
 }
 
-function deletedAtOf(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+type RemovedRecord = { id: string; language: string };
+
+/** An older build kept a removed element and stamped `deletedAt`. Drop that row. */
+function removedRecord(record: unknown): RemovedRecord | null {
+  if (!record || typeof record !== 'object') return null;
+  const source = record as { id?: unknown; language?: unknown; deletedAt?: unknown };
+  const deletedAt = source.deletedAt;
+  if (typeof deletedAt !== 'number' || !Number.isFinite(deletedAt) || deletedAt <= 0) return null;
+  const id = typeof source.id === 'string' ? source.id.trim() : '';
+  if (!id) return null;
+  return { id, language: languageOf(source) };
+}
+
+function languageOf(record: unknown): string {
+  if (!record || typeof record !== 'object') return '';
+  const language = String((record as { language?: unknown }).language ?? '')
+    .trim()
+    .toLowerCase();
+  return isLearnableLanguage(language) ? language : '';
+}
+
+async function purgeElements(removed: RemovedRecord[]): Promise<void> {
+  const db = await openDatabase();
+  const tx = db.transaction(ELEMENTS_STORE, 'readwrite');
+  const store = tx.objectStore(ELEMENTS_STORE);
+  for (const record of removed) store.delete(record.id);
+  await transactionDone(tx);
+  for (const language of new Set(removed.map((record) => record.language).filter(Boolean))) {
+    elementWriteListener?.(language);
+  }
 }
 
 function normalizeElementLog(value: unknown): ElementLogEntry[] {
@@ -425,7 +543,7 @@ function normalizeEquivalents(value: unknown): ElementEquivalent[] {
     const text = normalizePlainText(source.text);
     if (!id || !text || seen.has(id)) continue;
     seen.add(id);
-    equivalents.push({ id, text });
+    equivalents.push({ id, text, language: supportCode(source.language ?? '') });
   }
   return equivalents;
 }
@@ -440,13 +558,14 @@ function normalizeDefinitions(
     if (!raw || typeof raw !== 'object') continue;
     const source = raw as Partial<ElementDefinition> & {
       equivalent?: unknown;
+      equivalentId?: unknown;
       translation?: unknown;
     };
     const text = withEmbeddedTranslation(String(source.text ?? ''), source.translation);
     if (!text) continue;
     definitions.push({
       text,
-      equivalentId: resolveEquivalentId(source, equivalents),
+      equivalentIds: resolveEquivalentIds(source, equivalents),
       forms: normalizeForms(source.forms),
       examples: normalizeExamples(source.examples),
       metadata: normalizeMetadata(source.metadata),
@@ -456,19 +575,48 @@ function normalizeDefinitions(
   return definitions;
 }
 
-function resolveEquivalentId(
-  source: { equivalentId?: unknown; equivalent?: unknown },
+function resolveEquivalentIds(
+  source: { equivalentId?: unknown; equivalentIds?: unknown; equivalent?: unknown },
   equivalents: ElementEquivalent[],
-): string | null {
+): EquivalentLinks {
+  if (
+    source.equivalentIds &&
+    typeof source.equivalentIds === 'object' &&
+    !Array.isArray(source.equivalentIds)
+  ) {
+    return linksFromRecord(source.equivalentIds, equivalents);
+  }
+  const links: EquivalentLinks = {};
   const id = typeof source.equivalentId === 'string' ? source.equivalentId.trim() : '';
-  if (id && equivalents.some((item) => item.id === id)) return id;
+  if (id) {
+    const item = equivalents.find((entry) => entry.id === id);
+    if (item?.language) links[item.language] = item.id;
+    return links;
+  }
   const legacy = normalizePlainText(source.equivalent);
-  if (!legacy) return null;
-  const match = equivalents.find((item) => item.text === legacy);
-  if (match) return match.id;
-  const created: ElementEquivalent = { id: crypto.randomUUID(), text: legacy };
-  equivalents.push(created);
-  return created.id;
+  if (!legacy) return links;
+  const match = equivalents.find((item) => item.language && item.text === legacy);
+  if (match?.language) {
+    links[match.language] = match.id;
+    return links;
+  }
+  if (!equivalents.some((item) => !item.language && item.text === legacy)) {
+    equivalents.push({ id: crypto.randomUUID(), text: legacy, language: '' });
+  }
+  return links;
+}
+
+function linksFromRecord(value: object, equivalents: readonly ElementEquivalent[]): EquivalentLinks {
+  const links: EquivalentLinks = {};
+  for (const [rawLanguage, rawId] of Object.entries(value)) {
+    const language = supportCode(rawLanguage);
+    const id = typeof rawId === 'string' ? rawId.trim() : '';
+    if (!language || !id) continue;
+    const item = equivalents.find((entry) => entry.id === id);
+    if (!item || item.language !== language) continue;
+    links[language] = id;
+  }
+  return links;
 }
 
 function normalizePlainText(value: unknown): string {
@@ -497,10 +645,36 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     at?: unknown;
     answer?: unknown;
     explanation?: unknown;
+    example?: unknown;
+    before?: unknown;
+    after?: unknown;
+    snapshot?: unknown;
   };
-  if (source.event === 'view' || source.event === 'rework' || source.event === 'reveal') {
-    if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
-    return { event: source.event, at: source.at };
+  const at = typeof source.at === 'number' && Number.isFinite(source.at) ? source.at : null;
+  if (source.event === 'view' || source.event === 'reveal') {
+    if (at == null) return null;
+    return { event: source.event, at };
+  }
+  if (source.event === 'rework') {
+    if (at == null) return null;
+    const before = normalizeSnapshot(source.before);
+    const after = normalizeSnapshot(source.after);
+    return {
+      event: 'rework',
+      at,
+      ...(before ? { before } : {}),
+      ...(after ? { after } : {}),
+    };
+  }
+  if (source.event === 'example') {
+    if (at == null) return null;
+    const snapshot = normalizeSnapshot(source.snapshot);
+    return {
+      event: 'example',
+      at,
+      example: typeof source.example === 'string' ? source.example : '',
+      ...(snapshot ? { snapshot } : {}),
+    };
   }
   if (source.event != null && source.event !== 'game') return null;
   if (source.game !== 'translation' && source.game !== 'example' && source.game !== 'definition') {
@@ -522,7 +696,49 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     answer,
   };
   if (explanation) entry.explanation = explanation;
+  const snapshot = normalizeSnapshot(source.snapshot);
+  if (snapshot) entry.snapshot = snapshot;
   return entry;
+}
+
+/** Keep a snapshot only when both the passage and the equivalent wording are strings. */
+function normalizeSnapshot(value: unknown): DefinitionSnapshot | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const source = value as { text?: unknown; equivalent?: unknown };
+  if (typeof source.text !== 'string' || typeof source.equivalent !== 'string') return undefined;
+  return { text: source.text, equivalent: source.equivalent };
+}
+
+/** Match stored passages: the gloss and an added example are capitalized, the equivalent wording is not. */
+function presentLog(log: DefinitionLogEntry[]): DefinitionLogEntry[] {
+  return log.map((entry) => {
+    if (entry.event === 'game') {
+      return entry.snapshot ? { ...entry, snapshot: presentSnapshot(entry.snapshot) } : entry;
+    }
+    if (entry.event === 'rework') {
+      const before = entry.before ? presentSnapshot(entry.before) : undefined;
+      const after = entry.after ? presentSnapshot(entry.after) : undefined;
+      return {
+        event: 'rework',
+        at: entry.at,
+        ...(before ? { before } : {}),
+        ...(after ? { after } : {}),
+      };
+    }
+    if (entry.event === 'example') {
+      return {
+        event: 'example',
+        at: entry.at,
+        example: capitalizePassage(entry.example),
+        ...(entry.snapshot ? { snapshot: presentSnapshot(entry.snapshot) } : {}),
+      };
+    }
+    return entry;
+  });
+}
+
+function presentSnapshot(snapshot: DefinitionSnapshot): DefinitionSnapshot {
+  return { text: capitalizePassage(snapshot.text), equivalent: snapshot.equivalent.trim() };
 }
 
 const TRANSLATION_MARKER = /\[([^\[\]:\n]+):\s*([^\]]*)]/g;
@@ -572,16 +788,17 @@ export function parsePassage(value: string): ParsedPassage {
   return { text, translations };
 }
 
-/** The phrase as edited: the gloss, then the selected translation alone inside `[]`. */
+/** The phrase as edited: the gloss, then the selected translation as `[English: …]`. */
 export function passageForEditing(value: string, language = ''): string {
   const parsed = parsePassage(value);
-  const key = language.trim().toLowerCase().split('-')[0];
+  const key = supportCode(language);
   const translation = key
     ? (parsed.translations.find((item) => item.language === key)?.text ?? '')
     : '';
   const base = parsed.text.trim();
   if (!translation) return base;
-  return base ? `${base}\n[${translation}]` : `[${translation}]`;
+  const labeled = labeledSupportText(key, translation);
+  return base ? `${base}\n${labeled}` : labeled;
 }
 
 /** Read an editing box. A whole line of `[…]` is the translation, with or without a language label. */

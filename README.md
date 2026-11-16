@@ -20,13 +20,13 @@ TODO
   that's usually a sign to rework the definition or other shit
   cause you don't want to systematically unblur. So we need to
   keep track of when the user unblurs.
-- Edit or delete metadata for all the elements : Example, modify
-  mexico with a flat and it modified the region for all the things.
+    -> For that we need a number of unblurs before signaling to the user that he needs to probably rework the definition.
 - FORMS: Forms prioritized for example generation.
-  If you choose one,it checks its metadata and recommends some to prioritize among the other forms when you want to create an example for another thing.
-- We should be able to no longer have a support language.
-  Careful with this feature cause it affects lots of things.
-- You could theoretically just play an element.
+  If you choose one, it checks its metadata and recommends some to prioritize among the other forms when you want to create an example for another thing. Upon what the user writes.
 
 Also, with the embedded browser we can save links for shit. Or put
 them in examples, that's fucking great man it will be awesome.
+
+TODO Later:
+- Edit or delete metadata for all the elements : Example, modify
+  mexico with a flat and it modified the region for all the things.

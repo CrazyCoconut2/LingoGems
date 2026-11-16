@@ -19,8 +19,12 @@ import {
   deleteElement,
   displayTitle,
   embedTranslation,
+  equivalentTextFor,
+  labeledSupportText,
+  linkEquivalent,
   parsePassage,
   passageForEditing,
+  pruneEquivalentLinks,
   type ParsedPassage,
   readEditingDraft,
   elementModeHelp,
@@ -33,8 +37,12 @@ import {
   saveElement,
   sanitizeElementColor,
   TRANSLATION_GEM_MAX,
+  type DefinitionExampleLog,
   type DefinitionGameLog,
   type DefinitionHighlightMatch,
+  type DefinitionLogEntry,
+  type DefinitionReworkLog,
+  type DefinitionSnapshot,
   type DefinitionHighlightPart,
   type ElementDefinition,
   type ElementEquivalent,
@@ -147,6 +155,8 @@ function mergeMetadata(current: ElementMetadata, extra: ElementMetadata): Elemen
   }
   return next;
 }
+
+type DefinitionHistoryEntry = DefinitionGameLog | DefinitionReworkLog | DefinitionExampleLog;
 
 type ConfirmDelete =
   | { kind: 'element' }
@@ -579,7 +589,7 @@ function writeExampleSuggestions(
               </button>
             </div>
           </div>
-          @if (headerEquivalents(); as equivalents) {
+          @if (supportAvailable() && headerEquivalents(); as equivalents) {
             @if (equivalents.length) {
               <p class="equivalents" [attr.aria-hidden]="headerTranslationsLocked() ? true : null">
                 @for (item of equivalents; track item.id) {
@@ -590,11 +600,11 @@ function writeExampleSuggestions(
                     <span
                       [class.play-blur]="!equivalentEarned(item.id)"
                       [attr.aria-hidden]="equivalentEarned(item.id) ? null : true"
-                      >{{ item.text }}</span
+                      >{{ labeledEquivalent(item.text) }}</span
                     >
                   } @else {
                     <app-reveal
-                      [text]="item.text"
+                      [text]="labeledEquivalent(item.text)"
                       [locked]="headerTranslationsLocked()"
                       [open]="equivalentUnveiled(item.text) || equivalentEarned(item.id)"
                       (unveiled)="unveilEquivalent(item.text)"
@@ -675,12 +685,8 @@ function writeExampleSuggestions(
                   <button
                     type="button"
                     class="icon-btn"
-                    [attr.aria-label]="
-                      definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                    "
-                    [attr.title]="
-                      definition.equivalentId ? 'Edit definition' : 'Add an equivalent'
-                    "
+                    [attr.aria-label]="definitionActionLabel(definition)"
+                    [attr.title]="definitionActionLabel(definition)"
                     [disabled]="inPlay() || aiBusy()"
                     (click)="openDefinition(index)"
                   >
@@ -841,7 +847,7 @@ function writeExampleSuggestions(
                             @for (translation of translations; track $index) {
                               <li>
                                 <app-reveal
-                                  [text]="translation.text"
+                                  [text]="labeledTranslation(translation)"
                                   [locked]="inPlay()"
                                   (unveiled)="noteReveal(index)"
                                 />
@@ -852,9 +858,9 @@ function writeExampleSuggestions(
                       </ng-template>
                       @let equivalent = equivalentText(definition);
                       @let meta = entries(definition.metadata);
-                      @if (equivalent || meta.length) {
+                      @if ((supportAvailable() && equivalent) || meta.length) {
                         <ul class="sense-meta">
-                          @if (equivalent) {
+                          @if (supportAvailable() && equivalent) {
                             <li class="sense-equivalent" [class.play-focus]="translationGame()">
                               @if (translationGame()) {
                                 <button
@@ -881,7 +887,7 @@ function writeExampleSuggestions(
                                     class="guess-answer"
                                     [class.play-blur]="!equivalentSubmitted(index)"
                                     [attr.aria-hidden]="equivalentSubmitted(index) ? null : true"
-                                    >{{ equivalent }}</span
+                                    >{{ labeledEquivalent(equivalent) }}</span
                                   >
                                 </button>
                               } @else {
@@ -889,7 +895,7 @@ function writeExampleSuggestions(
                                   <app-mode-icon [mode]="1" />
                                 }
                                 <app-reveal
-                                  [text]="equivalent"
+                                  [text]="labeledEquivalent(equivalent)"
                                   [locked]="inPlay()"
                                   [open]="equivalentUnveiled(equivalent)"
                                   (unveiled)="unveilEquivalent(equivalent)"
@@ -1014,7 +1020,7 @@ function writeExampleSuggestions(
                                         @for (translation of translations; track $index) {
                                           <li>
                                             <app-reveal
-                                              [text]="translation.text"
+                                              [text]="labeledTranslation(translation)"
                                               [locked]="inPlay()"
                                               (unveiled)="noteReveal(index)"
                                             />
@@ -1379,12 +1385,11 @@ function writeExampleSuggestions(
                 @if (sheetError()) {
                   <p class="error">{{ sheetError() }}</p>
                 }
-                @if (current.kind === 'definition') {
+                @if (current.kind === 'definition' && supportAvailable()) {
                   <div class="equivalent-block">
                     <div class="field-heading">
                       <label class="field-label" for="definition-equivalent">Equivalent</label>
-                      @if (supportAvailable()) {
-                        <button
+                      <button
                           type="button"
                           class="icon-btn"
                           [attr.aria-label]="
@@ -1410,26 +1415,25 @@ function writeExampleSuggestions(
                             <path d="M19 17v4" />
                             <path d="M17 19h4" />
                           </svg>
-                        </button>
-                      }
+                      </button>
                     </div>
                     <ul class="equivalent-choices equivalent-pills">
-                      @for (item of sheetEquivalents(); track item.id) {
+                      @for (item of editorEquivalents(); track item.id) {
                         <li [class.selected]="equivalentSelected(item.id)">
                           <button
                             type="button"
                             [attr.aria-pressed]="equivalentSelected(item.id)"
                             [disabled]="busy()"
-                            [attr.aria-label]="item.text"
+                            [attr.aria-label]="labeledEquivalent(item.text)"
                             (click)="chooseEquivalent(item.id)"
                           >
-                            {{ item.text }}
+                            {{ labeledEquivalent(item.text) }}
                           </button>
                           <button
                             type="button"
                             class="tag-remove"
                             [disabled]="busy()"
-                            [attr.aria-label]="'Remove equivalent ' + item.text"
+                            [attr.aria-label]="'Remove equivalent ' + labeledEquivalent(item.text)"
                             (click)="removeEquivalent(item.id)"
                           >
                             ×
@@ -2061,7 +2065,7 @@ function writeExampleSuggestions(
                             @for (translation of translations; track $index) {
                               <li>
                                 <app-reveal
-                                  [text]="translation.text"
+                                  [text]="labeledTranslation(translation)"
                                   (unveiled)="noteReveal(prompt)"
                                 />
                               </li>
@@ -2081,7 +2085,7 @@ function writeExampleSuggestions(
                           <path d="m22 22-5-10-5 10" />
                           <path d="M14 18h6" />
                         </svg>
-                        <span>{{ answer }}</span>
+                        <span>{{ labeledEquivalent(answer) }}</span>
                       </p>
                       <div class="sheet-actions">
                         <button
@@ -2106,7 +2110,7 @@ function writeExampleSuggestions(
                               <path d="m22 22-5-10-5 10" />
                               <path d="M14 18h6" />
                             </svg>
-                            <span>{{ answer }}</span>
+                            <span>{{ labeledEquivalent(answer) }}</span>
                           </p>
                         </div>
                         <div class="compare-side yours">
@@ -2168,7 +2172,7 @@ function writeExampleSuggestions(
                         <path d="m22 22-5-10-5 10" />
                         <path d="M14 18h6" />
                       </svg>
-                      <span class="play-blur" aria-hidden="true">{{ answer }}</span>
+                      <span class="play-blur" aria-hidden="true">{{ labeledEquivalent(answer) }}</span>
                     </p>
                     <label class="field-label" [attr.for]="'play-equivalent-' + prompt">
                       Write the equivalent
@@ -2250,7 +2254,7 @@ function writeExampleSuggestions(
                       <ul class="equivalents">
                         @for (translation of translations; track $index) {
                           <li>
-                            <app-reveal [text]="translation.text" (unveiled)="noteReveal(prompt)" />
+                            <app-reveal [text]="labeledTranslation(translation)" (unveiled)="noteReveal(prompt)" />
                           </li>
                         }
                       </ul>
@@ -2277,7 +2281,7 @@ function writeExampleSuggestions(
                             @for (translation of translations; track $index) {
                               <li>
                                 <app-reveal
-                                  [text]="translation.text"
+                                  [text]="labeledTranslation(translation)"
                                   (unveiled)="noteReveal(prompt)"
                                 />
                               </li>
@@ -2553,7 +2557,7 @@ function writeExampleSuggestions(
                       <ul class="equivalents">
                         @for (translation of translations; track $index) {
                           <li>
-                            <app-reveal [text]="translation.text" (unveiled)="noteReveal(prompt)" />
+                            <app-reveal [text]="labeledTranslation(translation)" (unveiled)="noteReveal(prompt)" />
                           </li>
                         }
                       </ul>
@@ -2895,78 +2899,57 @@ function writeExampleSuggestions(
                       </ul>
                     </section>
                   </div>
-                  @if (exerciseHistory(definition).length) {
+                  @if (definitionHistory(definition).length) {
                     <section class="stats-log">
-                      <h3>Exercises</h3>
+                      <h3>History</h3>
                       <div class="add-choices">
-                        @for (entry of exerciseHistory(definition); track $index) {
+                        @for (entry of definitionHistory(definition); track $index) {
                           <button
                             type="button"
                             class="btn btn-secondary add-choice log-row"
-                            [attr.aria-label]="
-                              modeLabel(logMode(entry.game)) +
-                              ', score ' +
-                              entry.score +
-                              ' out of 5, ' +
-                              exerciseWhen(entry.at)
-                            "
+                            [attr.aria-label]="historyAria(entry)"
                             (click)="exerciseEntry.set($index)"
                           >
                             <span class="log-copy">
-                              <span class="log-game">{{ modeLabel(logMode(entry.game)) }}</span>
+                              <span class="log-game">{{ historyTitle(entry) }}</span>
                               <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                             </span>
-                            <span class="score-readout" [attr.data-game]="entry.game" aria-hidden="true">
-                              {{ entry.score }}<span class="score-max">/5</span>
-                            </span>
+                            @if (entry.event === 'game') {
+                              <span
+                                class="score-readout"
+                                [attr.data-game]="entry.game"
+                                aria-hidden="true"
+                              >
+                                {{ entry.score }}<span class="score-max">/5</span>
+                              </span>
+                            }
                           </button>
                         }
                       </div>
                     </section>
                   }
                 } @else {
-                  @let entry = exerciseHistory(definition)[exerciseEntry()];
+                  @let entry = definitionHistory(definition)[exerciseEntry()];
                   @if (entry) {
-                    @let passage = parsePassage(definition.text);
-                    @let gloss = passage.text;
-                    @let equivalent = equivalentText(definition);
-                    @if (gloss && entry.answer && entry.game !== 'definition') {
-                      <div class="equivalent-gloss">
-                        <p class="field-label">Definition</p>
-                        <p>{{ shownDefinition(gloss) }}</p>
-                        @let translations = shownTranslations(passage);
-                        @if (translations.length) {
-                          <ul class="equivalents">
-                            @for (translation of translations; track $index) {
-                              <li>
-                                <app-reveal
-                                  [text]="translation.text"
-                                  (unveiled)="noteReveal(index)"
-                                />
-                              </li>
-                            }
-                          </ul>
-                        }
-                      </div>
-                    }
-                    @if (!entry.answer) {
-                      <p class="field-label">You gave up</p>
-                      @if (entry.game === 'definition' || entry.game === 'example') {
-                        <p class="passage">{{ shownDefinition(gloss) }}</p>
-                        @let translations = shownTranslations(passage);
-                        @if (translations.length) {
-                          <ul class="equivalents">
-                            @for (translation of translations; track $index) {
-                              <li>
-                                <app-reveal
-                                  [text]="translation.text"
-                                  (unveiled)="noteReveal(index)"
-                                />
-                              </li>
-                            }
-                          </ul>
-                        }
-                      } @else if (equivalent) {
+                    <ng-template #historyPassage let-text="text" let-equivalent="equivalent">
+                      @let passage = parsePassage(text);
+                      @if (passage.text) {
+                        <p class="passage">{{ shownDefinition(passage.text) }}</p>
+                      }
+                      @let translations = shownTranslations(passage);
+                      @if (translations.length) {
+                        <ul class="equivalents">
+                          @for (translation of translations; track $index) {
+                            <li>
+                              <app-reveal
+                                [text]="labeledTranslation(translation)"
+                                (unveiled)="noteReveal(index)"
+                              />
+                            </li>
+                          }
+                        </ul>
+                      }
+                      @if (equivalent) {
                         <p class="equivalent-result">
                           <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="m5 8 6 6" />
@@ -2979,66 +2962,190 @@ function writeExampleSuggestions(
                           <span>{{ equivalent }}</span>
                         </p>
                       }
-                    } @else if (entry.game === 'example') {
-                      <div class="compare-side yours">
-                        <p class="field-label">You wrote</p>
-                        <p>{{ entry.answer }}</p>
-                      </div>
+                    </ng-template>
+                    @if (entry.event === 'rework') {
+                      @if (entry.before && entry.after) {
+                        <div class="compare">
+                          <div class="compare-side">
+                            <p class="field-label">Before</p>
+                            <ng-container
+                              [ngTemplateOutlet]="historyPassage"
+                              [ngTemplateOutletContext]="{
+                                text: entry.before.text,
+                                equivalent: entry.before.equivalent,
+                              }"
+                            />
+                          </div>
+                          <div class="compare-side yours">
+                            <p class="field-label">After</p>
+                            <ng-container
+                              [ngTemplateOutlet]="historyPassage"
+                              [ngTemplateOutletContext]="{
+                                text: entry.after.text,
+                                equivalent: entry.after.equivalent,
+                              }"
+                            />
+                          </div>
+                        </div>
+                      } @else if (entry.before; as side) {
+                        <p class="field-label">Before</p>
+                        <ng-container
+                          [ngTemplateOutlet]="historyPassage"
+                          [ngTemplateOutletContext]="{
+                            text: side.text,
+                            equivalent: side.equivalent,
+                          }"
+                        />
+                      } @else if (entry.after; as side) {
+                        <p class="field-label">After</p>
+                        <ng-container
+                          [ngTemplateOutlet]="historyPassage"
+                          [ngTemplateOutletContext]="{
+                            text: side.text,
+                            equivalent: side.equivalent,
+                          }"
+                        />
+                      } @else {
+                        <p class="field-label">Reworked</p>
+                      }
+                      <p class="hint">{{ exerciseWhen(entry.at) }}</p>
+                    } @else if (entry.event === 'example') {
+                      @if (entry.snapshot; as snapshot) {
+                        <div class="equivalent-gloss">
+                          <p class="field-label">Definition</p>
+                          <ng-container
+                            [ngTemplateOutlet]="historyPassage"
+                            [ngTemplateOutletContext]="{
+                              text: snapshot.text,
+                              equivalent: snapshot.equivalent,
+                            }"
+                          />
+                        </div>
+                      }
+                      @if (entry.example) {
+                        <div class="compare-side yours">
+                          <p class="field-label">Example</p>
+                          <ng-container
+                            [ngTemplateOutlet]="historyPassage"
+                            [ngTemplateOutletContext]="{ text: entry.example, equivalent: '' }"
+                          />
+                        </div>
+                      }
+                      <p class="hint">{{ exerciseWhen(entry.at) }}</p>
                     } @else {
-                      <div class="compare">
-                        <div class="compare-side">
-                          @if (entry.game === 'definition') {
-                            <p class="field-label">Definition</p>
-                            <p class="passage">{{ shownDefinition(gloss) }}</p>
-                            @let translations = shownTranslations(passage);
-                            @if (translations.length) {
-                              <ul class="equivalents">
-                                @for (translation of translations; track $index) {
-                                  <li>
-                                    <app-reveal
-                                      [text]="translation.text"
-                                      (unveiled)="noteReveal(index)"
-                                    />
-                                  </li>
-                                }
-                              </ul>
-                            }
-                          } @else {
-                            <p class="field-label">Equivalent</p>
-                            <p class="equivalent-result">
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m5 8 6 6" />
-                                <path d="m4 14 6-6 2-3" />
-                                <path d="M2 5h12" />
-                                <path d="M7 2h1" />
-                                <path d="m22 22-5-10-5 10" />
-                                <path d="M14 18h6" />
-                              </svg>
-                              <span>{{ equivalent }}</span>
-                            </p>
+                      @let passage = parsePassage(entry.snapshot?.text ?? definition.text);
+                      @let gloss = passage.text;
+                      @let equivalent = entry.snapshot?.equivalent ?? equivalentText(definition);
+                      @if (gloss && entry.answer && entry.game !== 'definition') {
+                        <div class="equivalent-gloss">
+                          <p class="field-label">Definition</p>
+                          <p>{{ shownDefinition(gloss) }}</p>
+                          @let translations = shownTranslations(passage);
+                          @if (translations.length) {
+                            <ul class="equivalents">
+                              @for (translation of translations; track $index) {
+                                <li>
+                                  <app-reveal
+                                    [text]="labeledTranslation(translation)"
+                                    (unveiled)="noteReveal(index)"
+                                  />
+                                </li>
+                              }
+                            </ul>
                           }
                         </div>
+                      }
+                      @if (!entry.answer) {
+                        <p class="field-label">You gave up</p>
+                        @if (entry.game === 'definition' || entry.game === 'example') {
+                          <p class="passage">{{ shownDefinition(gloss) }}</p>
+                          @let translations = shownTranslations(passage);
+                          @if (translations.length) {
+                            <ul class="equivalents">
+                              @for (translation of translations; track $index) {
+                                <li>
+                                  <app-reveal
+                                    [text]="labeledTranslation(translation)"
+                                    (unveiled)="noteReveal(index)"
+                                  />
+                                </li>
+                              }
+                            </ul>
+                          }
+                        } @else if (equivalent) {
+                          <p class="equivalent-result">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
+                            </svg>
+                            <span>{{ equivalent }}</span>
+                          </p>
+                        }
+                      } @else if (entry.game === 'example') {
                         <div class="compare-side yours">
                           <p class="field-label">You wrote</p>
                           <p>{{ entry.answer }}</p>
                         </div>
-                      </div>
+                      } @else {
+                        <div class="compare">
+                          <div class="compare-side">
+                            @if (entry.game === 'definition') {
+                              <p class="field-label">Definition</p>
+                              <p class="passage">{{ shownDefinition(gloss) }}</p>
+                              @let translations = shownTranslations(passage);
+                              @if (translations.length) {
+                                <ul class="equivalents">
+                                  @for (translation of translations; track $index) {
+                                    <li>
+                                      <app-reveal
+                                        [text]="labeledTranslation(translation)"
+                                        (unveiled)="noteReveal(index)"
+                                      />
+                                    </li>
+                                  }
+                                </ul>
+                              }
+                            } @else {
+                              <p class="field-label">Equivalent</p>
+                              <p class="equivalent-result">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="m5 8 6 6" />
+                                  <path d="m4 14 6-6 2-3" />
+                                  <path d="M2 5h12" />
+                                  <path d="M7 2h1" />
+                                  <path d="m22 22-5-10-5 10" />
+                                  <path d="M14 18h6" />
+                                </svg>
+                                <span>{{ equivalent }}</span>
+                              </p>
+                            }
+                          </div>
+                          <div class="compare-side yours">
+                            <p class="field-label">You wrote</p>
+                            <p>{{ entry.answer }}</p>
+                          </div>
+                        </div>
+                      }
+                      <p class="field-label">Score</p>
+                      <p
+                        class="score-readout"
+                        [attr.data-game]="entry.game"
+                        role="img"
+                        [attr.aria-label]="'Score ' + entry.score + ' out of 5'"
+                      >
+                        {{ entry.score }}<span class="score-max">/5</span>
+                      </p>
+                      @if (entry.explanation) {
+                        <p>{{ entry.explanation }}</p>
+                      }
+                      <p class="hint">
+                        {{ entry.by === 'ai' ? 'AI' : 'You' }} · {{ exerciseWhen(entry.at) }}
+                      </p>
                     }
-                    <p class="field-label">Score</p>
-                    <p
-                      class="score-readout"
-                      [attr.data-game]="entry.game"
-                      role="img"
-                      [attr.aria-label]="'Score ' + entry.score + ' out of 5'"
-                    >
-                      {{ entry.score }}<span class="score-max">/5</span>
-                    </p>
-                    @if (entry.explanation) {
-                      <p>{{ entry.explanation }}</p>
-                    }
-                    <p class="hint">
-                      {{ entry.by === 'ai' ? 'AI' : 'You' }} · {{ exerciseWhen(entry.at) }}
-                    </p>
                     <div class="sheet-actions">
                       <button
                         type="button"
@@ -5411,7 +5518,23 @@ export class ElementModal {
 
   /** Stored gloss and example translations, hidden when this language has no support language. */
   shownTranslations(passage: ParsedPassage): ParsedPassage['translations'] {
-    return this.supportAvailable() ? passage.translations : [];
+    const target = this.translationTarget();
+    if (!target) return [];
+    return passage.translations.filter((item) => item.language === target);
+  }
+
+  labeledTranslation(translation: { language: string; text: string }): string {
+    return labeledSupportText(translation.language, translation.text);
+  }
+
+  labeledEquivalent(text: string): string {
+    return labeledSupportText(this.translationTarget(), text);
+  }
+
+  definitionActionLabel(definition: ElementDefinition): string {
+    return this.supportAvailable() && !this.equivalentText(definition)
+      ? 'Add an equivalent'
+      : 'Edit definition';
   }
   readonly originalLanguageName = computed(
     () => languageDisplayName(this.element().language) || this.element().language,
@@ -5796,8 +5919,16 @@ export class ElementModal {
     return displayTitle(text, this.element().language);
   }
 
-  headerEquivalents(): { id: string; text: string }[] {
-    return this.element().equivalents.map((item) => ({ id: item.id, text: item.text }));
+  headerEquivalents(): ElementEquivalent[] {
+    const language = this.translationTarget();
+    if (!language) return [];
+    return this.element().equivalents.filter((item) => item.language === language);
+  }
+
+  editorEquivalents(): ElementEquivalent[] {
+    const language = this.translationTarget();
+    if (!language) return [];
+    return this.sheetEquivalents().filter((item) => item.language === language);
   }
 
   /** Clear in the header once this equivalent has been answered in the translation game. */
@@ -5821,8 +5952,11 @@ export class ElementModal {
 
   equivalentSelected(id: string): boolean {
     const typed = this.equivalentDraft().trim();
+    const language = this.translationTarget();
     if (typed) {
-      return this.sheetEquivalents().some((item) => item.id === id && item.text === typed);
+      return this.sheetEquivalents().some(
+        (item) => item.id === id && item.language === language && item.text === typed,
+      );
     }
     return this.equivalentIdDraft() === id;
   }
@@ -5830,7 +5964,7 @@ export class ElementModal {
   confirmEquivalent(): void {
     const typed = this.equivalentDraft().trim();
     if (!typed || this.busy() || this.askingEquivalent()) return;
-    const linked = assignEquivalent(this.sheetEquivalents(), typed);
+    const linked = assignEquivalent(this.sheetEquivalents(), typed, this.translationTarget());
     this.sheetEquivalents.set(linked.equivalents);
     this.equivalentIdDraft.set(linked.equivalentId);
     this.equivalentDraft.set('');
@@ -5884,9 +6018,10 @@ export class ElementModal {
         this.sheetError.set('Could not find an equivalent.');
         return;
       }
+      const language = this.translationTarget();
       const folded = translation.toLocaleLowerCase();
       const match = this.sheetEquivalents().find(
-        (item) => item.text.toLocaleLowerCase() === folded,
+        (item) => item.language === language && item.text.toLocaleLowerCase() === folded,
       );
       if (match) {
         this.equivalentDraft.set('');
@@ -5973,9 +6108,11 @@ export class ElementModal {
   }
 
   equivalentText(definition: ElementDefinition): string {
-    const id = definition.equivalentId;
-    if (!id) return '';
-    return this.element().equivalents.find((item) => item.id === id)?.text ?? '';
+    return equivalentTextFor(
+      this.element().equivalents,
+      definition.equivalentIds,
+      this.translationTarget(),
+    );
   }
 
   equivalentUnveiled(text: string): boolean {
@@ -6211,7 +6348,7 @@ export class ElementModal {
       return;
     }
     target.examples.push({ text: example, metadata: {} });
-    this.appendRework(target);
+    this.appendExample(target, example);
     const index = definitions.indexOf(target);
     if (!(await this.persist(definitions, element.equivalents))) return;
     if (this.element().id === element.id) {
@@ -6308,7 +6445,7 @@ export class ElementModal {
     if (!senses.length || this.element().id !== element.id) return false;
     const created: ElementDefinition[] = senses.map((sense) => ({
       text: sense.text,
-      equivalentId: null,
+      equivalentIds: {},
       forms: [],
       examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
       metadata: { ...sense.metadata },
@@ -6478,9 +6615,13 @@ export class ElementModal {
     this.definitionEngineer.set(null);
     this.closeDefinitionPrompts();
     this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
-    const equivalentId = definition?.equivalentId ?? null;
+    const language = this.translationTarget();
+    const equivalentId = language ? (definition?.equivalentIds[language] ?? null) : null;
     const known =
-      equivalentId && this.element().equivalents.some((item) => item.id === equivalentId)
+      equivalentId &&
+      this.element().equivalents.some(
+        (item) => item.id === equivalentId && item.language === language,
+      )
         ? equivalentId
         : null;
     this.equivalentIdDraft.set(known);
@@ -6821,7 +6962,7 @@ export class ElementModal {
         return;
       }
       target.examples.push({ text: sentence.text, metadata: sentence.metadata });
-      this.appendRework(target);
+      this.appendExample(target, sentence.text);
       if (!(await this.persist(definitions, this.element().equivalents))) return;
       if (this.element().id !== element.id) return;
       this.exampleEngineer.set(null);
@@ -7067,10 +7208,12 @@ export class ElementModal {
         answer: '',
       };
       let logIndex = this.giveUpLogIndex(mode, index);
-      if (typeof logIndex === 'number' && log[logIndex]?.event === 'game') {
-        log[logIndex] = stored;
+      const current = typeof logIndex === 'number' ? log[logIndex] : undefined;
+      const savedGame = this.withSnapshot(definition, current, stored);
+      if (current?.event === 'game' && typeof logIndex === 'number') {
+        log[logIndex] = savedGame;
       } else {
-        log.push(stored);
+        log.push(savedGame);
         logIndex = log.length - 1;
       }
       next[index] = { ...definition, log };
@@ -7263,7 +7406,7 @@ export class ElementModal {
         example,
         definitions: generated.definitions.map((sense, index) => ({
           text: sense.text,
-          equivalentId: null,
+          equivalentIds: {},
           forms: selectionForms(generated.lemma, title),
           examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
@@ -7349,30 +7492,40 @@ export class ElementModal {
     if (editor.kind === 'definition') {
       const current = editor.index == null ? null : definitions[editor.index];
       if (editor.index != null && !current) return;
-      const typed = this.equivalentDraft().trim();
-      const selectedId = this.equivalentIdDraft();
+      const language = this.translationTarget();
+      const typed = language ? this.equivalentDraft().trim() : '';
+      const selectedId = language ? this.equivalentIdDraft() : null;
       const linked = typed
-        ? assignEquivalent(this.sheetEquivalents(), typed)
+        ? assignEquivalent(this.sheetEquivalents(), typed, language)
         : {
             equivalents: this.sheetEquivalents(),
             equivalentId:
-              selectedId && this.sheetEquivalents().some((item) => item.id === selectedId)
+              selectedId &&
+              this.sheetEquivalents().some(
+                (item) => item.id === selectedId && item.language === language,
+              )
                 ? selectedId
                 : null,
           };
       const kept = new Set(linked.equivalents.map((item) => item.id));
-      const unlinked = definitions.map((definition) =>
-        definition.equivalentId && !kept.has(definition.equivalentId)
-          ? { ...definition, equivalentId: null }
-          : definition,
-      );
+      const unlinked = definitions.map((definition) => ({
+        ...definition,
+        equivalentIds: pruneEquivalentLinks(definition.equivalentIds, kept),
+      }));
+      const previous = pruneEquivalentLinks(current?.equivalentIds ?? {}, kept);
+      const equivalentIds = language
+        ? linkEquivalent(previous, language, linked.equivalentId)
+        : previous;
+      const equivalent = linked.equivalentId
+        ? (linked.equivalents.find((item) => item.id === linked.equivalentId)?.text ?? '')
+        : '';
       const next: ElementDefinition = {
         text,
-        equivalentId: linked.equivalentId,
+        equivalentIds,
         forms: current?.forms ?? [],
         examples: current?.examples ?? [],
         metadata: this.metadataToStore(),
-        log: this.logWithRework(current, text),
+        log: this.logWithRework(current, text, equivalent),
       };
       if (editor.index == null) unlinked.push(next);
       else unlinked[editor.index] = next;
@@ -7397,7 +7550,7 @@ export class ElementModal {
     const exampleIndex = editor.exampleIndex;
     if (exampleIndex == null) {
       definition.examples.push(next);
-      this.appendRework(definition);
+      this.appendExample(definition, text);
     } else definition.examples[exampleIndex] = next;
     const definitionIndex = editor.definitionIndex;
     if (await this.persist(definitions, this.element().equivalents)) this.editor.set(null);
@@ -7497,7 +7650,15 @@ export class ElementModal {
     if (pending.kind === 'element') return 'Delete this element?';
     if (pending.kind === 'definition') return 'Delete this definition?';
     if (pending.kind === 'definitions') return 'Delete all definitions?';
-    if (pending.kind === 'exercise') return 'Delete this exercise?';
+    if (pending.kind === 'exercise') {
+      const definition = this.element().definitions[pending.definitionIndex];
+      const entry = definition
+        ? this.definitionHistory(definition)[pending.historyIndex]
+        : undefined;
+      if (entry?.event === 'rework') return 'Delete this rework?';
+      if (entry?.event === 'example') return 'Delete this example?';
+      return 'Delete this exercise?';
+    }
     return 'Delete this example?';
   }
 
@@ -7576,7 +7737,7 @@ export class ElementModal {
 
   askDeleteExercise(definitionIndex: number, historyIndex: number): void {
     if (this.busy() || historyIndex < 0) return;
-    const entry = this.exerciseHistory(this.element().definitions[definitionIndex])[historyIndex];
+    const entry = this.definitionHistory(this.element().definitions[definitionIndex])[historyIndex];
     if (!entry) return;
     this.confirm.set({ kind: 'exercise', definitionIndex, historyIndex });
   }
@@ -7691,7 +7852,7 @@ export class ElementModal {
   private async removeExercise(definitionIndex: number, historyIndex: number): Promise<void> {
     const elementId = this.element().id;
     const definition = this.currentElement().definitions[definitionIndex];
-    const entry = definition ? this.exerciseHistory(definition)[historyIndex] : undefined;
+    const entry = definition ? this.definitionHistory(definition)[historyIndex] : undefined;
     const logIndex = definition && entry ? definition.log.indexOf(entry) : -1;
     if (!definition || logIndex < 0) {
       this.confirm.set(null);
@@ -7711,7 +7872,7 @@ export class ElementModal {
     }
     this.adjustExerciseRound(definitionIndex, logIndex);
     this.confirm.set(null);
-    if (!this.exerciseHistory(next).length) {
+    if (!this.definitionHistory(next).length) {
       this.closeExerciseLog();
       return;
     }
@@ -7806,7 +7967,7 @@ export class ElementModal {
         const key = senseKey(item.text);
         if (!key || saved.has(key)) continue;
         definition.examples.push({ text: item.text, metadata: {} });
-        this.appendRework(definition);
+        this.appendExample(definition, item.text);
         saved.add(key);
         added = true;
       }
@@ -7848,6 +8009,7 @@ export class ElementModal {
   private copyDefinitions(): ElementDefinition[] {
     return this.currentElement().definitions.map((definition) => ({
       ...definition,
+      equivalentIds: { ...definition.equivalentIds },
       forms: definition.forms.map((form) => ({ text: form.text, metadata: { ...form.metadata } })),
       examples: definition.examples.map((example) => ({
         ...example,
@@ -7858,16 +8020,54 @@ export class ElementModal {
     }));
   }
 
-  /** Keep the log, and append a rework when the stored wording changed. */
-  private logWithRework(current: ElementDefinition | null, text: string): ElementDefinition['log'] {
+  /** Keep the log, and append a rework when the passage or equivalent wording changed. */
+  private logWithRework(
+    current: ElementDefinition | null,
+    text: string,
+    equivalent: string,
+  ): ElementDefinition['log'] {
     const log = current?.log.map((entry) => ({ ...entry })) ?? [];
-    if (current && text !== current.text) log.push({ event: 'rework', at: Date.now() });
+    if (!current) return log;
+    const before = this.snapshotOf(current);
+    if (text === before.text && equivalent === before.equivalent) return log;
+    log.push({ event: 'rework', at: Date.now(), before, after: { text, equivalent } });
     return log;
   }
 
-  /** Adding an example is one rework of the definition it was added to. */
-  private appendRework(definition: ElementDefinition): void {
-    definition.log = [...definition.log, { event: 'rework', at: Date.now() }];
+  /** An added example keeps the definition it was added to. */
+  private appendExample(definition: ElementDefinition, example: string): void {
+    definition.log = [
+      ...definition.log,
+      { event: 'example', at: Date.now(), example, snapshot: this.snapshotOf(definition) },
+    ];
+  }
+
+  private snapshotOf(definition: ElementDefinition, equivalent?: string): DefinitionSnapshot {
+    return {
+      text: definition.text,
+      equivalent: equivalent ?? this.equivalentWording(definition),
+    };
+  }
+
+  private equivalentWording(definition: ElementDefinition): string {
+    return equivalentTextFor(
+      this.currentElement().equivalents,
+      definition.equivalentIds,
+      this.translationTarget(),
+    );
+  }
+
+  /** First score captures the definition. A later score in the same round keeps that snapshot. */
+  private withSnapshot(
+    definition: ElementDefinition,
+    current: DefinitionLogEntry | undefined,
+    stored: DefinitionGameLog,
+  ): DefinitionGameLog {
+    const snapshot =
+      current?.event === 'game' && current.snapshot
+        ? current.snapshot
+        : this.snapshotOf(definition);
+    return { ...stored, snapshot };
   }
 
   private deletePressTimer = 0;
@@ -8214,12 +8414,38 @@ export class ElementModal {
     return 1;
   }
 
-  /** Newest game first. Reworks and reveals stay in the log and out of this list. */
+  /** Newest game first. Reworks, examples, views, and reveals stay out of this count. */
   exerciseHistory(definition: ElementDefinition): DefinitionGameLog[] {
     return definition.log
       .filter((entry): entry is DefinitionGameLog => entry.event === 'game')
       .filter((entry) => this.supportAvailable() || entry.game !== 'translation')
       .reverse();
+  }
+
+  /** Newest rework, added example, and exercise. Views and reveals stay in the counts. */
+  definitionHistory(definition: ElementDefinition): DefinitionHistoryEntry[] {
+    return definition.log
+      .filter((entry): entry is DefinitionHistoryEntry => this.listedHistory(entry))
+      .reverse();
+  }
+
+  historyTitle(entry: DefinitionHistoryEntry): string {
+    if (entry.event === 'rework') return 'Reworked';
+    if (entry.event === 'example') return 'Example';
+    return this.modeLabel(this.logMode(entry.game));
+  }
+
+  historyAria(entry: DefinitionHistoryEntry): string {
+    const when = this.exerciseWhen(entry.at);
+    if (entry.event === 'game') {
+      return `${this.historyTitle(entry)}, score ${entry.score} out of 5, ${when}`;
+    }
+    return `${this.historyTitle(entry)}, ${when}`;
+  }
+
+  private listedHistory(entry: DefinitionLogEntry): entry is DefinitionHistoryEntry {
+    if (entry.event === 'rework' || entry.event === 'example') return true;
+    return entry.event === 'game' && (this.supportAvailable() || entry.game !== 'translation');
   }
 
   exerciseWhen(at: number): string {
@@ -8343,10 +8569,12 @@ export class ElementModal {
     };
     if (entry.explanation) stored.explanation = entry.explanation;
     let logIndex = this.round().equivalentLogIndexes[index];
-    if (typeof logIndex === 'number' && log[logIndex]?.event === 'game') {
-      log[logIndex] = stored;
+    const current = typeof logIndex === 'number' ? log[logIndex] : undefined;
+    const savedGame = this.withSnapshot(definition, current, stored);
+    if (current?.event === 'game' && typeof logIndex === 'number') {
+      log[logIndex] = savedGame;
     } else {
-      log.push(stored);
+      log.push(savedGame);
       logIndex = log.length - 1;
     }
     definitions[index] = { ...definition, log };
@@ -8680,10 +8908,12 @@ export class ElementModal {
     };
     if (entry.explanation) stored.explanation = entry.explanation;
     let logIndex = this.round().definitionLogIndexes?.[index];
-    if (typeof logIndex === 'number' && log[logIndex]?.event === 'game') {
-      log[logIndex] = stored;
+    const current = typeof logIndex === 'number' ? log[logIndex] : undefined;
+    const savedGame = this.withSnapshot(definition, current, stored);
+    if (current?.event === 'game' && typeof logIndex === 'number') {
+      log[logIndex] = savedGame;
     } else {
-      log.push(stored);
+      log.push(savedGame);
       logIndex = log.length - 1;
     }
     definitions[index] = { ...definition, log };
@@ -8994,10 +9224,12 @@ export class ElementModal {
     };
     if (entry.explanation) stored.explanation = entry.explanation;
     let logIndex = this.round().exampleLogIndexes?.[index];
-    if (typeof logIndex === 'number' && log[logIndex]?.event === 'game') {
-      log[logIndex] = stored;
+    const current = typeof logIndex === 'number' ? log[logIndex] : undefined;
+    const savedGame = this.withSnapshot(definition, current, stored);
+    if (current?.event === 'game' && typeof logIndex === 'number') {
+      log[logIndex] = savedGame;
     } else {
-      log.push(stored);
+      log.push(savedGame);
       logIndex = log.length - 1;
     }
     definitions[index] = { ...definition, log };
@@ -9010,7 +9242,7 @@ export class ElementModal {
     let linked = false;
     const definitions = this.element().definitions;
     for (let index = 0; index < definitions.length; index += 1) {
-      if (definitions[index]?.equivalentId !== id) continue;
+      if (definitions[index]?.equivalentIds[this.translationTarget()] !== id) continue;
       linked = true;
       if (!this.equivalentSubmitted(index)) return false;
     }
