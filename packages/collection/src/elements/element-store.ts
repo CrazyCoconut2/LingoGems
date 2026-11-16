@@ -79,11 +79,20 @@ export type DefinitionExampleLog = {
   snapshot?: DefinitionSnapshot;
 };
 
+/** Forms saved onto the definition in one action. */
+export type DefinitionFormLog = {
+  event: 'form';
+  at: number;
+  forms: string[];
+  snapshot?: DefinitionSnapshot;
+};
+
 /** One interaction on a definition. `at` is Unix time in UTC. */
 export type DefinitionLogEntry =
   | DefinitionGameLog
   | DefinitionReworkLog
   | DefinitionExampleLog
+  | DefinitionFormLog
   | { event: 'view'; at: number }
   | { event: 'reveal'; at: number };
 
@@ -606,7 +615,10 @@ function resolveEquivalentIds(
   return links;
 }
 
-function linksFromRecord(value: object, equivalents: readonly ElementEquivalent[]): EquivalentLinks {
+function linksFromRecord(
+  value: object,
+  equivalents: readonly ElementEquivalent[],
+): EquivalentLinks {
   const links: EquivalentLinks = {};
   for (const [rawLanguage, rawId] of Object.entries(value)) {
     const language = supportCode(rawLanguage);
@@ -646,6 +658,7 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     answer?: unknown;
     explanation?: unknown;
     example?: unknown;
+    forms?: unknown;
     before?: unknown;
     after?: unknown;
     snapshot?: unknown;
@@ -673,6 +686,19 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
       event: 'example',
       at,
       example: typeof source.example === 'string' ? source.example : '',
+      ...(snapshot ? { snapshot } : {}),
+    };
+  }
+  if (source.event === 'form') {
+    if (at == null) return null;
+    const forms = Array.isArray(source.forms)
+      ? source.forms.flatMap((item) => (typeof item === 'string' && item.trim() ? [item] : []))
+      : [];
+    const snapshot = normalizeSnapshot(source.snapshot);
+    return {
+      event: 'form',
+      at,
+      forms,
       ...(snapshot ? { snapshot } : {}),
     };
   }
@@ -730,6 +756,14 @@ function presentLog(log: DefinitionLogEntry[]): DefinitionLogEntry[] {
         event: 'example',
         at: entry.at,
         example: capitalizePassage(entry.example),
+        ...(entry.snapshot ? { snapshot: presentSnapshot(entry.snapshot) } : {}),
+      };
+    }
+    if (entry.event === 'form') {
+      return {
+        event: 'form',
+        at: entry.at,
+        forms: entry.forms.map((form) => form.trim()).filter(Boolean),
         ...(entry.snapshot ? { snapshot: presentSnapshot(entry.snapshot) } : {}),
       };
     }

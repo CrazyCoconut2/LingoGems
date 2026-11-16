@@ -38,6 +38,7 @@ import {
   sanitizeElementColor,
   TRANSLATION_GEM_MAX,
   type DefinitionExampleLog,
+  type DefinitionFormLog,
   type DefinitionGameLog,
   type DefinitionHighlightMatch,
   type DefinitionLogEntry,
@@ -46,6 +47,7 @@ import {
   type DefinitionHighlightPart,
   type ElementDefinition,
   type ElementEquivalent,
+  type ElementForm,
   type ElementMetadata,
   type StoredElement,
 } from 'collection';
@@ -156,7 +158,21 @@ function mergeMetadata(current: ElementMetadata, extra: ElementMetadata): Elemen
   return next;
 }
 
-type DefinitionHistoryEntry = DefinitionGameLog | DefinitionReworkLog | DefinitionExampleLog;
+type DefinitionHistoryEntry =
+  DefinitionGameLog | DefinitionReworkLog | DefinitionExampleLog | DefinitionFormLog;
+
+type ExampleDraft = {
+  definitionIndex: number;
+  text: string;
+  metadata: ElementMetadata;
+};
+
+type PendingForms = {
+  definitionIndex: number;
+  forms: ElementForm[];
+};
+
+type WorkTab = 'definitions' | 'examples' | 'forms';
 
 type ConfirmDelete =
   | { kind: 'element' }
@@ -489,13 +505,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [
-    NgTemplateOutlet,
-    Reveal,
-    ModeIcon,
-    HighlightColorPicker,
-    CdkScrollable,
-  ],
+  imports: [NgTemplateOutlet, Reveal, ModeIcon, HighlightColorPicker, CdkScrollable],
   template: `
     <div
       class="backdrop"
@@ -917,285 +927,130 @@ function writeExampleSuggestions(
                     </div>
                   </div>
 
-                  <section class="group">
-                    <div class="section-heading">
-                      <h3 class="section-title">Examples</h3>
-                      <div class="header-actions">
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Generate an example"
-                          title="Generate an example"
-                          [disabled]="
-                            (inPlay() && !translationGame() && !definitionGame()) || aiBusy()
-                          "
-                          [attr.aria-busy]="askingExamples() === index ? true : null"
-                          (click)="generateExample(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                            />
-                            <path d="M5 3v4" />
-                            <path d="M3 5h4" />
-                            <path d="M19 17v4" />
-                            <path d="M17 19h4" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          [class.play-focus]="exampleCue(index)"
-                          aria-label="Add an example"
-                          title="Add an example"
-                          [disabled]="(inPlay() && !exampleCue(index)) || aiBusy()"
-                          (click)="onAddExample(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M5 12h14" />
-                            <path d="M12 5v14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                    @if (definition.examples.length) {
-                      <ul class="examples">
-                        @for (
-                          exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
-                          track exampleIndex
-                        ) {
-                          @let example = definition.examples[exampleIndex];
-                          <li class="saved-example">
-                            <div
-                              class="example-quote"
-                              [class.play-blur]="exampleGame()"
-                              [attr.aria-hidden]="exampleGame() ? true : null"
-                            >
-                              @let passage = parsePassage(example.text);
-                              @if (passage.text) {
-                                <div class="spoken">
-                                  <ng-container
-                                    [ngTemplateOutlet]="hearButton"
-                                    [ngTemplateOutletContext]="{
-                                      key: 'example:' + index + ':' + exampleIndex,
-                                      text: example.text,
-                                      label: 'example',
-                                    }"
-                                  />
-                                  <div class="spoken-copy">
-                                    <p
-                                      class="passage sense-selectable"
-                                      [attr.data-definition-index]="index"
-                                      [attr.data-example-index]="exampleIndex"
-                                    >
-                                      @for (part of highlightPassage(passage.text); track $index) {
-                                        @if (part.matches.length > 1) {
-                                          <button
-                                            type="button"
-                                            class="linguagem-highlighted"
-                                            [style.--score-color]="part.color || null"
-                                            [textContent]="part.text"
-                                            (click)="showCollision($event, part.matches)"
-                                          ></button>
-                                        } @else if (part.matches.length === 1 && !part.current) {
-                                          <button
-                                            type="button"
-                                            class="linguagem-highlighted"
-                                            [style.--score-color]="part.color || null"
-                                            [textContent]="part.text"
-                                            (click)="visitHighlight(part.matches[0].elementId)"
-                                          ></button>
-                                        } @else if (part.current) {
-                                          <span
-                                            class="linguagem-highlighted linguagem-highlighted--current"
-                                            [style.--score-color]="part.color || null"
-                                            [textContent]="part.text"
-                                          ></span>
-                                        } @else {
-                                          <span [textContent]="part.text"></span>
+                  @if (definition.examples.length || exampleCue(index)) {
+                    <section class="group">
+                      @if (definition.examples.length) {
+                        <h3 class="section-title">Examples</h3>
+                        <ul class="examples">
+                          @for (
+                            exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
+                            track exampleIndex
+                          ) {
+                            @let example = definition.examples[exampleIndex];
+                            <li class="saved-example">
+                              <div
+                                class="example-quote"
+                                [class.play-blur]="exampleGame()"
+                                [attr.aria-hidden]="exampleGame() ? true : null"
+                              >
+                                @let passage = parsePassage(example.text);
+                                @if (passage.text) {
+                                  <div class="spoken">
+                                    <ng-container
+                                      [ngTemplateOutlet]="hearButton"
+                                      [ngTemplateOutletContext]="{
+                                        key: 'example:' + index + ':' + exampleIndex,
+                                        text: example.text,
+                                        label: 'example',
+                                      }"
+                                    />
+                                    <div class="spoken-copy">
+                                      <p
+                                        class="passage sense-selectable"
+                                        [attr.data-definition-index]="index"
+                                        [attr.data-example-index]="exampleIndex"
+                                      >
+                                        @for (
+                                          part of highlightPassage(passage.text);
+                                          track $index
+                                        ) {
+                                          @if (part.matches.length > 1) {
+                                            <button
+                                              type="button"
+                                              class="linguagem-highlighted"
+                                              [style.--score-color]="part.color || null"
+                                              [textContent]="part.text"
+                                              (click)="showCollision($event, part.matches)"
+                                            ></button>
+                                          } @else if (part.matches.length === 1 && !part.current) {
+                                            <button
+                                              type="button"
+                                              class="linguagem-highlighted"
+                                              [style.--score-color]="part.color || null"
+                                              [textContent]="part.text"
+                                              (click)="visitHighlight(part.matches[0].elementId)"
+                                            ></button>
+                                          } @else if (part.current) {
+                                            <span
+                                              class="linguagem-highlighted linguagem-highlighted--current"
+                                              [style.--score-color]="part.color || null"
+                                              [textContent]="part.text"
+                                            ></span>
+                                          } @else {
+                                            <span [textContent]="part.text"></span>
+                                          }
                                         }
+                                      </p>
+                                      @let translations = shownTranslations(passage);
+                                      @if (translations.length) {
+                                        <ul class="equivalents">
+                                          @for (translation of translations; track $index) {
+                                            <li>
+                                              <app-reveal
+                                                [text]="labeledTranslation(translation)"
+                                                [locked]="inPlay()"
+                                                (unveiled)="noteReveal(index)"
+                                              />
+                                            </li>
+                                          }
+                                        </ul>
                                       }
-                                    </p>
-                                    @let translations = shownTranslations(passage);
-                                    @if (translations.length) {
-                                      <ul class="equivalents">
-                                        @for (translation of translations; track $index) {
-                                          <li>
-                                            <app-reveal
-                                              [text]="labeledTranslation(translation)"
-                                              [locked]="inPlay()"
-                                              (unveiled)="noteReveal(index)"
-                                            />
-                                          </li>
-                                        }
-                                      </ul>
-                                    }
+                                    </div>
                                   </div>
-                                </div>
-                              }
-                              @if (entries(example.metadata); as meta) {
-                                @if (meta.length) {
-                                  <ul class="pills">
-                                    @for (entry of meta; track entry.key) {
-                                      @let color = metaColor('examples', entry.key);
-                                      <li [class.colored]="color" [style.--meta-color]="color">
-                                        <span>
-                                          <span class="sense-meta-key">{{ entry.key }}</span>
-                                          <span class="sense-meta-value">{{ entry.value }}</span>
-                                        </span>
-                                      </li>
-                                    }
-                                  </ul>
                                 }
-                              }
-                            </div>
-                            <div class="item-actions">
-                              @if (passagePick(index, exampleIndex); as pick) {
-                                <span class="lookup-actions">
-                                  <button
-                                    type="button"
-                                    class="lookup-chip"
-                                    aria-label="Add element"
-                                    [disabled]="aiBusy() || exampleGame()"
-                                    (pointerdown)="confirmPassagePick($event, pick.text)"
-                                  >
-                                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                                      <path d="M5 12h14" />
-                                      <path d="M12 5v14" />
-                                    </svg>
-                                    Add
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="lookup-chip"
-                                    aria-label="Add element with AI"
-                                    [disabled]="aiBusy() || exampleGame()"
-                                    [attr.aria-busy]="addingSelection() ? true : null"
-                                    (pointerdown)="confirmPassagePick($event, pick.text, true)"
-                                  >
-                                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                                      <path
-                                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                                      />
-                                    </svg>
-                                    Ask AI
-                                  </button>
-                                </span>
-                              } @else {
-                                <span class="item-actions-main">
-                                  <button
-                                    type="button"
-                                    class="icon-btn"
-                                    aria-label="Edit example"
-                                    title="Edit example"
-                                    [disabled]="inPlay() || aiBusy()"
-                                    (click)="openExample(index, exampleIndex)"
-                                  >
-                                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="icon-btn danger"
-                                    aria-label="Delete example"
-                                    title="Delete example"
-                                    [disabled]="inPlay() || aiBusy()"
-                                    (click)="askDeleteExample(index, exampleIndex)"
-                                  >
-                                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                                      <path d="M3 6h18" />
-                                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                      <path d="M10 11v6" />
-                                      <path d="M14 11v6" />
-                                    </svg>
-                                  </button>
-                                </span>
-                              }
-                            </div>
-                          </li>
-                        }
-                      </ul>
-                    }
-                  </section>
-                  <section class="group">
-                    <div class="section-heading">
+                                @if (entries(example.metadata); as meta) {
+                                  @if (meta.length) {
+                                    <ul class="pills">
+                                      @for (entry of meta; track entry.key) {
+                                        @let color = metaColor('examples', entry.key);
+                                        <li [class.colored]="color" [style.--meta-color]="color">
+                                          <span>
+                                            <span class="sense-meta-key">{{ entry.key }}</span>
+                                            <span class="sense-meta-value">{{ entry.value }}</span>
+                                          </span>
+                                        </li>
+                                      }
+                                    </ul>
+                                  }
+                                }
+                              </div>
+                            </li>
+                          }
+                        </ul>
+                      }
+                      @if (exampleCue(index)) {
+                        <button
+                          type="button"
+                          class="btn btn-secondary write-example"
+                          (click)="openExamplePrompt(index)"
+                        >
+                          Write an example
+                        </button>
+                      }
+                    </section>
+                  }
+                  @if (definition.forms.length) {
+                    <section class="group">
                       <h3 class="section-title">Forms</h3>
-                      <div class="header-actions">
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Generate forms"
-                          title="Generate forms"
-                          [disabled]="inPlay() || aiBusy()"
-                          [attr.aria-busy]="askingForms() === index ? true : null"
-                          (click)="askGenerateForms(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                            />
-                            <path d="M5 3v4" />
-                            <path d="M3 5h4" />
-                            <path d="M19 17v4" />
-                            <path d="M17 19h4" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Add a form"
-                          title="Add a form"
-                          [disabled]="inPlay() || aiBusy()"
-                          (click)="addFormManually(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M5 12h14" />
-                            <path d="M12 5v14" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                    @if (definition.forms.length) {
                       <ul class="forms">
                         @for (form of definition.forms; track form.text) {
                           <li>
-                            <div class="form-chip">
-                              <button
-                                type="button"
-                                [disabled]="inPlay() || busy()"
-                                [attr.aria-label]="'Edit form ' + form.text"
-                                (click)="openExistingForm(index, form.text)"
-                              >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path
-                                    d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"
-                                  />
-                                  <path
-                                    d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"
-                                  />
-                                  <path
-                                    d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"
-                                  />
-                                </svg>
-                                {{ form.text }}
-                              </button>
-                              <button
-                                type="button"
-                                class="tag-remove"
-                                [disabled]="inPlay() || busy()"
-                                [attr.aria-label]="'Remove form ' + form.text"
-                                (click)="removeForm(index, form.text)"
-                              >
-                                ×
-                              </button>
-                            </div>
+                            <span class="form-chip readonly">{{ form.text }}</span>
                           </li>
                         }
                       </ul>
-                    }
-                  </section>
+                    </section>
+                  }
                 </li>
               </ol>
             }
@@ -1221,7 +1076,7 @@ function writeExampleSuggestions(
         }
 
         @if (editor(); as current) {
-          <div class="sheet-backdrop" (click)="closeSheet($event)">
+          <div class="sheet-backdrop" (click)="closeEditorSheet($event)">
             <section
               #editorSheet
               class="sheet editor-sheet"
@@ -1233,12 +1088,7 @@ function writeExampleSuggestions(
               <div class="sheet-head">
                 <h3>{{ sheetTitle(current) }}</h3>
                 <span class="sheet-tools">
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Close"
-                    (click)="editor.set(null)"
-                  >
+                  <button type="button" class="icon-btn" aria-label="Close" (click)="closeEditor()">
                     <svg viewBox="0 0 24 24">
                       <path d="M18 6 6 18" />
                       <path d="m6 6 12 12" />
@@ -1246,7 +1096,7 @@ function writeExampleSuggestions(
                   </button>
                 </span>
               </div>
-              <div class="sheet-scroll">
+              <ng-template #editorFields>
                 <div class="field-heading">
                   <label
                     [attr.for]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
@@ -1265,16 +1115,16 @@ function writeExampleSuggestions(
                           [disabled]="!canTranslate()"
                           (click)="translateDraft()"
                         >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m5 8 6 6" />
-                          <path d="m4 14 6-6 2-3" />
-                          <path d="M2 5h12" />
-                          <path d="M7 2h1" />
-                          <path d="m22 22-5-10-5 10" />
-                          <path d="M14 18h6" />
-                        </svg>
-                      </button>
-                    </span>
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
+                        </button>
+                      </span>
                     }
                     @if (current.kind === 'definition' && current.index != null) {
                       <button
@@ -1392,31 +1242,27 @@ function writeExampleSuggestions(
                     <div class="field-heading">
                       <label class="field-label" for="definition-equivalent">Equivalent</label>
                       <button
-                          type="button"
-                          class="icon-btn"
-                          [attr.aria-label]="
-                            askingEquivalent()
-                              ? 'Finding an equivalent…'
-                              : 'Ask AI for an equivalent'
-                          "
-                          [attr.title]="
-                            askingEquivalent()
-                              ? 'Finding an equivalent…'
-                              : 'Ask AI for an equivalent'
-                          "
-                          [attr.aria-busy]="askingEquivalent() ? true : null"
-                          [disabled]="!canAskEquivalent()"
-                          (click)="askEquivalent()"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                            />
-                            <path d="M5 3v4" />
-                            <path d="M3 5h4" />
-                            <path d="M19 17v4" />
-                            <path d="M17 19h4" />
-                          </svg>
+                        type="button"
+                        class="icon-btn"
+                        [attr.aria-label]="
+                          askingEquivalent() ? 'Finding an equivalent…' : 'Ask AI for an equivalent'
+                        "
+                        [attr.title]="
+                          askingEquivalent() ? 'Finding an equivalent…' : 'Ask AI for an equivalent'
+                        "
+                        [attr.aria-busy]="askingEquivalent() ? true : null"
+                        [disabled]="!canAskEquivalent()"
+                        (click)="askEquivalent()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                          />
+                          <path d="M5 3v4" />
+                          <path d="M3 5h4" />
+                          <path d="M19 17v4" />
+                          <path d="M17 19h4" />
+                        </svg>
                       </button>
                     </div>
                     <ul class="equivalent-choices equivalent-pills">
@@ -1598,129 +1444,493 @@ function writeExampleSuggestions(
                     }
                   </ul>
                 </div>
-              </div>
-              <div class="sheet-actions sheet-footer">
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  [disabled]="busy() || translating() || askingEquivalent() || !draftGloss()"
-                  (click)="saveEditor()"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                    <path d="m18 15 4-4" />
-                    <path
-                      d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
-                    />
-                  </svg>
-                  Save
-                </button>
-              </div>
-            </section>
-          </div>
-        }
-
-        @if (exampleEngineer(); as engineer) {
-          <div class="sheet-backdrop" (click)="closeExampleEngineer($event)">
-            <section
-              class="sheet engineer-sheet"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Ask AI for examples"
-            >
-              <div class="sheet-head">
-                <h3>Ask AI for examples</h3>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  [disabled]="askingExamples() !== null"
-                  (click)="exampleEngineer.set(null)"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
-              </div>
-              <label class="field-label" for="example-note">Note</label>
-              <textarea
-                id="example-note"
-                rows="3"
-                [value]="engineer.instruction"
-                [attr.maxlength]="exampleInstructionMax"
-                [disabled]="askingExamples() !== null"
-                placeholder="A walk to the market"
-                aria-label="Note"
-                (input)="onEngineerInstruction($event)"
-              ></textarea>
-              @if (definitionForms(engineer.definitionIndex); as forms) {
-                @if (forms.length) {
-                  <button
-                    type="button"
-                    class="forms-toggle"
-                    [attr.aria-expanded]="engineer.formsOpen"
-                    [disabled]="askingExamples() !== null"
-                    (click)="toggleEngineerForms()"
-                  >
-                    <span>Forms</span>
-                    <span class="forms-toggle-side">
-                      @if (!engineer.formsOpen && engineer.forms.length) {
-                        <span>{{ engineer.forms.join(', ') }}</span>
+              </ng-template>
+              <div class="sheet-scroll">
+                @if (current.kind === 'definition') {
+                  <div class="lang work-tabs" role="tablist" aria-label="Work">
+                    <button
+                      type="button"
+                      role="tab"
+                      [class.on]="workTab() === 'definitions'"
+                      [attr.aria-selected]="workTab() === 'definitions'"
+                      (click)="showWorkTab('definitions')"
+                    >
+                      Definitions
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      [class.on]="workTab() === 'examples'"
+                      [attr.aria-selected]="workTab() === 'examples'"
+                      [disabled]="current.index == null"
+                      (click)="showWorkTab('examples')"
+                    >
+                      Examples
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      [class.on]="workTab() === 'forms'"
+                      [attr.aria-selected]="workTab() === 'forms'"
+                      [disabled]="current.index == null"
+                      (click)="showWorkTab('forms')"
+                    >
+                      Forms
+                    </button>
+                  </div>
+                  @if (workTab() === 'definitions' || current.index == null) {
+                  <section class="sheet-part work-section">
+                    <ng-container [ngTemplateOutlet]="editorFields" />
+                    <div class="sheet-actions">
+                      <button
+                        type="button"
+                        class="btn btn-primary"
+                        [disabled]="busy() || translating() || askingEquivalent() || !draftGloss()"
+                        (click)="saveEditor()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                          <path d="m18 15 4-4" />
+                          <path
+                            d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                          />
+                        </svg>
+                        Save
+                      </button>
+                    </div>
+                  </section>
+                  }
+                  @if (current.index != null && workTab() === 'examples') {
+                    @let workIndex = current.index;
+                    @let worked = sheetDefinition(workIndex);
+                    <section class="sheet-part work-section">
+                      <div class="section-heading">
+                        <span class="section-title">Examples</span>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Add an example"
+                          title="Add an example"
+                          [disabled]="aiBusy()"
+                          (click)="addExampleManually(workIndex)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12h14" />
+                            <path d="M12 5v14" />
+                          </svg>
+                        </button>
+                      </div>
+                      @if (worked && worked.examples.length) {
+                        <ul class="examples">
+                          @for (
+                            exampleIndex of exampleIndexesNewestFirst(worked.examples.length);
+                            track exampleIndex
+                          ) {
+                            @let example = worked.examples[exampleIndex];
+                            <li class="saved-example">
+                              <div class="example-quote">
+                                @let passage = parsePassage(example.text);
+                                @if (passage.text) {
+                                  <div class="spoken">
+                                    <ng-container
+                                      [ngTemplateOutlet]="hearButton"
+                                      [ngTemplateOutletContext]="{
+                                        key: 'example:' + workIndex + ':' + exampleIndex,
+                                        text: example.text,
+                                        label: 'example',
+                                      }"
+                                    />
+                                    <div class="spoken-copy">
+                                      <p
+                                        class="passage sense-selectable"
+                                        [attr.data-definition-index]="workIndex"
+                                        [attr.data-example-index]="exampleIndex"
+                                      >
+                                        @for (
+                                          part of highlightPassage(passage.text);
+                                          track $index
+                                        ) {
+                                          @if (part.matches.length > 1) {
+                                            <button
+                                              type="button"
+                                              class="linguagem-highlighted"
+                                              [style.--score-color]="part.color || null"
+                                              [textContent]="part.text"
+                                              (click)="showCollision($event, part.matches)"
+                                            ></button>
+                                          } @else if (part.matches.length === 1 && !part.current) {
+                                            <button
+                                              type="button"
+                                              class="linguagem-highlighted"
+                                              [style.--score-color]="part.color || null"
+                                              [textContent]="part.text"
+                                              (click)="visitHighlight(part.matches[0].elementId)"
+                                            ></button>
+                                          } @else if (part.current) {
+                                            <span
+                                              class="linguagem-highlighted linguagem-highlighted--current"
+                                              [style.--score-color]="part.color || null"
+                                              [textContent]="part.text"
+                                            ></span>
+                                          } @else {
+                                            <span [textContent]="part.text"></span>
+                                          }
+                                        }
+                                      </p>
+                                      @let translations = shownTranslations(passage);
+                                      @if (translations.length) {
+                                        <ul class="equivalents">
+                                          @for (translation of translations; track $index) {
+                                            <li>
+                                              <app-reveal
+                                                [text]="labeledTranslation(translation)"
+                                                (unveiled)="noteReveal(workIndex)"
+                                              />
+                                            </li>
+                                          }
+                                        </ul>
+                                      }
+                                    </div>
+                                  </div>
+                                }
+                                @if (entries(example.metadata); as meta) {
+                                  @if (meta.length) {
+                                    <ul class="pills">
+                                      @for (entry of meta; track entry.key) {
+                                        @let color = metaColor('examples', entry.key);
+                                        <li [class.colored]="color" [style.--meta-color]="color">
+                                          <span>
+                                            <span class="sense-meta-key">{{ entry.key }}</span>
+                                            <span class="sense-meta-value">{{ entry.value }}</span>
+                                          </span>
+                                        </li>
+                                      }
+                                    </ul>
+                                  }
+                                }
+                              </div>
+                              <div class="item-actions">
+                                @if (passagePick(workIndex, exampleIndex); as pick) {
+                                  <span class="lookup-actions">
+                                    <button
+                                      type="button"
+                                      class="lookup-chip"
+                                      aria-label="Add element"
+                                      [disabled]="aiBusy()"
+                                      (pointerdown)="confirmPassagePick($event, pick.text)"
+                                    >
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M5 12h14" />
+                                        <path d="M12 5v14" />
+                                      </svg>
+                                      Add
+                                    </button>
+                                    <button
+                                      type="button"
+                                      class="lookup-chip"
+                                      aria-label="Add element with AI"
+                                      [disabled]="aiBusy()"
+                                      [attr.aria-busy]="addingSelection() ? true : null"
+                                      (pointerdown)="confirmPassagePick($event, pick.text, true)"
+                                    >
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path
+                                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                                        />
+                                      </svg>
+                                      Ask AI
+                                    </button>
+                                  </span>
+                                } @else {
+                                  <span class="item-actions-main">
+                                    <button
+                                      type="button"
+                                      class="icon-btn"
+                                      aria-label="Edit example"
+                                      title="Edit example"
+                                      [disabled]="aiBusy()"
+                                      (click)="openExample(workIndex, exampleIndex)"
+                                    >
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path
+                                          d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
+                                        />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      class="icon-btn danger"
+                                      aria-label="Delete example"
+                                      title="Delete example"
+                                      [disabled]="aiBusy()"
+                                      (click)="askDeleteExample(workIndex, exampleIndex)"
+                                    >
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M3 6h18" />
+                                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                        <path d="M10 11v6" />
+                                        <path d="M14 11v6" />
+                                      </svg>
+                                    </button>
+                                  </span>
+                                }
+                              </div>
+                            </li>
+                          }
+                        </ul>
                       }
-                      <svg viewBox="0 0 24 24" aria-hidden="true" [class.open]="engineer.formsOpen">
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </span>
-                  </button>
-                  @if (engineer.formsOpen) {
-                    <div class="engineer-forms">
-                      <p class="hint">
-                        Select forms to require. More than one picks a form at random.
-                      </p>
-                      <ul class="equivalent-choices">
-                        @for (form of forms; track form) {
-                          <li>
+                      @if (exampleDraftFor(workIndex); as draft) {
+                        <div class="example-quote">
+                          @let passage = parsePassage(draft.text);
+                          @if (passage.text) {
+                            <p class="passage">{{ passage.text }}</p>
+                            @let translations = shownTranslations(passage);
+                            @if (translations.length) {
+                              <ul class="equivalents">
+                                @for (translation of translations; track $index) {
+                                  <li>{{ labeledTranslation(translation) }}</li>
+                                }
+                              </ul>
+                            }
+                          }
+                        </div>
+                        <div class="sheet-actions">
+                          <button
+                            type="button"
+                            class="btn btn-primary"
+                            [disabled]="busy() || askingExamples() !== null"
+                            (click)="saveExampleDraft()"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-secondary"
+                            [disabled]="askingExamples() !== null"
+                            (click)="discardExampleDraft()"
+                          >
+                            Discard
+                          </button>
+                        </div>
+                      }
+                      @if (exampleEngineer(); as engineer) {
+                        @if (engineer.definitionIndex === workIndex) {
+                          <label class="field-label" for="example-note">Note</label>
+                          <textarea
+                            id="example-note"
+                            rows="3"
+                            [value]="engineer.instruction"
+                            [attr.maxlength]="exampleInstructionMax"
+                            [disabled]="askingExamples() !== null"
+                            placeholder="A walk to the market"
+                            aria-label="Note"
+                            (input)="onEngineerInstruction($event)"
+                          ></textarea>
+                          @if (definitionForms(workIndex); as forms) {
+                            @if (forms.length) {
+                              <button
+                                type="button"
+                                class="forms-toggle"
+                                [attr.aria-expanded]="engineer.formsOpen"
+                                [disabled]="askingExamples() !== null"
+                                (click)="toggleEngineerForms()"
+                              >
+                                <span>Forms</span>
+                                <span class="forms-toggle-side">
+                                  @if (!engineer.formsOpen && engineer.forms.length) {
+                                    <span>{{ engineer.forms.join(', ') }}</span>
+                                  }
+                                  <svg
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                    [class.open]="engineer.formsOpen"
+                                  >
+                                    <path d="m6 9 6 6 6-6" />
+                                  </svg>
+                                </span>
+                              </button>
+                              @if (engineer.formsOpen) {
+                                <div class="engineer-forms">
+                                  <p class="hint">
+                                    Select forms to require. More than one picks a form at random.
+                                  </p>
+                                  <ul class="equivalent-choices">
+                                    @for (form of forms; track form) {
+                                      <li>
+                                        <button
+                                          type="button"
+                                          [class.selected]="engineerFormChosen(form)"
+                                          [attr.aria-pressed]="engineerFormChosen(form)"
+                                          [disabled]="askingExamples() !== null"
+                                          (click)="toggleEngineerForm(form)"
+                                        >
+                                          {{ form }}
+                                        </button>
+                                      </li>
+                                    }
+                                  </ul>
+                                </div>
+                              }
+                            }
+                          }
+                          @if (exampleError()) {
+                            <p class="error">{{ exampleError() }}</p>
+                          }
+                          <div class="sheet-actions example-actions">
+                            <div class="generate-bundle">
+                              <button
+                                type="button"
+                                class="generate-main"
+                                [disabled]="askingExamples() !== null"
+                                [attr.aria-busy]="askingExamples() !== null ? true : null"
+                                (click)="generateEngineeredExample()"
+                              >
+                                Generate
+                              </button>
+                            </div>
+                          </div>
+                        }
+                      }
+                    </section>
+                  }
+                  @if (current.index != null && workTab() === 'forms') {
+                    @let workIndex = current.index;
+                    @let worked = sheetDefinition(workIndex);
+                    <section class="sheet-part work-section">
+                      <div class="section-heading">
+                        <span class="section-title">Forms</span>
+                        <div class="header-actions">
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Generate forms"
+                            title="Generate forms"
+                            [disabled]="aiBusy()"
+                            [attr.aria-busy]="askingForms() === workIndex ? true : null"
+                            (click)="generateForms(workIndex)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path
+                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                              />
+                              <path d="M5 3v4" />
+                              <path d="M3 5h4" />
+                              <path d="M19 17v4" />
+                              <path d="M17 19h4" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Add a form"
+                            title="Add a form"
+                            [disabled]="aiBusy()"
+                            (click)="addFormManually(workIndex)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M5 12h14" />
+                              <path d="M12 5v14" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                      @if (worked && worked.forms.length) {
+                        <ul class="forms">
+                          @for (form of worked.forms; track form.text) {
+                            <li>
+                              <div class="form-chip">
+                                <button
+                                  type="button"
+                                  [disabled]="busy()"
+                                  [attr.aria-label]="'Edit form ' + form.text"
+                                  (click)="openExistingForm(workIndex, form.text)"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path
+                                      d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"
+                                    />
+                                    <path
+                                      d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"
+                                    />
+                                    <path
+                                      d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"
+                                    />
+                                  </svg>
+                                  {{ form.text }}
+                                </button>
+                                <button
+                                  type="button"
+                                  class="tag-remove"
+                                  [disabled]="busy()"
+                                  [attr.aria-label]="'Remove form ' + form.text"
+                                  (click)="removeForm(workIndex, form.text)"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            </li>
+                          }
+                        </ul>
+                      }
+                      @if (pendingFormsFor(workIndex); as pending) {
+                        @if (pending.length) {
+                          <p class="field-label">New forms</p>
+                          <ul class="forms">
+                            @for (form of pending; track form.text) {
+                              <li>
+                                <span class="form-chip readonly">{{ form.text }}</span>
+                              </li>
+                            }
+                          </ul>
+                          <div class="sheet-actions">
                             <button
                               type="button"
-                              [class.selected]="engineerFormChosen(form)"
-                              [attr.aria-pressed]="engineerFormChosen(form)"
-                              [disabled]="askingExamples() !== null"
-                              (click)="toggleEngineerForm(form)"
+                              class="btn btn-primary"
+                              [disabled]="busy() || askingForms() !== null"
+                              (click)="savePendingForms()"
                             >
-                              {{ form }}
+                              Save
                             </button>
-                          </li>
+                            <button
+                              type="button"
+                              class="btn btn-secondary"
+                              [disabled]="askingForms() !== null"
+                              (click)="discardPendingForms()"
+                            >
+                              Discard
+                            </button>
+                          </div>
                         }
-                      </ul>
-                    </div>
+                      }
+                      @if (formsError()) {
+                        <p class="error">{{ formsError() }}</p>
+                      }
+                    </section>
                   }
+                } @else {
+                  <ng-container [ngTemplateOutlet]="editorFields" />
                 }
-              }
-              @if (error()) {
-                <p class="error">{{ error() }}</p>
-              }
-              <div class="sheet-actions example-actions">
-                <div class="generate-bundle">
+              </div>
+              @if (current.kind === 'example') {
+                <div class="sheet-actions sheet-footer">
                   <button
                     type="button"
-                    class="generate-main"
-                    [disabled]="askingExamples() !== null"
-                    [attr.aria-busy]="askingExamples() !== null ? true : null"
-                    (click)="generateEngineeredExample()"
+                    class="btn btn-primary"
+                    [disabled]="busy() || translating() || askingEquivalent() || !draftGloss()"
+                    (click)="saveEditor()"
                   >
-                    Generate
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                      <path d="m18 15 4-4" />
+                      <path
+                        d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                      />
+                    </svg>
+                    Save
                   </button>
                 </div>
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  [disabled]="askingExamples() !== null"
-                  (click)="exampleEngineer.set(null)"
-                >
-                  Cancel
-                </button>
-              </div>
+              }
             </section>
           </div>
         }
@@ -2121,7 +2331,12 @@ function writeExampleSuggestions(
                         </div>
                       </div>
                       <p class="field-label">Score</p>
-                      <div class="score-pick" data-game="translation" role="group" aria-label="Score">
+                      <div
+                        class="score-pick"
+                        data-game="translation"
+                        role="group"
+                        aria-label="Score"
+                      >
                         @for (score of scores; track score) {
                           <button
                             type="button"
@@ -2174,7 +2389,9 @@ function writeExampleSuggestions(
                         <path d="m22 22-5-10-5 10" />
                         <path d="M14 18h6" />
                       </svg>
-                      <span class="play-blur" aria-hidden="true">{{ labeledEquivalent(answer) }}</span>
+                      <span class="play-blur" aria-hidden="true">{{
+                        labeledEquivalent(answer)
+                      }}</span>
                     </p>
                     <label class="field-label" [attr.for]="'play-equivalent-' + prompt">
                       Write the equivalent
@@ -2256,7 +2473,10 @@ function writeExampleSuggestions(
                       <ul class="equivalents">
                         @for (translation of translations; track $index) {
                           <li>
-                            <app-reveal [text]="labeledTranslation(translation)" (unveiled)="noteReveal(prompt)" />
+                            <app-reveal
+                              [text]="labeledTranslation(translation)"
+                              (unveiled)="noteReveal(prompt)"
+                            />
                           </li>
                         }
                       </ul>
@@ -2382,16 +2602,16 @@ function writeExampleSuggestions(
                             [disabled]="!canTranslateDefinition(prompt)"
                             (click)="translateDefinition(prompt)"
                           >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                        </button>
-                      </span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
+                            </svg>
+                          </button>
+                        </span>
                       }
                       @if (!supportAvailable() || definitionSource() === 'working') {
                         <button
@@ -2559,7 +2779,10 @@ function writeExampleSuggestions(
                       <ul class="equivalents">
                         @for (translation of translations; track $index) {
                           <li>
-                            <app-reveal [text]="labeledTranslation(translation)" (unveiled)="noteReveal(prompt)" />
+                            <app-reveal
+                              [text]="labeledTranslation(translation)"
+                              (unveiled)="noteReveal(prompt)"
+                            />
                           </li>
                         }
                       </ul>
@@ -2661,16 +2884,16 @@ function writeExampleSuggestions(
                             [disabled]="!canTranslateExample(prompt)"
                             (click)="translateExample(prompt)"
                           >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                        </button>
-                      </span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
+                            </svg>
+                          </button>
+                        </span>
                       }
                       @if (!supportAvailable() || exampleSource() === 'working') {
                         <button
@@ -3034,6 +3257,29 @@ function writeExampleSuggestions(
                         </div>
                       }
                       <p class="hint">{{ exerciseWhen(entry.at) }}</p>
+                    } @else if (entry.event === 'form') {
+                      @if (entry.snapshot; as snapshot) {
+                        <div class="equivalent-gloss">
+                          <p class="field-label">Definition</p>
+                          <ng-container
+                            [ngTemplateOutlet]="historyPassage"
+                            [ngTemplateOutletContext]="{
+                              text: snapshot.text,
+                              equivalent: snapshot.equivalent,
+                            }"
+                          />
+                        </div>
+                      }
+                      @if (entry.forms.length) {
+                        <ul class="forms">
+                          @for (form of entry.forms; track form) {
+                            <li>
+                              <span class="form-chip readonly">{{ form }}</span>
+                            </li>
+                          }
+                        </ul>
+                      }
+                      <p class="hint">{{ exerciseWhen(entry.at) }}</p>
                     } @else {
                       @let passage = parsePassage(entry.snapshot?.text ?? definition.text);
                       @let gloss = passage.text;
@@ -3206,31 +3452,6 @@ function writeExampleSuggestions(
                     (click)="giveUpGame()"
                   >
                     Give up
-                  </button>
-                </div>
-              </section>
-            </div>
-          }
-        }
-
-        @if (formsConfirm(); as choice) {
-          @if (formsConfirmDetail(choice.index)) {
-            <div class="sheet-backdrop" (click)="closeFormsConfirm($event)">
-              <section
-                class="sheet confirm"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Generate forms"
-                (click)="$event.stopPropagation()"
-              >
-                <h3>Generate forms?</h3>
-                <p>We'll generate the missing forms.</p>
-                <div class="sheet-actions">
-                  <button type="button" class="btn btn-secondary" (click)="formsConfirm.set(null)">
-                    Cancel
-                  </button>
-                  <button type="button" class="btn btn-primary" (click)="confirmGenerateForms()">
-                    Generate
                   </button>
                 </div>
               </section>
@@ -3835,6 +4056,7 @@ function writeExampleSuggestions(
     }
 
     .sense > .group > .section-heading > .section-title,
+    .sense > .group > .section-title,
     .sense > .group > .examples,
     .sense > .group > .forms {
       margin-inline-start: var(--phrase-indent, 0);
@@ -4470,7 +4692,7 @@ function writeExampleSuggestions(
     }
 
     .example-quote::before {
-      content: "";
+      content: '';
       position: absolute;
       inset-inline-start: 0;
       top: 0.15rem;
@@ -4791,11 +5013,21 @@ function writeExampleSuggestions(
       gap: 0.55rem;
     }
 
+    .sheet-scroll > .work-section:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .write-example {
+      margin-top: 0.35rem;
+    }
+
     .editor-sheet > .sheet-footer .btn {
       gap: 0.4rem;
     }
 
-    .editor-sheet > .sheet-footer .btn svg {
+    .editor-sheet > .sheet-footer .btn svg,
+    .work-section .sheet-actions .btn svg {
       width: 1rem;
       height: 1rem;
       flex: none;
@@ -5468,6 +5700,16 @@ function writeExampleSuggestions(
       cursor: not-allowed;
     }
 
+    .lang.work-tabs {
+      display: flex;
+      align-self: stretch;
+    }
+
+    .lang.work-tabs button {
+      flex: 1;
+      text-align: center;
+    }
+
     .score {
       font-size: 1.35rem;
       font-weight: 750;
@@ -5608,8 +5850,14 @@ export class ElementModal {
   readonly addingDefinitions = signal<'missing' | 'example' | null>(null);
   readonly definitionExample = signal('');
   readonly askingForms = signal<number | null>(null);
-  readonly formsConfirm = signal<{ index: number } | null>(null);
   readonly askingExamples = signal<number | null>(null);
+  readonly workTab = signal<WorkTab>('definitions');
+  /** Generated example waiting to be saved. */
+  readonly exampleDraft = signal<ExampleDraft | null>(null);
+  /** Generated forms waiting to be saved. */
+  readonly pendingForms = signal<PendingForms | null>(null);
+  readonly exampleError = signal('');
+  readonly formsError = signal('');
   readonly askingRelated = signal<number | null>(null);
   readonly askingWording = signal<number | null>(null);
   readonly newGlosses = signal<ReadonlySet<string>>(new Set());
@@ -5695,8 +5943,11 @@ export class ElementModal {
       this.titleEdit.set(false);
       this.titleError.set('');
       this.confirm.set(null);
-      this.formsConfirm.set(null);
       this.askingForms.set(null);
+      this.exampleDraft.set(null);
+      this.pendingForms.set(null);
+      this.exampleError.set('');
+      this.formsError.set('');
       this.askingExamples.set(null);
       this.askingRelated.set(null);
       this.askingWording.set(null);
@@ -5765,10 +6016,6 @@ export class ElementModal {
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    if (this.formsConfirm()) {
-      this.formsConfirm.set(null);
-      return;
-    }
     if (this.equivalentPromptOpen()) {
       this.closeEquivalentPrompt();
       return;
@@ -5806,20 +6053,20 @@ export class ElementModal {
       this.confirm.set(null);
       return;
     }
-    if (this.metaEdit()) {
-      this.metaEdit.set(null);
-      return;
-    }
-    if (this.editor()) {
-      this.editor.set(null);
-      return;
-    }
     if (this.formFeatureEdit()) {
       this.formFeatureEdit.set(null);
       return;
     }
     if (this.formEdit()) {
       if (!this.busy()) this.cancelForm();
+      return;
+    }
+    if (this.metaEdit()) {
+      this.metaEdit.set(null);
+      return;
+    }
+    if (this.editor()) {
+      this.closeEditor();
       return;
     }
     if (this.exampleEngineer()) {
@@ -6153,9 +6400,49 @@ export class ElementModal {
 
   sheetTitle(editor: Editor): string {
     if (editor.kind === 'definition') {
-      return editor.index == null ? 'Add a definition' : 'Edit definition';
+      return editor.index == null ? 'Add a definition' : 'Work';
     }
     return editor.exampleIndex == null ? 'Add an example' : 'Edit example';
+  }
+
+  /** Saved definition, including edits that have not reached the parent yet. */
+  sheetDefinition(index: number): ElementDefinition | null {
+    return this.currentElement().definitions[index] ?? null;
+  }
+
+  closeEditor(): void {
+    const editor = this.editor();
+    if (!editor) return;
+    if (
+      this.definitionSheetBusy() ||
+      this.askingExamples() !== null ||
+      this.askingForms() !== null
+    ) {
+      return;
+    }
+    if (editor.kind === 'example') {
+      this.openDefinition(editor.definitionIndex);
+      return;
+    }
+    this.editor.set(null);
+    this.definitionEngineer.set(null);
+    this.exampleEngineer.set(null);
+    this.exampleDraft.set(null);
+    this.pendingForms.set(null);
+    this.exampleError.set('');
+    this.formsError.set('');
+  }
+
+  closeEditorSheet(event: MouseEvent): void {
+    if (event.target !== event.currentTarget) return;
+    this.closeEditor();
+  }
+
+  showWorkTab(tab: WorkTab): void {
+    const editor = this.editor();
+    if (tab !== 'definitions' && (editor?.kind !== 'definition' || editor.index == null)) return;
+    this.workTab.set(tab);
+    this.editorSheet()?.nativeElement.querySelector('.sheet-scroll')?.scrollTo({ top: 0 });
   }
 
   aiBusy(): boolean {
@@ -6210,32 +6497,8 @@ export class ElementModal {
   }
 
   generateForms(index: number): void {
-    if (this.inPlay() || this.aiBusy() || !this.element().definitions[index]) return;
+    if (this.inPlay() || this.aiBusy() || !this.sheetDefinition(index)) return;
     void this.askForms(index);
-  }
-
-  askGenerateForms(index: number): void {
-    if (this.inPlay() || this.aiBusy() || !this.element().definitions[index]) return;
-    this.formsConfirm.set({ index });
-  }
-
-  closeFormsConfirm(event: MouseEvent): void {
-    if (event.target !== event.currentTarget) return;
-    this.formsConfirm.set(null);
-  }
-
-  formsConfirmDetail(index: number): { gloss: string } | null {
-    const definition = this.element().definitions[index];
-    const gloss = parsePassage(definition?.text ?? '').text.trim();
-    if (!definition || !gloss) return null;
-    return { gloss };
-  }
-
-  confirmGenerateForms(): void {
-    const choice = this.formsConfirm();
-    this.formsConfirm.set(null);
-    if (!choice) return;
-    this.generateForms(choice.index);
   }
 
   addFormManually(index: number): void {
@@ -6491,8 +6754,15 @@ export class ElementModal {
     if (asking != null) this.askingExamples.set(asking + by);
     const forms = this.askingForms();
     if (forms != null) this.askingForms.set(forms + by);
-    const confirming = this.formsConfirm();
-    if (confirming) this.formsConfirm.set({ index: confirming.index + by });
+    const draft = this.exampleDraft();
+    if (draft) this.exampleDraft.set({ ...draft, definitionIndex: draft.definitionIndex + by });
+    const pendingForms = this.pendingForms();
+    if (pendingForms) {
+      this.pendingForms.set({
+        ...pendingForms,
+        definitionIndex: pendingForms.definitionIndex + by,
+      });
+    }
     const related = this.askingRelated();
     if (related != null) this.askingRelated.set(related + by);
     const wording = this.askingWording();
@@ -6513,40 +6783,77 @@ export class ElementModal {
 
   async askForms(index: number): Promise<void> {
     if (this.aiBusy()) return;
-    const element = this.element();
+    const element = this.currentElement();
     const definition = element.definitions[index];
     const gloss = parsePassage(definition?.text ?? '').text.trim();
     if (!definition || !gloss) return;
+    const pending = this.pendingForms();
+    const held = pending?.definitionIndex === index ? pending.forms : [];
     this.askingForms.set(index);
-    this.error.set('');
+    this.formsError.set('');
     try {
       const forms = await generateForms({
         language: element.language,
         title: element.title,
         gloss,
-        existingForms: definition.forms.map((form) => form.text),
+        existingForms: [
+          ...definition.forms.map((form) => form.text),
+          ...held.map((form) => form.text),
+        ],
       });
-      if (!forms.length) {
-        this.error.set('No further forms.');
-        return;
-      }
-      const definitions = this.copyDefinitions();
-      const target = definitions[index];
-      if (!target) return;
-      const seen = new Set(target.forms.map((form) => form.text.toLowerCase()));
+      if (this.element().id !== element.id) return;
+      const current = this.pendingForms();
+      const next = current?.definitionIndex === index ? [...current.forms] : [];
+      const seen = new Set([
+        ...definition.forms.map((form) => form.text.toLowerCase()),
+        ...next.map((form) => form.text.toLowerCase()),
+      ]);
       for (const form of forms) {
         const key = form.text.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
-        target.forms.push(form);
+        next.push(form);
       }
-      ensureRootLemma(target.forms, element.title);
-      await this.persist(definitions, element.equivalents);
+      if (next.length === (current?.definitionIndex === index ? current.forms.length : 0)) {
+        this.formsError.set('No further forms.');
+        return;
+      }
+      this.pendingForms.set({ definitionIndex: index, forms: next });
     } catch {
-      this.error.set('Could not ask for forms.');
+      if (this.element().id === element.id) this.formsError.set('Could not ask for forms.');
     } finally {
-      this.askingForms.set(null);
+      if (this.element().id === element.id) this.askingForms.set(null);
     }
+  }
+
+  async savePendingForms(): Promise<void> {
+    const pending = this.pendingForms();
+    if (!pending?.forms.length || this.busy()) return;
+    const definitions = this.copyDefinitions();
+    const definition = definitions[pending.definitionIndex];
+    if (!definition) return;
+    const before = new Set(definition.forms.map((form) => form.text.toLowerCase()));
+    for (const form of pending.forms) {
+      if (before.has(form.text.toLowerCase())) continue;
+      definition.forms.push({ text: form.text, metadata: { ...form.metadata } });
+    }
+    ensureRootLemma(definition.forms, this.element().title);
+    const added = definition.forms
+      .filter((form) => !before.has(form.text.toLowerCase()))
+      .map((form) => form.text);
+    if (!added.length) {
+      this.pendingForms.set(null);
+      return;
+    }
+    this.appendForm(definition, added);
+    if (!(await this.persist(definitions, this.currentElement().equivalents))) return;
+    if (this.pendingForms() === pending) this.pendingForms.set(null);
+  }
+
+  discardPendingForms(): void {
+    if (this.askingForms() !== null) return;
+    this.pendingForms.set(null);
+    this.formsError.set('');
   }
 
   canHear(text: string): boolean {
@@ -6604,7 +6911,8 @@ export class ElementModal {
 
   openDefinition(index: number | null): void {
     if (this.inPlay()) return;
-    const definition = index == null ? null : this.element().definitions[index];
+    const definition =
+      index == null ? null : (this.sheetDefinition(index) ?? this.element().definitions[index]);
     if (index != null && !definition) return;
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -6614,6 +6922,10 @@ export class ElementModal {
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
     this.closeDefinitionPrompts();
+    this.exampleError.set('');
+    this.formsError.set('');
+    if (this.exampleDraft()?.definitionIndex !== index) this.exampleDraft.set(null);
+    if (this.pendingForms()?.definitionIndex !== index) this.pendingForms.set(null);
     this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
     const language = this.translationTarget();
     const equivalentId = language ? (definition?.equivalentIds[language] ?? null) : null;
@@ -6629,12 +6941,19 @@ export class ElementModal {
     this.sheetEquivalents.set(this.element().equivalents.map((item) => ({ ...item })));
     this.beginSheet(definition?.text ?? '');
     if (definition) this.dismissNew(definition.text);
+    const previous = this.editor();
+    const staying =
+      index != null &&
+      ((previous?.kind === 'definition' && previous.index === index) ||
+        (previous?.kind === 'example' && previous.definitionIndex === index));
+    if (!staying) this.workTab.set('definitions');
     this.editor.set({ kind: 'definition', index });
+    if (index != null) this.ensureExampleEngineer(index);
   }
 
   openExample(definitionIndex: number, exampleIndex: number | null): void {
     if (this.inPlay()) return;
-    const definition = this.element().definitions[definitionIndex];
+    const definition = this.sheetDefinition(definitionIndex);
     if (!definition) return;
     const example = exampleIndex == null ? null : definition.examples[exampleIndex];
     if (exampleIndex != null && !example) return;
@@ -6659,7 +6978,24 @@ export class ElementModal {
   }
 
   definitionForms(index: number): string[] {
-    return this.element().definitions[index]?.forms.map((form) => form.text) ?? [];
+    return this.sheetDefinition(index)?.forms.map((form) => form.text) ?? [];
+  }
+
+  private ensureExampleEngineer(index: number): void {
+    const definition = this.sheetDefinition(index);
+    const key = senseKey(definition?.text ?? '');
+    if (!definition || !key) {
+      this.exampleEngineer.set(null);
+      return;
+    }
+    const draft = this.engineerDrafts.get(key) ?? { instruction: '', forms: [] };
+    const available = new Set(definition.forms.map((form) => form.text.toLowerCase()));
+    this.exampleEngineer.set({
+      definitionIndex: index,
+      instruction: draft.instruction,
+      forms: draft.forms.filter((form) => available.has(form.toLowerCase())),
+      formsOpen: false,
+    });
   }
 
   openExampleEngineer(index: number): void {
@@ -6910,7 +7246,7 @@ export class ElementModal {
   async generateEngineeredExample(): Promise<void> {
     const engineer = this.exampleEngineer();
     if (!engineer || this.aiBusy()) return;
-    const element = this.element();
+    const element = this.currentElement();
     const definition = element.definitions[engineer.definitionIndex];
     const gloss = parsePassage(definition?.text ?? '').text.trim();
     const sense = senseKey(gloss);
@@ -6921,10 +7257,11 @@ export class ElementModal {
       return text ? [text] : [];
     });
     const required = selected.length ? selected[Math.floor(Math.random() * selected.length)] : '';
+    const held = this.exampleDraftFor(engineer.definitionIndex);
     const job = ++this.exampleJob;
     const index = engineer.definitionIndex;
     this.askingExamples.set(index);
-    this.error.set('');
+    this.exampleError.set('');
     try {
       const examples = await generateExamples({
         language: element.language,
@@ -6932,7 +7269,10 @@ export class ElementModal {
         gloss,
         translation: this.translationTarget(),
         metadata: definition.metadata,
-        existingExamples: definition.examples.map((example) => parsePassage(example.text).text),
+        existingExamples: [
+          ...definition.examples.map((example) => parsePassage(example.text).text),
+          ...(held ? [parsePassage(held.text).text] : []),
+        ],
         forms: required ? [] : definition.forms.map((form) => form.text),
         exampleWords: [],
         exampleInstruction: engineer.instruction,
@@ -6941,44 +7281,78 @@ export class ElementModal {
       const sentence = examples[0];
       const showing = this.element().id === element.id;
       if (!sentence) {
-        if (showing) this.error.set('No further examples.');
+        if (showing) this.exampleError.set('No further examples.');
         return;
       }
       const primary = parsePassage(sentence.text).text;
       if (required && !sentenceUsesForm(primary, required)) {
-        if (showing) this.error.set('The example did not use the chosen form.');
+        if (showing) this.exampleError.set('The example did not use the chosen form.');
         return;
       }
       if (!showing) return;
-      const definitions = this.copyDefinitions();
-      const target = definitions.find((item) => senseKey(item.text) === sense);
+      const target = this.currentElement().definitions.find(
+        (item) => senseKey(item.text) === sense,
+      );
       if (!target) return;
       const sentenceKey = senseKey(sentence.text);
       if (
         !sentenceKey ||
-        target.examples.some((example) => senseKey(example.text) === sentenceKey)
+        target.examples.some((example) => senseKey(example.text) === sentenceKey) ||
+        (held && senseKey(held.text) === sentenceKey)
       ) {
-        this.error.set('No further examples.');
+        this.exampleError.set('No further examples.');
         return;
       }
-      target.examples.push({ text: sentence.text, metadata: sentence.metadata });
-      this.appendExample(target, sentence.text);
-      if (!(await this.persist(definitions, this.element().equivalents))) return;
-      if (this.element().id !== element.id) return;
-      this.exampleEngineer.set(null);
+      this.exampleDraft.set({
+        definitionIndex: index,
+        text: sentence.text,
+        metadata: { ...sentence.metadata },
+      });
     } catch {
-      if (this.element().id === element.id) this.error.set('Could not ask for examples.');
+      if (this.element().id === element.id) this.exampleError.set('Could not ask for examples.');
     } finally {
       if (this.exampleJob === job && this.element().id === element.id)
         this.askingExamples.set(null);
     }
   }
 
+  exampleDraftFor(index: number): ExampleDraft | null {
+    const draft = this.exampleDraft();
+    return draft?.definitionIndex === index ? draft : null;
+  }
+
+  pendingFormsFor(index: number): ElementForm[] {
+    const pending = this.pendingForms();
+    return pending?.definitionIndex === index ? pending.forms : [];
+  }
+
+  async saveExampleDraft(): Promise<void> {
+    const draft = this.exampleDraft();
+    if (!draft || this.busy()) return;
+    const definitions = this.copyDefinitions();
+    const target = definitions[draft.definitionIndex];
+    if (!target) return;
+    const key = senseKey(draft.text);
+    if (!key || target.examples.some((example) => senseKey(example.text) === key)) {
+      this.exampleError.set('That example is already there.');
+      return;
+    }
+    target.examples.push({ text: draft.text, metadata: { ...draft.metadata } });
+    this.appendExample(target, draft.text);
+    this.exampleError.set('');
+    if (!(await this.persist(definitions, this.currentElement().equivalents))) return;
+    if (senseKey(this.exampleDraft()?.text ?? '') === key) this.exampleDraft.set(null);
+  }
+
+  discardExampleDraft(): void {
+    if (this.askingExamples() !== null) return;
+    this.exampleDraft.set(null);
+    this.exampleError.set('');
+  }
+
   openExistingForm(definitionIndex: number, text: string): void {
     if (this.inPlay() || this.busy()) return;
-    const form = this.element().definitions[definitionIndex]?.forms.find(
-      (item) => item.text === text,
-    );
+    const form = this.sheetDefinition(definitionIndex)?.forms.find((item) => item.text === text);
     if (!form) return;
     this.openForm(definitionIndex, form);
   }
@@ -6989,11 +7363,8 @@ export class ElementModal {
   }
 
   openForm(definitionIndex: number, form?: { text: string; metadata: ElementMetadata }): void {
-    if (!this.element().definitions[definitionIndex]) return;
+    if (!this.sheetDefinition(definitionIndex)) return;
     this.closeDefinitionPrompts();
-    this.editor.set(null);
-    this.exampleEngineer.set(null);
-    this.definitionEngineer.set(null);
     this.confirm.set(null);
     this.metaEdit.set(null);
     this.formError.set('');
@@ -7535,7 +7906,8 @@ export class ElementModal {
           this.definitionPanel.set(index);
           this.scrollDefinitionPanel();
         }
-        this.editor.set(null);
+        this.editor.set({ kind: 'definition', index });
+        this.ensureExampleEngineer(index);
       }
       return;
     }
@@ -7553,7 +7925,9 @@ export class ElementModal {
       this.appendExample(definition, text);
     } else definition.examples[exampleIndex] = next;
     const definitionIndex = editor.definitionIndex;
-    if (await this.persist(definitions, this.element().equivalents)) this.editor.set(null);
+    if (await this.persist(definitions, this.element().equivalents)) {
+      this.openDefinition(definitionIndex);
+    }
   }
 
   async saveForm(): Promise<void> {
@@ -7577,6 +7951,7 @@ export class ElementModal {
       return;
     }
     const next = { text: form, metadata: this.formFeaturesToStore() };
+    const before = new Set(definition.forms.map((item) => item.text.toLowerCase()));
     if (original == null) definition.forms.push(next);
     else {
       const index = definition.forms.findIndex((item) => item.text === original);
@@ -7584,6 +7959,12 @@ export class ElementModal {
       definition.forms[index] = next;
     }
     ensureRootLemma(definition.forms, this.element().title);
+    if (original == null) {
+      const added = definition.forms
+        .filter((item) => !before.has(item.text.toLowerCase()))
+        .map((item) => item.text);
+      if (added.length) this.appendForm(definition, added);
+    }
     if (await this.persist(definitions, this.element().equivalents)) this.cancelForm();
   }
 
@@ -7657,6 +8038,7 @@ export class ElementModal {
         : undefined;
       if (entry?.event === 'rework') return 'Delete this rework?';
       if (entry?.event === 'example') return 'Delete this example?';
+      if (entry?.event === 'form') return 'Delete these forms?';
       return 'Delete this exercise?';
     }
     return 'Delete this example?';
@@ -7792,10 +8174,21 @@ export class ElementModal {
       const forms = this.askingForms();
       if (forms === pending.index) this.askingForms.set(null);
       else if (forms != null && forms > pending.index) this.askingForms.set(forms - 1);
-      const confirming = this.formsConfirm();
-      if (confirming?.index === pending.index) this.formsConfirm.set(null);
-      else if (confirming && confirming.index > pending.index) {
-        this.formsConfirm.set({ index: confirming.index - 1 });
+      const exampleDraft = this.exampleDraft();
+      if (exampleDraft?.definitionIndex === pending.index) this.exampleDraft.set(null);
+      else if (exampleDraft && exampleDraft.definitionIndex > pending.index) {
+        this.exampleDraft.set({
+          ...exampleDraft,
+          definitionIndex: exampleDraft.definitionIndex - 1,
+        });
+      }
+      const pendingForms = this.pendingForms();
+      if (pendingForms?.definitionIndex === pending.index) this.pendingForms.set(null);
+      else if (pendingForms && pendingForms.definitionIndex > pending.index) {
+        this.pendingForms.set({
+          ...pendingForms,
+          definitionIndex: pendingForms.definitionIndex - 1,
+        });
       }
       const related = this.askingRelated();
       if (related === pending.index) this.askingRelated.set(null);
@@ -7830,7 +8223,8 @@ export class ElementModal {
     this.definitionEngineer.set(null);
     this.askingExamples.set(null);
     this.askingForms.set(null);
-    this.formsConfirm.set(null);
+    this.exampleDraft.set(null);
+    this.pendingForms.set(null);
     this.askingRelated.set(null);
     this.askingWording.set(null);
     this.editor.set(null);
@@ -8039,6 +8433,14 @@ export class ElementModal {
     definition.log = [
       ...definition.log,
       { event: 'example', at: Date.now(), example, snapshot: this.snapshotOf(definition) },
+    ];
+  }
+
+  /** Forms saved in one action keep the definition they were added to. */
+  private appendForm(definition: ElementDefinition, forms: string[]): void {
+    definition.log = [
+      ...definition.log,
+      { event: 'form', at: Date.now(), forms, snapshot: this.snapshotOf(definition) },
     ];
   }
 
@@ -8432,6 +8834,7 @@ export class ElementModal {
   historyTitle(entry: DefinitionHistoryEntry): string {
     if (entry.event === 'rework') return 'Reworked';
     if (entry.event === 'example') return 'Example';
+    if (entry.event === 'form') return 'Forms';
     return this.modeLabel(this.logMode(entry.game));
   }
 
@@ -8444,7 +8847,8 @@ export class ElementModal {
   }
 
   private listedHistory(entry: DefinitionLogEntry): entry is DefinitionHistoryEntry {
-    if (entry.event === 'rework' || entry.event === 'example') return true;
+    if (entry.event === 'rework' || entry.event === 'example' || entry.event === 'form')
+      return true;
     return entry.event === 'game' && (this.supportAvailable() || entry.game !== 'translation');
   }
 

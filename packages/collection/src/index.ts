@@ -43,6 +43,7 @@ export {
   setElementWriteListener,
   TRANSLATION_GEM_MAX,
   type DefinitionExampleLog,
+  type DefinitionFormLog,
   type DefinitionGame,
   type DefinitionGameLog,
   type DefinitionLogBy,
