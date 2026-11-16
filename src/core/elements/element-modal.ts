@@ -159,7 +159,11 @@ function mergeMetadata(current: ElementMetadata, extra: ElementMetadata): Elemen
 }
 
 type DefinitionHistoryEntry =
-  DefinitionGameLog | DefinitionReworkLog | DefinitionExampleLog | DefinitionFormLog;
+  | DefinitionGameLog
+  | DefinitionReworkLog
+  | DefinitionExampleLog
+  | DefinitionFormLog
+  | { event: 'view'; at: number };
 
 type ExampleDraft = {
   definitionIndex: number;
@@ -182,6 +186,7 @@ type ConfirmDelete =
   | { kind: 'exercise'; definitionIndex: number; historyIndex: number };
 
 const DELETE_PRESS_MS = 500;
+const DEFINITION_META_FALLBACK = ['#a5b4fc', '#34d399', '#fcd34d', '#f9a8d4'];
 
 type StoredSuggestion = {
   text: string;
@@ -514,7 +519,12 @@ function writeExampleSuggestions(
       [attr.aria-label]="dialogLabel()"
       (click)="onBackdrop($event)"
     >
-      <div class="panel" [attr.data-mode]="shownPlayMode()">
+      <div
+        class="panel"
+        [class.has-color]="!!element().color"
+        [style.--swatch]="element().color || null"
+        [attr.data-mode]="shownPlayMode()"
+      >
         <ng-template #hearButton let-key="key" let-text="text" let-label="label" let-off="off">
           @if (canHear(text)) {
             <button
@@ -557,9 +567,7 @@ function writeExampleSuggestions(
               d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"
             />
             <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
-            <path
-              d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"
-            />
+            <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />
           </svg>
         </ng-template>
         <header>
@@ -667,111 +675,62 @@ function writeExampleSuggestions(
             }
             @if (element().definitions.length) {
               @let index = visibleDefinitionIndex();
-              @if (shownDefinitions()[index]; as definition) {
-                @if (passagePick(index, null); as pick) {
-                  <span class="lookup-actions">
-                    <button
-                      type="button"
-                      class="lookup-chip"
-                      aria-label="Add element"
-                      [disabled]="aiBusy()"
-                      (pointerdown)="confirmPassagePick($event, pick.text)"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M5 12h14" />
-                        <path d="M12 5v14" />
-                      </svg>
-                      Add
-                    </button>
-                    <button
-                      type="button"
-                      class="lookup-chip"
-                      aria-label="Add element with AI"
-                      [disabled]="aiBusy()"
-                      [attr.aria-busy]="addingSelection() ? true : null"
-                      (pointerdown)="confirmPassagePick($event, pick.text, true)"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                        />
-                      </svg>
-                      Ask AI
-                    </button>
-                  </span>
-                } @else {
+              @if (passagePick(index, null); as pick) {
+                <span class="lookup-actions">
                   <button
                     type="button"
-                    class="icon-btn"
-                    aria-label="Stats"
-                    title="Stats"
-                    [disabled]="inPlay()"
-                    (click)="openExerciseLog(index)"
+                    class="lookup-chip"
+                    aria-label="Add element"
+                    [disabled]="aiBusy()"
+                    (pointerdown)="confirmPassagePick($event, pick.text)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 3v16a2 2 0 0 0 2 2h16" />
-                      <path d="M18 17V9" />
-                      <path d="M13 17V5" />
-                      <path d="M8 17v-3" />
+                      <path d="M5 12h14" />
+                      <path d="M12 5v14" />
                     </svg>
+                    Add
                   </button>
                   <button
                     type="button"
-                    class="icon-btn"
-                    [attr.aria-label]="definitionActionLabel(definition)"
-                    [attr.title]="definitionActionLabel(definition)"
-                    [disabled]="inPlay() || aiBusy()"
-                    (click)="openDefinition(index)"
+                    class="lookup-chip"
+                    aria-label="Add element with AI"
+                    [disabled]="aiBusy()"
+                    [attr.aria-busy]="addingSelection() ? true : null"
+                    (pointerdown)="confirmPassagePick($event, pick.text, true)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                      <path d="m18 15 4-4" />
                       <path
-                        d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
                       />
                     </svg>
+                    Ask AI
                   </button>
-                }
+                </span>
               }
             }
-            <button
-              type="button"
-              class="icon-btn"
-              aria-label="Add a definition"
-              title="Add a definition"
-              [disabled]="inPlay() || aiBusy()"
-              [attr.aria-busy]="addingDefinitions() ? true : null"
-              (click)="openDefinitionMenu()"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
-                />
-                <path d="M9 10h6" />
-                <path d="M12 7v6" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="icon-btn danger"
-              [attr.aria-label]="deleteLabel()"
-              [attr.title]="deleteTitle()"
-              [disabled]="inPlay() || busy() || (!!element().definitions.length && aiBusy())"
-              (pointerdown)="startDeletePress($event)"
-              (pointermove)="moveDeletePress($event)"
-              (pointerup)="endDeletePress()"
-              (pointercancel)="endDeletePress()"
-              (contextmenu)="$event.preventDefault()"
-              (click)="onDeleteClick()"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 6h18" />
-                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                <path d="M10 11v6" />
-                <path d="M14 11v6" />
-              </svg>
-            </button>
+            @if (!element().definitions.length) {
+              <button
+                type="button"
+                class="icon-btn danger"
+                [attr.aria-label]="deleteLabel()"
+                [attr.title]="deleteTitle()"
+                [disabled]="inPlay() || busy()"
+                (pointerdown)="startDeletePress($event)"
+                (pointermove)="moveDeletePress($event)"
+                (pointerup)="endDeletePress()"
+                (pointercancel)="endDeletePress()"
+                (contextmenu)="$event.preventDefault()"
+                (click)="onDeleteClick()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
+                </svg>
+              </button>
+            }
           </div>
         </header>
         <div #definitionBody class="body" cdkScrollable>
@@ -793,6 +752,100 @@ function writeExampleSuggestions(
             @if (definitions[index]; as definition) {
               <ol class="definitions">
                 <li class="sense" [class.fresh]="definitionIsNew(definition.text)">
+                  <div class="sense-toolbar">
+                    <div class="sense-pager">
+                      <button
+                        type="button"
+                        class="pager-btn"
+                        aria-label="Previous definition"
+                        [disabled]="index === 0"
+                        (click)="showDefinition(index - 1)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m15 18-6-6 6-6" />
+                        </svg>
+                      </button>
+                      <nav class="definition-dots" aria-label="Definitions">
+                        @for (item of definitions; track $index) {
+                          <button
+                            type="button"
+                            class="definition-dot"
+                            [class.active]="$index === index"
+                            [attr.aria-current]="$index === index ? 'true' : null"
+                            [attr.aria-label]="'Definition ' + ($index + 1)"
+                            (click)="showDefinition($index)"
+                          >
+                            <span></span>
+                          </button>
+                        }
+                      </nav>
+                      <button
+                        type="button"
+                        class="pager-btn"
+                        aria-label="Next definition"
+                        [disabled]="index >= definitions.length - 1"
+                        (click)="showDefinition(index + 1)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m9 18 6-6-6-6" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="sense-actions">
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Stats"
+                        title="Stats"
+                        [disabled]="inPlay()"
+                        (click)="openExerciseLog(index)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+                          <path d="M18 17V9" />
+                          <path d="M13 17V5" />
+                          <path d="M8 17v-3" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        [attr.aria-label]="definitionActionLabel(definition)"
+                        [attr.title]="definitionActionLabel(definition)"
+                        [disabled]="inPlay() || aiBusy()"
+                        (click)="openDefinition(index)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                          <path d="m18 15 4-4" />
+                          <path
+                            d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn danger"
+                        [attr.aria-label]="deleteLabel()"
+                        [attr.title]="deleteTitle()"
+                        [disabled]="inPlay() || busy() || aiBusy()"
+                        (pointerdown)="startDeletePress($event)"
+                        (pointermove)="moveDeletePress($event)"
+                        (pointerup)="endDeletePress()"
+                        (pointercancel)="endDeletePress()"
+                        (contextmenu)="$event.preventDefault()"
+                        (click)="onDeleteClick()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                          <path d="M10 11v6" />
+                          <path d="M14 11v6" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                   <div class="sense-main">
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
@@ -822,6 +875,7 @@ function writeExampleSuggestions(
                                   }}</span>
                                 </button>
                                 <ng-container [ngTemplateOutlet]="passageTranslations" />
+                                <ng-container [ngTemplateOutlet]="definitionGloss" />
                               </div>
                             </div>
                           } @else {
@@ -868,6 +922,7 @@ function writeExampleSuggestions(
                                   }
                                 </p>
                                 <ng-container [ngTemplateOutlet]="passageTranslations" />
+                                <ng-container [ngTemplateOutlet]="definitionGloss" />
                               </div>
                             </div>
                           }
@@ -889,51 +944,54 @@ function writeExampleSuggestions(
                           </ul>
                         }
                       </ng-template>
-                      @let equivalent = equivalentText(definition);
-                      @let meta = entries(definition.metadata);
-                      @if ((supportAvailable() && equivalent) || meta.length) {
-                        <ul class="sense-meta">
-                          @if (supportAvailable() && equivalent) {
-                            <li class="sense-equivalent" [class.play-focus]="translationGame()">
-                              @if (translationGame()) {
-                                <button
-                                  type="button"
-                                  class="guess-open"
-                                  [class.needs-click]="!equivalentSubmitted(index)"
-                                  [attr.aria-label]="
-                                    equivalentSubmitted(index)
-                                      ? 'See your equivalent'
-                                      : 'Write the equivalent'
-                                  "
-                                  [attr.title]="
-                                    equivalentSubmitted(index)
-                                      ? 'See your equivalent'
-                                      : 'Write the equivalent'
-                                  "
-                                  (click)="openEquivalentPrompt(index)"
-                                >
-                                  <ng-container [ngTemplateOutlet]="translationIcon" />
-                                  <span
-                                    class="guess-answer"
-                                    [class.play-blur]="!equivalentSubmitted(index)"
-                                    [attr.aria-hidden]="equivalentSubmitted(index) ? null : true"
-                                    >{{ labeledEquivalent(equivalent) }}</span
-                                  >
-                                </button>
-                              } @else {
+                      <ng-template #definitionGloss>
+                        @let equivalent = equivalentText(definition);
+                        @if (supportAvailable() && equivalent) {
+                          <p class="sense-gloss" [class.play-focus]="translationGame()">
+                            @if (translationGame()) {
+                              <button
+                                type="button"
+                                class="guess-open"
+                                [class.needs-click]="!equivalentSubmitted(index)"
+                                [attr.aria-label]="
+                                  equivalentSubmitted(index)
+                                    ? 'See your equivalent'
+                                    : 'Write the equivalent'
+                                "
+                                [attr.title]="
+                                  equivalentSubmitted(index)
+                                    ? 'See your equivalent'
+                                    : 'Write the equivalent'
+                                "
+                                (click)="openEquivalentPrompt(index)"
+                              >
                                 <ng-container [ngTemplateOutlet]="translationIcon" />
-                                <app-reveal
-                                  [text]="labeledEquivalent(equivalent)"
-                                  [locked]="inPlay()"
-                                  [open]="equivalentUnveiled(equivalent)"
-                                  (unveiled)="unveilEquivalent(equivalent)"
-                                />
-                              }
-                            </li>
-                          }
-                          @for (entry of meta; track entry.key) {
-                            @let color = metaColor('definitions', entry.key);
-                            <li [class.colored]="color" [style.--meta-color]="color">
+                                <span
+                                  class="guess-answer"
+                                  [class.play-blur]="!equivalentSubmitted(index)"
+                                  [attr.aria-hidden]="equivalentSubmitted(index) ? null : true"
+                                  >{{ labeledEquivalent(equivalent) }}</span
+                                >
+                              </button>
+                            } @else {
+                              <app-reveal
+                                [text]="labeledEquivalent(equivalent)"
+                                [locked]="inPlay()"
+                                [open]="equivalentUnveiled(equivalent)"
+                                (unveiled)="unveilEquivalent(equivalent)"
+                              />
+                            }
+                          </p>
+                        }
+                      </ng-template>
+                      @if (!passage.text) {
+                        <ng-container [ngTemplateOutlet]="definitionGloss" />
+                      }
+                      @let meta = entries(definition.metadata);
+                      @if (meta.length) {
+                        <ul class="sense-meta">
+                          @for (entry of meta; track entry.key; let metaIndex = $index) {
+                            <li [style.--meta-color]="definitionMetaColor(entry.key, metaIndex)">
                               <span class="sense-meta-key">{{ label(entry.key) }}</span>
                               <span class="sense-meta-value">{{ label(entry.value) }}</span>
                             </li>
@@ -1058,14 +1116,16 @@ function writeExampleSuggestions(
                     <section class="group">
                       <ul class="forms" aria-label="Forms">
                         @for (form of definition.forms; track form.text) {
+                          @let chip = formChipColor(form);
                           <li>
                             <button
                               type="button"
                               class="form-chip readonly"
+                              [class.tinted]="!!chip"
+                              [style.--form-color]="chip"
                               [attr.aria-label]="'Attributes for ' + form.text"
                               (click)="showFormAttributes(form)"
                             >
-                              <ng-container [ngTemplateOutlet]="formIcon" />
                               {{ form.text }}
                             </button>
                           </li>
@@ -1080,23 +1140,20 @@ function writeExampleSuggestions(
             <p class="empty">No definitions yet.</p>
           }
         </div>
-        @if (shownDefinitions().length > 1) {
-          <nav class="definition-switch" aria-label="Definitions">
-            @for (definition of shownDefinitions(); track $index) {
-              <button
-                type="button"
-                class="definition-dot"
-                [class.active]="$index === visibleDefinitionIndex()"
-                [attr.aria-current]="$index === visibleDefinitionIndex() ? 'true' : null"
-                [attr.aria-label]="'Definition ' + ($index + 1)"
-                (click)="showDefinition($index)"
-              >
-                <span aria-hidden="true"></span>
-              </button>
-            }
-          </nav>
-        }
-
+        <footer class="definition-footer">
+          <button
+            type="button"
+            class="add-definition-bar"
+            [disabled]="inPlay() || aiBusy()"
+            [attr.aria-busy]="addingDefinitions() ? true : null"
+            (click)="openDefinitionMenu()"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <span>Add a definition</span>
+          </button>
+        </footer>
         @if (editor(); as current) {
           <div class="sheet-backdrop" (click)="closeEditorSheet($event)">
             <section
@@ -1163,10 +1220,7 @@ function writeExampleSuggestions(
                 </div>
               }
               <ng-template #editorFields>
-                <div
-                  class="field-heading"
-                  [class.work-title]="current.kind === 'definition'"
-                >
+                <div class="field-heading" [class.work-title]="current.kind === 'definition'">
                   <label
                     class="work-title-text"
                     [attr.for]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
@@ -1518,9 +1572,9 @@ function writeExampleSuggestions(
               <div class="sheet-scroll">
                 @if (current.kind === 'definition') {
                   @if (workTab() === 'definitions' || current.index == null) {
-                  <section class="sheet-part work-section">
-                    <ng-container [ngTemplateOutlet]="editorFields" />
-                  </section>
+                    <section class="sheet-part work-section">
+                      <ng-container [ngTemplateOutlet]="editorFields" />
+                    </section>
                   }
                   @if (current.index != null && workTab() === 'examples') {
                     @let workIndex = current.index;
@@ -3161,117 +3215,292 @@ function writeExampleSuggestions(
               <p class="stats-definition">
                 {{ shownDefinition(parsePassage(definition.text).text) }}
               </p>
-                @if (exerciseEntry() < 0) {
-                  <div class="stats-summary">
-                    <section class="stats-block">
-                      <h3>Exercises</h3>
-                      <ul class="stats-gems">
-                        @for (row of exerciseStats; track row.game) {
-                          @if (row.game !== 'translation' || supportAvailable()) {
-                            <li
-                              [attr.data-game]="row.game"
-                              [attr.aria-label]="
-                                exerciseAverageLabel(definition, row.game, modeLabel(row.mode))
-                              "
-                            >
-                              <span class="stats-stone" aria-hidden="true">
-                                <app-mode-icon class="stats-stone-icon" [mode]="row.mode" />
+              @if (exerciseEntry() < 0) {
+                <div class="stats-summary">
+                  <section class="stats-block">
+                    <h3>Exercises</h3>
+                    <ul class="stats-gems">
+                      @for (row of exerciseStats; track row.game) {
+                        @if (row.game !== 'translation' || supportAvailable()) {
+                          <li
+                            [attr.data-game]="row.game"
+                            [attr.aria-label]="
+                              exerciseAverageLabel(definition, row.game, modeLabel(row.mode))
+                            "
+                          >
+                            <span class="stats-stone" aria-hidden="true">
+                              <app-mode-icon class="stats-stone-icon" [mode]="row.mode" />
+                            </span>
+                            @if (exerciseAverage(definition, row.game); as average) {
+                              <span class="stats-count">
+                                {{ average }}<span class="score-max">/5</span>
                               </span>
-                              @if (exerciseAverage(definition, row.game); as average) {
-                                <span class="stats-count">
-                                  {{ average }}<span class="score-max">/5</span>
-                                </span>
-                              } @else {
-                                <span class="stats-count stats-na">N/A</span>
-                              }
-                              <span class="stats-caption">{{ modeLabel(row.mode) }}</span>
-                            </li>
-                          }
+                            } @else {
+                              <span class="stats-count stats-na">N/A</span>
+                            }
+                            <span class="stats-caption">{{ modeLabel(row.mode) }}</span>
+                          </li>
                         }
-                      </ul>
-                    </section>
-                    <section class="stats-block">
-                      <h3>Activity</h3>
-                      <ul class="stats-activity">
-                        <li [attr.aria-label]="reworkLabel(reworkCount(definition))">
+                      }
+                    </ul>
+                  </section>
+                  <section class="stats-block">
+                    <h3>Activity</h3>
+                    <ul class="stats-activity">
+                      <li [attr.aria-label]="reworkLabel(reworkCount(definition))">
+                        <span class="stats-well" aria-hidden="true">
+                          <svg class="stats-mark" viewBox="0 0 24 24">
+                            <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                            <path d="m18 15 4-4" />
+                            <path
+                              d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                            />
+                          </svg>
+                        </span>
+                        <span class="stats-count">{{ reworkCount(definition) }}</span>
+                        <span class="stats-caption">Reworked</span>
+                      </li>
+                      @if (supportAvailable()) {
+                        <li [attr.aria-label]="revealLabel(revealCount(definition))">
                           <span class="stats-well" aria-hidden="true">
                             <svg class="stats-mark" viewBox="0 0 24 24">
-                              <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                              <path d="m18 15 4-4" />
-                              <path
-                                d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
-                              />
+                              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                              <circle cx="12" cy="12" r="3" />
                             </svg>
                           </span>
-                          <span class="stats-count">{{ reworkCount(definition) }}</span>
-                          <span class="stats-caption">Reworked</span>
+                          <span class="stats-count">{{ revealCount(definition) }}</span>
+                          <span class="stats-caption">Revealed</span>
                         </li>
-                        @if (supportAvailable()) {
-                          <li [attr.aria-label]="revealLabel(revealCount(definition))">
-                            <span class="stats-well" aria-hidden="true">
-                              <svg class="stats-mark" viewBox="0 0 24 24">
-                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                                <circle cx="12" cy="12" r="3" />
-                              </svg>
+                      }
+                    </ul>
+                  </section>
+                </div>
+                @if (definitionHistory(definition).length) {
+                  <section class="stats-log">
+                    <h3>History</h3>
+                    <div class="add-choices">
+                      @for (entry of definitionHistory(definition); track $index) {
+                        <button
+                          type="button"
+                          class="btn btn-secondary add-choice log-row"
+                          [attr.aria-label]="historyAria(entry)"
+                          (click)="exerciseEntry.set($index)"
+                        >
+                          <span class="log-copy">
+                            <span class="log-game">{{ historyTitle(entry) }}</span>
+                            <span class="hint">{{ exerciseWhen(entry.at) }}</span>
+                          </span>
+                          @if (entry.event === 'game') {
+                            <span
+                              class="score-readout"
+                              [attr.data-game]="entry.game"
+                              aria-hidden="true"
+                            >
+                              {{ entry.score }}<span class="score-max">/5</span>
                             </span>
-                            <span class="stats-count">{{ revealCount(definition) }}</span>
-                            <span class="stats-caption">Revealed</span>
+                          }
+                        </button>
+                      }
+                    </div>
+                  </section>
+                }
+              } @else {
+                @let entry = definitionHistory(definition)[exerciseEntry()];
+                @if (entry) {
+                  <ng-template
+                    #historyPassage
+                    let-text="text"
+                    let-equivalent="equivalent"
+                    let-metadata="metadata"
+                  >
+                    @let passage = parsePassage(text);
+                    @if (passage.text) {
+                      <p class="passage">{{ shownDefinition(passage.text) }}</p>
+                    }
+                    @let translations = shownTranslations(passage);
+                    @if (translations.length) {
+                      <ul class="equivalents">
+                        @for (translation of translations; track $index) {
+                          <li>
+                            <app-reveal
+                              [text]="labeledTranslation(translation)"
+                              (unveiled)="noteReveal(index)"
+                            />
                           </li>
                         }
                       </ul>
-                    </section>
-                  </div>
-                  @if (definitionHistory(definition).length) {
-                    <section class="stats-log">
-                      <h3>History</h3>
-                      <div class="add-choices">
-                        @for (entry of definitionHistory(definition); track $index) {
-                          <button
-                            type="button"
-                            class="btn btn-secondary add-choice log-row"
-                            [attr.aria-label]="historyAria(entry)"
-                            (click)="exerciseEntry.set($index)"
-                          >
-                            <span class="log-copy">
-                              <span class="log-game">{{ historyTitle(entry) }}</span>
-                              <span class="hint">{{ exerciseWhen(entry.at) }}</span>
-                            </span>
-                            @if (entry.event === 'game') {
-                              <span
-                                class="score-readout"
-                                [attr.data-game]="entry.game"
-                                aria-hidden="true"
-                              >
-                                {{ entry.score }}<span class="score-max">/5</span>
-                              </span>
-                            }
-                          </button>
-                        }
-                      </div>
-                    </section>
-                  }
-                } @else {
-                  @let entry = definitionHistory(definition)[exerciseEntry()];
-                  @if (entry) {
-                    <ng-template #historyPassage let-text="text" let-equivalent="equivalent" let-metadata="metadata">
-                      @let passage = parsePassage(text);
-                      @if (passage.text) {
-                        <p class="passage">{{ shownDefinition(passage.text) }}</p>
-                      }
-                      @let translations = shownTranslations(passage);
-                      @if (translations.length) {
-                        <ul class="equivalents">
-                          @for (translation of translations; track $index) {
+                    }
+                    @if (equivalent) {
+                      <p class="equivalent-result">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m5 8 6 6" />
+                          <path d="m4 14 6-6 2-3" />
+                          <path d="M2 5h12" />
+                          <path d="M7 2h1" />
+                          <path d="m22 22-5-10-5 10" />
+                          <path d="M14 18h6" />
+                        </svg>
+                        <span>{{ equivalent }}</span>
+                      </p>
+                    }
+                    @if (entries(metadata ?? {}); as meta) {
+                      @if (meta.length) {
+                        <ul class="pills">
+                          @for (item of meta; track item.key) {
                             <li>
-                              <app-reveal
-                                [text]="labeledTranslation(translation)"
-                                (unveiled)="noteReveal(index)"
-                              />
+                              <span>
+                                <span class="sense-meta-key">{{ item.key }}</span>
+                                <span class="sense-meta-value">{{ item.value }}</span>
+                              </span>
                             </li>
                           }
                         </ul>
                       }
-                      @if (equivalent) {
+                    }
+                  </ng-template>
+                  @if (entry.event === 'rework') {
+                    @if (entry.before && entry.after) {
+                      <div class="compare">
+                        <div class="compare-side">
+                          <p class="field-label">Before</p>
+                          <ng-container
+                            [ngTemplateOutlet]="historyPassage"
+                            [ngTemplateOutletContext]="{
+                              text: entry.before.text,
+                              equivalent: entry.before.equivalent,
+                              metadata: entry.before.metadata,
+                            }"
+                          />
+                        </div>
+                        <div class="compare-side yours">
+                          <p class="field-label">After</p>
+                          <ng-container
+                            [ngTemplateOutlet]="historyPassage"
+                            [ngTemplateOutletContext]="{
+                              text: entry.after.text,
+                              equivalent: entry.after.equivalent,
+                              metadata: entry.after.metadata,
+                            }"
+                          />
+                        </div>
+                      </div>
+                    } @else if (entry.before; as side) {
+                      <p class="field-label">Before</p>
+                      <ng-container
+                        [ngTemplateOutlet]="historyPassage"
+                        [ngTemplateOutletContext]="{
+                          text: side.text,
+                          equivalent: side.equivalent,
+                          metadata: side.metadata,
+                        }"
+                      />
+                    } @else if (entry.after; as side) {
+                      <p class="field-label">After</p>
+                      <ng-container
+                        [ngTemplateOutlet]="historyPassage"
+                        [ngTemplateOutletContext]="{
+                          text: side.text,
+                          equivalent: side.equivalent,
+                          metadata: side.metadata,
+                        }"
+                      />
+                    } @else {
+                      <p class="field-label">Reworked</p>
+                    }
+                    <p class="hint">{{ exerciseWhen(entry.at) }}</p>
+                  } @else if (entry.event === 'example') {
+                    @if (entry.snapshot; as snapshot) {
+                      <div class="equivalent-gloss">
+                        <p class="field-label">Definition</p>
+                        <ng-container
+                          [ngTemplateOutlet]="historyPassage"
+                          [ngTemplateOutletContext]="{
+                            text: snapshot.text,
+                            equivalent: snapshot.equivalent,
+                          }"
+                        />
+                      </div>
+                    }
+                    @if (entry.example) {
+                      <div class="compare-side yours">
+                        <p class="field-label">Example</p>
+                        <ng-container
+                          [ngTemplateOutlet]="historyPassage"
+                          [ngTemplateOutletContext]="{ text: entry.example, equivalent: '' }"
+                        />
+                      </div>
+                    }
+                    <p class="hint">{{ exerciseWhen(entry.at) }}</p>
+                  } @else if (entry.event === 'form') {
+                    @if (entry.snapshot; as snapshot) {
+                      <div class="equivalent-gloss">
+                        <p class="field-label">Definition</p>
+                        <ng-container
+                          [ngTemplateOutlet]="historyPassage"
+                          [ngTemplateOutletContext]="{
+                            text: snapshot.text,
+                            equivalent: snapshot.equivalent,
+                          }"
+                        />
+                      </div>
+                    }
+                    @if (entry.forms.length) {
+                      <ul class="forms">
+                        @for (form of entry.forms; track form) {
+                          <li>
+                            <span class="form-chip readonly">
+                              <ng-container [ngTemplateOutlet]="formIcon" />
+                              {{ form }}
+                            </span>
+                          </li>
+                        }
+                      </ul>
+                    }
+                    <p class="hint">{{ exerciseWhen(entry.at) }}</p>
+                  } @else if (entry.event === 'view') {
+                    <p class="field-label">Seen</p>
+                    <p class="hint">{{ exerciseWhen(entry.at) }}</p>
+                  } @else {
+                    @let passage = parsePassage(entry.snapshot?.text ?? definition.text);
+                    @let gloss = passage.text;
+                    @let equivalent = entry.snapshot?.equivalent ?? equivalentText(definition);
+                    @if (gloss && entry.answer && entry.game !== 'definition') {
+                      <div class="equivalent-gloss">
+                        <p class="field-label">Definition</p>
+                        <p>{{ shownDefinition(gloss) }}</p>
+                        @let translations = shownTranslations(passage);
+                        @if (translations.length) {
+                          <ul class="equivalents">
+                            @for (translation of translations; track $index) {
+                              <li>
+                                <app-reveal
+                                  [text]="labeledTranslation(translation)"
+                                  (unveiled)="noteReveal(index)"
+                                />
+                              </li>
+                            }
+                          </ul>
+                        }
+                      </div>
+                    }
+                    @if (!entry.answer) {
+                      <p class="field-label">You gave up</p>
+                      @if (entry.game === 'definition' || entry.game === 'example') {
+                        <p class="passage">{{ shownDefinition(gloss) }}</p>
+                        @let translations = shownTranslations(passage);
+                        @if (translations.length) {
+                          <ul class="equivalents">
+                            @for (translation of translations; track $index) {
+                              <li>
+                                <app-reveal
+                                  [text]="labeledTranslation(translation)"
+                                  (unveiled)="noteReveal(index)"
+                                />
+                              </li>
+                            }
+                          </ul>
+                        }
+                      } @else if (equivalent) {
                         <p class="equivalent-result">
                           <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="m5 8 6 6" />
@@ -3284,256 +3513,89 @@ function writeExampleSuggestions(
                           <span>{{ equivalent }}</span>
                         </p>
                       }
-                      @if (entries(metadata ?? {}); as meta) {
-                        @if (meta.length) {
-                          <ul class="pills">
-                            @for (item of meta; track item.key) {
-                              <li>
-                                <span>
-                                  <span class="sense-meta-key">{{ item.key }}</span>
-                                  <span class="sense-meta-value">{{ item.value }}</span>
-                                </span>
-                              </li>
-                            }
-                          </ul>
-                        }
-                      }
-                    </ng-template>
-                    @if (entry.event === 'rework') {
-                      @if (entry.before && entry.after) {
-                        <div class="compare">
-                          <div class="compare-side">
-                            <p class="field-label">Before</p>
-                            <ng-container
-                              [ngTemplateOutlet]="historyPassage"
-                              [ngTemplateOutletContext]="{
-                                text: entry.before.text,
-                                equivalent: entry.before.equivalent,
-                                metadata: entry.before.metadata,
-                              }"
-                            />
-                          </div>
-                          <div class="compare-side yours">
-                            <p class="field-label">After</p>
-                            <ng-container
-                              [ngTemplateOutlet]="historyPassage"
-                              [ngTemplateOutletContext]="{
-                                text: entry.after.text,
-                                equivalent: entry.after.equivalent,
-                                metadata: entry.after.metadata,
-                              }"
-                            />
-                          </div>
-                        </div>
-                      } @else if (entry.before; as side) {
-                        <p class="field-label">Before</p>
-                        <ng-container
-                          [ngTemplateOutlet]="historyPassage"
-                          [ngTemplateOutletContext]="{
-                            text: side.text,
-                            equivalent: side.equivalent,
-                            metadata: side.metadata,
-                          }"
-                        />
-                      } @else if (entry.after; as side) {
-                        <p class="field-label">After</p>
-                        <ng-container
-                          [ngTemplateOutlet]="historyPassage"
-                          [ngTemplateOutletContext]="{
-                            text: side.text,
-                            equivalent: side.equivalent,
-                            metadata: side.metadata,
-                          }"
-                        />
-                      } @else {
-                        <p class="field-label">Reworked</p>
-                      }
-                      <p class="hint">{{ exerciseWhen(entry.at) }}</p>
-                    } @else if (entry.event === 'example') {
-                      @if (entry.snapshot; as snapshot) {
-                        <div class="equivalent-gloss">
-                          <p class="field-label">Definition</p>
-                          <ng-container
-                            [ngTemplateOutlet]="historyPassage"
-                            [ngTemplateOutletContext]="{
-                              text: snapshot.text,
-                              equivalent: snapshot.equivalent,
-                            }"
-                          />
-                        </div>
-                      }
-                      @if (entry.example) {
-                        <div class="compare-side yours">
-                          <p class="field-label">Example</p>
-                          <ng-container
-                            [ngTemplateOutlet]="historyPassage"
-                            [ngTemplateOutletContext]="{ text: entry.example, equivalent: '' }"
-                          />
-                        </div>
-                      }
-                      <p class="hint">{{ exerciseWhen(entry.at) }}</p>
-                    } @else if (entry.event === 'form') {
-                      @if (entry.snapshot; as snapshot) {
-                        <div class="equivalent-gloss">
-                          <p class="field-label">Definition</p>
-                          <ng-container
-                            [ngTemplateOutlet]="historyPassage"
-                            [ngTemplateOutletContext]="{
-                              text: snapshot.text,
-                              equivalent: snapshot.equivalent,
-                            }"
-                          />
-                        </div>
-                      }
-                      @if (entry.forms.length) {
-                        <ul class="forms">
-                          @for (form of entry.forms; track form) {
-                            <li>
-                              <span class="form-chip readonly">
-                                <ng-container [ngTemplateOutlet]="formIcon" />
-                                {{ form }}
-                              </span>
-                            </li>
-                          }
-                        </ul>
-                      }
-                      <p class="hint">{{ exerciseWhen(entry.at) }}</p>
+                    } @else if (entry.game === 'example') {
+                      <div class="compare-side yours">
+                        <p class="field-label">You wrote</p>
+                        <p>{{ entry.answer }}</p>
+                      </div>
                     } @else {
-                      @let passage = parsePassage(entry.snapshot?.text ?? definition.text);
-                      @let gloss = passage.text;
-                      @let equivalent = entry.snapshot?.equivalent ?? equivalentText(definition);
-                      @if (gloss && entry.answer && entry.game !== 'definition') {
-                        <div class="equivalent-gloss">
-                          <p class="field-label">Definition</p>
-                          <p>{{ shownDefinition(gloss) }}</p>
-                          @let translations = shownTranslations(passage);
-                          @if (translations.length) {
-                            <ul class="equivalents">
-                              @for (translation of translations; track $index) {
-                                <li>
-                                  <app-reveal
-                                    [text]="labeledTranslation(translation)"
-                                    (unveiled)="noteReveal(index)"
-                                  />
-                                </li>
-                              }
-                            </ul>
+                      <div class="compare">
+                        <div class="compare-side">
+                          @if (entry.game === 'definition') {
+                            <p class="field-label">Definition</p>
+                            <p class="passage">{{ shownDefinition(gloss) }}</p>
+                            @let translations = shownTranslations(passage);
+                            @if (translations.length) {
+                              <ul class="equivalents">
+                                @for (translation of translations; track $index) {
+                                  <li>
+                                    <app-reveal
+                                      [text]="labeledTranslation(translation)"
+                                      (unveiled)="noteReveal(index)"
+                                    />
+                                  </li>
+                                }
+                              </ul>
+                            }
+                          } @else {
+                            <p class="field-label">Equivalent</p>
+                            <p class="equivalent-result">
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m5 8 6 6" />
+                                <path d="m4 14 6-6 2-3" />
+                                <path d="M2 5h12" />
+                                <path d="M7 2h1" />
+                                <path d="m22 22-5-10-5 10" />
+                                <path d="M14 18h6" />
+                              </svg>
+                              <span>{{ equivalent }}</span>
+                            </p>
                           }
                         </div>
-                      }
-                      @if (!entry.answer) {
-                        <p class="field-label">You gave up</p>
-                        @if (entry.game === 'definition' || entry.game === 'example') {
-                          <p class="passage">{{ shownDefinition(gloss) }}</p>
-                          @let translations = shownTranslations(passage);
-                          @if (translations.length) {
-                            <ul class="equivalents">
-                              @for (translation of translations; track $index) {
-                                <li>
-                                  <app-reveal
-                                    [text]="labeledTranslation(translation)"
-                                    (unveiled)="noteReveal(index)"
-                                  />
-                                </li>
-                              }
-                            </ul>
-                          }
-                        } @else if (equivalent) {
-                          <p class="equivalent-result">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
-                            <span>{{ equivalent }}</span>
-                          </p>
-                        }
-                      } @else if (entry.game === 'example') {
                         <div class="compare-side yours">
                           <p class="field-label">You wrote</p>
                           <p>{{ entry.answer }}</p>
                         </div>
-                      } @else {
-                        <div class="compare">
-                          <div class="compare-side">
-                            @if (entry.game === 'definition') {
-                              <p class="field-label">Definition</p>
-                              <p class="passage">{{ shownDefinition(gloss) }}</p>
-                              @let translations = shownTranslations(passage);
-                              @if (translations.length) {
-                                <ul class="equivalents">
-                                  @for (translation of translations; track $index) {
-                                    <li>
-                                      <app-reveal
-                                        [text]="labeledTranslation(translation)"
-                                        (unveiled)="noteReveal(index)"
-                                      />
-                                    </li>
-                                  }
-                                </ul>
-                              }
-                            } @else {
-                              <p class="field-label">Equivalent</p>
-                              <p class="equivalent-result">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="m5 8 6 6" />
-                                  <path d="m4 14 6-6 2-3" />
-                                  <path d="M2 5h12" />
-                                  <path d="M7 2h1" />
-                                  <path d="m22 22-5-10-5 10" />
-                                  <path d="M14 18h6" />
-                                </svg>
-                                <span>{{ equivalent }}</span>
-                              </p>
-                            }
-                          </div>
-                          <div class="compare-side yours">
-                            <p class="field-label">You wrote</p>
-                            <p>{{ entry.answer }}</p>
-                          </div>
-                        </div>
-                      }
-                      <p class="field-label">Score</p>
-                      <p
-                        class="score-readout"
-                        [attr.data-game]="entry.game"
-                        role="img"
-                        [attr.aria-label]="'Score ' + entry.score + ' out of 5'"
-                      >
-                        {{ entry.score }}<span class="score-max">/5</span>
-                      </p>
-                      @if (entry.explanation) {
-                        <p>{{ entry.explanation }}</p>
-                      }
-                      <p class="hint">
-                        {{ entry.by === 'ai' ? 'AI' : 'You' }} · {{ exerciseWhen(entry.at) }}
-                      </p>
+                      </div>
                     }
-                    <div class="sheet-actions">
-                      <button
-                        type="button"
-                        class="btn btn-secondary"
-                        [disabled]="busy()"
-                        (click)="exerciseEntry.set(-1)"
-                      >
-                        Back
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-danger"
-                        [disabled]="busy()"
-                        (click)="askDeleteExercise(index, exerciseEntry())"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                    <p class="field-label">Score</p>
+                    <p
+                      class="score-readout"
+                      [attr.data-game]="entry.game"
+                      role="img"
+                      [attr.aria-label]="'Score ' + entry.score + ' out of 5'"
+                    >
+                      {{ entry.score }}<span class="score-max">/5</span>
+                    </p>
+                    @if (entry.explanation) {
+                      <p>{{ entry.explanation }}</p>
+                    }
+                    <p class="hint">
+                      {{ entry.by === 'ai' ? 'AI' : 'You' }} · {{ exerciseWhen(entry.at) }}
+                    </p>
                   }
+                  <div class="sheet-actions">
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      [disabled]="busy()"
+                      (click)="exerciseEntry.set(-1)"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-danger"
+                      [disabled]="busy()"
+                      (click)="askDeleteExercise(index, exerciseEntry())"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 }
-              </section>
-            </div>
+              }
+            </section>
+          </div>
         }
 
         @if (helpOpen()) {
@@ -3650,10 +3712,15 @@ function writeExampleSuggestions(
       overflow: hidden;
       --card-line: var(--border);
       --card-border: var(--border);
+      --element-accent: #f43f5e;
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) + 4px);
       background: var(--surface);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+    }
+
+    .panel.has-color {
+      --element-accent: oklch(from var(--swatch) 0.74 calc(min(max(c, 0.16), 0.24)) h);
     }
 
     header,
@@ -3684,6 +3751,10 @@ function writeExampleSuggestions(
     header > .header-actions {
       justify-content: flex-end;
       flex-wrap: wrap;
+    }
+
+    header > .header-actions:not(:has(button, .lookup-actions)) {
+      display: none;
     }
 
     .header-actions .lookup-actions {
@@ -4165,18 +4236,74 @@ function writeExampleSuggestions(
     }
 
     .example-quote > .spoken > .icon-btn.hear-inline {
-      margin-block-start: calc((1.5em - 1.5rem) / 2);
+      width: 1.75rem;
+      height: 1.75rem;
+      margin-block-start: calc((1.5em - 1.75rem) / 2);
+      border-radius: 999px;
+      background: rgba(236, 72, 153, 0.1);
+      color: #f472b6;
+    }
+
+    .example-quote > .spoken > .icon-btn.hear-inline:hover:not(:disabled) {
+      background: rgba(236, 72, 153, 0.2);
+      color: #f472b6;
+    }
+
+    .example-quote > .spoken > .icon-btn.hear-inline.active,
+    .example-quote > .spoken > .icon-btn.hear-inline.active:hover:not(:disabled) {
+      color: var(--accent-text);
+      background: var(--accent-soft);
+    }
+
+    .example-quote > .spoken > .icon-btn.hear-inline svg {
+      width: 0.9rem;
+      height: 0.9rem;
+    }
+
+    .example-quote > .spoken {
+      align-items: flex-start;
+      gap: 0.75rem;
     }
 
     .sense:has(.sense-copy > .spoken > .icon-btn.hear-inline) {
-      --phrase-indent: calc(1.5rem + 0.15rem);
+      --phrase-indent: calc(1.75rem + 0.75rem);
     }
 
     .sense > .group > .section-heading > .section-title,
     .sense > .group > .section-title,
     .sense > .group > .examples,
-    .sense > .group > .forms {
+    .sense > .group > .forms,
+    .sense > .group > .write-example {
       margin-inline-start: var(--phrase-indent, 0);
+    }
+
+    .sense-main .spoken {
+      gap: 0.75rem;
+    }
+
+    .sense-main .spoken > .icon-btn.hear-inline {
+      width: 1.75rem;
+      height: 1.75rem;
+      margin-block-start: 0.1rem;
+      border-radius: 0.5rem;
+      background: var(--surface-2);
+      color: #cbd5e1;
+    }
+
+    .sense-main .spoken > .icon-btn.hear-inline:hover:not(:disabled) {
+      color: #fb7185;
+      background: var(--surface-2);
+    }
+
+    .sense-main .spoken > .icon-btn.hear-inline.active,
+    .sense-main .spoken > .icon-btn.hear-inline.active:hover:not(:disabled) {
+      color: var(--accent-text);
+      background: var(--accent-soft);
+    }
+
+    .sense-main .spoken > .icon-btn.hear-inline svg {
+      width: 0.9rem;
+      height: 0.9rem;
     }
 
     .example-quote {
@@ -4184,7 +4311,7 @@ function writeExampleSuggestions(
     }
 
     .example-quote:has(> .spoken > .icon-btn.hear-inline) {
-      --phrase-indent: calc(1.5rem + 0.15rem);
+      --phrase-indent: calc(1.75rem + 0.75rem);
     }
 
     .example-quote > .pills {
@@ -4364,6 +4491,58 @@ function writeExampleSuggestions(
       padding: 0.85rem 1.15rem 0.75rem;
     }
 
+    .definition-footer {
+      flex: none;
+      padding: 1rem;
+      border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+      background: color-mix(in srgb, var(--surface) 95%, transparent);
+    }
+
+    .add-definition-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      margin: 0;
+      padding: 0.75rem 1rem;
+      border: 0;
+      border-radius: 0.75rem;
+      background: linear-gradient(to right, #f43f5e, #ec4899, #7c3aed);
+      color: white;
+      font: inherit;
+      font-size: 0.875rem;
+      font-weight: 650;
+      line-height: 1.2;
+      box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.25);
+      cursor: pointer;
+    }
+
+    .add-definition-bar:hover:not(:disabled) {
+      opacity: 0.95;
+    }
+
+    .add-definition-bar:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .add-definition-bar:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .add-definition-bar svg {
+      display: block;
+      width: 1rem;
+      height: 1rem;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     h3 {
       color: var(--text-muted);
       font-size: 0.78rem;
@@ -4413,22 +4592,79 @@ function writeExampleSuggestions(
       gap: 0.85rem;
     }
 
-    .definition-switch {
-      flex: none;
+    .sense-toolbar {
       display: flex;
       flex-wrap: wrap;
-      justify-content: center;
       align-items: center;
-      gap: 0.1rem;
-      padding: 0.35rem 1rem 0.65rem;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    }
+
+    .sense-pager {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+
+    .pager-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      width: 1.5rem;
+      height: 1.5rem;
+      margin: 0;
+      padding: 0;
+      border: 1px solid color-mix(in srgb, var(--element-accent) 45%, transparent);
+      border-radius: 0.5rem;
+      background: color-mix(in srgb, var(--element-accent) 14%, var(--surface-2));
+      color: var(--element-accent);
+      cursor: pointer;
+    }
+
+    .pager-btn svg {
+      display: block;
+      width: 0.9rem;
+      height: 0.9rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .pager-btn:hover:not(:disabled) {
+      color: var(--element-accent);
+      background: color-mix(in srgb, var(--element-accent) 28%, var(--surface-2));
+    }
+
+    .pager-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .definition-dots {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.25rem;
+      min-width: 0;
+      margin: 0;
+      padding: 0.25rem 0.5rem;
+      border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+      border-radius: 0.5rem;
+      background: var(--surface-2);
     }
 
     .definition-dot {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 1.35rem;
-      height: 1.35rem;
+      width: 0.7rem;
+      height: 0.7rem;
       margin: 0;
       padding: 0;
       border: 0;
@@ -4438,34 +4674,67 @@ function writeExampleSuggestions(
     }
 
     .definition-dot span {
-      width: 0.42rem;
-      height: 0.42rem;
-      border-radius: 50%;
-      background: color-mix(in srgb, var(--text-muted) 55%, transparent);
+      width: 0.375rem;
+      height: 0.375rem;
+      border-radius: 999px;
+      background: #475569;
+    }
+
+    .definition-dot.active {
+      width: 1.05rem;
     }
 
     .definition-dot.active span,
     .definition-dot:hover span {
-      background: var(--text);
+      background: var(--element-accent);
     }
 
     .definition-dot.active span {
-      transform: scale(1.25);
+      width: 0.75rem;
+    }
+
+    .sense-actions {
+      display: flex;
+      align-items: center;
+      flex: none;
+      gap: 0.15rem;
+      padding: 0.125rem;
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+      border-radius: 0.5rem;
+      background: color-mix(in srgb, var(--surface-2) 90%, transparent);
+      color: #94a3b8;
+    }
+
+    .sense-actions .icon-btn {
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 0.25rem;
+    }
+
+    .sense-actions .icon-btn svg {
+      width: 0.9rem;
+      height: 0.9rem;
+    }
+
+    .sense-actions .icon-btn.danger:hover:not(:disabled) {
+      color: #fb7185;
+      background: rgba(244, 63, 94, 0.2);
     }
 
     .sense {
       display: flex;
       flex-direction: column;
-      gap: 0.7rem;
-      padding: 0;
-      border: 0;
-      background: none;
-      box-shadow: none;
+      gap: 0.875rem;
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: var(--surface);
+      box-shadow: 0 0 20px -3px color-mix(in srgb, var(--element-accent) 55%, transparent);
     }
 
     .sense.fresh {
-      border-left: 3px solid #ff5c7a;
-      padding-left: 0.65rem;
+      border-color: color-mix(in srgb, var(--element-accent) 65%, transparent);
+      box-shadow: 0 0 20px -3px color-mix(in srgb, var(--element-accent) 70%, transparent);
     }
 
     .sense-meta {
@@ -4483,14 +4752,15 @@ function writeExampleSuggestions(
       box-sizing: border-box;
       display: inline-flex;
       align-items: center;
-      height: 1.85rem;
-      padding: 0 0.5rem;
-      border: 1px solid rgba(139, 144, 165, 0.4);
-      border-radius: 0.4rem;
-      background: transparent;
+      gap: 0.375rem;
+      height: auto;
+      padding: 0.25rem 0.625rem;
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+      border-radius: 0.5rem;
+      background: var(--surface-2);
       color: var(--text-muted);
-      font-size: 0.75rem;
-      line-height: 1;
+      font-size: 0.6875rem;
+      line-height: 1.2;
       white-space: nowrap;
     }
 
@@ -4597,19 +4867,20 @@ function writeExampleSuggestions(
       color: var(--meta-color);
     }
 
-    .sense-meta li.colored {
-      background: transparent;
-      border-left-color: var(--meta-color);
-      border-left-width: 2px;
-    }
-
     .pills li.colored .sense-meta-key {
       margin-right: 0;
       color: var(--meta-color);
     }
 
-    .sense-meta li.colored .sense-meta-key {
-      color: var(--text-muted);
+    .sense-meta .sense-meta-key {
+      margin-right: 0;
+      color: #94a3b8;
+    }
+
+    .sense-meta .sense-meta-value {
+      color: var(--meta-color, #a5b4fc);
+      font-size: inherit;
+      font-weight: 600;
     }
 
     .sense-main {
@@ -4624,7 +4895,42 @@ function writeExampleSuggestions(
       min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 0.55rem;
+      gap: 0.7rem;
+    }
+
+    .sense-copy .passage,
+    .sense-copy .definition-cue {
+      font-size: 0.95rem;
+      font-weight: 500;
+      line-height: 1.625;
+      color: #f1f5f9;
+    }
+
+    .sense-copy .equivalents,
+    .sense-gloss {
+      margin: 0;
+      color: #94a3b8;
+      font-size: 0.75rem;
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    .sense-gloss .guess-open:not(.needs-click) {
+      height: auto;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      font-size: inherit;
+      font-weight: 400;
+      font-style: italic;
+    }
+
+    .sense-gloss svg {
+      width: 0.85rem;
+      height: 0.85rem;
+      flex: none;
     }
 
     .passage {
@@ -4667,6 +4973,16 @@ function writeExampleSuggestions(
       );
       box-decoration-break: clone;
       -webkit-box-decoration-break: clone;
+    }
+
+    .sense .linguagem-highlighted--current,
+    .example-quote .linguagem-highlighted--current {
+      border: 1px solid color-mix(in srgb, var(--element-accent) 45%, transparent);
+      border-radius: 0.25rem;
+      padding: 0.05rem 0.35rem;
+      background: color-mix(in srgb, var(--element-accent) 28%, transparent);
+      color: color-mix(in srgb, var(--element-accent) 30%, white);
+      font-weight: 600;
     }
 
     .collision {
@@ -4813,28 +5129,50 @@ function writeExampleSuggestions(
     }
 
     .example-quote .equivalents {
-      font-size: 0.82rem;
+      margin-top: 0.125rem;
+      color: #94a3b8;
+      font-size: 0.75rem;
+      font-weight: 400;
+      font-style: normal;
     }
 
     .sense > .group > .examples .example-quote {
-      padding: 0.45rem 0.7rem;
-      border: 1px solid var(--accent-border);
-      border-radius: 10px;
-      background: var(--accent-soft);
-      color: var(--text);
-      font-style: italic;
+      padding: 0.75rem;
+      border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+      border-radius: 0.75rem;
+      background: color-mix(in srgb, var(--surface-2) 90%, transparent);
+      color: #e2e8f0;
+      font-size: 0.875rem;
+      font-style: normal;
+      font-weight: 500;
+    }
+
+    .sense > .group > .examples .example-quote .passage {
+      font-weight: 500;
     }
 
     .sense > .group > .examples .example-quote .pills {
       font-style: normal;
+      font-weight: 400;
     }
 
     .sense > .group > .forms .form-chip.readonly {
-      border-style: dashed;
-      border-color: color-mix(in srgb, var(--text) 35%, transparent);
-      background: transparent;
-      color: var(--text);
+      border-style: solid;
+      border-color: rgba(51, 65, 85, 0.6);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+      color: #e2e8f0;
+      padding: 0.25rem 0.625rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 0.75rem;
+      font-weight: 400;
+    }
+
+    .sense > .group > .forms .form-chip.readonly.tinted {
+      background: color-mix(in srgb, var(--form-color) 15%, transparent);
+      border-color: color-mix(in srgb, var(--form-color) 30%, transparent);
+      color: var(--form-color);
+      font-weight: 600;
     }
 
     button.form-chip {
@@ -6641,6 +6979,23 @@ export class ElementModal {
     return readFieldColor(place, key);
   }
 
+  /** Field color, or the next stitch hue when the field has none. */
+  definitionMetaColor(key: string, index: number): string {
+    return (
+      this.metaColor('definitions', key) ??
+      DEFINITION_META_FALLBACK[index % DEFINITION_META_FALLBACK.length]
+    );
+  }
+
+  /** First colored metadata field on a form, used to tint its chip. */
+  formChipColor(form: ElementForm): string | null {
+    for (const key of Object.keys(form.metadata)) {
+      const color = this.metaColor('forms', key);
+      if (color) return color;
+    }
+    return null;
+  }
+
   sheetMetaColor(kind: Editor['kind'], key: string): string | null {
     return this.metaColor(kind === 'definition' ? 'definitions' : 'examples', key);
   }
@@ -8360,6 +8715,7 @@ export class ElementModal {
       if (entry?.event === 'rework') return 'Delete this rework?';
       if (entry?.event === 'example') return 'Delete this example?';
       if (entry?.event === 'form') return 'Delete these forms?';
+      if (entry?.event === 'view') return 'Delete this seen event?';
       return 'Delete this exercise?';
     }
     return 'Delete this example?';
@@ -9221,7 +9577,7 @@ export class ElementModal {
     return 1;
   }
 
-  /** Reworks, saved examples, saved forms, and exercises for this definition. */
+  /** Reworks, saved examples, saved forms, exercises, and seen events for this definition. */
   definitionHistory(definition: ElementDefinition): DefinitionHistoryEntry[] {
     return definition.log
       .filter((entry): entry is DefinitionHistoryEntry => this.listedHistory(entry))
@@ -9232,6 +9588,7 @@ export class ElementModal {
     if (entry.event === 'rework') return 'Reworked';
     if (entry.event === 'example') return 'Example';
     if (entry.event === 'form') return 'Forms';
+    if (entry.event === 'view') return 'Seen';
     return this.modeLabel(this.logMode(entry.game));
   }
 
@@ -9244,8 +9601,13 @@ export class ElementModal {
   }
 
   private listedHistory(entry: DefinitionLogEntry): entry is DefinitionHistoryEntry {
-    if (entry.event === 'rework' || entry.event === 'example' || entry.event === 'form') return true;
-    return entry.event === 'game';
+    return (
+      entry.event === 'rework' ||
+      entry.event === 'example' ||
+      entry.event === 'form' ||
+      entry.event === 'view' ||
+      entry.event === 'game'
+    );
   }
 
   exerciseWhen(at: number): string {
