@@ -560,6 +560,7 @@ function writeExampleSuggestions(
               <button
                 type="button"
                 class="icon-btn color-btn"
+                [class.has-color]="!!element().color"
                 [style.--swatch]="element().color || null"
                 aria-label="Edit element"
                 title="Edit element"
@@ -567,11 +568,12 @@ function writeExampleSuggestions(
                 (click)="openTitle()"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
+                  @if (element().color) {
+                    <path class="nib" d="M2 22 7.5 20.5 19.6 8.4 15.6 4.4 3.5 16.5Z" />
+                  }
                   <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  <path d="m15 5 4 4" />
                 </svg>
-                @if (element().color) {
-                  <span class="color-dot" aria-hidden="true"></span>
-                }
               </button>
             </div>
             <div class="title-end">
@@ -3948,15 +3950,13 @@ function writeExampleSuggestions(
       stroke: none;
     }
 
-    .color-btn .color-dot {
-      position: absolute;
-      right: 0.06rem;
-      bottom: 0.06rem;
-      width: 0.52rem;
-      height: 0.52rem;
-      border-radius: 999px;
-      background: oklch(from var(--swatch) 0.7 calc(min(max(c, 0.14), 0.2)) h);
-      box-shadow: 0 0 0 2px var(--surface);
+    .color-btn svg .nib {
+      fill: oklch(from var(--swatch) 0.74 calc(min(max(c, 0.16), 0.24)) h);
+      stroke: none;
+    }
+
+    .color-btn.has-color:hover:not(:disabled) svg .nib {
+      fill: oklch(from var(--swatch) 0.84 calc(min(max(c, 0.16), 0.24)) h);
     }
 
     .item-actions,
