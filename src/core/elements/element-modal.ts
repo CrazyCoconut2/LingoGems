@@ -541,6 +541,17 @@ function writeExampleSuggestions(
             </button>
           }
         </ng-template>
+        <ng-template #formIcon>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"
+            />
+            <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
+            <path
+              d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"
+            />
+          </svg>
+        </ng-template>
         <header>
           <div class="title-row">
             @if (canGoBack()) {
@@ -930,8 +941,7 @@ function writeExampleSuggestions(
                   @if (definition.examples.length || exampleCue(index)) {
                     <section class="group">
                       @if (definition.examples.length) {
-                        <h3 class="section-title">Examples</h3>
-                        <ul class="examples">
+                        <ul class="examples" aria-label="Examples">
                           @for (
                             exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
                             track exampleIndex
@@ -1041,11 +1051,13 @@ function writeExampleSuggestions(
                   }
                   @if (definition.forms.length) {
                     <section class="group">
-                      <h3 class="section-title">Forms</h3>
-                      <ul class="forms">
+                      <ul class="forms" aria-label="Forms">
                         @for (form of definition.forms; track form.text) {
                           <li>
-                            <span class="form-chip readonly">{{ form.text }}</span>
+                            <span class="form-chip readonly">
+                              <ng-container [ngTemplateOutlet]="formIcon" />
+                              {{ form.text }}
+                            </span>
                           </li>
                         }
                       </ul>
@@ -1765,6 +1777,7 @@ function writeExampleSuggestions(
                                           [disabled]="askingExamples() !== null"
                                           (click)="toggleEngineerForm(form)"
                                         >
+                                          <ng-container [ngTemplateOutlet]="formIcon" />
                                           {{ form }}
                                         </button>
                                       </li>
@@ -1846,17 +1859,7 @@ function writeExampleSuggestions(
                                   [attr.aria-label]="'Edit form ' + form.text"
                                   (click)="openExistingForm(workIndex, form.text)"
                                 >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path
-                                      d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"
-                                    />
-                                    <path
-                                      d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"
-                                    />
-                                    <path
-                                      d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"
-                                    />
-                                  </svg>
+                                  <ng-container [ngTemplateOutlet]="formIcon" />
                                   {{ form.text }}
                                 </button>
                                 <button
@@ -1879,7 +1882,10 @@ function writeExampleSuggestions(
                           <ul class="forms">
                             @for (form of pending; track form.text) {
                               <li>
-                                <span class="form-chip readonly">{{ form.text }}</span>
+                                <span class="form-chip readonly">
+                                  <ng-container [ngTemplateOutlet]="formIcon" />
+                                  {{ form.text }}
+                                </span>
                               </li>
                             }
                           </ul>
@@ -3274,7 +3280,10 @@ function writeExampleSuggestions(
                         <ul class="forms">
                           @for (form of entry.forms; track form) {
                             <li>
-                              <span class="form-chip readonly">{{ form }}</span>
+                              <span class="form-chip readonly">
+                                <ng-container [ngTemplateOutlet]="formIcon" />
+                                {{ form }}
+                              </span>
                             </li>
                           }
                         </ul>
@@ -4147,6 +4156,7 @@ function writeExampleSuggestions(
     .equivalent-prompt svg,
     .forms-toggle svg,
     .form-chip svg,
+    .engineer-forms .equivalent-choices svg,
     .equivalent-result svg {
       fill: none;
       stroke: currentColor;
@@ -4685,21 +4695,10 @@ function writeExampleSuggestions(
       flex-direction: column;
       gap: 0.25rem;
       min-width: 0;
-      padding: 0.1rem 0 0.1rem 0.5rem;
+      padding: 0.1rem 0;
       color: var(--text-muted);
       font-size: 0.88rem;
       line-height: 1.5;
-    }
-
-    .example-quote::before {
-      content: '';
-      position: absolute;
-      inset-inline-start: 0;
-      top: 0.15rem;
-      bottom: 0.15rem;
-      width: 3px;
-      border-radius: 2px;
-      background: var(--gem-example);
     }
 
     .example-quote .passage {
@@ -4709,6 +4708,27 @@ function writeExampleSuggestions(
 
     .example-quote .equivalents {
       font-size: 0.82rem;
+    }
+
+    .sense > .group > .examples .example-quote {
+      padding: 0.45rem 0.7rem;
+      border: 1px solid var(--accent-border);
+      border-radius: 10px;
+      background: var(--accent-soft);
+      color: var(--text);
+      font-style: italic;
+    }
+
+    .sense > .group > .examples .example-quote .pills {
+      font-style: normal;
+    }
+
+    .sense > .group > .forms .form-chip.readonly {
+      border-style: dashed;
+      border-color: color-mix(in srgb, var(--text) 35%, transparent);
+      background: transparent;
+      color: var(--text);
+      font-size: 0.75rem;
     }
 
     .meta {
@@ -5096,6 +5116,19 @@ function writeExampleSuggestions(
     .engineer-forms {
       max-height: 9rem;
       overflow: auto;
+    }
+
+    .engineer-forms .equivalent-choices button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .engineer-forms .equivalent-choices svg {
+      display: block;
+      width: 0.95rem;
+      height: 0.95rem;
+      flex: none;
     }
 
     .definition-slot {
@@ -5731,6 +5764,7 @@ function writeExampleSuggestions(
     }
 
     .form-chip.readonly {
+      gap: 0.35rem;
       padding: 0.2rem 0.55rem;
     }
   `,
