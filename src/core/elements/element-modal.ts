@@ -5219,6 +5219,7 @@ function writeExampleSuggestions(
 
     .sheet-scroll > .work-section {
       min-width: 0;
+      padding-inline: 0.7rem;
     }
 
     .sheet-scroll > .work-section:first-child {
@@ -5947,7 +5948,6 @@ function writeExampleSuggestions(
 
     .work-title .work-title-text {
       min-width: 0;
-      padding-inline-start: 0.7rem;
       font-size: 0.78rem;
       font-weight: 650;
       line-height: 1.2;
