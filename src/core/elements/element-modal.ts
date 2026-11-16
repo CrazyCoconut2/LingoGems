@@ -3225,7 +3225,7 @@ function writeExampleSuggestions(
                 } @else {
                   @let entry = definitionHistory(definition)[exerciseEntry()];
                   @if (entry) {
-                    <ng-template #historyPassage let-text="text" let-equivalent="equivalent">
+                    <ng-template #historyPassage let-text="text" let-equivalent="equivalent" let-metadata="metadata">
                       @let passage = parsePassage(text);
                       @if (passage.text) {
                         <p class="passage">{{ shownDefinition(passage.text) }}</p>
@@ -3256,6 +3256,20 @@ function writeExampleSuggestions(
                           <span>{{ equivalent }}</span>
                         </p>
                       }
+                      @if (entries(metadata ?? {}); as meta) {
+                        @if (meta.length) {
+                          <ul class="pills">
+                            @for (item of meta; track item.key) {
+                              <li>
+                                <span>
+                                  <span class="sense-meta-key">{{ item.key }}</span>
+                                  <span class="sense-meta-value">{{ item.value }}</span>
+                                </span>
+                              </li>
+                            }
+                          </ul>
+                        }
+                      }
                     </ng-template>
                     @if (entry.event === 'rework') {
                       @if (entry.before && entry.after) {
@@ -3267,6 +3281,7 @@ function writeExampleSuggestions(
                               [ngTemplateOutletContext]="{
                                 text: entry.before.text,
                                 equivalent: entry.before.equivalent,
+                                metadata: entry.before.metadata,
                               }"
                             />
                           </div>
@@ -3277,6 +3292,7 @@ function writeExampleSuggestions(
                               [ngTemplateOutletContext]="{
                                 text: entry.after.text,
                                 equivalent: entry.after.equivalent,
+                                metadata: entry.after.metadata,
                               }"
                             />
                           </div>
@@ -3288,6 +3304,7 @@ function writeExampleSuggestions(
                           [ngTemplateOutletContext]="{
                             text: side.text,
                             equivalent: side.equivalent,
+                            metadata: side.metadata,
                           }"
                         />
                       } @else if (entry.after; as side) {
@@ -3297,6 +3314,7 @@ function writeExampleSuggestions(
                           [ngTemplateOutletContext]="{
                             text: side.text,
                             equivalent: side.equivalent,
+                            metadata: side.metadata,
                           }"
                         />
                       } @else {
@@ -7051,11 +7069,13 @@ export class ElementModal {
       .map((form) => form.text);
     if (!added.length) {
       this.pendingForms.set(null);
+      this.closeEditor();
       return;
     }
     this.appendForm(definition, added);
     if (!(await this.persist(definitions, this.currentElement().equivalents))) return;
     if (this.pendingForms() === pending) this.pendingForms.set(null);
+    this.closeEditor();
   }
 
   discardPendingForms(): void {
@@ -7558,6 +7578,7 @@ export class ElementModal {
     this.exampleError.set('');
     if (!(await this.persist(definitions, this.currentElement().equivalents))) return;
     if (senseKey(this.exampleDraft()?.text ?? '') === key) this.exampleDraft.set(null);
+    this.closeEditor();
   }
 
   discardExampleDraft(): void {
@@ -8112,7 +8133,7 @@ export class ElementModal {
         forms: current?.forms ?? [],
         examples: current?.examples ?? [],
         metadata: this.metadataToStore(),
-        log: this.logWithRework(current, text, equivalent),
+        log: this.logWithRework(current, text, equivalent, this.metadataToStore()),
       };
       if (editor.index == null) unlinked.push(next);
       else unlinked[editor.index] = next;
@@ -8122,8 +8143,7 @@ export class ElementModal {
           this.definitionPanel.set(index);
           this.scrollDefinitionPanel();
         }
-        this.editor.set({ kind: 'definition', index });
-        this.ensureExampleEngineer(index);
+        this.closeEditor();
       }
       return;
     }
@@ -8658,18 +8678,44 @@ export class ElementModal {
     };
   }
 
-  /** Keep the log, and append a rework when the passage or equivalent wording changed. */
+  /** Keep the log, and append a rework when the passage, equivalent, or metadata changed. */
   private logWithRework(
     current: ElementDefinition | null,
     text: string,
     equivalent: string,
+    metadata: ElementMetadata,
   ): ElementDefinition['log'] {
     const log = current?.log.map((entry) => ({ ...entry })) ?? [];
     if (!current) return log;
-    const before = this.snapshotOf(current);
-    if (text === before.text && equivalent === before.equivalent) return log;
-    log.push({ event: 'rework', at: Date.now(), before, after: { text, equivalent } });
+    const before = this.snapshotWithMetadata(this.snapshotOf(current), current.metadata);
+    const after = this.snapshotWithMetadata({ text, equivalent }, metadata);
+    if (
+      before.text === after.text &&
+      before.equivalent === after.equivalent &&
+      this.sameMetadata(current.metadata, metadata)
+    ) {
+      return log;
+    }
+    log.push({ event: 'rework', at: Date.now(), before, after });
     return log;
+  }
+
+  private snapshotWithMetadata(
+    snapshot: DefinitionSnapshot,
+    metadata: ElementMetadata,
+  ): DefinitionSnapshot {
+    const stored = { ...metadata };
+    return Object.keys(stored).length
+      ? { text: snapshot.text, equivalent: snapshot.equivalent, metadata: stored }
+      : { text: snapshot.text, equivalent: snapshot.equivalent };
+  }
+
+  private sameMetadata(left: ElementMetadata, right: ElementMetadata): boolean {
+    const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+    for (const key of keys) {
+      if ((left[key] ?? '') !== (right[key] ?? '')) return false;
+    }
+    return true;
   }
 
   /** An added example keeps the definition it was added to. */

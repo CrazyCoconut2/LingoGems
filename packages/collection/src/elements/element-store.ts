@@ -43,10 +43,11 @@ export type DefinitionLogBy = 'user' | 'ai';
 
 export type DefinitionGame = 'translation' | 'example' | 'definition';
 
-/** The definition passage and equivalent wording at one moment. */
+/** The definition passage, equivalent wording, and metadata at one moment. */
 export type DefinitionSnapshot = {
   text: string;
   equivalent: string;
+  metadata?: ElementMetadata;
 };
 
 /** A scored answer. `game` through `explanation` is the metadata for that answer. */
@@ -63,7 +64,7 @@ export type DefinitionGameLog = {
   snapshot?: DefinitionSnapshot;
 };
 
-/** A change to the definition passage or its equivalent. */
+/** A change to the definition passage, its equivalent, or its metadata. */
 export type DefinitionReworkLog = {
   event: 'rework';
   at: number;
@@ -760,9 +761,14 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
 /** Keep a snapshot only when both the passage and the equivalent wording are strings. */
 function normalizeSnapshot(value: unknown): DefinitionSnapshot | undefined {
   if (!value || typeof value !== 'object') return undefined;
-  const source = value as { text?: unknown; equivalent?: unknown };
+  const source = value as { text?: unknown; equivalent?: unknown; metadata?: unknown };
   if (typeof source.text !== 'string' || typeof source.equivalent !== 'string') return undefined;
-  return { text: source.text, equivalent: source.equivalent };
+  const metadata = normalizeMetadata(source.metadata);
+  return {
+    text: source.text,
+    equivalent: source.equivalent,
+    ...(Object.keys(metadata).length ? { metadata } : {}),
+  };
 }
 
 /** Match stored passages: the gloss and an added example are capitalized, the equivalent wording is not. */
@@ -814,7 +820,11 @@ function presentLog(log: DefinitionLogEntry[]): DefinitionLogEntry[] {
 }
 
 function presentSnapshot(snapshot: DefinitionSnapshot): DefinitionSnapshot {
-  return { text: capitalizePassage(snapshot.text), equivalent: snapshot.equivalent.trim() };
+  return {
+    text: capitalizePassage(snapshot.text),
+    equivalent: snapshot.equivalent.trim(),
+    ...(snapshot.metadata ? { metadata: snapshot.metadata } : {}),
+  };
 }
 
 const TRANSLATION_MARKER = /\[([^\[\]:\n]+):\s*([^\]]*)]/g;
