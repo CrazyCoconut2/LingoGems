@@ -1,4 +1,12 @@
-import { Component, computed, DestroyRef, HostListener, inject, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  HostListener,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ElementModal } from '../elements/element-modal';
 import { GemStatsModal } from '../elements/gem-stats-modal';
@@ -747,7 +755,7 @@ const MOVE_SLOP_PX = 10;
               </button>
             </div>
             <div class="drill-choices">
-              @for (mode of modes; track mode) {
+              @for (mode of modes(); track mode) {
                 <button
                   type="button"
                   class="drill-choice"
@@ -2152,7 +2160,9 @@ export class LanguagePage {
   readonly query = signal('');
   readonly search = signal<ElementSearch>({ mode: 'browse', value: '' });
   readonly sort = signal<ElementSort>(DEFAULT_ELEMENT_SORT);
-  readonly modes: readonly ElementMode[] = [1, 2, 3];
+  readonly modes = computed((): readonly ElementMode[] =>
+    this.supportFor(this.code()) ? [1, 2, 3] : [2, 3],
+  );
   readonly contentSections: readonly ContentSection[] = [
     {
       id: 'definitions',
@@ -2252,6 +2262,11 @@ export class LanguagePage {
   });
 
   constructor() {
+    effect(() => {
+      if (this.playMode() !== 1 || this.supportFor(this.code())) return;
+      this.playMode.set(null);
+      this.playId.set('');
+    });
     inject(DestroyRef).onDestroy(() => {
       if (this.searchTimer) clearTimeout(this.searchTimer);
       this.clearPressTimer();
@@ -2330,6 +2345,7 @@ export class LanguagePage {
   startDrill(mode: ElementMode): void {
     const element = this.drillTarget();
     if (!element || !this.drillReady(element, mode)) return;
+    if (mode === 1 && !this.supportFor(element.language)) return;
     this.playMode.set(mode);
     this.playId.set(element.id);
     this.openElement(element.id);
@@ -2693,7 +2709,9 @@ export class LanguagePage {
   earnedGems(
     element: StoredElement,
   ): { game: 'translation' | 'example' | 'definition'; gems: number }[] {
-    return this.gemTotals(element).filter((total) => total.gems > 0);
+    return this.gemTotals(element).filter(
+      (total) => total.gems > 0 && (total.game !== 'translation' || !!this.supportFor(this.code())),
+    );
   }
 
   gameMode(game: 'translation' | 'example' | 'definition'): ElementMode {

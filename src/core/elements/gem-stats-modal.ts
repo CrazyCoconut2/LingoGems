@@ -10,6 +10,7 @@ import {
   untracked,
 } from '@angular/core';
 import { displayTitle, languageDisplayName } from 'collection';
+import { supportLanguageFor } from '../languages/translation-language';
 import {
   emptyDailyGoals,
   readDailyGoals,
@@ -41,7 +42,6 @@ const ACTIVITIES: readonly {
 
 type GoalKind = keyof DailyGoals;
 
-const LOADING_CARDS = [0, 1, 2];
 const LOADING_ACTIVITY = [0, 1, 2, 3];
 const LOADING_ROWS = [0, 1, 2, 3];
 
@@ -151,7 +151,7 @@ const EMPTY_DAY: DayStats = {
                   <h3>Gems</h3>
                 </div>
                 <ul class="gems">
-                  @for (item of loadingCards; track item) {
+                  @for (row of games(); track row.game) {
                     <li class="loading-card">
                       <span class="bone bone-stone"></span>
                       <span class="bone bone-count"></span>
@@ -233,7 +233,7 @@ const EMPTY_DAY: DayStats = {
                 <h3>Gems</h3>
               </div>
               <ul class="gems">
-                @for (row of games; track row.game) {
+                @for (row of games(); track row.game) {
                   <li
                     [attr.data-game]="row.game"
                     [attr.aria-label]="
@@ -339,7 +339,7 @@ const EMPTY_DAY: DayStats = {
                         }}</span>
                         @if (hasBits(element)) {
                           <span class="bits">
-                            @for (row of games; track row.game) {
+                            @for (row of games(); track row.game) {
                               @if (element.gems[row.game] > 0) {
                                 <span
                                   class="bit"
@@ -1271,9 +1271,12 @@ const EMPTY_DAY: DayStats = {
 export class GemStatsModal {
   readonly language = input.required<string>();
   readonly closed = output<void>();
-  readonly games = GAMES;
+  readonly games = computed(() =>
+    supportLanguageFor(this.language())
+      ? GAMES
+      : GAMES.filter((row) => row.game !== 'translation'),
+  );
   readonly activities = ACTIVITIES;
-  readonly loadingCards = LOADING_CARDS;
   readonly loadingActivity = LOADING_ACTIVITY;
   readonly loadingRows = LOADING_ROWS;
   readonly goalsOpen = signal(false);
@@ -1398,16 +1401,8 @@ export class GemStatsModal {
   }
 
   hasBits(element: ElementDayStats): boolean {
-    return (
-      element.gems.translation +
-        element.gems.example +
-        element.gems.definition +
-        element.added +
-        element.opened +
-        element.reworked +
-        element.revealed >
-      0
-    );
+    const gems = this.games().reduce((sum, row) => sum + element.gems[row.game], 0);
+    return gems + element.added + element.opened + element.reworked + element.revealed > 0;
   }
 
   languageName(): string {

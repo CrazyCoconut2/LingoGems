@@ -240,9 +240,10 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                               @if (passage.text) {
                                 <p class="sense-text">{{ passage.text }}</p>
                               }
-                              @if (passage.translations.length) {
+                              @let translations = shownTranslations(passage);
+                              @if (translations.length) {
                                 <ul class="sense-translations">
-                                  @for (translation of passage.translations; track $index) {
+                                  @for (translation of translations; track $index) {
                                     <li>
                                       <app-reveal [text]="translation.text" />
                                     </li>
@@ -1504,6 +1505,13 @@ export class DiscoverModal implements OnInit {
 
   private translationTarget(): string {
     return supportLanguageFor(this.language());
+  }
+
+  readonly supportAvailable = computed(() => this.translationTarget() !== '');
+
+  /** Sense translations, hidden when this language has no support language. */
+  shownTranslations(passage: ParsedPassage): ParsedPassage['translations'] {
+    return this.supportAvailable() ? passage.translations : [];
   }
 
   canClear(): boolean {
