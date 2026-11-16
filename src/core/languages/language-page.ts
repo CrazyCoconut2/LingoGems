@@ -17,7 +17,7 @@ import { DiscoverModal } from './discover-modal';
 import { ensureSelectedLanguage, writeSelectedLanguage } from './selected-language';
 import { supportLanguageFor, writeSupportLanguage } from './translation-language';
 import { Settings } from '../settings/settings';
-import { generateElementFromSelection } from 'ai';
+import { generateElementFromSelection, readDefinitionMetadataFields } from 'ai';
 import {
   absorbSavedElement,
   addElement,
@@ -77,6 +77,50 @@ type ContentSection = {
 const ELEMENT_SKELETONS = [0, 1, 2, 3, 4, 5, 6, 7];
 const LONG_PRESS_MS = 500;
 const MOVE_SLOP_PX = 10;
+const LEAD_COLORS = ['#FF3366', '#10B981', '#F59E0B', '#A855F7'] as const;
+
+type LeadValue = {
+  id: string;
+  value: string;
+  color: string;
+};
+
+function leadValueId(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function leadValueColor(value: string): string {
+  const id = leadValueId(value);
+  let hash = 2166136261;
+  for (let index = 0; index < id.length; index += 1) {
+    hash ^= id.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return LEAD_COLORS[(hash >>> 0) % LEAD_COLORS.length];
+}
+
+/** Unique values of one definition-metadata field, in definition order. */
+function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue[] {
+  const key = leadValueId(fieldKey);
+  if (!key) return [];
+  const seen = new Set<string>();
+  const values: LeadValue[] = [];
+  for (const definition of element.definitions) {
+    let raw = '';
+    for (const [entryKey, entryValue] of Object.entries(definition.metadata)) {
+      if (leadValueId(entryKey) !== key) continue;
+      raw = entryValue;
+      break;
+    }
+    const value = raw.replace(/\s+/g, ' ').trim();
+    if (!value) continue;
+    const id = leadValueId(value);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    values.push({ id, value, color: leadValueColor(value) });
+  }
+  return values;
+}
 
 @Component({
   selector: 'app-language-page',
@@ -92,8 +136,34 @@ const MOVE_SLOP_PX = 10;
   template: `
     <main>
       <div class="page-top">
+        <header class="brand-bar">
+          <div class="brand">
+            <span class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M6 3h12l4 6-10 13L2 9z" />
+                <path d="M11 3 8 9l4 13 4-13-3-6" />
+                <path d="M2 9h20" />
+              </svg>
+            </span>
+            <span class="brand-name">LingoGems</span>
+          </div>
+          @if (code()) {
+            <button type="button" class="language-badge" (click)="openLanguage()">
+              <span>{{ name() }}</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+          }
+        </header>
         <section class="entries-toolbar" aria-label="Search">
           <form class="search-bar" autocomplete="off" (submit)="lookup($event)">
+            <span class="search-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+            </span>
             <input
               class="entry-input"
               type="search"
@@ -198,6 +268,34 @@ const MOVE_SLOP_PX = 10;
           </div>
         </section>
 
+        @if (leadValues().length) {
+          <div class="lead-chips" role="listbox" [attr.aria-label]="'Filter by ' + leadFieldKey()">
+            <button
+              type="button"
+              class="lead-chip"
+              role="option"
+              [class.active]="!leadChip()"
+              [attr.aria-selected]="!leadChip()"
+              (click)="chooseLeadChip('')"
+            >
+              All
+            </button>
+            @for (item of leadValues(); track item.id) {
+              <button
+                type="button"
+                class="lead-chip"
+                role="option"
+                [class.active]="leadChip() === item.id"
+                [attr.aria-selected]="leadChip() === item.id"
+                (click)="chooseLeadChip(item.id)"
+              >
+                <span class="lead-dot" [style.background]="item.color"></span>
+                {{ item.value }}
+              </button>
+            }
+          </div>
+        }
+
         @if (lookupError()) {
           <p class="lookup-error">{{ lookupError() }}</p>
         }
@@ -210,7 +308,7 @@ const MOVE_SLOP_PX = 10;
               @if (code()) {
                 <span class="list-language">{{ name() }}</span>
               }
-              <span>{{ countLabel() }}</span>
+              <span class="count-badge">{{ countLabel() }}</span>
             </p>
             @if (selecting()) {
               <div class="list-toolbar-actions">
@@ -285,138 +383,127 @@ const MOVE_SLOP_PX = 10;
         @if (!ready()) {
           <ul class="elements" aria-hidden="true">
             @for (item of skeletons; track item) {
-              <li>
-                <div class="element skeleton">
-                  <div class="card-face">
-                    <div class="card-main">
-                      <span class="bone bone-title"></span>
-                    </div>
-                    <span class="bone bone-action"></span>
-                    <span class="bone bone-side"></span>
-                  </div>
+              <li class="card skeleton">
+                <div class="element">
+                  <span class="bone bone-title"></span>
+                  <span class="bone bone-pill"></span>
                 </div>
+                <span class="bone bone-drill"></span>
+                <span class="bone bone-side"></span>
               </li>
             }
           </ul>
         } @else if (shown().length) {
           <ul class="elements">
             @for (element of shown(); track element.id) {
-              <li>
+              <li
+                class="card"
+                [class.selected]="isSelected(element.id)"
+                [class.colored]="!!cardAccent(element)"
+                [style.--score-color]="cardAccent(element)"
+                (click)="onCardClick(element.id, $event)"
+                (contextmenu)="onCardContextMenu($event, element.id)"
+                (pointerdown)="onCardPointerDown($event, element.id)"
+                (pointermove)="onCardPointerMove($event)"
+                (pointerup)="onCardPointerUp()"
+                (pointercancel)="onCardPointerUp()"
+                (pointerleave)="onCardPointerUp()"
+              >
+                @let activity = activityTotals(element);
+                @let pills = leadPills(element);
                 <button
                   type="button"
                   class="element"
-                  [class.selected]="isSelected(element.id)"
-                  [class.colored]="!!element.color"
-                  [style.--score-color]="element.color || null"
                   [attr.aria-pressed]="selecting() ? isSelected(element.id) : null"
-                  (click)="onCardClick(element.id)"
-                  (contextmenu)="onCardContextMenu($event, element.id)"
-                  (pointerdown)="onCardPointerDown($event, element.id)"
-                  (pointermove)="onCardPointerMove($event)"
-                  (pointerup)="onCardPointerUp()"
-                  (pointercancel)="onCardPointerUp()"
-                  (pointerleave)="onCardPointerUp()"
                 >
-                  @let activity = activityTotals(element);
-                  <div class="card-face">
-                    <div class="card-main">
-                      <span class="title">
-                        @for (part of highlight(element.title); track $index) {
-                          @if (part.hit) {
-                            <mark class="hit">{{ part.text }}</mark>
-                          } @else {
-                            <span>{{ part.text }}</span>
-                          }
-                        }
-                      </span>
-                    </div>
-                    @if (
-                      earnedGems(element).length || (!selecting() && element.definitions.length)
-                    ) {
-                      <div class="action-row"></div>
+                  <span class="title">
+                    @for (part of highlight(element.title); track $index) {
+                      @if (part.hit) {
+                        <mark class="hit">{{ part.text }}</mark>
+                      } @else {
+                        <span>{{ part.text }}</span>
+                      }
                     }
-                    <div class="stat-rail">
-                      <span
-                        class="stat"
-                        [class.zero]="activity.opened === 0"
-                        [attr.aria-label]="openedLabel(activity.opened)"
-                        [attr.title]="openedLabel(activity.opened)"
-                      >
-                        <span class="stat-box">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
-                            />
-                          </svg>
+                  </span>
+                  @if (pills.length) {
+                    <span class="pills">
+                      @for (pill of pills; track pill.id) {
+                        <span class="pill" [style.--pill-color]="pillColor(element, pill)">
+                          <span class="pill-dot"></span>
+                          <span class="pill-label">{{ pill.value }}</span>
                         </span>
-                        <span>{{ activity.opened }}</span>
-                      </span>
-                      <span
-                        class="stat"
-                        [class.zero]="activity.reworked === 0"
-                        [attr.aria-label]="reworkedLabel(activity.reworked)"
-                        [attr.title]="reworkedLabel(activity.reworked)"
-                      >
-                        <span class="stat-box">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                            <path d="m18 15 4-4" />
-                            <path
-                              d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
-                            />
-                          </svg>
-                        </span>
-                        <span>{{ activity.reworked }}</span>
-                      </span>
-                      <span
-                        class="stat"
-                        [class.zero]="activity.revealed === 0"
-                        [attr.aria-label]="revealedLabel(activity.revealed)"
-                        [attr.title]="revealedLabel(activity.revealed)"
-                      >
-                        <span class="stat-box">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                            <circle cx="12" cy="12" r="3" />
-                          </svg>
-                        </span>
-                        <span>{{ activity.revealed }}</span>
-                      </span>
-                    </div>
-                  </div>
+                      }
+                    </span>
+                  }
                 </button>
-                @if (earnedGems(element).length || (!selecting() && element.definitions.length)) {
-                  <div class="card-corner">
-                    @for (total of earnedGems(element); track total.game) {
-                      <span
-                        class="earned-gems"
-                        [attr.data-game]="total.game"
-                        [attr.aria-label]="gemsLabel(total.game, total.gems)"
-                        [attr.title]="gemsLabel(total.game, total.gems)"
-                      >
-                        <app-mode-icon [mode]="gameMode(total.game)" />
-                        <span>{{ total.gems }}</span>
-                      </span>
-                    }
-                    @if (!selecting() && element.definitions.length) {
-                      <button
-                        type="button"
-                        class="drill"
-                        [class.colored]="!!element.color"
-                        [style.--score-color]="element.color || null"
-                        aria-label="Drill"
-                        title="Drill"
-                        (click)="askDrill(element.id)"
-                      >
-                        <span class="drill-label">Drill</span>
-                        <svg class="drill-arrow" viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M5 12h14" />
-                          <path d="m12 5 7 7-7 7" />
-                        </svg>
-                      </button>
-                    }
-                  </div>
+                @if (!selecting() && element.definitions.length) {
+                  <button
+                    type="button"
+                    class="drill"
+                    aria-label="Drill"
+                    title="Drill"
+                    (click)="askDrill(element.id)"
+                  >
+                    <span class="drill-label">Drill</span>
+                    <svg class="drill-arrow" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 12h14" />
+                      <path d="m12 5 7 7-7 7" />
+                    </svg>
+                  </button>
                 }
+                <div class="stat-rail">
+                  @for (total of earnedGems(element); track total.game) {
+                    <span
+                      class="earned-gems"
+                      [attr.data-game]="total.game"
+                      [attr.aria-label]="gemsLabel(total.game, total.gems)"
+                      [attr.title]="gemsLabel(total.game, total.gems)"
+                    >
+                      <app-mode-icon [mode]="gameMode(total.game)" />
+                      <span>{{ total.gems }}</span>
+                    </span>
+                  }
+                  <span
+                    class="stat stat-opened"
+                    [class.zero]="activity.opened === 0"
+                    [attr.aria-label]="openedLabel(activity.opened)"
+                    [attr.title]="openedLabel(activity.opened)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
+                      />
+                    </svg>
+                    <span>{{ activity.opened }}</span>
+                  </span>
+                  <span
+                    class="stat stat-reworked"
+                    [class.zero]="activity.reworked === 0"
+                    [attr.aria-label]="reworkedLabel(activity.reworked)"
+                    [attr.title]="reworkedLabel(activity.reworked)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
+                      <path d="m18 15 4-4" />
+                      <path
+                        d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                      />
+                    </svg>
+                    <span>{{ activity.reworked }}</span>
+                  </span>
+                  <span
+                    class="stat stat-revealed"
+                    [class.zero]="activity.revealed === 0"
+                    [attr.aria-label]="revealedLabel(activity.revealed)"
+                    [attr.title]="revealedLabel(activity.revealed)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <span>{{ activity.revealed }}</span>
+                  </span>
+                </div>
               </li>
             }
           </ul>
@@ -804,13 +891,12 @@ const MOVE_SLOP_PX = 10;
       }
 
       <footer class="app-bar">
-        <div class="app-bar-row">
+        <nav class="app-bar-row" aria-label="Primary">
           <button
             type="button"
             class="app-bar-btn"
             [class.active]="statsOpen()"
             aria-label="Stats"
-            title="Stats"
             (click)="openStats()"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -819,27 +905,48 @@ const MOVE_SLOP_PX = 10;
               <path d="M13 17V5" />
               <path d="M8 17v-3" />
             </svg>
+            <span>Stats</span>
           </button>
           <button
             type="button"
-            class="app-bar-btn explore"
+            class="app-bar-btn cards"
+            [class.active]="cardsActive()"
+            aria-label="Cards"
+            (click)="showCards()"
+          >
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19 11H5" />
+                <path d="M19 11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2" />
+                <path
+                  d="M19 11V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10"
+                />
+              </svg>
+              @if (cardsActive()) {
+                <span class="nav-dot"></span>
+              }
+            </span>
+            <span>Cards</span>
+          </button>
+          <button
+            type="button"
+            class="app-bar-btn"
             [class.active]="discoverOpen()"
             [disabled]="!code()"
             aria-label="Discover"
-            title="Discover"
             (click)="openDiscover($event)"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="10" />
               <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
             </svg>
+            <span>Discover</span>
           </button>
           <button
             type="button"
             class="app-bar-btn"
             [class.active]="settingsOpen()"
             aria-label="Settings"
-            title="Settings"
             (click)="openSettings()"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -848,8 +955,9 @@ const MOVE_SLOP_PX = 10;
               />
               <circle cx="12" cy="12" r="3" />
             </svg>
+            <span>Settings</span>
           </button>
-        </div>
+        </nav>
       </footer>
     </main>
   `,
@@ -858,6 +966,14 @@ const MOVE_SLOP_PX = 10;
       display: block;
       height: 100%;
       min-height: 0;
+      --bg: #0b0e17;
+      --surface: #151928;
+      --surface-2: #1b2136;
+      --border: rgba(255, 255, 255, 0.08);
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      font-family: var(--font);
+      background: var(--bg);
+      color: #e2e8f0;
     }
 
     main {
@@ -868,6 +984,7 @@ const MOVE_SLOP_PX = 10;
       grid-template-rows: auto minmax(0, 1fr) auto;
       grid-template-columns: minmax(0, 1fr);
       overflow: hidden;
+      background: var(--bg);
     }
 
     .page-top {
@@ -875,8 +992,138 @@ const MOVE_SLOP_PX = 10;
       z-index: 2;
       display: flex;
       flex-direction: column;
-      gap: 0.85rem;
-      padding: calc(0.75rem + env(safe-area-inset-top, 0px)) 1.25rem 0.55rem;
+      gap: 0.65rem;
+      padding: calc(0.35rem + env(safe-area-inset-top, 0px)) 1.25rem 0.35rem;
+    }
+
+    .brand-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      min-height: 2.4rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.7rem;
+      background: linear-gradient(to top right, #9333ea, #ec4899);
+      box-shadow: 0 4px 10px rgba(168, 85, 247, 0.35);
+      color: white;
+    }
+
+    .brand-mark svg {
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .brand-name {
+      color: white;
+      font-size: 1rem;
+      font-weight: 750;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .language-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      max-width: 11rem;
+      padding: 0.28rem 0.65rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      background: #151928;
+      color: #e2e8f0;
+      font: inherit;
+      font-size: 0.68rem;
+      font-weight: 650;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .language-badge span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .language-badge svg {
+      flex: none;
+      width: 0.75rem;
+      height: 0.75rem;
+      fill: none;
+      stroke: #94a3b8;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .language-badge:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .lead-chips {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      overflow-x: auto;
+      padding-bottom: 0.1rem;
+      font-size: 0.68rem;
+      font-weight: 550;
+      color: #94a3b8;
+      scrollbar-width: none;
+    }
+
+    .lead-chips::-webkit-scrollbar {
+      display: none;
+    }
+
+    .lead-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex: none;
+      padding: 0.28rem 0.7rem;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 999px;
+      background: #151928;
+      color: inherit;
+      font: inherit;
+      font-size: inherit;
+      font-weight: inherit;
+      cursor: pointer;
+    }
+
+    .lead-chip.active {
+      border-color: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-weight: 650;
+    }
+
+    .lead-dot {
+      width: 0.38rem;
+      height: 0.38rem;
+      border-radius: 999px;
+      background: currentColor;
     }
 
     .collection {
@@ -894,37 +1141,44 @@ const MOVE_SLOP_PX = 10;
       z-index: 2;
       display: flex;
       flex-direction: column;
-      padding: 0.35rem max(0.85rem, env(safe-area-inset-right, 0px))
-        calc(0.15rem + env(safe-area-inset-bottom, 0px))
-        max(0.85rem, env(safe-area-inset-left, 0px));
-      border-top: 1px solid var(--border);
-      background: color-mix(in srgb, var(--bg) 92%, transparent);
+      padding: 0.2rem max(0.85rem, env(safe-area-inset-right, 0px))
+        calc(0.2rem + env(safe-area-inset-bottom, 0px)) max(0.85rem, env(safe-area-inset-left, 0px));
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(14, 18, 32, 0.92);
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(18px);
     }
 
     .app-bar-row {
       display: flex;
-      justify-content: center;
+      justify-content: space-around;
       align-items: center;
-      gap: 1.35rem;
-      min-height: 3.7rem;
+      gap: 0.25rem;
+      min-height: 3.6rem;
     }
 
     .app-bar-btn {
       display: inline-flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      width: 2.75rem;
-      height: 2.75rem;
+      gap: 0.18rem;
+      min-width: 3.4rem;
+      padding: 0.3rem 0.35rem;
       border: 0;
-      border-radius: 999px;
+      border-radius: 0.7rem;
       background: transparent;
-      color: var(--text-muted);
+      color: #94a3b8;
+      font: inherit;
+      font-size: 0.56rem;
+      font-weight: 550;
+      letter-spacing: -0.01em;
+      line-height: 1;
       cursor: pointer;
     }
 
     .app-bar-btn:hover:not(:disabled) {
-      color: var(--text);
-      background: rgba(139, 144, 165, 0.16);
+      color: white;
     }
 
     .app-bar-btn:disabled {
@@ -933,18 +1187,13 @@ const MOVE_SLOP_PX = 10;
     }
 
     .app-bar-btn.active {
-      color: var(--accent-text);
-      background: rgba(var(--accent-rgb), 0.16);
-    }
-
-    .app-bar-btn.explore {
-      width: 3.25rem;
-      height: 3.25rem;
+      color: #ff3366;
+      font-weight: 750;
     }
 
     .app-bar-btn svg {
-      width: 1.35rem;
-      height: 1.35rem;
+      width: 1.25rem;
+      height: 1.25rem;
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
@@ -952,9 +1201,21 @@ const MOVE_SLOP_PX = 10;
       stroke-linejoin: round;
     }
 
-    .app-bar-btn.explore svg {
-      width: 1.75rem;
-      height: 1.75rem;
+    .nav-icon {
+      position: relative;
+      display: grid;
+      place-items: center;
+    }
+
+    .nav-dot {
+      position: absolute;
+      top: -0.15rem;
+      right: -0.2rem;
+      width: 0.38rem;
+      height: 0.38rem;
+      border-radius: 999px;
+      background: #ff3366;
+      box-shadow: 0 0 6px #ff3366;
     }
 
     .entries-toolbar {
@@ -979,12 +1240,12 @@ const MOVE_SLOP_PX = 10;
       position: relative;
       display: grid;
       place-items: center;
-      width: 2.4rem;
-      height: 2.4rem;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--surface);
-      color: var(--text-muted);
+      width: 2.5rem;
+      height: 2.5rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      background: #151928;
+      color: #94a3b8;
       cursor: pointer;
     }
 
@@ -1008,9 +1269,9 @@ const MOVE_SLOP_PX = 10;
     }
 
     .toolbar-icon-btn.active {
-      color: var(--accent-text);
-      border-color: rgba(var(--accent-rgb), 0.45);
-      background: rgba(var(--accent-rgb), 0.12);
+      color: #d8b4fe;
+      border-color: rgba(168, 85, 247, 0.35);
+      background: #1b2136;
     }
 
     .toolbar-icon-btn:disabled {
@@ -1023,22 +1284,22 @@ const MOVE_SLOP_PX = 10;
 
     .toolbar-filter-count {
       position: absolute;
-      top: -0.35rem;
-      right: -0.35rem;
+      top: -0.3rem;
+      right: -0.3rem;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-width: 1.05rem;
-      height: 1.05rem;
-      padding: 0 0.28rem;
+      min-width: 1rem;
+      height: 1rem;
+      padding: 0 0.22rem;
+      border: 2px solid #0b0e17;
       border-radius: 999px;
-      background: var(--accent);
+      background: #a855f7;
       color: white;
-      font-size: 0.62rem;
+      font-size: 0.56rem;
       font-weight: 750;
       line-height: 1;
       pointer-events: none;
-      box-shadow: 0 0 0 1.5px var(--surface);
     }
 
     .toolbar-popover {
@@ -1083,18 +1344,30 @@ const MOVE_SLOP_PX = 10;
 
     .list-count {
       display: flex;
-      align-items: baseline;
-      gap: 0.65rem;
+      align-items: center;
+      gap: 0.5rem;
       margin: 0;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       line-height: 1.15rem;
-      color: var(--text-muted);
+      color: #94a3b8;
       font-variant-numeric: tabular-nums;
     }
 
     .list-language {
-      color: var(--text);
+      color: white;
+      font-weight: 550;
+    }
+
+    .count-badge {
+      padding: 0.12rem 0.45rem;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 0.4rem;
+      background: rgba(255, 255, 255, 0.05);
+      color: #94a3b8;
+      font-size: 0.62rem;
       font-weight: 650;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
 
     .list-toolbar {
@@ -1313,24 +1586,50 @@ const MOVE_SLOP_PX = 10;
     }
 
     .search-bar {
+      position: relative;
       box-sizing: border-box;
       display: flex;
       align-items: center;
       gap: 0.25rem;
       flex: 1;
       min-width: 0;
-      height: 2.4rem;
-      min-height: 2.4rem;
-      padding: 0 0.2rem 0 0.15rem;
+      height: 2.55rem;
+      min-height: 2.55rem;
+      padding: 0 0.35rem 0 2.2rem;
       overflow: hidden;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+      background: #151928;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
       transition: border-color 0.15s ease;
     }
 
+    .search-icon {
+      position: absolute;
+      left: 0.8rem;
+      display: grid;
+      place-items: center;
+      color: #94a3b8;
+      pointer-events: none;
+    }
+
+    .search-icon svg {
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .search-bar:focus-within {
-      border-color: rgba(var(--accent-rgb), 0.55);
+      border-color: rgba(255, 51, 102, 0.6);
+      box-shadow: 0 0 0 1px rgba(255, 51, 102, 0.35);
+    }
+
+    .search-bar:focus-within .search-icon {
+      color: #ec4899;
     }
 
     .search-bar:has(input:disabled) {
@@ -1357,10 +1656,10 @@ const MOVE_SLOP_PX = 10;
       border: 0;
       background: transparent;
       color: var(--text);
-      padding: 0 0.75rem;
+      padding: 0 0.35rem;
       font: inherit;
-      font-size: 0.9rem;
-      line-height: calc(2.4rem - 2px);
+      font-size: 0.75rem;
+      line-height: calc(2.55rem - 2px);
       outline: none;
       appearance: none;
     }
@@ -1429,115 +1728,146 @@ const MOVE_SLOP_PX = 10;
 
     .elements {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
       gap: 0.75rem;
       margin: 0;
       padding: 0;
       list-style: none;
     }
 
-    .elements > li {
-      position: relative;
+    .card {
+      box-sizing: border-box;
       display: flex;
+      flex-direction: column;
       min-width: 0;
+      padding: 0.85rem 0.85rem 0;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: #151928;
+      color: inherit;
+      cursor: pointer;
+      -webkit-touch-callout: none;
+      transition: transform 0.16s ease;
+    }
+
+    .card:active {
+      transform: scale(0.98);
+    }
+
+    .card.colored {
+      border-color: color-mix(in srgb, var(--score-color) 40%, transparent);
+      box-shadow: 0 0 16px -2px color-mix(in srgb, var(--score-color) 35%, transparent);
+    }
+
+    .card.selected,
+    .card.selected:hover {
+      border-color: color-mix(in srgb, var(--score-color, white) 70%, transparent);
+      box-shadow:
+        0 0 16px -2px color-mix(in srgb, var(--score-color, white) 35%, transparent),
+        inset 0 0 0 1px color-mix(in srgb, var(--score-color, white) 55%, transparent);
     }
 
     .element {
-      box-sizing: border-box;
-      width: 100%;
-      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      min-height: 4rem;
+      gap: 0.4rem;
+      width: 100%;
+      min-height: 0;
+      margin: 0;
       padding: 0;
-      overflow: hidden;
-      --level-line: color-mix(in srgb, var(--score-color, var(--border)) 42%, var(--border));
-      border: 1px solid var(--level-line);
-      border-radius: 0.7rem;
-      background: color-mix(in srgb, var(--score-color, transparent) 12%, var(--surface));
+      border: 0;
+      background: transparent;
       color: inherit;
       font: inherit;
       text-align: left;
       cursor: pointer;
-      -webkit-touch-callout: none;
+      appearance: none;
     }
 
-    .card-face {
+    .title {
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      color: white;
+      font-size: 1.125rem;
+      font-weight: 750;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card.colored:hover .title {
+      color: var(--score-color);
+    }
+
+    .pills {
       display: flex;
-      flex: 1;
-      flex-direction: column;
-      align-items: stretch;
+      flex-wrap: wrap;
+      gap: 0.3rem 0.55rem;
       min-width: 0;
     }
 
-    .action-row {
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-width: 0;
+      max-width: 100%;
+      color: var(--pill-color);
+      font-size: 0.625rem;
+      font-weight: 750;
+      letter-spacing: 0.06em;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .pill-dot {
       flex: none;
-      height: 2.15rem;
-      margin-top: auto;
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 999px;
+      background: var(--pill-color);
+      box-shadow: 0 0 8px var(--pill-color);
+    }
+
+    .pill-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .stat-rail {
       display: flex;
-      flex: none;
-      flex-direction: row;
       align-items: center;
-      border-top: 1px solid var(--level-line);
-      background: rgba(0, 0, 0, 0.18);
-    }
-
-    .card-main + .stat-rail {
-      margin-top: auto;
-      border-top: 0;
-    }
-
-    .card-main {
-      display: flex;
-      flex: none;
-      align-items: center;
-      min-width: 0;
-      padding: 0 0.7rem 0 0.45rem;
+      justify-content: space-between;
+      gap: 0.35rem;
+      margin-top: 0.7rem;
+      padding: 0.55rem 0 0.7rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
 
     .stat {
-      display: flex;
-      flex: none;
+      display: inline-flex;
       align-items: center;
-      box-sizing: border-box;
-      height: 2rem;
-      gap: 0.28rem;
-      padding: 0 0.35rem 0 0.45rem;
-      color: var(--text-muted);
-      font-size: 0.72rem;
-      font-weight: 600;
+      gap: 0.22rem;
+      min-width: 0;
+      color: #cbd5e1;
+      font-size: 0.625rem;
+      font-weight: 550;
       font-variant-numeric: tabular-nums;
       line-height: 1;
-    }
-
-    .stat + .stat {
-      padding-left: 0.2rem;
     }
 
     .stat.zero {
       opacity: 0.4;
     }
 
-    .stat-box {
-      display: grid;
-      place-items: center;
-      flex: none;
-      width: 1.35rem;
-      height: 1.35rem;
-      border-radius: 0.32rem;
-      background: rgba(8, 10, 18, 0.55);
-      color: var(--text-muted);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-    }
-
     .stat svg {
       display: block;
-      width: 0.8rem;
-      height: 0.8rem;
+      width: 0.75rem;
+      height: 0.75rem;
       flex: none;
       fill: none;
       stroke: currentColor;
@@ -1546,69 +1876,16 @@ const MOVE_SLOP_PX = 10;
       stroke-linejoin: round;
     }
 
-    .element:hover {
-      background: color-mix(in srgb, var(--score-color, transparent) 18%, var(--surface));
+    .stat-opened svg {
+      color: #c4b5fd;
     }
 
-    .element.selected,
-    .element.selected:hover {
-      --level-line: color-mix(in srgb, var(--score-color, var(--text)) 72%, white);
-      border-color: var(--level-line);
-      background: color-mix(in srgb, var(--score-color, transparent) 30%, var(--surface));
-      box-shadow: inset 0 0 0 1px
-        color-mix(in srgb, var(--score-color, var(--text)) 55%, transparent);
+    .stat-reworked svg {
+      color: #fbbf24;
     }
 
-    .element.colored {
-      --card-color: oklch(from var(--score-color) 0.62 calc(min(max(c, 0.09), 0.13)) h);
-      --level-line: var(--card-color);
-      border-width: 2px;
-      border-color: var(--card-color);
-      background: var(--surface);
-      color: var(--text);
-      box-shadow: 0 4px 12px color-mix(in srgb, var(--card-color) 42%, transparent);
-    }
-
-    .element.colored:hover {
-      background: var(--surface);
-      box-shadow: 0 6px 16px color-mix(in srgb, var(--card-color) 55%, transparent);
-    }
-
-    .element.colored.selected,
-    .element.colored.selected:hover {
-      --level-line: var(--card-color);
-      border-color: var(--card-color);
-      background: var(--surface);
-      box-shadow:
-        0 4px 14px color-mix(in srgb, var(--card-color) 50%, transparent),
-        inset 0 0 0 1px var(--card-color);
-    }
-
-    .title {
-      min-width: 0;
-      max-width: 100%;
-      overflow: hidden;
-      font-size: 1.05rem;
-      font-weight: 650;
-      line-height: 2rem;
-      letter-spacing: -0.02em;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .elements > li:has(.element.colored) .card-corner {
-      bottom: calc(2rem + 3px);
-    }
-
-    .card-corner {
-      position: absolute;
-      z-index: 1;
-      right: 0.45rem;
-      bottom: calc(2rem + 2px);
-      display: inline-flex;
-      align-items: center;
-      height: 2.15rem;
-      gap: 0.4rem;
+    .stat-revealed svg {
+      color: #38bdf8;
     }
 
     .earned-gems {
@@ -1640,41 +1917,44 @@ const MOVE_SLOP_PX = 10;
     }
 
     .drill {
-      display: inline-flex;
+      display: flex;
       align-items: center;
+      justify-content: center;
       gap: 0.28rem;
-      height: 1.55rem;
-      padding: 0 0.48rem 0 0.55rem;
-      border: 1px solid var(--level-line);
-      border-radius: 0.4rem;
-      background: color-mix(in srgb, var(--score-color, transparent) 12%, var(--surface));
-      color: var(--text-muted);
-      font-size: 0.72rem;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
+      width: 100%;
+      margin-top: 0.7rem;
+      padding: 0.38rem 0.5rem;
+      border: 1px solid color-mix(in srgb, var(--score-color, #94a3b8) 30%, transparent);
+      border-radius: 0.75rem;
+      background: color-mix(in srgb, var(--score-color, #94a3b8) 15%, transparent);
+      color: var(--score-color, #cbd5e1);
+      font: inherit;
+      font-size: 0.75rem;
+      font-weight: 650;
       line-height: 1;
-      --level-line: color-mix(in srgb, var(--score-color, var(--border)) 42%, var(--border));
       cursor: pointer;
     }
 
-    .drill.colored {
-      --level-line: oklch(from var(--score-color) 0.46 calc(min(max(c, 0.07), 0.1)) h);
-      background: oklch(from var(--score-color) 0.3 calc(min(max(c, 0.05), 0.075)) h);
-      color: oklch(from var(--score-color) 0.78 calc(min(max(c, 0.12), 0.16)) h);
+    .card:not(.colored) .drill {
+      border-color: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+      color: #cbd5e1;
     }
 
     .drill:hover {
-      background: color-mix(in srgb, var(--score-color, transparent) 18%, var(--surface));
-    }
-
-    .drill.colored:hover {
-      background: oklch(from var(--score-color) 0.36 calc(min(max(c, 0.055), 0.085)) h);
+      background: color-mix(in srgb, var(--score-color, #94a3b8) 24%, transparent);
     }
 
     .drill-arrow {
+      display: block;
       flex: none;
-      width: 0.95rem;
-      height: 0.95rem;
+      width: 0.75rem;
+      height: 0.75rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .drill-label {
@@ -1684,19 +1964,15 @@ const MOVE_SLOP_PX = 10;
       line-height: 1;
     }
 
-    .drill-arrow {
-      display: block;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
+    .card.skeleton {
+      border-color: rgba(255, 255, 255, 0.06);
+      box-shadow: none;
+      pointer-events: none;
+      cursor: default;
     }
 
-    .skeleton {
-      border-color: color-mix(in srgb, var(--text) 7%, transparent);
-      background: color-mix(in srgb, var(--surface) 88%, transparent);
-      pointer-events: none;
+    .card.skeleton:active {
+      transform: none;
     }
 
     .bone {
@@ -1712,26 +1988,32 @@ const MOVE_SLOP_PX = 10;
       vertical-align: -0.08em;
     }
 
-    .skeleton .card-main {
-      min-height: 2rem;
+    .skeleton .element {
+      gap: 0.55rem;
     }
 
-    .skeleton .bone-action {
-      align-self: flex-end;
-      width: 6.2rem;
-      height: 1.15rem;
-      margin: 0.5rem 0.45rem;
+    .skeleton .bone-title {
+      width: 62%;
+      height: 1rem;
+    }
+
+    .skeleton .bone-pill {
+      width: 42%;
+      height: 0.5rem;
+    }
+
+    .skeleton .bone-drill {
+      width: 100%;
+      height: 1.7rem;
+      margin-top: 0.7rem;
+      border-radius: 0.75rem;
     }
 
     .skeleton .bone-side {
       width: 100%;
-      height: 2rem;
+      height: 1.35rem;
+      margin-top: 0.7rem;
       border-radius: 0;
-    }
-
-    .skeleton .bone-title {
-      width: 58%;
-      height: 1.05rem;
     }
 
     .empty {
@@ -2169,6 +2451,8 @@ export class LanguagePage {
   readonly name = signal('');
   readonly ready = signal(false);
   readonly elements = signal<StoredElement[]>([]);
+  readonly leadFieldKey = signal(readDefinitionMetadataFields()[0]?.key ?? '');
+  readonly leadChip = signal('');
   readonly query = signal('');
   readonly search = signal<ElementSearch>({ mode: 'browse', value: '' });
   readonly sort = signal<ElementSort>(DEFAULT_ELEMENT_SORT);
@@ -2210,6 +2494,22 @@ export class LanguagePage {
   readonly filtersOpen = signal(false);
   readonly settingsOpen = signal(false);
   readonly statsOpen = signal(false);
+  readonly leadValues = computed((): LeadValue[] => {
+    const key = this.leadFieldKey();
+    const seen = new Set<string>();
+    const values: LeadValue[] = [];
+    for (const element of this.elements()) {
+      for (const item of compiledLeadValues(element, key)) {
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        values.push(item);
+      }
+    }
+    return values;
+  });
+  readonly cardsActive = computed(
+    () => !this.statsOpen() && !this.discoverOpen() && !this.settingsOpen(),
+  );
   readonly playId = signal('');
   readonly playMode = signal<ElementMode | null>(null);
   readonly drillId = signal('');
@@ -2245,9 +2545,14 @@ export class LanguagePage {
     const definitionMeta = this.definitionMetaFilter();
     const exampleMeta = this.exampleMetaFilter();
     const formMeta = this.formMetaFilter();
+    const leadId = this.leadChip();
+    const leadKey = this.leadFieldKey();
     const matched = this.elements().filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
       if (!elementMatchesColor(element, color)) return false;
+      if (leadId && !compiledLeadValues(element, leadKey).some((item) => item.id === leadId)) {
+        return false;
+      }
       return elementMatchesMetadata(element, definitionMeta, exampleMeta, formMeta);
     });
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
@@ -2374,8 +2679,8 @@ export class LanguagePage {
       if (!language) return false;
       return element.definitions.some(
         (definition) =>
-          equivalentTextFor(element.equivalents, definition.equivalentIds, language).trim()
-            .length > 0,
+          equivalentTextFor(element.equivalents, definition.equivalentIds, language).trim().length >
+          0,
       );
     }
     if (mode === 2) {
@@ -2390,7 +2695,9 @@ export class LanguagePage {
     return this.selectedIds().has(id);
   }
 
-  onCardClick(id: string): void {
+  onCardClick(id: string, event?: Event): void {
+    const target = event?.target instanceof Element ? event.target : null;
+    if (target?.closest('.drill')) return;
     if (Date.now() < this.swallowClickUntil) {
       this.swallowClickUntil = 0;
       return;
@@ -2413,6 +2720,8 @@ export class LanguagePage {
   }
 
   onCardPointerDown(event: PointerEvent, id: string): void {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('.drill')) return;
     if (this.selecting() || this.selectionBusy()) return;
     if (event.pointerType === 'mouse' || event.button !== 0) return;
     this.clearPressTimer();
@@ -2571,7 +2880,9 @@ export class LanguagePage {
     if (this.selectionBusy() || !this.selecting()) return;
     if (this.colorOpen() || this.deleteConfirm()) return;
     if (
-      target?.closest('.element, .list-toolbar-actions, .selection-backdrop, app-element-modal')
+      target?.closest(
+        '.card, .element, .list-toolbar-actions, .selection-backdrop, app-element-modal',
+      )
     ) {
       return;
     }
@@ -2706,6 +3017,33 @@ export class LanguagePage {
 
   highlight(text: string): ElementSearchPart[] {
     return elementHighlightParts(displayTitle(text, this.code()), this.search());
+  }
+
+  leadPills(element: StoredElement): LeadValue[] {
+    return compiledLeadValues(element, this.leadFieldKey());
+  }
+
+  cardAccent(element: StoredElement): string | null {
+    if (element.color) return element.color;
+    return this.leadPills(element)[0]?.color ?? null;
+  }
+
+  pillColor(element: StoredElement, pill: LeadValue): string {
+    return element.color || pill.color;
+  }
+
+  chooseLeadChip(id: string): void {
+    this.leadChip.set(id);
+  }
+
+  showCards(): void {
+    this.sortOpen.set(false);
+    if (this.filtersOpen()) this.closeFilters();
+    if (this.statsOpen()) this.closeStats();
+    if (this.discoverOpen()) this.closeDiscover();
+    if (this.settingsOpen()) this.closeSettings();
+    if (this.elementId()) this.closeElement();
+    this.drillId.set('');
   }
 
   /** Scores are not gems. Totals stay empty until gems are attributed. */
@@ -3014,11 +3352,24 @@ export class LanguagePage {
     if (!this.settingsOpen()) return;
     this.settingsOpen.set(false);
     this.unlockScroll();
+    this.refreshLeadField();
   }
 
   onCollectionReplaced(): void {
     if (this.elementId()) this.closeElement();
+    this.refreshLeadField();
     void this.reloadElements();
+  }
+
+  openLanguage(): void {
+    this.sortOpen.set(false);
+    if (this.discoverOpen()) this.closeDiscover();
+    if (this.settingsOpen()) this.closeSettings();
+    if (this.statsOpen()) this.closeStats();
+    this.expanded.set('language');
+    if (this.filtersOpen()) return;
+    this.filtersOpen.set(true);
+    this.lockScroll();
   }
 
   openStats(): void {
@@ -3070,6 +3421,7 @@ export class LanguagePage {
     this.playId.set('');
     this.playMode.set(null);
     this.drillId.set('');
+    this.leadChip.set('');
     this.clearSelection();
     this.sortOpen.set(false);
     if (this.discoverOpen()) this.closeDiscover();
@@ -3095,6 +3447,12 @@ export class LanguagePage {
     if (seq !== this.loadId) return;
     this.elements.set(elements);
     this.ready.set(true);
+  }
+
+  private refreshLeadField(): void {
+    const next = readDefinitionMetadataFields()[0]?.key ?? '';
+    if (leadValueId(next) !== leadValueId(this.leadFieldKey())) this.leadChip.set('');
+    this.leadFieldKey.set(next);
   }
 
   private overlayOpen(): boolean {
