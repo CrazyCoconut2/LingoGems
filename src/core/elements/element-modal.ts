@@ -943,7 +943,7 @@ function writeExampleSuggestions(
                       <ng-template #definitionGloss>
                         @let equivalent = equivalentText(definition);
                         @if (supportAvailable() && equivalent) {
-                          <p class="sense-gloss">
+                          <div class="sense-gloss">
                             @if (translationGame()) {
                               <button
                                 type="button"
@@ -970,14 +970,17 @@ function writeExampleSuggestions(
                                 >
                               </button>
                             } @else {
-                              <app-reveal
-                                [text]="labeledEquivalent(equivalent)"
-                                [locked]="inPlay()"
-                                [open]="equivalentUnveiled(equivalent)"
-                                (unveiled)="unveilEquivalent(equivalent)"
-                              />
+                              <span class="sense-equivalent">
+                                <ng-container [ngTemplateOutlet]="translationIcon" />
+                                <app-reveal
+                                  [text]="labeledEquivalent(equivalent)"
+                                  [locked]="inPlay()"
+                                  [open]="equivalentUnveiled(equivalent)"
+                                  (unveiled)="unveilEquivalent(equivalent)"
+                                />
+                              </span>
                             }
-                          </p>
+                          </div>
                         }
                       </ng-template>
                       @if (!passage.text) {
@@ -4766,7 +4769,7 @@ function writeExampleSuggestions(
       margin: 0;
       padding: 0 0.5rem;
       border: 1px solid var(--accent-border);
-      border-radius: 0.4rem;
+      border-radius: 999px;
       background: var(--accent-soft);
       color: var(--accent-text);
       font: inherit;
@@ -4856,8 +4859,7 @@ function writeExampleSuggestions(
       color: #f1f5f9;
     }
 
-    .sense-copy .equivalents,
-    .sense-gloss {
+    .sense-copy .equivalents {
       margin: 0;
       color: #94a3b8;
       font-size: 0.75rem;
@@ -4865,22 +4867,30 @@ function writeExampleSuggestions(
       line-height: 1.4;
     }
 
-    .sense-gloss .guess-open:not(.needs-click) {
-      height: auto;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      color: inherit;
-      font-size: inherit;
-      font-weight: 400;
-      font-style: italic;
+    .sense-gloss {
+      margin: 0;
     }
 
-    .sense-gloss svg {
-      width: 0.85rem;
-      height: 0.85rem;
-      flex: none;
+    .sense-gloss .sense-equivalent {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      max-width: 100%;
+      height: auto;
+      padding: 0.25rem 0.625rem;
+      border: 1px solid var(--accent-border);
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-text);
+      font-size: 0.75rem;
+      font-style: normal;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .sense-gloss .sense-equivalent app-reveal,
+    .sense-gloss .guess-answer {
+      color: var(--text);
     }
 
     .passage {
