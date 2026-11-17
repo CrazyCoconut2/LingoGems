@@ -390,19 +390,21 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   </span>
                   <span
                     class="pills"
-                    [style.--pill-color]="pills.length ? pillColor(element, pills[0]) : null"
+                    [class.colored]="!!leadColor()"
+                    [style.--pill-color]="leadColor()"
                   >
                     @if (pills.length) {
                       <span class="pill-label">{{ pillLine(pills) }}</span>
                     }
                   </span>
                 </button>
-                @if (!selecting() && element.definitions.length) {
+                @if (element.definitions.length) {
                   <button
                     type="button"
                     class="drill"
                     aria-label="Drill"
                     title="Drill"
+                    [disabled]="selecting()"
                     (click)="askDrill(element.id)"
                   >
                     <span class="drill-label">Drill</span>
@@ -459,11 +461,16 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                     [attr.title]="exercisedLabel(activity.exercises)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M6.5 6.5v11" />
-                      <path d="M17.5 6.5v11" />
-                      <path d="M3.5 9.5v5" />
-                      <path d="M20.5 9.5v5" />
-                      <path d="M6.5 12h11" />
+                      <path d="m14 13-8.381 8.38a1 1 0 0 1-3.001-3L11 9.999" />
+                      <path
+                        d="M15.973 4.027A13 13 0 0 0 5.902 2.373c-1.398.342-1.092 2.158.277 2.601a19.9 19.9 0 0 1 5.822 3.024"
+                      />
+                      <path
+                        d="M16.001 11.999a19.9 19.9 0 0 1 3.024 5.824c.444 1.369 2.26 1.676 2.603.278A13 13 0 0 0 20 8.069"
+                      />
+                      <path
+                        d="M18.352 3.352a1.205 1.205 0 0 0-1.704 0l-5.296 5.296a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l5.296-5.296a1.205 1.205 0 0 0 0-1.704z"
+                      />
                     </svg>
                     <span>{{ activity.exercises }}</span>
                   </span>
@@ -633,17 +640,20 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                         aria-label="Color"
                         (cdkDropListDropped)="reorderColors($event)"
                       >
-                        @for (color of colorOptions(); track color) {
-                          <button
-                            type="button"
-                            class="color-swatch draggable"
-                            cdkDrag
-                            [class.selected]="colorSelected(color)"
-                            [attr.aria-pressed]="colorSelected(color)"
-                            [attr.aria-label]="color"
-                            [style.--swatch]="color"
-                            (click)="chooseColor(color)"
-                          >
+                        @for (color of colorOptions(); track color; let first = $first) {
+                          <div class="color-choice" cdkDrag>
+                            <button
+                              type="button"
+                              class="color-swatch draggable"
+                              [class.selected]="colorSelected(color)"
+                              [attr.aria-pressed]="colorSelected(color)"
+                              [attr.aria-label]="first ? color + ', default' : color"
+                              [style.--swatch]="color"
+                              (click)="chooseColor(color)"
+                            ></button>
+                            @if (first) {
+                              <span class="color-default">Default</span>
+                            }
                             <ng-template cdkDragPreview>
                               <span
                                 class="color-swatch-preview"
@@ -652,22 +662,27 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                                 [style.height.rem]="2.2"
                               ></span>
                             </ng-template>
-                          </button>
+                          </div>
                         }
                       </div>
                     } @else {
                       <p class="section-hint">Show elements in any selected color.</p>
                       <div class="color-choices" role="group" aria-label="Color">
-                        @for (color of colorOptions(); track color) {
-                          <button
-                            type="button"
-                            class="color-swatch"
-                            [class.selected]="colorSelected(color)"
-                            [attr.aria-pressed]="colorSelected(color)"
-                            [attr.aria-label]="color"
-                            [style.--swatch]="color"
-                            (click)="chooseColor(color)"
-                          ></button>
+                        @for (color of colorOptions(); track color; let first = $first) {
+                          <div class="color-choice">
+                            <button
+                              type="button"
+                              class="color-swatch"
+                              [class.selected]="colorSelected(color)"
+                              [attr.aria-pressed]="colorSelected(color)"
+                              [attr.aria-label]="first ? color + ', default' : color"
+                              [style.--swatch]="color"
+                              (click)="chooseColor(color)"
+                            ></button>
+                            @if (first) {
+                              <span class="color-default">Default</span>
+                            }
+                          </div>
                         }
                       </div>
                     }
@@ -1663,14 +1678,18 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       min-width: 0;
       height: 0.85rem;
       overflow: hidden;
-      --pill-accent: oklch(from var(--pill-color) 0.74 calc(min(max(c, 0.16), 0.24)) h);
-      color: var(--pill-accent);
+      color: var(--text-muted);
       font-size: 0.625rem;
       font-weight: 750;
       letter-spacing: 0.06em;
       line-height: 1;
       text-transform: uppercase;
       white-space: nowrap;
+    }
+
+    .pills.colored {
+      --pill-accent: oklch(from var(--pill-color) 0.74 calc(min(max(c, 0.16), 0.24)) h);
+      color: var(--pill-accent);
     }
 
     .pill-label {
@@ -1772,8 +1791,13 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       color: #cbd5e1;
     }
 
-    .drill:hover {
+    .drill:hover:not(:disabled) {
       background: color-mix(in srgb, var(--card-accent, #94a3b8) 24%, transparent);
+    }
+
+    .drill:disabled {
+      opacity: 0.4;
+      cursor: default;
     }
 
     .drill-arrow {
@@ -2069,8 +2093,25 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     .color-choices {
       display: flex;
       flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 0.55rem 0.7rem;
+    }
+
+    .color-choice {
+      display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 0.55rem;
+      gap: 0.28rem;
+      width: 3.4rem;
+    }
+
+    .color-default {
+      color: var(--text-muted);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      text-transform: uppercase;
     }
 
     .color-swatch {
@@ -2866,8 +2907,9 @@ export class LanguagePage {
     return element.color ?? this.leadPills(element)[0]?.color ?? null;
   }
 
-  pillColor(element: StoredElement, pill: LeadValue): string {
-    return element.color || pill.color;
+  /** Color of the metadata field shown under the title. The element color stays off this line. */
+  leadColor(): string | null {
+    return this.fieldColor('definitions', this.leadFieldKey());
   }
 
   pillLine(pills: LeadValue[]): string {
