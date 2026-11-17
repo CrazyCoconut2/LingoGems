@@ -711,7 +711,6 @@ function writeExampleSuggestions(
               <ol class="definitions">
                 <li class="sense">
                   <div class="sense-toolbar">
-                    <div class="sense-pager-row">
                       <div class="sense-pager">
                         <button
                           type="button"
@@ -749,19 +748,6 @@ function writeExampleSuggestions(
                             <path d="m9 18 6-6-6-6" />
                           </svg>
                         </button>
-                        <button
-                          type="button"
-                          class="pager-btn"
-                          aria-label="Add a definition"
-                          title="Add a definition"
-                          [disabled]="inPlay() || aiBusy()"
-                          (click)="addDefinitionManually()"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M12 5v14" />
-                            <path d="M5 12h14" />
-                          </svg>
-                        </button>
                       </div>
                       <label class="definition-order">
                         <input
@@ -783,7 +769,19 @@ function writeExampleSuggestions(
                         />
                         <span class="order-total">/{{ definitions.length }}</span>
                       </label>
-                    </div>
+                      <button
+                        type="button"
+                        class="pager-btn"
+                        aria-label="Add a definition"
+                        title="Add a definition"
+                        [disabled]="inPlay() || aiBusy()"
+                        (click)="addDefinitionManually()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M12 5v14" />
+                          <path d="M5 12h14" />
+                        </svg>
+                      </button>
                     <div class="sense-actions">
                       <button
                         type="button"
@@ -4162,19 +4160,19 @@ function writeExampleSuggestions(
       height: 1.75rem;
       margin-block-start: calc((1.5em - 1.75rem) / 2);
       border-radius: 999px;
-      background: rgba(236, 72, 153, 0.1);
-      color: #f472b6;
+      background: color-mix(in srgb, var(--element-accent) 16%, transparent);
+      color: var(--element-accent);
     }
 
     .example-quote > .spoken > .icon-btn.hear-inline:hover:not(:disabled) {
-      background: rgba(236, 72, 153, 0.2);
-      color: #f472b6;
+      background: color-mix(in srgb, var(--element-accent) 28%, transparent);
+      color: var(--element-accent);
     }
 
     .example-quote > .spoken > .icon-btn.hear-inline.active,
     .example-quote > .spoken > .icon-btn.hear-inline.active:hover:not(:disabled) {
-      color: var(--accent-text);
-      background: var(--accent-soft);
+      color: var(--element-accent);
+      background: color-mix(in srgb, var(--element-accent) 32%, transparent);
     }
 
     .example-quote > .spoken > .icon-btn.hear-inline svg {
@@ -4504,19 +4502,12 @@ function writeExampleSuggestions(
 
     .sense-toolbar {
       display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0.5rem;
+      flex-flow: row nowrap;
+      align-items: center;
+      gap: 0.4rem;
+      min-width: 0;
       padding-bottom: 0.75rem;
       border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-    }
-
-    .sense-pager-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.5rem;
-      min-width: 0;
     }
 
     .sense-pager {
@@ -4661,13 +4652,9 @@ function writeExampleSuggestions(
     .sense-actions {
       display: flex;
       align-items: center;
-      align-self: flex-end;
       flex: none;
-      gap: 0.15rem;
-      padding: 0.125rem;
-      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-      border-radius: 0.5rem;
-      background: color-mix(in srgb, var(--surface-2) 90%, transparent);
+      gap: 0.05rem;
+      margin-left: auto;
       color: #94a3b8;
     }
 
