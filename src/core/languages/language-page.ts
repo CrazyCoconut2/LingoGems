@@ -442,16 +442,19 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                     <span>{{ activity.reworked }}</span>
                   </span>
                   <span
-                    class="stat stat-revealed"
-                    [class.zero]="activity.revealed === 0"
-                    [attr.aria-label]="revealedLabel(activity.revealed)"
-                    [attr.title]="revealedLabel(activity.revealed)"
+                    class="stat stat-exercised"
+                    [class.zero]="activity.exercises === 0"
+                    [attr.aria-label]="exercisedLabel(activity.exercises)"
+                    [attr.title]="exercisedLabel(activity.exercises)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                      <circle cx="12" cy="12" r="3" />
+                      <path d="M6.5 6.5v11" />
+                      <path d="M17.5 6.5v11" />
+                      <path d="M3.5 9.5v5" />
+                      <path d="M20.5 9.5v5" />
+                      <path d="M6.5 12h11" />
                     </svg>
-                    <span>{{ activity.revealed }}</span>
+                    <span>{{ activity.exercises }}</span>
                   </span>
                 </div>
               </li>
@@ -2826,18 +2829,23 @@ export class LanguagePage {
     return 1;
   }
 
-  activityTotals(element: StoredElement): { opened: number; reworked: number; revealed: number } {
+  activityTotals(element: StoredElement): { opened: number; reworked: number; exercises: number } {
     let opened = 0;
     let reworked = 0;
-    let revealed = 0;
+    let exercises = 0;
     for (const item of loggedDefinitions(element)) {
       for (const entry of item.log) {
         if (entry.event === 'view') opened += 1;
         else if (entry.event === 'rework') reworked += 1;
-        else if (entry.event === 'reveal') revealed += 1;
+        else if (
+          entry.event === 'game' &&
+          (entry.game === 'translation' || entry.game === 'example' || entry.game === 'definition')
+        ) {
+          exercises += 1;
+        }
       }
     }
-    return { opened, reworked, revealed };
+    return { opened, reworked, exercises };
   }
 
   gemsLabel(game: 'translation' | 'example' | 'definition', count: number): string {
@@ -2855,9 +2863,9 @@ export class LanguagePage {
     return count === 1 ? 'Reworked once' : `Reworked ${count} times`;
   }
 
-  revealedLabel(count: number): string {
-    if (count === 0) return 'Not revealed';
-    return count === 1 ? 'Revealed once' : `Revealed ${count} times`;
+  exercisedLabel(count: number): string {
+    if (count === 0) return 'Not exercised';
+    return count === 1 ? 'Exercised once' : `Exercised ${count} times`;
   }
 
   inputValue(event: Event): string {

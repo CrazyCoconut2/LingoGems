@@ -186,8 +186,6 @@ type ConfirmDelete =
   | { kind: 'exercise'; definitionIndex: number; historyIndex: number };
 
 const DELETE_PRESS_MS = 500;
-const DEFINITION_META_FALLBACK = ['#a5b4fc', '#34d399', '#fcd34d', '#f9a8d4'];
-
 type StoredSuggestion = {
   text: string;
   metadata: ElementMetadata;
@@ -989,8 +987,9 @@ function writeExampleSuggestions(
                       @let meta = entries(definition.metadata);
                       @if (meta.length) {
                         <ul class="sense-meta">
-                          @for (entry of meta; track entry.key; let metaIndex = $index) {
-                            <li [style.--meta-color]="definitionMetaColor(entry.key, metaIndex)">
+                          @for (entry of meta; track entry.key) {
+                            @let color = metaColor('definitions', entry.key);
+                            <li [class.colored]="color" [style.--meta-color]="color">
                               <span class="sense-meta-key">{{ label(entry.key) }}</span>
                               <span class="sense-meta-value">{{ label(entry.value) }}</span>
                             </li>
@@ -4831,9 +4830,13 @@ function writeExampleSuggestions(
     }
 
     .sense-meta .sense-meta-value {
-      color: var(--meta-color, #a5b4fc);
+      color: var(--text);
       font-size: inherit;
       font-weight: 600;
+    }
+
+    .sense-meta li.colored .sense-meta-value {
+      color: var(--meta-color);
     }
 
     .sense-main {
@@ -6945,13 +6948,6 @@ export class ElementModal {
   }
 
   /** Field color, or the next stitch hue when the field has none. */
-  definitionMetaColor(key: string, index: number): string {
-    return (
-      this.metaColor('definitions', key) ??
-      DEFINITION_META_FALLBACK[index % DEFINITION_META_FALLBACK.length]
-    );
-  }
-
   /** First colored metadata field on a form, used to tint its chip. */
   formChipColor(form: ElementForm): string | null {
     for (const key of Object.keys(form.metadata)) {

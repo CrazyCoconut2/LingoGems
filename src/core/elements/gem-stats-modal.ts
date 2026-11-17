@@ -191,7 +191,10 @@ const EMPTY_DAY: DayStats = {
             <div class="hero" [attr.aria-label]="exerciseLabel(shown().exercises)">
               <div class="hero-top">
                 <div class="hero-copy">
-                  <p class="eyebrow">Exercises</p>
+                  <p class="eyebrow">
+                    <ng-container *ngTemplateOutlet="exerciseIcon" />
+                    Exercises
+                  </p>
                   <p class="hero-value">{{ formatCount(shown().exercises) }}</p>
                 </div>
                 @if (dayBadge()) {
@@ -324,21 +327,22 @@ const EMPTY_DAY: DayStats = {
                 @if (day(); as current) {
                   @for (element of current.elements; track element.id) {
                     <li class="row">
-                      @if (element.exercises > 0) {
-                        <span
-                          class="badge"
-                          [attr.aria-label]="exerciseLabel(element.exercises)"
-                          [attr.title]="exerciseLabel(element.exercises)"
-                        >
-                          {{ formatCount(element.exercises) }}
-                        </span>
-                      }
                       <div class="row-main">
                         <span class="title" [attr.title]="titleOf(element)">{{
                           titleOf(element)
                         }}</span>
                         @if (hasBits(element)) {
                           <span class="bits">
+                            @if (element.exercises > 0) {
+                              <span
+                                class="bit"
+                                [attr.aria-label]="exerciseLabel(element.exercises)"
+                                [attr.title]="exerciseLabel(element.exercises)"
+                              >
+                                <ng-container *ngTemplateOutlet="exerciseIcon" />
+                                <span>{{ formatCount(element.exercises) }}</span>
+                              </span>
+                            }
                             @for (row of games(); track row.game) {
                               @if (element.gems[row.game] > 0) {
                                 <span
@@ -412,6 +416,15 @@ const EMPTY_DAY: DayStats = {
           +
         </button>
       </div>
+    </ng-template>
+    <ng-template #exerciseIcon>
+      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6.5 6.5v11" />
+        <path d="M17.5 6.5v11" />
+        <path d="M3.5 9.5v5" />
+        <path d="M20.5 9.5v5" />
+        <path d="M6.5 12h11" />
+      </svg>
     </ng-template>
     <ng-template #activityIcon let-key>
       @switch (key) {
@@ -792,7 +805,14 @@ const EMPTY_DAY: DayStats = {
     }
 
     .hero .eyebrow {
-      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .hero .eyebrow .mark {
+      width: 0.85rem;
+      height: 0.85rem;
     }
 
     .hero-value {
@@ -1109,23 +1129,6 @@ const EMPTY_DAY: DayStats = {
       background: var(--surface-2);
     }
 
-    .badge {
-      display: grid;
-      place-items: center;
-      min-width: 2.35rem;
-      height: 2.15rem;
-      flex: none;
-      padding: 0 0.4rem;
-      border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--accent) 18%, transparent);
-      color: var(--accent);
-      font-size: 0.78rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
     .row-main {
       display: flex;
       flex: 1;
@@ -1399,7 +1402,10 @@ export class GemStatsModal {
 
   hasBits(element: ElementDayStats): boolean {
     const gems = this.games().reduce((sum, row) => sum + element.gems[row.game], 0);
-    return gems + element.added + element.opened + element.reworked + element.revealed > 0;
+    return (
+      gems + element.exercises + element.added + element.opened + element.reworked + element.revealed >
+      0
+    );
   }
 
   languageName(): string {
