@@ -630,31 +630,6 @@ function writeExampleSuggestions(
               </button>
             </div>
           </div>
-          @if (supportAvailable() && headerEquivalents(); as equivalents) {
-            @if (equivalents.length) {
-              <p class="equivalents" [attr.aria-hidden]="headerTranslationsLocked() ? true : null">
-                @for (item of equivalents; track item.id) {
-                  @if ($index > 0) {
-                    <span class="sep" aria-hidden="true">·</span>
-                  }
-                  @if (translationGame()) {
-                    <span
-                      [class.play-blur]="!equivalentEarned(item.id)"
-                      [attr.aria-hidden]="equivalentEarned(item.id) ? null : true"
-                      >{{ labeledEquivalent(item.text) }}</span
-                    >
-                  } @else {
-                    <app-reveal
-                      [text]="labeledEquivalent(item.text)"
-                      [locked]="headerTranslationsLocked()"
-                      [open]="equivalentUnveiled(item.text) || equivalentEarned(item.id)"
-                      (unveiled)="unveilEquivalent(item.text)"
-                    />
-                  }
-                }
-              </p>
-            }
-          }
           <div class="header-actions">
             @if (element().definitions.length) {
               @let index = visibleDefinitionIndex();
@@ -772,6 +747,19 @@ function writeExampleSuggestions(
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="m9 18 6-6-6-6" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="pager-btn"
+                          aria-label="Add a definition"
+                          title="Add a definition"
+                          [disabled]="inPlay() || aiBusy()"
+                          (click)="addDefinitionManually()"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 5v14" />
+                            <path d="M5 12h14" />
                           </svg>
                         </button>
                       </div>
@@ -3931,15 +3919,6 @@ function writeExampleSuggestions(
       font-size: 0.95rem;
     }
 
-    p.equivalents .sep {
-      margin-inline: 0.45rem;
-      color: var(--text-muted);
-    }
-
-    header:has(.title-row > .icon-btn) > p.equivalents {
-      margin-inline-start: calc(1.8rem + 1rem);
-    }
-
     .equivalent-choices {
       display: flex;
       flex-wrap: wrap;
@@ -6761,21 +6740,10 @@ export class ElementModal {
     return displayTitle(text, this.element().language);
   }
 
-  headerEquivalents(): ElementEquivalent[] {
-    const language = this.translationTarget();
-    if (!language) return [];
-    return this.element().equivalents.filter((item) => item.language === language);
-  }
-
   editorEquivalents(): ElementEquivalent[] {
     const language = this.translationTarget();
     if (!language) return [];
     return this.sheetEquivalents().filter((item) => item.language === language);
-  }
-
-  /** Clear in the header once this equivalent has been answered in the translation game. */
-  equivalentEarned(id: string): boolean {
-    return this.equivalentSolved(id);
   }
 
   removeEquivalent(id: string): void {
@@ -9490,16 +9458,6 @@ export class ElementModal {
     return this.element().definitions.some((_, index) => this.definitionConcealed(index));
   }
 
-  /** Header translations stay blurred while an example is being written, and during a definition game until every definition has been compared. */
-  headerTranslationsLocked(): boolean {
-    if (this.exampleGame()) return true;
-    if (!this.definitionGame()) return false;
-    const definitions = this.element().definitions;
-    const prompted = definitions.length > 0;
-    if (!prompted) return true;
-    return definitions.some((_, index) => this.definitionConcealed(index));
-  }
-
   dialogLabel(): string {
     return this.shownTitle();
   }
@@ -10467,17 +10425,6 @@ export class ElementModal {
     const saved = await this.persist(definitions, this.element().equivalents);
     if (!this.alive || !saved || this.element().id !== elementId) return null;
     return logIndex;
-  }
-
-  private equivalentSolved(id: string): boolean {
-    let linked = false;
-    const definitions = this.element().definitions;
-    for (let index = 0; index < definitions.length; index += 1) {
-      if (definitions[index]?.equivalentIds[this.translationTarget()] !== id) continue;
-      linked = true;
-      if (!this.equivalentSubmitted(index)) return false;
-    }
-    return linked;
   }
 
   private loadRound(id: string): void {
