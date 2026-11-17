@@ -136,26 +136,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
   template: `
     <main>
       <div class="page-top">
-        <header class="brand-bar">
-          <div class="brand">
-            <span class="brand-mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M6 3h12l4 6-10 13L2 9z" />
-                <path d="M11 3 8 9l4 13 4-13-3-6" />
-                <path d="M2 9h20" />
-              </svg>
-            </span>
-            <span class="brand-name">LingoGems</span>
-          </div>
-          @if (code()) {
-            <button type="button" class="language-badge" (click)="openLanguage()">
-              <span>{{ name() }}</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-          }
-        </header>
         <section class="entries-toolbar" aria-label="Search">
           <form class="search-bar" autocomplete="off" (submit)="lookup($event)">
             <span class="search-icon" aria-hidden="true">
@@ -397,16 +377,14 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                       }
                     }
                   </span>
-                  @if (pills.length) {
-                    <span class="pills">
-                      @for (pill of pills; track pill.id) {
-                        <span class="pill" [style.--pill-color]="pillColor(element, pill)">
-                          <span class="pill-dot"></span>
-                          <span class="pill-label">{{ pill.value }}</span>
-                        </span>
-                      }
-                    </span>
-                  }
+                  <span
+                    class="pills"
+                    [style.--pill-color]="pills.length ? pillColor(element, pills[0]) : null"
+                  >
+                    @if (pills.length) {
+                      <span class="pill-label">{{ pillLine(pills) }}</span>
+                    }
+                  </span>
                 </button>
                 @if (!selecting() && element.definitions.length) {
                   <button
@@ -944,91 +922,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       display: flex;
       flex-direction: column;
       gap: 0.65rem;
-      padding: calc(0.35rem + env(safe-area-inset-top, 0px)) 1.25rem 0.35rem;
-    }
-
-    .brand-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-      min-height: 2.4rem;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      min-width: 0;
-    }
-
-    .brand-mark {
-      display: grid;
-      place-items: center;
-      flex: none;
-      width: 2rem;
-      height: 2rem;
-      border-radius: 0.7rem;
-      background: linear-gradient(to top right, #9333ea, #ec4899);
-      box-shadow: 0 4px 10px rgba(168, 85, 247, 0.35);
-      color: white;
-    }
-
-    .brand-mark svg {
-      width: 1rem;
-      height: 1rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .brand-name {
-      color: white;
-      font-size: 1rem;
-      font-weight: 750;
-      letter-spacing: -0.03em;
-      line-height: 1;
-    }
-
-    .language-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      max-width: 11rem;
-      padding: 0.28rem 0.65rem;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 999px;
-      background: #151928;
-      color: #e2e8f0;
-      font: inherit;
-      font-size: 0.68rem;
-      font-weight: 650;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      cursor: pointer;
-    }
-
-    .language-badge span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .language-badge svg {
-      flex: none;
-      width: 0.75rem;
-      height: 0.75rem;
-      fill: none;
-      stroke: #94a3b8;
-      stroke-width: 2.5;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .language-badge:hover {
-      border-color: rgba(255, 255, 255, 0.2);
+      padding: calc(1.25rem + env(safe-area-inset-top, 0px)) 1.25rem 0.35rem;
     }
 
     .collection {
@@ -1699,36 +1593,23 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
     .pills {
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.3rem 0.55rem;
-      min-width: 0;
-    }
-
-    .pill {
-      display: inline-flex;
       align-items: center;
       gap: 0.35rem;
       min-width: 0;
-      max-width: 100%;
+      height: 0.85rem;
+      overflow: hidden;
       --pill-accent: oklch(from var(--pill-color) 0.74 calc(min(max(c, 0.16), 0.24)) h);
       color: var(--pill-accent);
       font-size: 0.625rem;
       font-weight: 750;
       letter-spacing: 0.06em;
-      line-height: 1.2;
+      line-height: 1;
       text-transform: uppercase;
-    }
-
-    .pill-dot {
-      flex: none;
-      width: 0.5rem;
-      height: 0.5rem;
-      border-radius: 999px;
-      background: var(--pill-accent);
-      box-shadow: 0 0 8px var(--pill-accent);
+      white-space: nowrap;
     }
 
     .pill-label {
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -2894,6 +2775,10 @@ export class LanguagePage {
     return element.color || pill.color;
   }
 
+  pillLine(pills: LeadValue[]): string {
+    return pills.map((pill) => pill.value).join(' · ');
+  }
+
   /** Scores are not gems. Totals stay empty until gems are attributed. */
   gemTotals(
     _element: StoredElement,
@@ -3207,17 +3092,6 @@ export class LanguagePage {
     if (this.elementId()) this.closeElement();
     this.refreshLeadField();
     void this.reloadElements();
-  }
-
-  openLanguage(): void {
-    this.sortOpen.set(false);
-    if (this.discoverOpen()) this.closeDiscover();
-    if (this.settingsOpen()) this.closeSettings();
-    if (this.statsOpen()) this.closeStats();
-    this.expanded.set('language');
-    if (this.filtersOpen()) return;
-    this.filtersOpen.set(true);
-    this.lockScroll();
   }
 
   openStats(): void {
