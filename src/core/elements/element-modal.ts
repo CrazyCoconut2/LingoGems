@@ -736,43 +736,65 @@ function writeExampleSuggestions(
               <ol class="definitions">
                 <li class="sense" [class.fresh]="definitionIsNew(definition.text)">
                   <div class="sense-toolbar">
-                    <div class="sense-pager">
-                      <button
-                        type="button"
-                        class="pager-btn"
-                        aria-label="Previous definition"
-                        [disabled]="index === 0"
-                        (click)="showDefinition(index - 1)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m15 18-6-6 6-6" />
-                        </svg>
-                      </button>
-                      <nav class="definition-dots" aria-label="Definitions">
-                        @for (item of definitions; track $index) {
-                          <button
-                            type="button"
-                            class="definition-dot"
-                            [class.active]="$index === index"
-                            [attr.aria-current]="$index === index ? 'true' : null"
-                            [attr.aria-label]="'Definition ' + ($index + 1)"
-                            (click)="showDefinition($index)"
-                          >
-                            <span></span>
-                          </button>
-                        }
-                      </nav>
-                      <button
-                        type="button"
-                        class="pager-btn"
-                        aria-label="Next definition"
-                        [disabled]="index >= definitions.length - 1"
-                        (click)="showDefinition(index + 1)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m9 18 6-6-6-6" />
-                        </svg>
-                      </button>
+                    <div class="sense-pager-row">
+                      <div class="sense-pager">
+                        <button
+                          type="button"
+                          class="pager-btn"
+                          aria-label="Previous definition"
+                          [disabled]="index === 0"
+                          (click)="showDefinition(index - 1)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m15 18-6-6 6-6" />
+                          </svg>
+                        </button>
+                        <nav class="definition-dots" aria-label="Definitions">
+                          @for (item of definitions; track $index) {
+                            <button
+                              type="button"
+                              class="definition-dot"
+                              [class.active]="$index === index"
+                              [attr.aria-current]="$index === index ? 'true' : null"
+                              [attr.aria-label]="'Definition ' + ($index + 1)"
+                              (click)="showDefinition($index)"
+                            >
+                              <span></span>
+                            </button>
+                          }
+                        </nav>
+                        <button
+                          type="button"
+                          class="pager-btn"
+                          aria-label="Next definition"
+                          [disabled]="index >= definitions.length - 1"
+                          (click)="showDefinition(index + 1)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m9 18 6-6-6-6" />
+                          </svg>
+                        </button>
+                      </div>
+                      <label class="definition-order">
+                        <input
+                          class="order-input"
+                          type="text"
+                          inputmode="numeric"
+                          autocomplete="off"
+                          [style.--digits]="orderDigits(definitions.length)"
+                          [attr.aria-label]="
+                            'Position ' + (index + 1) + ' of ' + definitions.length
+                          "
+                          [disabled]="inPlay() || definitions.length < 2"
+                          [value]="index + 1"
+                          (focus)="focusOrderInput($event)"
+                          (input)="editOrderInput($event)"
+                          (keydown.enter)="commitOrderInput($event, definitions.length)"
+                          (keydown.escape)="cancelOrderInput($event)"
+                          (blur)="commitOrderInput($event, definitions.length)"
+                        />
+                        <span class="order-total">/{{ definitions.length }}</span>
+                      </label>
                     </div>
                     <div class="sense-actions">
                       <button
@@ -3247,18 +3269,6 @@ function writeExampleSuggestions(
                         <span class="stats-count">{{ reworkCount(definition) }}</span>
                         <span class="stats-caption">Reworked</span>
                       </li>
-                      @if (supportAvailable()) {
-                        <li [attr.aria-label]="revealLabel(revealCount(definition))">
-                          <span class="stats-well" aria-hidden="true">
-                            <svg class="stats-mark" viewBox="0 0 24 24">
-                              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                              <circle cx="12" cy="12" r="3" />
-                            </svg>
-                          </span>
-                          <span class="stats-count">{{ revealCount(definition) }}</span>
-                          <span class="stats-caption">Revealed</span>
-                        </li>
-                      }
                     </ul>
                   </section>
                 </div>
@@ -3706,6 +3716,9 @@ function writeExampleSuggestions(
       --card-line: var(--border);
       --card-border: var(--border);
       --element-accent: #f43f5e;
+      --header-inline: 1.15rem;
+      --header-pad-left: 0.65rem;
+      --title-lead: 0px;
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) + 4px);
       background: var(--surface);
@@ -3714,6 +3727,10 @@ function writeExampleSuggestions(
 
     .panel.has-color {
       --element-accent: oklch(from var(--swatch) 0.74 calc(min(max(c, 0.16), 0.24)) h);
+    }
+
+    .panel:has(.title-main > .icon-btn.hear-inline) {
+      --title-lead: calc(1.8rem + 0.15rem);
     }
 
     header,
@@ -3737,7 +3754,7 @@ function writeExampleSuggestions(
       flex-direction: column;
       align-items: stretch;
       gap: 0.7rem;
-      padding: 0.9rem 1.15rem;
+      padding: 0.9rem var(--header-inline) 0.9rem var(--header-pad-left);
       border-bottom: 1px solid var(--card-line);
     }
 
@@ -4434,12 +4451,13 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      padding: 0.85rem 1.15rem 0.75rem;
+      padding: 0.85rem var(--header-inline) 0.75rem
+        calc(var(--header-pad-left) + var(--title-lead));
     }
 
     .definition-footer {
       flex: none;
-      padding: 1rem;
+      padding: 1rem var(--header-inline) 1rem calc(var(--header-pad-left) + var(--title-lead));
       border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
       background: color-mix(in srgb, var(--surface) 95%, transparent);
     }
@@ -4540,12 +4558,19 @@ function writeExampleSuggestions(
 
     .sense-toolbar {
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
+      align-items: stretch;
       gap: 0.5rem;
       padding-bottom: 0.75rem;
       border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    }
+
+    .sense-pager-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      min-width: 0;
     }
 
     .sense-pager {
@@ -4553,6 +4578,54 @@ function writeExampleSuggestions(
       align-items: center;
       gap: 0.5rem;
       min-width: 0;
+    }
+
+    .definition-order {
+      display: inline-flex;
+      align-items: center;
+      flex: none;
+      height: 1.5rem;
+      padding: 0 0.45rem;
+      cursor: text;
+      border: 1px solid color-mix(in srgb, var(--element-accent) 45%, transparent);
+      border-radius: 0.5rem;
+      background: color-mix(in srgb, var(--element-accent) 14%, var(--surface-2));
+      color: var(--element-accent);
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .definition-order:focus-within {
+      background: color-mix(in srgb, var(--element-accent) 28%, var(--surface-2));
+    }
+
+    .definition-order:has(.order-input:disabled) {
+      cursor: default;
+    }
+
+    .order-input {
+      width: calc(var(--digits, 1) * 1ch + 0.1rem);
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      appearance: none;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      text-align: end;
+      caret-color: var(--element-accent);
+    }
+
+    .order-input:focus {
+      outline: none;
+    }
+
+    .order-input:disabled {
+      cursor: default;
     }
 
     .pager-btn {
@@ -4642,6 +4715,7 @@ function writeExampleSuggestions(
     .sense-actions {
       display: flex;
       align-items: center;
+      align-self: flex-end;
       flex: none;
       gap: 0.15rem;
       padding: 0.125rem;
@@ -7516,6 +7590,66 @@ export class ElementModal {
     this.noteDefinitionView(index);
   }
 
+  orderDigits(count: number): number {
+    return Math.max(1, String(count).length);
+  }
+
+  focusOrderInput(event: FocusEvent): void {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || input.disabled) return;
+    requestAnimationFrame(() => input.select());
+  }
+
+  editOrderInput(event: Event): void {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    const digits = input.value.replace(/\D/g, '');
+    if (input.value !== digits) input.value = digits;
+  }
+
+  commitOrderInput(event: Event, count: number): void {
+    if (this.orderSettling) return;
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    const current = this.visibleDefinitionIndex() + 1;
+    const typed = Number(input.value);
+    const next = Number.isInteger(typed) && typed >= 1 && typed <= count ? typed : current;
+    input.value = String(next);
+    if (event instanceof KeyboardEvent) {
+      event.preventDefault();
+      this.orderSettling = true;
+      input.blur();
+      this.orderSettling = false;
+    }
+    if (next !== current && !this.inPlay() && count > 1) void this.moveDefinition(next - 1);
+  }
+
+  cancelOrderInput(event: Event): void {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    input.value = String(this.visibleDefinitionIndex() + 1);
+    this.orderSettling = true;
+    input.blur();
+    this.orderSettling = false;
+  }
+
+  /** Move the definition on screen to another slot. Order is the array position. */
+  private async moveDefinition(to: number): Promise<void> {
+    const from = this.visibleDefinitionIndex();
+    const elementId = this.currentElement().id;
+    if (this.inPlay() || from === to) return;
+    const definitions = this.copyDefinitions();
+    if (to < 0 || to >= definitions.length) return;
+    const [moved] = definitions.splice(from, 1);
+    if (!moved) return;
+    definitions.splice(to, 0, moved);
+    if (!(await this.persist(definitions, this.currentElement().equivalents))) return;
+    if (this.element().id !== elementId) return;
+    this.definitionPanel.set(to);
+  }
+
   /** Record a view for the definition on screen when this element is opened. */
   private noteOpenedDefinition(id: string): void {
     if (this.viewedElementKey === id) return;
@@ -9160,6 +9294,8 @@ export class ElementModal {
     return { ...stored, snapshot };
   }
 
+  /** Ignores the blur that follows Enter or Escape so the position is applied once. */
+  private orderSettling = false;
   private deletePressTimer = 0;
   private deletePressHeld = false;
   private deletePressX = 0;
@@ -9177,16 +9313,8 @@ export class ElementModal {
     return definition.log.filter((entry) => entry.event === 'rework').length;
   }
 
-  revealCount(definition: ElementDefinition): number {
-    return definition.log.filter((entry) => entry.event === 'reveal').length;
-  }
-
   reworkLabel(count: number): string {
     return count === 1 ? 'Reworked 1 time' : `Reworked ${count} times`;
-  }
-
-  revealLabel(count: number): string {
-    return count === 1 ? 'Revealed 1 time' : `Revealed ${count} times`;
   }
 
   private async persist(
