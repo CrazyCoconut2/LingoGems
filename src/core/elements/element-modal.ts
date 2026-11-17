@@ -587,6 +587,7 @@ function writeExampleSuggestions(
               </button>
             }
             <div class="title-main">
+              <h2>{{ shownTitle() }}</h2>
               <ng-container
                 [ngTemplateOutlet]="hearButton"
                 [ngTemplateOutletContext]="{
@@ -595,7 +596,6 @@ function writeExampleSuggestions(
                   label: 'title',
                 }"
               />
-              <h2>{{ shownTitle() }}</h2>
               <button
                 type="button"
                 class="icon-btn color-btn"
@@ -734,7 +734,7 @@ function writeExampleSuggestions(
             @let index = visibleDefinitionIndex();
             @if (definitions[index]; as definition) {
               <ol class="definitions">
-                <li class="sense" [class.fresh]="definitionIsNew(definition.text)">
+                <li class="sense">
                   <div class="sense-toolbar">
                     <div class="sense-pager-row">
                       <div class="sense-pager">
@@ -750,14 +750,14 @@ function writeExampleSuggestions(
                           </svg>
                         </button>
                         <nav class="definition-dots" aria-label="Definitions">
-                          @for (item of definitions; track $index) {
+                          @for (dot of definitionDots(definitions.length, index); track dot) {
                             <button
                               type="button"
                               class="definition-dot"
-                              [class.active]="$index === index"
-                              [attr.aria-current]="$index === index ? 'true' : null"
-                              [attr.aria-label]="'Definition ' + ($index + 1)"
-                              (click)="showDefinition($index)"
+                              [class.active]="dot === index"
+                              [attr.aria-current]="dot === index ? 'true' : null"
+                              [attr.aria-label]="'Definition ' + (dot + 1)"
+                              (click)="showDefinition(dot)"
                             >
                               <span></span>
                             </button>
@@ -821,10 +821,8 @@ function writeExampleSuggestions(
                         (click)="openDefinition(index)"
                       >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                          <path d="m18 15 4-4" />
                           <path
-                            d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
                           />
                         </svg>
                       </button>
@@ -859,15 +857,6 @@ function writeExampleSuggestions(
                         @if (passage.text) {
                           @if (definitionGame() && definitionConcealed(index)) {
                             <div class="spoken">
-                              <ng-container
-                                [ngTemplateOutlet]="hearButton"
-                                [ngTemplateOutletContext]="{
-                                  key: 'definition:' + index,
-                                  text: definition.text,
-                                  label: 'definition',
-                                  off: true,
-                                }"
-                              />
                               <div class="spoken-copy">
                                 <button
                                   type="button"
@@ -882,17 +871,18 @@ function writeExampleSuggestions(
                                 <ng-container [ngTemplateOutlet]="passageTranslations" />
                                 <ng-container [ngTemplateOutlet]="definitionGloss" />
                               </div>
-                            </div>
-                          } @else {
-                            <div class="spoken">
                               <ng-container
                                 [ngTemplateOutlet]="hearButton"
                                 [ngTemplateOutletContext]="{
                                   key: 'definition:' + index,
                                   text: definition.text,
                                   label: 'definition',
+                                  off: true,
                                 }"
                               />
+                            </div>
+                          } @else {
+                            <div class="spoken">
                               <div class="spoken-copy">
                                 <p
                                   class="passage sense-selectable"
@@ -929,6 +919,14 @@ function writeExampleSuggestions(
                                 <ng-container [ngTemplateOutlet]="passageTranslations" />
                                 <ng-container [ngTemplateOutlet]="definitionGloss" />
                               </div>
+                              <ng-container
+                                [ngTemplateOutlet]="hearButton"
+                                [ngTemplateOutletContext]="{
+                                  key: 'definition:' + index,
+                                  text: definition.text,
+                                  label: 'definition',
+                                }"
+                              />
                             </div>
                           }
                         }
@@ -1027,14 +1025,6 @@ function writeExampleSuggestions(
                                 @let passage = parsePassage(example.text);
                                 @if (passage.text) {
                                   <div class="spoken">
-                                    <ng-container
-                                      [ngTemplateOutlet]="hearButton"
-                                      [ngTemplateOutletContext]="{
-                                        key: 'example:' + index + ':' + exampleIndex,
-                                        text: example.text,
-                                        label: 'example',
-                                      }"
-                                    />
                                     <div class="spoken-copy">
                                       <p
                                         class="passage sense-selectable"
@@ -1087,6 +1077,14 @@ function writeExampleSuggestions(
                                         </ul>
                                       }
                                     </div>
+                                    <ng-container
+                                      [ngTemplateOutlet]="hearButton"
+                                      [ngTemplateOutletContext]="{
+                                        key: 'example:' + index + ':' + exampleIndex,
+                                        text: example.text,
+                                        label: 'example',
+                                      }"
+                                    />
                                   </div>
                                 }
                                 @if (entries(example.metadata); as meta) {
@@ -1616,14 +1614,6 @@ function writeExampleSuggestions(
                                 @let passage = parsePassage(example.text);
                                 @if (passage.text) {
                                   <div class="spoken">
-                                    <ng-container
-                                      [ngTemplateOutlet]="hearButton"
-                                      [ngTemplateOutletContext]="{
-                                        key: 'example:' + workIndex + ':' + exampleIndex,
-                                        text: example.text,
-                                        label: 'example',
-                                      }"
-                                    />
                                     <div class="spoken-copy">
                                       <p
                                         class="passage sense-selectable"
@@ -1675,6 +1665,14 @@ function writeExampleSuggestions(
                                         </ul>
                                       }
                                     </div>
+                                    <ng-container
+                                      [ngTemplateOutlet]="hearButton"
+                                      [ngTemplateOutletContext]="{
+                                        key: 'example:' + workIndex + ':' + exampleIndex,
+                                        text: example.text,
+                                        label: 'example',
+                                      }"
+                                    />
                                   </div>
                                 }
                                 @if (entries(example.metadata); as meta) {
@@ -1981,10 +1979,8 @@ function writeExampleSuggestions(
                   >
                     @if (workTab() === 'definitions' || current.index == null) {
                       <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                        <path d="m18 15 4-4" />
                         <path
-                          d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                          d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
                         />
                       </svg>
                     }
@@ -2009,10 +2005,8 @@ function writeExampleSuggestions(
                     (click)="saveEditor()"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                      <path d="m18 15 4-4" />
                       <path
-                        d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                        d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
                       />
                     </svg>
                     Save
@@ -3259,10 +3253,8 @@ function writeExampleSuggestions(
                       <li [attr.aria-label]="reworkLabel(reworkCount(definition))">
                         <span class="stats-well" aria-hidden="true">
                           <svg class="stats-mark" viewBox="0 0 24 24">
-                            <path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9" />
-                            <path d="m18 15 4-4" />
                             <path
-                              d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
+                              d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
                             />
                           </svg>
                         </span>
@@ -3729,10 +3721,6 @@ function writeExampleSuggestions(
       --element-accent: oklch(from var(--swatch) 0.74 calc(min(max(c, 0.16), 0.24)) h);
     }
 
-    .panel:has(.title-main > .icon-btn.hear-inline) {
-      --title-lead: calc(1.8rem + 0.15rem);
-    }
-
     header,
     .sheet-head,
     .section-heading,
@@ -3950,14 +3938,6 @@ function writeExampleSuggestions(
 
     header:has(.title-row > .icon-btn) > p.equivalents {
       margin-inline-start: calc(1.8rem + 1rem);
-    }
-
-    header:has(.title-main > .icon-btn.hear-inline) > p.equivalents {
-      margin-inline-start: calc(1.8rem + 0.15rem);
-    }
-
-    header:has(.title-row > .icon-btn):has(.title-main > .icon-btn.hear-inline) > p.equivalents {
-      margin-inline-start: calc(1.8rem + 1rem + 1.8rem + 0.15rem);
     }
 
     .equivalent-choices {
@@ -4228,10 +4208,6 @@ function writeExampleSuggestions(
       gap: 0.75rem;
     }
 
-    .sense:has(.sense-copy > .spoken > .icon-btn.hear-inline) {
-      --phrase-indent: calc(1.75rem + 0.75rem);
-    }
-
     .sense > .group > .section-heading > .section-title,
     .sense > .group > .section-title,
     .sense > .group > .examples,
@@ -4273,10 +4249,6 @@ function writeExampleSuggestions(
       --phrase-indent: 0;
     }
 
-    .example-quote:has(> .spoken > .icon-btn.hear-inline) {
-      --phrase-indent: calc(1.75rem + 0.75rem);
-    }
-
     .example-quote > .pills {
       margin-inline-start: var(--phrase-indent, 0);
     }
@@ -4293,11 +4265,6 @@ function writeExampleSuggestions(
       margin-inline: 0;
       padding-inline: 0;
       margin-inline-start: 0.5rem;
-    }
-
-    .saved-example:has(.example-quote > .spoken > .icon-btn.hear-inline):has(.lookup-actions)
-      > .item-actions {
-      margin-inline-start: calc(0.5rem + 1.5rem + 0.15rem);
     }
 
     .icon-btn:disabled,
@@ -4667,7 +4634,7 @@ function writeExampleSuggestions(
 
     .definition-dots {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: center;
       gap: 0.25rem;
       min-width: 0;
@@ -4749,10 +4716,6 @@ function writeExampleSuggestions(
       border: 1px solid var(--border);
       border-radius: 1rem;
       background: var(--surface);
-    }
-
-    .sense.fresh {
-      border-color: color-mix(in srgb, var(--element-accent) 65%, transparent);
     }
 
     .sense-meta {
@@ -7357,11 +7320,6 @@ export class ElementModal {
     }
   }
 
-  definitionIsNew(text: string): boolean {
-    const gloss = definitionGloss(text);
-    return !!gloss && this.newGlosses().has(gloss);
-  }
-
   dismissNew(text: string): void {
     const glosses = dismissNewDefinition(this.element().id, text);
     this.newGlosses.set(new Set(glosses));
@@ -7579,6 +7537,14 @@ export class ElementModal {
   closeFormAttributes(event?: MouseEvent): void {
     if (event && event.target !== event.currentTarget) return;
     this.formAttributesView.set(null);
+  }
+
+  /** At most three dots. An end dot is long only on the first or last definition. */
+  definitionDots(count: number, index: number): number[] {
+    if (count <= 3) return Array.from({ length: Math.max(0, count) }, (_, dot) => dot);
+    if (index <= 0) return [0, 1, 2];
+    if (index >= count - 1) return [count - 3, count - 2, count - 1];
+    return [index - 1, index, index + 1];
   }
 
   showDefinition(index: number): void {
