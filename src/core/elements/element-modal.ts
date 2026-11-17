@@ -4675,12 +4675,10 @@ function writeExampleSuggestions(
       border: 1px solid var(--border);
       border-radius: 1rem;
       background: var(--surface);
-      box-shadow: 0 0 20px -3px color-mix(in srgb, var(--element-accent) 55%, transparent);
     }
 
     .sense.fresh {
       border-color: color-mix(in srgb, var(--element-accent) 65%, transparent);
-      box-shadow: 0 0 20px -3px color-mix(in srgb, var(--element-accent) 70%, transparent);
     }
 
     .sense-meta {
