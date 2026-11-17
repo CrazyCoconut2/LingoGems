@@ -714,7 +714,7 @@ function writeExampleSuggestions(
                       <div class="sense-pager">
                         <button
                           type="button"
-                          class="pager-btn"
+                          class="icon-btn"
                           aria-label="Previous definition"
                           [disabled]="index === 0"
                           (click)="showDefinition(index - 1)"
@@ -723,23 +723,29 @@ function writeExampleSuggestions(
                             <path d="m15 18-6-6 6-6" />
                           </svg>
                         </button>
-                        <nav class="definition-dots" aria-label="Definitions">
-                          @for (dot of definitionDots(definitions.length, index); track dot) {
-                            <button
-                              type="button"
-                              class="definition-dot"
-                              [class.active]="dot === index"
-                              [attr.aria-current]="dot === index ? 'true' : null"
-                              [attr.aria-label]="'Definition ' + (dot + 1)"
-                              (click)="showDefinition(dot)"
-                            >
-                              <span></span>
-                            </button>
-                          }
-                        </nav>
+                        <label class="definition-order">
+                          <input
+                            class="order-input"
+                            type="text"
+                            inputmode="numeric"
+                            autocomplete="off"
+                            [style.--digits]="orderDigits(definitions.length)"
+                            [attr.aria-label]="
+                              'Position ' + (index + 1) + ' of ' + definitions.length
+                            "
+                            [disabled]="inPlay() || definitions.length < 2"
+                            [value]="index + 1"
+                            (focus)="focusOrderInput($event)"
+                            (input)="editOrderInput($event)"
+                            (keydown.enter)="commitOrderInput($event, definitions.length)"
+                            (keydown.escape)="cancelOrderInput($event)"
+                            (blur)="commitOrderInput($event, definitions.length)"
+                          />
+                          <span class="order-total">/{{ definitions.length }}</span>
+                        </label>
                         <button
                           type="button"
-                          class="pager-btn"
+                          class="icon-btn"
                           aria-label="Next definition"
                           [disabled]="index >= definitions.length - 1"
                           (click)="showDefinition(index + 1)"
@@ -748,40 +754,20 @@ function writeExampleSuggestions(
                             <path d="m9 18 6-6-6-6" />
                           </svg>
                         </button>
-                      </div>
-                      <label class="definition-order">
-                        <input
-                          class="order-input"
-                          type="text"
-                          inputmode="numeric"
-                          autocomplete="off"
-                          [style.--digits]="orderDigits(definitions.length)"
-                          [attr.aria-label]="
-                            'Position ' + (index + 1) + ' of ' + definitions.length
-                          "
-                          [disabled]="inPlay() || definitions.length < 2"
-                          [value]="index + 1"
-                          (focus)="focusOrderInput($event)"
-                          (input)="editOrderInput($event)"
-                          (keydown.enter)="commitOrderInput($event, definitions.length)"
-                          (keydown.escape)="cancelOrderInput($event)"
-                          (blur)="commitOrderInput($event, definitions.length)"
-                        />
-                        <span class="order-total">/{{ definitions.length }}</span>
-                      </label>
-                      <button
-                        type="button"
-                        class="pager-btn"
-                        aria-label="Add a definition"
-                        title="Add a definition"
-                        [disabled]="inPlay() || aiBusy()"
-                        (click)="addDefinitionManually()"
-                      >
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Add a definition"
+                          title="Add a definition"
+                          [disabled]="inPlay() || aiBusy()"
+                          (click)="addDefinitionManually()"
+                        >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                           <path d="M12 5v14" />
                           <path d="M5 12h14" />
                         </svg>
-                      </button>
+                        </button>
+                      </div>
                     <div class="sense-actions">
                       <button
                         type="button"
@@ -4513,28 +4499,34 @@ function writeExampleSuggestions(
     .sense-pager {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.05rem;
       min-width: 0;
+      color: #94a3b8;
+    }
+
+    .sense-pager .icon-btn {
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 0.25rem;
+    }
+
+    .sense-pager .icon-btn svg {
+      width: 0.9rem;
+      height: 0.9rem;
     }
 
     .definition-order {
       display: inline-flex;
       align-items: center;
       flex: none;
-      height: 1.5rem;
-      padding: 0 0.45rem;
+      height: 1.75rem;
+      padding: 0 0.15rem;
       cursor: text;
-      border: 1px solid color-mix(in srgb, var(--element-accent) 45%, transparent);
-      border-radius: 0.5rem;
-      background: color-mix(in srgb, var(--element-accent) 14%, var(--surface-2));
-      color: var(--element-accent);
-      font-size: 0.75rem;
+      color: #94a3b8;
+      font-size: 0.8125rem;
+      font-weight: 600;
       font-variant-numeric: tabular-nums;
       line-height: 1;
-    }
-
-    .definition-order:focus-within {
-      background: color-mix(in srgb, var(--element-accent) 28%, var(--surface-2));
     }
 
     .definition-order:has(.order-input:disabled) {
@@ -4549,8 +4541,9 @@ function writeExampleSuggestions(
       border-radius: 0;
       appearance: none;
       background: transparent;
-      color: inherit;
+      color: var(--element-accent);
       font: inherit;
+      font-weight: 700;
       font-variant-numeric: tabular-nums;
       line-height: 1;
       text-align: end;
@@ -4563,90 +4556,6 @@ function writeExampleSuggestions(
 
     .order-input:disabled {
       cursor: default;
-    }
-
-    .pager-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex: none;
-      width: 1.5rem;
-      height: 1.5rem;
-      margin: 0;
-      padding: 0;
-      border: 1px solid color-mix(in srgb, var(--element-accent) 45%, transparent);
-      border-radius: 0.5rem;
-      background: color-mix(in srgb, var(--element-accent) 14%, var(--surface-2));
-      color: var(--element-accent);
-      cursor: pointer;
-    }
-
-    .pager-btn svg {
-      display: block;
-      width: 0.9rem;
-      height: 0.9rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .pager-btn:hover:not(:disabled) {
-      color: var(--element-accent);
-      background: color-mix(in srgb, var(--element-accent) 28%, var(--surface-2));
-    }
-
-    .pager-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .definition-dots {
-      display: flex;
-      flex-wrap: nowrap;
-      align-items: center;
-      gap: 0.25rem;
-      min-width: 0;
-      margin: 0;
-      padding: 0.25rem 0.5rem;
-      border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-      border-radius: 0.5rem;
-      background: var(--surface-2);
-    }
-
-    .definition-dot {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 0.7rem;
-      height: 0.7rem;
-      margin: 0;
-      padding: 0;
-      border: 0;
-      border-radius: 999px;
-      background: transparent;
-      cursor: pointer;
-    }
-
-    .definition-dot span {
-      width: 0.375rem;
-      height: 0.375rem;
-      border-radius: 999px;
-      background: #475569;
-    }
-
-    .definition-dot.active {
-      width: 1.05rem;
-    }
-
-    .definition-dot.active span,
-    .definition-dot:hover span {
-      background: var(--element-accent);
-    }
-
-    .definition-dot.active span {
-      width: 0.75rem;
     }
 
     .sense-actions {
@@ -7492,14 +7401,6 @@ export class ElementModal {
   closeFormAttributes(event?: MouseEvent): void {
     if (event && event.target !== event.currentTarget) return;
     this.formAttributesView.set(null);
-  }
-
-  /** At most three dots. An end dot is long only on the first or last definition. */
-  definitionDots(count: number, index: number): number[] {
-    if (count <= 3) return Array.from({ length: Math.max(0, count) }, (_, dot) => dot);
-    if (index <= 0) return [0, 1, 2];
-    if (index >= count - 1) return [count - 3, count - 2, count - 1];
-    return [index - 1, index, index + 1];
   }
 
   showDefinition(index: number): void {
