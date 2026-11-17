@@ -959,7 +959,6 @@ function writeExampleSuggestions(
                                 "
                                 (click)="openEquivalentPrompt(index)"
                               >
-                                <ng-container [ngTemplateOutlet]="translationIcon" />
                                 <span
                                   class="guess-answer"
                                   [class.play-blur]="!equivalentSubmitted(index)"
@@ -2906,6 +2905,7 @@ function writeExampleSuggestions(
                           <li>
                             <app-reveal
                               [text]="labeledTranslation(translation)"
+                              [locked]="!exampleSubmitted(prompt)"
                               (unveiled)="noteReveal(prompt)"
                             />
                           </li>
@@ -9400,8 +9400,9 @@ export class ElementModal {
     return this.element().definitions.some((_, index) => this.definitionConcealed(index));
   }
 
-  /** Header translations stay blurred until every prompted definition has been compared. */
+  /** Header translations stay blurred while an example is being written, and during a definition game until every definition has been compared. */
   headerTranslationsLocked(): boolean {
+    if (this.exampleGame()) return true;
     if (!this.definitionGame()) return false;
     const definitions = this.element().definitions;
     const prompted = definitions.length > 0;
