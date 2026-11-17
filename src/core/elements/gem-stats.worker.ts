@@ -1,4 +1,4 @@
-import { ELEMENTS_STORE, idbRequest, openDatabase } from 'collection';
+import { ELEMENTS_STORE, TRANSLATION_GEM_MAX, earnsGem, idbRequest, openDatabase } from 'collection';
 
 export type GemCounts = {
   translation: number;
@@ -13,7 +13,6 @@ export type ElementDayStats = {
   added: number;
   opened: number;
   reworked: number;
-  revealed: number;
   exercises: number;
 };
 
@@ -23,12 +22,13 @@ export type DayStats = {
   added: number;
   opened: number;
   reworked: number;
-  revealed: number;
   exercises: number;
   elements: ElementDayStats[];
 };
 
 type GemGame = keyof GemCounts;
+
+type GameAttempt = { game: GemGame; score: number; at: number; index: number };
 
 type CompileMessage = { type?: string; language?: unknown };
 
@@ -39,7 +39,6 @@ type MutableDay = {
   added: number;
   opened: number;
   reworked: number;
-  revealed: number;
   exercises: number;
   elements: Map<string, MutableElement>;
 };
@@ -107,7 +106,9 @@ function tally(records: unknown[], language: string): DayStats[] {
     ];
     for (const definition of definitions) {
       if (!isRecord(definition) || !Array.isArray(definition.log)) continue;
-      for (const entry of definition.log) {
+      const attempts: GameAttempt[] = [];
+      for (let index = 0; index < definition.log.length; index += 1) {
+        const entry = definition.log[index];
         if (!isRecord(entry)) continue;
         const day = bucket(days, entry.at);
         if (!day) continue;
@@ -121,16 +122,16 @@ function tally(records: unknown[], language: string): DayStats[] {
           elementOf(day, id, title).reworked += 1;
           continue;
         }
-        if (entry.event === 'reveal') {
-          day.revealed += 1;
-          elementOf(day, id, title).revealed += 1;
-          continue;
-        }
         if (entry.event === 'game' && isGame(entry.game)) {
           day.exercises += 1;
           elementOf(day, id, title).exercises += 1;
+          const score = gameScore(entry);
+          if (score != null && typeof entry.at === 'number') {
+            attempts.push({ game: entry.game, score, at: entry.at, index });
+          }
         }
       }
+      awardGems(days, id, title, attempts);
     }
   }
 
@@ -146,7 +147,6 @@ function tally(records: unknown[], language: string): DayStats[] {
       added: stats.added,
       opened: stats.opened,
       reworked: stats.reworked,
-      revealed: stats.revealed,
       exercises: stats.exercises,
       elements,
     });
@@ -165,7 +165,6 @@ function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {
       added: 0,
       opened: 0,
       reworked: 0,
-      revealed: 0,
       exercises: 0,
       elements: new Map(),
     };
@@ -184,7 +183,6 @@ function elementOf(day: MutableDay, id: string, title: string): MutableElement {
       added: 0,
       opened: 0,
       reworked: 0,
-      revealed: 0,
       exercises: 0,
     };
     day.elements.set(id, element);
@@ -202,7 +200,7 @@ function dayKey(at: number): string {
 function hasActivity(element: ElementDayStats): boolean {
   return (
     gemTotal(element.gems) > 0 ||
-    element.added + element.opened + element.reworked + element.revealed > 0 ||
+    element.added + element.opened + element.reworked > 0 ||
     element.exercises > 0
   );
 }
@@ -213,9 +211,42 @@ function compareElements(left: ElementDayStats, right: ElementDayStats, language
   const exercises = right.exercises - left.exercises;
   if (exercises) return exercises;
   const activity =
-    right.opened + right.reworked + right.revealed - (left.opened + left.reworked + left.revealed);
+    right.opened + right.reworked - (left.opened + left.reworked);
   if (activity) return activity;
   return left.title.localeCompare(right.title, language);
+}
+
+function awardGems(
+  days: Map<string, MutableDay>,
+  id: string,
+  title: string,
+  attempts: readonly GameAttempt[],
+): void {
+  const games: GemGame[] = ['translation', 'example', 'definition'];
+  for (const game of games) {
+    const played = attempts
+      .filter((attempt) => attempt.game === game)
+      .sort((left, right) => left.at - right.at || left.index - right.index);
+    let priorSum = 0;
+    let priorCount = 0;
+    for (const attempt of played) {
+      if (earnsGem(priorSum, priorCount, attempt.score)) {
+        const day = bucket(days, attempt.at);
+        if (day) {
+          day.gems[game] += 1;
+          elementOf(day, id, title).gems[game] += 1;
+        }
+      }
+      priorSum += attempt.score;
+      priorCount += 1;
+    }
+  }
+}
+
+function gameScore(entry: { score?: unknown; gems?: unknown }): number | null {
+  const score = Math.round(Number(entry.score ?? entry.gems));
+  if (!Number.isInteger(score) || score < 0 || score > TRANSLATION_GEM_MAX) return null;
+  return score;
 }
 
 function gemTotal(gems: GemCounts): number {
@@ -226,6 +257,7 @@ function isRecord(value: unknown): value is {
   event?: unknown;
   at?: unknown;
   game?: unknown;
+  score?: unknown;
   gems?: unknown;
   log?: unknown;
 } {

@@ -1,4 +1,4 @@
-import { loggedDefinitions, type StoredElement } from './element-store';
+import { elementGemCounts, loggedDefinitions, type StoredElement } from './element-store';
 import {
   normalizeMetadataVariability,
   type ElementMetadataVariability,
@@ -99,9 +99,9 @@ function elementViews(element: StoredElement): number {
   return views;
 }
 
-/** Gems are not awarded from scores yet, so every element ties. */
-function elementGems(_element: StoredElement): number {
-  return 0;
+function elementGems(element: StoredElement): number {
+  const counts = elementGemCounts(element);
+  return counts.translation + counts.example + counts.definition;
 }
 
 export function compareElements(

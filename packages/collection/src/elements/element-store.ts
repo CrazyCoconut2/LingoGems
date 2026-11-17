@@ -127,6 +127,70 @@ export function loggedDefinitions(element: {
   return [...element.definitions, ...(element.removedDefinitions ?? [])];
 }
 
+const GEM_GAMES: readonly DefinitionGame[] = ['translation', 'example', 'definition'];
+
+/** Gems earned from scored exercises. One count per game. */
+export type ElementGemCounts = Record<DefinitionGame, number>;
+
+/**
+ * A score above 0 earns one gem when it meets the average of earlier scores.
+ * `priorCount` of 0 is the first attempt, so any score above 0 earns.
+ */
+export function earnsGem(priorSum: number, priorCount: number, score: number): boolean {
+  if (!(score > 0)) return false;
+  if (priorCount <= 0) return true;
+  return score * priorCount >= priorSum;
+}
+
+/** Whether this stored attempt earned its game's gem. Earlier attempts come first in time. */
+export function gameEarnedGem(
+  log: readonly DefinitionLogEntry[],
+  entry: DefinitionGameLog,
+): boolean {
+  let priorSum = 0;
+  let priorCount = 0;
+  for (const attempt of orderedGameAttempts(log, entry.game)) {
+    if (attempt === entry) return earnsGem(priorSum, priorCount, entry.score);
+    priorSum += attempt.score;
+    priorCount += 1;
+  }
+  return false;
+}
+
+/** Gems earned across this element's definitions, including removed ones. */
+export function elementGemCounts(element: {
+  definitions: readonly ElementDefinition[];
+  removedDefinitions?: readonly ElementDefinition[];
+}): ElementGemCounts {
+  const counts: ElementGemCounts = { translation: 0, example: 0, definition: 0 };
+  for (const definition of loggedDefinitions(element)) {
+    for (const game of GEM_GAMES) {
+      let priorSum = 0;
+      let priorCount = 0;
+      for (const attempt of orderedGameAttempts(definition.log, game)) {
+        if (earnsGem(priorSum, priorCount, attempt.score)) counts[game] += 1;
+        priorSum += attempt.score;
+        priorCount += 1;
+      }
+    }
+  }
+  return counts;
+}
+
+/** One game's scored attempts, oldest first. Equal timestamps keep log order. */
+function orderedGameAttempts(
+  log: readonly DefinitionLogEntry[],
+  game: DefinitionGame,
+): DefinitionGameLog[] {
+  const attempts: { entry: DefinitionGameLog; index: number }[] = [];
+  for (let index = 0; index < log.length; index += 1) {
+    const entry = log[index];
+    if (entry?.event === 'game' && entry.game === game) attempts.push({ entry, index });
+  }
+  attempts.sort((left, right) => left.entry.at - right.entry.at || left.index - right.index);
+  return attempts.map((item) => item.entry);
+}
+
 /** The strings a form list is matched and highlighted with. */
 export function formTexts(forms: readonly ElementForm[]): string[] {
   return forms.map((form) => form.text);

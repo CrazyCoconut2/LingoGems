@@ -31,18 +31,17 @@ const GAMES: readonly { game: GemGame; label: string }[] = [
 ];
 
 const ACTIVITIES: readonly {
-  key: 'added' | 'opened' | 'reworked' | 'revealed';
+  key: 'added' | 'opened' | 'reworked';
   label: string;
 }[] = [
   { key: 'added', label: 'Added' },
   { key: 'opened', label: 'Opened' },
   { key: 'reworked', label: 'Reworked' },
-  { key: 'revealed', label: 'Revealed' },
 ];
 
 type GoalKind = keyof DailyGoals;
 
-const LOADING_ACTIVITY = [0, 1, 2, 3];
+const LOADING_ACTIVITY = [0, 1, 2];
 const LOADING_ROWS = [0, 1, 2, 3];
 
 const EMPTY_DAY: DayStats = {
@@ -51,7 +50,6 @@ const EMPTY_DAY: DayStats = {
   added: 0,
   opened: 0,
   reworked: 0,
-  revealed: 0,
   exercises: 0,
   elements: [],
 };
@@ -138,12 +136,9 @@ const EMPTY_DAY: DayStats = {
           @if (pending()) {
             <div class="loading" aria-hidden="true">
               <div class="hero hero-loading">
-                <div class="hero-top">
-                  <div class="hero-copy">
-                    <span class="bone bone-label"></span>
-                    <span class="bone bone-hero"></span>
-                  </div>
-                  <span class="bone bone-badge"></span>
+                <div class="hero-copy">
+                  <span class="bone bone-label"></span>
+                  <span class="bone bone-hero"></span>
                 </div>
               </div>
               <section class="block">
@@ -188,18 +183,31 @@ const EMPTY_DAY: DayStats = {
               </section>
             </div>
           } @else if (ready()) {
-            <div class="hero" [attr.aria-label]="exerciseLabel(shown().exercises)">
-              <div class="hero-top">
-                <div class="hero-copy">
-                  <p class="eyebrow">
-                    <ng-container *ngTemplateOutlet="exerciseIcon" />
-                    Exercises
-                  </p>
-                  <p class="hero-value">{{ formatCount(shown().exercises) }}</p>
+            <div class="lead">
+              @if (viewingToday()) {
+                <div
+                  class="streak-card"
+                  [attr.aria-label]="streakLabel()"
+                  [attr.title]="streakLabel()"
+                >
+                  <span class="well" aria-hidden="true">
+                    <svg class="flame" viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M12 12c2-2.96 0-7-1-8 0 3.038-1.773 4.741-3 6-1.226 1.26-2 3.24-2 5a6 6 0 1 0 12 0c0-1.532-1.056-3.94-2-5-1.786 3-3 3-4 2z"
+                      />
+                    </svg>
+                  </span>
+                  <span class="count">{{ formatCount(streak()) }}</span>
+                  <span class="caption">Streak</span>
                 </div>
-                @if (dayBadge()) {
-                  <span class="hero-badge">{{ dayBadge() }}</span>
-                }
+              }
+              <div class="hero" [attr.aria-label]="exerciseLabel(shown().exercises)">
+              <div class="hero-copy">
+                <p class="eyebrow">
+                  <ng-container *ngTemplateOutlet="exerciseIcon" />
+                  Exercises
+                </p>
+                <p class="hero-value">{{ formatCount(shown().exercises) }}</p>
               </div>
               @if (goalsOpen()) {
                 <div class="goal-edit">
@@ -230,6 +238,7 @@ const EMPTY_DAY: DayStats = {
                   <span class="meter-label">{{ meterText(shown().exercises, goal) }}</span>
                 </div>
               }
+              </div>
             </div>
             <section class="block">
               <div class="block-head">
@@ -453,12 +462,6 @@ const EMPTY_DAY: DayStats = {
             <path
               d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"
             />
-          </svg>
-        }
-        @case ('revealed') {
-          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-            <circle cx="12" cy="12" r="3" />
           </svg>
         }
       }
@@ -691,10 +694,19 @@ const EMPTY_DAY: DayStats = {
       border-radius: 0.2rem;
     }
 
+    .lead {
+      display: flex;
+      align-items: stretch;
+      gap: 0.45rem;
+      margin: 0.7rem 1rem 0;
+    }
+
     .hero {
       display: flex;
+      flex: 1;
       flex-direction: column;
       align-items: stretch;
+      justify-content: center;
       gap: 0.75rem;
       flex-shrink: 0;
       min-width: 0;
@@ -706,12 +718,55 @@ const EMPTY_DAY: DayStats = {
       color: var(--text);
     }
 
-    .hero-top {
+    .lead .hero {
+      margin: 0;
+    }
+
+    .streak-card {
       display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 0.75rem;
+      flex: 0 0 5.6rem;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.12rem;
       min-width: 0;
+      padding: 0.8rem 0.35rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: var(--surface-2);
+      color: var(--text-muted);
+    }
+
+    .streak-card .well {
+      display: grid;
+      place-items: center;
+      width: 2.15rem;
+      height: 2.15rem;
+      margin-bottom: 0.28rem;
+      border-radius: 0.7rem;
+      background: rgba(255, 122, 26, 0.16);
+      color: #ff7a1a;
+      box-shadow: inset 0 0 0 1px rgba(255, 122, 26, 0.45);
+    }
+
+    .streak-card .count {
+      color: var(--text);
+      font-size: 1.55rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .streak-card .caption {
+      max-width: 100%;
+      color: var(--text-muted);
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      line-height: 1.2;
+      text-align: center;
+      text-transform: uppercase;
     }
 
     .hero-copy {
@@ -782,19 +837,6 @@ const EMPTY_DAY: DayStats = {
       font-size: 0.72rem;
       font-weight: 750;
       font-variant-numeric: tabular-nums;
-      line-height: 1.2;
-    }
-
-    .hero-badge {
-      flex-shrink: 0;
-      margin-top: 0.1rem;
-      padding: 0.28rem 0.62rem;
-      border: 1px solid rgba(255, 51, 102, 0.35);
-      border-radius: 999px;
-      background: rgba(255, 51, 102, 0.12);
-      color: #ff3366;
-      font-size: 0.75rem;
-      font-weight: 750;
       line-height: 1.2;
     }
 
@@ -872,7 +914,7 @@ const EMPTY_DAY: DayStats = {
     }
 
     .activity {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .gems li,
@@ -1068,6 +1110,13 @@ const EMPTY_DAY: DayStats = {
       color: var(--text-muted);
     }
 
+    .flame {
+      display: block;
+      width: 1.25rem;
+      height: 1.25rem;
+      fill: currentColor;
+    }
+
     .activity .count {
       color: var(--text);
       font-size: 1.55rem;
@@ -1218,11 +1267,6 @@ const EMPTY_DAY: DayStats = {
       border-radius: 0.7rem;
     }
 
-    .bone-badge {
-      width: 4.4rem;
-      height: 1.4rem;
-    }
-
     .gems li.loading-card,
     .activity li.loading-card {
       border-color: var(--border);
@@ -1265,10 +1309,6 @@ const EMPTY_DAY: DayStats = {
         margin-top: auto;
         margin-bottom: 0;
         border-radius: 14px 14px 0 0;
-      }
-
-      .activity {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
   `,
@@ -1321,6 +1361,15 @@ export class GemStatsModal {
   readonly dayBadge = computed(() => {
     const current = this.day();
     return current ? formatDayBadge(current.day) : '';
+  });
+  readonly viewingToday = computed(() => {
+    const current = this.day();
+    return !!current && isToday(current.day);
+  });
+  readonly streak = computed(() => {
+    if (!this.viewingToday()) return 0;
+    const days = this.snapshot()?.days ?? [];
+    return streakLength(days.map((day) => day.day));
   });
 
   constructor() {
@@ -1407,10 +1456,7 @@ export class GemStatsModal {
 
   hasBits(element: ElementDayStats): boolean {
     const gems = this.games().reduce((sum, row) => sum + element.gems[row.game], 0);
-    return (
-      gems + element.exercises + element.added + element.opened + element.reworked + element.revealed >
-      0
-    );
+    return gems + element.exercises + element.added + element.opened + element.reworked > 0;
   }
 
   languageName(): string {
@@ -1448,6 +1494,11 @@ export class GemStatsModal {
     const when = this.dayBadge() || 'this day';
     const gained = day === 1 ? `1 ${name}` : `${day} ${name}`;
     return `${gained} ${when}`;
+  }
+
+  streakLabel(): string {
+    const amount = this.formatCount(this.streak());
+    return `${amount} day streak`;
   }
 
   private saveGoal(kind: GoalKind, value: number | null): void {
@@ -1494,4 +1545,27 @@ function calendarDay(day: string): Date | null {
 function dayDistance(value: Date, today: Date): number {
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   return Math.round((todayStart - value.getTime()) / 86_400_000);
+}
+
+function isToday(day: string): boolean {
+  const value = calendarDay(day);
+  return !!value && dayDistance(value, new Date()) === 0;
+}
+
+function streakLength(days: readonly string[]): number {
+  const active = new Set(days);
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  let count = 0;
+  while (active.has(dayKey(cursor))) {
+    count += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return count;
+}
+
+function dayKey(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
 }

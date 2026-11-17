@@ -28,6 +28,7 @@ import {
   readEditingDraft,
   elementModeHelp,
   elementModeLabel,
+  gameEarnedGem,
   type ElementMode,
   formTexts,
   highlightDefinitionPassage,
@@ -86,6 +87,7 @@ import { Reveal } from './reveal';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { supportLanguageFor } from '../languages/translation-language';
 import { HighlightColorPicker } from './highlight-color-picker';
+import { GemIcon } from './gem-icon';
 import { ModeIcon } from './mode-icon';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
@@ -508,7 +510,7 @@ function writeExampleSuggestions(
 
 @Component({
   selector: 'app-element-modal',
-  imports: [NgTemplateOutlet, Reveal, ModeIcon, HighlightColorPicker, CdkScrollable],
+  imports: [NgTemplateOutlet, Reveal, ModeIcon, GemIcon, HighlightColorPicker, CdkScrollable],
   template: `
     <div
       class="backdrop"
@@ -3268,7 +3270,7 @@ function writeExampleSuggestions(
                         <button
                           type="button"
                           class="btn btn-secondary add-choice log-row"
-                          [attr.aria-label]="historyAria(entry)"
+                          [attr.aria-label]="historyAria(definition, entry)"
                           (click)="exerciseEntry.set($index)"
                         >
                           <span class="log-copy">
@@ -3281,6 +3283,9 @@ function writeExampleSuggestions(
                               [attr.data-game]="entry.game"
                               aria-hidden="true"
                             >
+                              @if (earnedGameGem(definition, entry)) {
+                                <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
+                              }
                               {{ entry.score }}<span class="score-max">/5</span>
                             </span>
                           }
@@ -3548,8 +3553,11 @@ function writeExampleSuggestions(
                       class="score-readout"
                       [attr.data-game]="entry.game"
                       role="img"
-                      [attr.aria-label]="'Score ' + entry.score + ' out of 5'"
+                      [attr.aria-label]="scoreAria(definition, entry)"
                     >
+                      @if (earnedGameGem(definition, entry)) {
+                        <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
+                      }
                       {{ entry.score }}<span class="score-max">/5</span>
                     </p>
                     @if (entry.explanation) {
@@ -6145,6 +6153,9 @@ function writeExampleSuggestions(
     }
 
     .score-readout {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
       margin: 0;
       color: var(--exercise-gem, var(--text));
       font-size: 1.35rem;
@@ -9541,12 +9552,22 @@ export class ElementModal {
     return this.modeLabel(this.logMode(entry.game));
   }
 
-  historyAria(entry: DefinitionHistoryEntry): string {
+  historyAria(definition: ElementDefinition, entry: DefinitionHistoryEntry): string {
     const when = this.exerciseWhen(entry.at);
     if (entry.event === 'game') {
-      return `${this.historyTitle(entry)}, score ${entry.score} out of 5, ${when}`;
+      const gem = this.earnedGameGem(definition, entry) ? ', earned a gem' : '';
+      return `${this.historyTitle(entry)}, score ${entry.score} out of 5${gem}, ${when}`;
     }
     return `${this.historyTitle(entry)}, ${when}`;
+  }
+
+  earnedGameGem(definition: ElementDefinition, entry: DefinitionGameLog): boolean {
+    return gameEarnedGem(definition.log, entry);
+  }
+
+  scoreAria(definition: ElementDefinition, entry: DefinitionGameLog): string {
+    const gem = this.earnedGameGem(definition, entry) ? ', earned a gem' : '';
+    return `Score ${entry.score} out of 5${gem}`;
   }
 
   private listedHistory(entry: DefinitionLogEntry): entry is DefinitionHistoryEntry {

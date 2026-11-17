@@ -415,17 +415,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   </button>
                 }
                 <div class="stat-rail">
-                  @for (total of earnedGems(element); track total.game) {
-                    <span
-                      class="earned-gems"
-                      [attr.data-game]="total.game"
-                      [attr.aria-label]="gemsLabel(total.game, total.gems)"
-                      [attr.title]="gemsLabel(total.game, total.gems)"
-                    >
-                      <app-mode-icon [mode]="gameMode(total.game)" />
-                      <span>{{ total.gems }}</span>
-                    </span>
-                  }
                   <span
                     class="stat stat-opened"
                     [class.zero]="activity.opened === 0"
@@ -1738,34 +1727,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       color: var(--card-accent, #94a3b8);
     }
 
-    .earned-gems {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.18rem;
-      color: var(--exercise-gem);
-      font-size: 0.78rem;
-      font-weight: 650;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
-    .earned-gems[data-game='translation'] {
-      --exercise-gem: var(--gem-translation);
-    }
-
-    .earned-gems[data-game='example'] {
-      --exercise-gem: var(--gem-example);
-    }
-
-    .earned-gems[data-game='definition'] {
-      --exercise-gem: var(--gem-definition);
-    }
-
-    .earned-gems app-mode-icon {
-      width: 1.05rem;
-      height: 1.05rem;
-    }
-
     .drill {
       display: flex;
       align-items: center;
@@ -2916,31 +2877,6 @@ export class LanguagePage {
     return pills.map((pill) => pill.value).join(' · ');
   }
 
-  /** Scores are not gems. Totals stay empty until gems are attributed. */
-  gemTotals(
-    _element: StoredElement,
-  ): { game: 'translation' | 'example' | 'definition'; gems: number }[] {
-    return [
-      { game: 'translation', gems: 0 },
-      { game: 'example', gems: 0 },
-      { game: 'definition', gems: 0 },
-    ];
-  }
-
-  earnedGems(
-    element: StoredElement,
-  ): { game: 'translation' | 'example' | 'definition'; gems: number }[] {
-    return this.gemTotals(element).filter(
-      (total) => total.gems > 0 && (total.game !== 'translation' || !!this.supportFor(this.code())),
-    );
-  }
-
-  gameMode(game: 'translation' | 'example' | 'definition'): ElementMode {
-    if (game === 'example') return 2;
-    if (game === 'definition') return 3;
-    return 1;
-  }
-
   activityTotals(element: StoredElement): { opened: number; reworked: number; exercises: number } {
     let opened = 0;
     let reworked = 0;
@@ -2958,11 +2894,6 @@ export class LanguagePage {
       }
     }
     return { opened, reworked, exercises };
-  }
-
-  gemsLabel(game: 'translation' | 'example' | 'definition', count: number): string {
-    const amount = count === 1 ? '1 gem' : `${count} gems`;
-    return `${amount} from ${game}`;
   }
 
   openedLabel(count: number): string {
