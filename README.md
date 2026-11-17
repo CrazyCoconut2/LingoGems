@@ -16,8 +16,8 @@ npm run deploy
 `deploy` bumps the patch version, builds, and publishes with Wrangler.
 
 TODO
-- The third icon for a card needs to be the amount of time it has been exercised. Not the eye icon. 
-    -> We need an icon for exercising.
+- Feature to reorganize the colors.
+- We need a clear option to give up an exercise for a definition.
 - Translations are always blurred. If you unblur too much
   that's usually a sign to rework the definition or other shit
   cause you don't want to systematically unblur. So we need to
@@ -27,9 +27,9 @@ TODO
 - FORMS: Forms prioritized for example generation.
   If you choose one, it checks its metadata and recommends some to prioritize among the other forms when you want to create an example for another thing. Upon what the user writes.
 
-Also, with the embedded browser we can save links for shit. Or put
-them in examples, that's fucking great man it will be awesome.
-
 TODO Later:
 - Edit or delete metadata for all the elements : Example, modify
   mexico with a flag and it modified the region for all the things.
+
+Also, with the embedded browser we can save links for shit. Or put
+them in examples, that's fucking great man it will be awesome.

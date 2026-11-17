@@ -1,15 +1,3 @@
-/**
- * Five sober card colors, stepped from red to green. Low chroma and a dark
- * lightness, so the fill stays quiet and light text stays easy to read.
- */
-export const ELEMENT_COLOR_PRESETS = [
-  '#47211f',
-  '#44250e',
-  '#3b2b04',
-  '#29320e',
-  '#14361f',
-] as const;
-
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 /** `#rrggbb`, or null when missing or invalid. */
@@ -19,29 +7,41 @@ export function sanitizeElementColor(value: unknown): string | null {
   return HEX_COLOR.test(color) ? color.toLowerCase() : null;
 }
 
-export function isPresetElementColor(color: string): boolean {
-  return (ELEMENT_COLOR_PRESETS as readonly string[]).includes(color);
-}
-
-/** A saved color outside the five presets. Presets and invalid values are null. */
-export function customElementColor(value: unknown): string | null {
-  const color = sanitizeElementColor(value);
-  if (!color || isPresetElementColor(color)) return null;
-  return color;
-}
-
-/** Unique custom colors, sorted. Presets are left out. */
+/** Unique colors in first-seen order. Invalid values are left out. */
 export function normalizeElementColors(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  const colors = new Set<string>();
+  const colors: string[] = [];
+  const seen = new Set<string>();
   for (const item of value) {
-    const color = customElementColor(item);
-    if (color) colors.add(color);
+    const color = sanitizeElementColor(item);
+    if (!color || seen.has(color)) continue;
+    seen.add(color);
+    colors.push(color);
   }
-  return [...colors].sort();
+  return colors;
 }
 
-/** Adds custom colors from `extra`. Colors already present stay. */
+/** Adds colors from `extra` that are not already present. Existing order stays. */
 export function mergeElementColors(base: readonly string[], extra: readonly unknown[]): string[] {
   return normalizeElementColors([...base, ...extra]);
+}
+
+/**
+ * Saved order for colors that still appear in `used`, then any used color that
+ * was not in that order. Colors no longer used are dropped.
+ */
+export function orderElementColors(
+  previous: readonly unknown[],
+  used: readonly unknown[],
+): string[] {
+  const live = normalizeElementColors(used);
+  const liveSet = new Set(live);
+  const ordered = normalizeElementColors(previous).filter((color) => liveSet.has(color));
+  const kept = new Set(ordered);
+  for (const color of live) {
+    if (kept.has(color)) continue;
+    ordered.push(color);
+    kept.add(color);
+  }
+  return ordered;
 }

@@ -14,14 +14,11 @@ export {
   type ElementCatalog,
 } from './elements/metadata-catalog';
 
-export {
-  ELEMENT_COLOR_PRESETS,
-  isPresetElementColor,
-  sanitizeElementColor,
-} from './elements/element-color';
+export { sanitizeElementColor } from './elements/element-color';
 
 export {
   addElement,
+  commitElementCatalog,
   deleteElement,
   displayTitle,
   readAllElements,
@@ -40,8 +37,10 @@ export {
   elementModeHelp,
   elementModeLabel,
   loggedDefinitions,
+  replaceElementColorOrder,
   saveElement,
   setElementWriteListener,
+  syncElementColorCatalog,
   TRANSLATION_GEM_MAX,
   type DefinitionExampleLog,
   type DefinitionFormLog,

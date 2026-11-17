@@ -1,5 +1,5 @@
 import { Component, effect, input, output, signal, untracked } from '@angular/core';
-import { ELEMENT_COLOR_PRESETS, sanitizeElementColor } from 'collection';
+import { sanitizeElementColor } from 'collection';
 
 /** Starting swatch for a custom color that has not been chosen yet. */
 const DEFAULT_COLOR = '#6c63ff';
@@ -59,23 +59,28 @@ const DEFAULT_COLOR = '#6c63ff';
       [disabled]="disabled()"
       (input)="onHueInput($event)"
     />
-    <button type="button" class="picker-btn" [disabled]="disabled() || !canReset()" (click)="reset()">
+    <button
+      type="button"
+      class="picker-btn"
+      [disabled]="disabled() || !canReset()"
+      (click)="reset()"
+    >
       Reset
     </button>
     @if (!embedded()) {
-    <div class="picker-actions">
-      <button type="button" class="picker-btn" [disabled]="disabled()" (click)="dismissed.emit()">
-        Cancel
-      </button>
-      <button
-        type="button"
-        class="picker-btn picker-btn-primary"
-        [disabled]="saveDisabled()"
-        (click)="confirm()"
-      >
-        Save
-      </button>
-    </div>
+      <div class="picker-actions">
+        <button type="button" class="picker-btn" [disabled]="disabled()" (click)="dismissed.emit()">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="picker-btn picker-btn-primary"
+          [disabled]="saveDisabled()"
+          (click)="confirm()"
+        >
+          Save
+        </button>
+      </div>
     }
   `,
   styles: `
@@ -311,14 +316,12 @@ export class HighlightColorPicker {
   existingColors(): string[] {
     const colors: string[] = [];
     const seen = new Set<string>();
-    const add = (value: unknown) => {
+    for (const value of this.colors()) {
       const color = sanitizeElementColor(value);
-      if (!color || seen.has(color)) return;
+      if (!color || seen.has(color)) continue;
       seen.add(color);
       colors.push(color);
-    };
-    for (const color of ELEMENT_COLOR_PRESETS) add(color);
-    for (const color of this.colors()) add(color);
+    }
     return colors;
   }
 

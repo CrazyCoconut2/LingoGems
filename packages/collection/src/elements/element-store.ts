@@ -5,8 +5,14 @@ import {
   languageDisplayName,
   type LearnableLanguage,
 } from '../languages/catalog';
-import { customElementColor, sanitizeElementColor } from './element-color';
-import { mergeMetadataCatalog, normalizeElementCatalog } from './metadata-catalog';
+import { orderElementColors, sanitizeElementColor } from './element-color';
+import {
+  mergeMetadataCatalog,
+  normalizeElementCatalog,
+  readMetadataCatalog,
+  replaceMetadataCatalog,
+  type ElementCatalog,
+} from './metadata-catalog';
 import {
   collectMetadataIndexes,
   emptyMetadataIndexes,
@@ -315,6 +321,7 @@ export async function addElement(language: string, title: string): Promise<Store
   if (!name) throw new Error('Title is required');
   const existing = (await readElements(code)).find((element) => sameTitle(element.title, name));
   if (existing) return existing;
+  const catalog = await syncElementColorCatalog();
   const created: StoredElement = {
     id: crypto.randomUUID(),
     language: code,
@@ -322,7 +329,7 @@ export async function addElement(language: string, title: string): Promise<Store
     equivalents: [],
     definitions: [],
     removedDefinitions: [],
-    color: null,
+    color: sanitizeElementColor(catalog.colors[0]),
     clicks: 0,
     log: [],
     ...emptyMetadataIndexes(),
@@ -369,11 +376,11 @@ export async function saveElement(
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
   };
   await putElement(saved);
-  if (
-    options?.syncCatalog !== false &&
-    (!metadataIndexesEmpty(indexes) || customElementColor(saved.color))
-  ) {
-    await mergeMetadataCatalog({ ...indexes, colors: saved.color ? [saved.color] : [] });
+  if (options?.syncCatalog !== false) {
+    await enqueueCatalogColorWrite(async () => {
+      if (!metadataIndexesEmpty(indexes)) await mergeMetadataCatalog(indexes);
+      return reconcileElementColors();
+    });
   }
   return saved;
 }
@@ -386,10 +393,14 @@ export function setElementWriteListener(listener: ((language: string) => void) |
 }
 
 /** Replaces every element and the metadata catalog, then notifies once per language. */
-export async function replaceCollection(
+export function replaceCollection(
   elements: readonly unknown[],
   catalog: unknown,
 ): Promise<string[]> {
+  return enqueueCatalogColorWrite(() => writeCollection(elements, catalog));
+}
+
+async function writeCollection(elements: readonly unknown[], catalog: unknown): Promise<string[]> {
   if (typeof indexedDB === 'undefined') return [];
   const saved: StoredElement[] = [];
   const seen = new Set<string>();
@@ -401,13 +412,20 @@ export async function replaceCollection(
     saved.push(element);
   }
   const indexes = normalizeElementCatalog(catalog);
+  const next = {
+    ...indexes,
+    colors: orderElementColors(
+      indexes.colors,
+      saved.map((element) => element.color),
+    ),
+  };
   const db = await openDatabase();
   const tx = db.transaction([ELEMENTS_STORE, CATALOG_STORE], 'readwrite');
   const done = transactionDone(tx);
   const store = tx.objectStore(ELEMENTS_STORE);
   store.clear();
   for (const element of saved) store.put(element);
-  tx.objectStore(CATALOG_STORE).put({ id: CATALOG_ID, ...indexes });
+  tx.objectStore(CATALOG_STORE).put({ id: CATALOG_ID, ...next });
   await done;
   const languages = [...new Set(saved.map((element) => element.language))];
   for (const language of languages) elementWriteListener?.(language);
@@ -424,8 +442,70 @@ export async function deleteElement(id: string): Promise<void> {
   await idbRequest(
     db.transaction(ELEMENTS_STORE, 'readwrite').objectStore(ELEMENTS_STORE).delete(key),
   );
+  await syncElementColorCatalog();
   const language = languageOf(raw);
   if (language) elementWriteListener?.(language);
+}
+
+let catalogColorWrite: Promise<void> = Promise.resolve();
+
+function enqueueCatalogColorWrite<T>(work: () => Promise<T>): Promise<T> {
+  const run = catalogColorWrite.then(work, work);
+  catalogColorWrite = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** Keeps catalog colors equal to the colors still saved on elements, in the saved order. */
+export function syncElementColorCatalog(): Promise<ElementCatalog> {
+  return enqueueCatalogColorWrite(reconcileElementColors);
+}
+
+/** Replaces the catalog after any in-flight color sync, so the two cannot overwrite each other. */
+export function commitElementCatalog(
+  indexes: Parameters<typeof replaceMetadataCatalog>[0],
+): Promise<ElementCatalog> {
+  return enqueueCatalogColorWrite(() => replaceMetadataCatalog(indexes));
+}
+
+/** Stores this color order. Colors no element uses are dropped, and missing ones are appended. */
+export function replaceElementColorOrder(colors: readonly string[]): Promise<ElementCatalog> {
+  return enqueueCatalogColorWrite(() => writeElementColorOrder(colors));
+}
+
+async function reconcileElementColors(): Promise<ElementCatalog> {
+  const [used, catalog] = await Promise.all([readStoredElementColors(), readMetadataCatalog()]);
+  const colors = orderElementColors(catalog.colors, used);
+  if (sameColorOrder(colors, catalog.colors)) return catalog;
+  return replaceMetadataCatalog({ ...catalog, colors });
+}
+
+async function writeElementColorOrder(colors: readonly string[]): Promise<ElementCatalog> {
+  const [used, catalog] = await Promise.all([readStoredElementColors(), readMetadataCatalog()]);
+  const next = orderElementColors(colors, used);
+  if (sameColorOrder(next, catalog.colors)) return catalog;
+  return replaceMetadataCatalog({ ...catalog, colors: next });
+}
+
+function sameColorOrder(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((color, index) => color === right[index]);
+}
+
+async function readStoredElementColors(): Promise<unknown[]> {
+  if (typeof indexedDB === 'undefined') return [];
+  const db = await openDatabase();
+  const result = await idbRequest(
+    db.transaction(ELEMENTS_STORE, 'readonly').objectStore(ELEMENTS_STORE).getAll(),
+  );
+  if (!Array.isArray(result)) return [];
+  const colors: unknown[] = [];
+  for (const record of result) {
+    if (!record || typeof record !== 'object' || removedRecord(record)) continue;
+    colors.push((record as { color?: unknown }).color);
+  }
+  return colors;
 }
 
 function transactionDone(tx: IDBTransaction): Promise<void> {

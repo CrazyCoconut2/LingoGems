@@ -1,10 +1,18 @@
 import {
+  CdkDrag,
+  CdkDragPreview,
+  CdkDropList,
+  moveItemInArray,
+  type CdkDragDrop,
+} from '@angular/cdk/drag-drop';
+import {
   Component,
   computed,
   DestroyRef,
   effect,
   HostListener,
   inject,
+  isDevMode,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -19,14 +27,13 @@ import { supportLanguageFor, writeSupportLanguage } from './translation-language
 import { Settings } from '../settings/settings';
 import { generateElementFromSelection, readDefinitionMetadataFields } from 'ai';
 import {
-  absorbSavedElement,
   addElement,
   catalogFromElements,
+  commitElementCatalog,
   compareElements,
   DEFAULT_ELEMENT_SORT,
   deleteElement,
   displayTitle,
-  ELEMENT_COLOR_PRESETS,
   equivalentTextFor,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
@@ -51,8 +58,9 @@ import {
   readAllElements,
   readElements,
   readMetadataCatalog,
-  replaceMetadataCatalog,
+  replaceElementColorOrder,
   saveElement,
+  syncElementColorCatalog,
   type ElementCatalog,
   type ElementDefinition,
   type ElementMetadataVariability,
@@ -126,6 +134,9 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
   selector: 'app-language-page',
   imports: [
     FormsModule,
+    CdkDropList,
+    CdkDrag,
+    CdkDragPreview,
     ElementModal,
     ModeIcon,
     DiscoverModal,
@@ -608,20 +619,58 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                         Clear
                       </button>
                     </div>
-                    <p class="section-hint">Show elements in any selected color.</p>
-                    <div class="color-choices" role="group" aria-label="Color">
-                      @for (color of colorOptions(); track color) {
-                        <button
-                          type="button"
-                          class="color-swatch"
-                          [class.selected]="colorSelected(color)"
-                          [attr.aria-pressed]="colorSelected(color)"
-                          [attr.aria-label]="color"
-                          [style.--swatch]="color"
-                          (click)="chooseColor(color)"
-                        ></button>
-                      }
-                    </div>
+                    @if (!colorOptions().length) {
+                      <p class="section-hint">Colors show up once an element has one.</p>
+                    } @else if (orderingColors) {
+                      <p class="section-hint">
+                        Drag to reorder. The first color is what new elements get.
+                      </p>
+                      <div
+                        class="color-choices"
+                        cdkDropList
+                        cdkDropListOrientation="mixed"
+                        role="group"
+                        aria-label="Color"
+                        (cdkDropListDropped)="reorderColors($event)"
+                      >
+                        @for (color of colorOptions(); track color) {
+                          <button
+                            type="button"
+                            class="color-swatch draggable"
+                            cdkDrag
+                            [class.selected]="colorSelected(color)"
+                            [attr.aria-pressed]="colorSelected(color)"
+                            [attr.aria-label]="color"
+                            [style.--swatch]="color"
+                            (click)="chooseColor(color)"
+                          >
+                            <ng-template cdkDragPreview>
+                              <span
+                                class="color-swatch-preview"
+                                [style.background]="color"
+                                [style.width.rem]="2.2"
+                                [style.height.rem]="2.2"
+                              ></span>
+                            </ng-template>
+                          </button>
+                        }
+                      </div>
+                    } @else {
+                      <p class="section-hint">Show elements in any selected color.</p>
+                      <div class="color-choices" role="group" aria-label="Color">
+                        @for (color of colorOptions(); track color) {
+                          <button
+                            type="button"
+                            class="color-swatch"
+                            [class.selected]="colorSelected(color)"
+                            [attr.aria-pressed]="colorSelected(color)"
+                            [attr.aria-label]="color"
+                            [style.--swatch]="color"
+                            (click)="chooseColor(color)"
+                          ></button>
+                        }
+                      </div>
+                    }
                   </div>
                 }
               </section>
@@ -2048,6 +2097,29 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       cursor: default;
     }
 
+    .color-swatch.draggable {
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .color-swatch.draggable:active {
+      cursor: grabbing;
+    }
+
+    .color-choices.cdk-drop-list-dragging .color-swatch:not(.cdk-drag-placeholder) {
+      transition: transform 180ms ease;
+    }
+
+    .color-swatch-preview {
+      display: block;
+      width: 2.2rem;
+      height: 2.2rem;
+      border-radius: 999px;
+      box-shadow:
+        inset 0 0 0 1px rgba(0, 0, 0, 0.28),
+        0 8px 18px rgba(0, 0, 0, 0.35);
+    }
+
     .highlight-picker-stack {
       display: flex;
       flex-direction: column;
@@ -2274,10 +2346,10 @@ export class LanguagePage {
   readonly exampleMetaFilter = signal<ElementMetadataVariability>({});
   readonly formMetaFilter = signal<ElementMetadataVariability>({});
   readonly metadataCatalog = signal<ElementCatalog>(emptyElementCatalog());
-  readonly colorOptions = computed(() => [
-    ...ELEMENT_COLOR_PRESETS,
-    ...this.metadataCatalog().colors,
-  ]);
+  readonly orderingColors = isDevMode();
+  readonly colorOptions = computed(() => this.metadataCatalog().colors);
+  /** Drop time, so the click that ends a drag does not toggle the filter. */
+  private colorDragAt = 0;
   readonly recomputing = signal(false);
   readonly recomputeError = signal('');
   readonly sortOpen = signal(false);
@@ -2600,6 +2672,7 @@ export class LanguagePage {
     this.selectionError.set('');
     try {
       await Promise.all(ids.map((id) => deleteElement(id)));
+      this.applyCatalog(await readMetadataCatalog());
       const gone = new Set(ids);
       this.elements.update((list) => list.filter((item) => !gone.has(item.id)));
       if (gone.has(this.elementId())) this.closeElement();
@@ -2680,9 +2753,7 @@ export class LanguagePage {
       if (this.code() !== language) return false;
       const byId = new Map(saved.map((item) => [item.id, item]));
       this.elements.update((list) => list.map((item) => byId.get(item.id) ?? item));
-      this.metadataCatalog.update((catalog) =>
-        saved.reduce((current, element) => absorbSavedElement(current, element), catalog),
-      );
+      this.applyCatalog(await readMetadataCatalog());
       return true;
     } catch {
       this.selectionError.set('Could not update these elements.');
@@ -2744,9 +2815,7 @@ export class LanguagePage {
       created = await saveElement({ ...created, definitions });
     }
     if (this.code() === code) this.elements.set(await readElements(code));
-    if (this.code() === code) {
-      this.metadataCatalog.update((current) => absorbSavedElement(current, created));
-    }
+    this.applyCatalog(await readMetadataCatalog());
     if (fromSearch) {
       this.clearSearch();
       this.trail.set([created.id]);
@@ -2759,7 +2828,7 @@ export class LanguagePage {
 
   replaceElement(saved: StoredElement): void {
     this.elements.update((list) => list.map((item) => (item.id === saved.id ? saved : item)));
-    this.metadataCatalog.update((current) => absorbSavedElement(current, saved));
+    void this.refreshCatalog();
   }
 
   onElementDeleted(): void {
@@ -2768,6 +2837,7 @@ export class LanguagePage {
       this.elements.update((list) => list.filter((item) => item.id !== id));
       this.dropSelected(id);
     }
+    void this.refreshCatalog();
     this.closeElement();
   }
 
@@ -2974,7 +3044,7 @@ export class LanguagePage {
     const [elements, catalog] = await Promise.all([readElements(code), readMetadataCatalog()]);
     if (this.code() !== code) return;
     this.elements.set(elements);
-    this.metadataCatalog.set(catalog);
+    this.applyCatalog(catalog);
   }
 
   openFilters(event: Event): void {
@@ -3011,11 +3081,21 @@ export class LanguagePage {
   }
 
   chooseColor(color: string): void {
+    if (Date.now() - this.colorDragAt < 400) return;
     const current = this.colorFilter();
     const next = current.includes(color)
       ? current.filter((item) => item !== color)
       : [...current, color];
     this.colorFilter.set(next);
+  }
+
+  reorderColors(event: CdkDragDrop<string[]>): void {
+    this.colorDragAt = Date.now();
+    if (event.previousIndex === event.currentIndex) return;
+    const colors = [...this.colorOptions()];
+    moveItemInArray(colors, event.previousIndex, event.currentIndex);
+    this.metadataCatalog.update((catalog) => ({ ...catalog, colors }));
+    void replaceElementColorOrder(colors).then((catalog) => this.applyCatalog(catalog));
   }
 
   clearColor(): void {
@@ -3145,17 +3225,16 @@ export class LanguagePage {
     this.recomputing.set(true);
     this.recomputeError.set('');
     try {
+      const previous = await readMetadataCatalog();
       const all = await readAllElements();
       const next: StoredElement[] = [];
       for (const element of all) {
         next.push(await saveElement(element, { syncCatalog: false }));
       }
-      const catalog = await replaceMetadataCatalog(catalogFromElements(next));
+      const catalog = await commitElementCatalog(catalogFromElements(next, previous.colors));
       const code = this.code();
       if (code) this.elements.set(next.filter((element) => element.language === code));
-      this.metadataCatalog.set(catalog);
-      const live = new Set<string>([...ELEMENT_COLOR_PRESETS, ...catalog.colors]);
-      this.colorFilter.update((current) => current.filter((color) => live.has(color)));
+      this.applyCatalog(catalog);
     } catch {
       this.recomputeError.set('Could not recompute metadata.');
     } finally {
@@ -3164,7 +3243,21 @@ export class LanguagePage {
   }
 
   private async loadCatalog(): Promise<void> {
-    this.metadataCatalog.set(await readMetadataCatalog());
+    this.applyCatalog(await syncElementColorCatalog());
+  }
+
+  private async refreshCatalog(): Promise<void> {
+    this.applyCatalog(await readMetadataCatalog());
+  }
+
+  private applyCatalog(catalog: ElementCatalog): void {
+    this.metadataCatalog.set(catalog);
+    const live = new Set(catalog.colors);
+    this.colorFilter.update((current) =>
+      current.every((color) => live.has(color))
+        ? current
+        : current.filter((color) => live.has(color)),
+    );
   }
 
   private async load(language: string): Promise<void> {

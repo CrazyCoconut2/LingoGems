@@ -1,5 +1,5 @@
 import { CATALOG_ID, CATALOG_STORE, idbRequest, openDatabase } from '../database';
-import { mergeElementColors, normalizeElementColors } from './element-color';
+import { mergeElementColors, normalizeElementColors, orderElementColors } from './element-color';
 import {
   emptyMetadataIndexes,
   mergeMetadataIndexes,
@@ -9,7 +9,7 @@ import {
   type ElementMetadataIndexes,
 } from './metadata-variability';
 
-/** Metadata lists plus the custom colors saved on elements. */
+/** Metadata lists plus the colors saved on elements, in display order. */
 export type ElementCatalog = ElementMetadataIndexes & {
   colors: string[];
 };
@@ -22,7 +22,7 @@ export function emptyElementCatalog(): ElementCatalog {
   return { ...emptyMetadataIndexes(), colors: [] };
 }
 
-/** Keeps metadata lists and custom colors. Preset colors are omitted. */
+/** Keeps metadata lists and element colors, in their saved order. */
 export function normalizeElementCatalog(raw: unknown): ElementCatalog {
   if (!raw || typeof raw !== 'object') return emptyElementCatalog();
   const source = raw as Partial<CatalogInput>;
@@ -34,7 +34,7 @@ export function normalizeElementCatalog(raw: unknown): ElementCatalog {
   };
 }
 
-/** Adds this element's metadata and custom color. Values already present stay. */
+/** Adds this element's metadata and color. Colors already present stay in place. */
 export function absorbSavedElement(
   catalog: ElementCatalog,
   element: ElementMetadataIndexes & { color?: string | null },
@@ -45,14 +45,22 @@ export function absorbSavedElement(
   };
 }
 
-/** Metadata and custom colors that still appear on these elements. Presets are omitted. */
+/** Metadata and colors that still appear on these elements. `colorOrder` wins when set. */
 export function catalogFromElements(
   elements: readonly (ElementMetadataIndexes & { color?: string | null })[],
+  colorOrder?: readonly string[],
 ): ElementCatalog {
-  return elements.reduce(
+  const gathered = elements.reduce(
     (catalog, element) => absorbSavedElement(catalog, element),
     emptyElementCatalog(),
   );
+  return {
+    ...gathered,
+    colors: orderElementColors(
+      colorOrder ?? gathered.colors,
+      elements.map((element) => element.color),
+    ),
+  };
 }
 
 export async function readMetadataCatalog(): Promise<ElementCatalog> {
@@ -65,7 +73,7 @@ export async function readMetadataCatalog(): Promise<ElementCatalog> {
   );
 }
 
-/** Adds these keys, values, and custom colors to the app catalog. Existing values stay. */
+/** Adds these keys, values, and colors to the app catalog. Existing colors stay in place. */
 export async function mergeMetadataCatalog(indexes: CatalogInput): Promise<ElementCatalog> {
   const colors = normalizeElementColors(indexes.colors);
   if ((metadataIndexesEmpty(indexes) && colors.length === 0) || typeof indexedDB === 'undefined') {
@@ -100,9 +108,12 @@ function sameElementCatalog(left: ElementCatalog, right: ElementCatalog): boolea
 async function putCatalog(indexes: ElementCatalog): Promise<void> {
   const db = await openDatabase();
   await idbRequest(
-    db.transaction(CATALOG_STORE, 'readwrite').objectStore(CATALOG_STORE).put({
-      id: CATALOG_ID,
-      ...indexes,
-    }),
+    db
+      .transaction(CATALOG_STORE, 'readwrite')
+      .objectStore(CATALOG_STORE)
+      .put({
+        id: CATALOG_ID,
+        ...indexes,
+      }),
   );
 }
