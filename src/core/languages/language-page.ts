@@ -89,15 +89,6 @@ function leadValueId(value: string): string {
   return value.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-/**
- * Words used to be created with the first preset, a near-black fill.
- * That swatch was never chosen, so it does not paint the card.
- */
-function chosenElementColor(color: string | null): string | null {
-  if (!color || color === ELEMENT_COLOR_PRESETS[0]) return null;
-  return color;
-}
-
 function leadValueColor(value: string): string {
   const id = leadValueId(value);
   let hash = 2166136261;
@@ -1652,16 +1643,23 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .card.colored {
-      border-color: color-mix(in srgb, var(--score-color) 40%, transparent);
-      box-shadow: 0 0 16px -2px color-mix(in srgb, var(--score-color) 35%, transparent);
+      --card-accent: oklch(from var(--score-color) 0.74 calc(min(max(c, 0.16), 0.24)) h);
+      border-color: color-mix(in srgb, var(--card-accent) 55%, transparent);
+      box-shadow: 0 0 16px -2px color-mix(in srgb, var(--card-accent) 45%, transparent);
     }
 
     .card.selected,
     .card.selected:hover {
-      border-color: color-mix(in srgb, var(--score-color, white) 70%, transparent);
+      border-color: color-mix(
+        in srgb,
+        var(--card-accent, var(--score-color, white)) 70%,
+        transparent
+      );
       box-shadow:
-        0 0 16px -2px color-mix(in srgb, var(--score-color, white) 35%, transparent),
-        inset 0 0 0 1px color-mix(in srgb, var(--score-color, white) 55%, transparent);
+        0 0 16px -2px
+          color-mix(in srgb, var(--card-accent, var(--score-color, white)) 45%, transparent),
+        inset 0 0 0 1px
+          color-mix(in srgb, var(--card-accent, var(--score-color, white)) 55%, transparent);
     }
 
     .element {
@@ -1696,7 +1694,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .card.colored:hover .title {
-      color: var(--score-color);
+      color: var(--card-accent);
     }
 
     .pills {
@@ -1712,7 +1710,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       gap: 0.35rem;
       min-width: 0;
       max-width: 100%;
-      color: var(--pill-color);
+      --pill-accent: oklch(from var(--pill-color) 0.74 calc(min(max(c, 0.16), 0.24)) h);
+      color: var(--pill-accent);
       font-size: 0.625rem;
       font-weight: 750;
       letter-spacing: 0.06em;
@@ -1725,8 +1724,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       width: 0.5rem;
       height: 0.5rem;
       border-radius: 999px;
-      background: var(--pill-color);
-      box-shadow: 0 0 8px var(--pill-color);
+      background: var(--pill-accent);
+      box-shadow: 0 0 8px var(--pill-accent);
     }
 
     .pill-label {
@@ -1771,7 +1770,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
-      color: var(--score-color, #94a3b8);
+      color: var(--card-accent, #94a3b8);
     }
 
     .earned-gems {
@@ -1810,10 +1809,10 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       width: 100%;
       margin-top: 0.7rem;
       padding: 0.38rem 0.5rem;
-      border: 1px solid color-mix(in srgb, var(--score-color, #94a3b8) 30%, transparent);
+      border: 1px solid color-mix(in srgb, var(--card-accent, #94a3b8) 30%, transparent);
       border-radius: 0.75rem;
-      background: color-mix(in srgb, var(--score-color, #94a3b8) 15%, transparent);
-      color: var(--score-color, #cbd5e1);
+      background: color-mix(in srgb, var(--card-accent, #94a3b8) 15%, transparent);
+      color: var(--card-accent, #cbd5e1);
       font: inherit;
       font-size: 0.75rem;
       font-weight: 650;
@@ -1828,7 +1827,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .drill:hover {
-      background: color-mix(in srgb, var(--score-color, #94a3b8) 24%, transparent);
+      background: color-mix(in srgb, var(--card-accent, #94a3b8) 24%, transparent);
     }
 
     .drill-arrow {
@@ -2888,11 +2887,11 @@ export class LanguagePage {
   }
 
   cardAccent(element: StoredElement): string | null {
-    return chosenElementColor(element.color) ?? this.leadPills(element)[0]?.color ?? null;
+    return element.color ?? this.leadPills(element)[0]?.color ?? null;
   }
 
   pillColor(element: StoredElement, pill: LeadValue): string {
-    return chosenElementColor(element.color) ?? pill.color;
+    return element.color || pill.color;
   }
 
   /** Scores are not gems. Totals stay empty until gems are attributed. */
