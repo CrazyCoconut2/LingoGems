@@ -275,7 +275,6 @@ const AI_PROVIDERS: ProviderOption[] = [
       overflow: auto;
       padding: 1.25rem;
       background: rgba(8, 10, 16, 0.78);
-      backdrop-filter: blur(6px);
     }
 
     .panel {

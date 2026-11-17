@@ -1298,7 +1298,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       justify-content: center;
       padding: 1.25rem;
       background: rgba(8, 10, 16, 0.78);
-      backdrop-filter: blur(6px);
     }
 
     .selection-sheet {
@@ -1845,7 +1844,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       overflow: hidden;
       padding: 1.25rem;
       background: rgba(8, 10, 16, 0.78);
-      backdrop-filter: blur(6px);
     }
 
     .filter-panel {

@@ -32,7 +32,6 @@ import {
 } from 'ai';
 import { readFieldColor } from '../elements/metadata-colors';
 import { supportLanguageFor } from './translation-language';
-import { Reveal } from '../elements/reveal';
 import {
   readDiscoverSearches,
   rememberDiscoverSearch,
@@ -68,7 +67,6 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
 
 @Component({
   selector: 'app-discover-modal',
-  imports: [Reveal],
   template: `
     <div
       class="backdrop"
@@ -244,11 +242,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                               @if (translations.length) {
                                 <ul class="sense-translations">
                                   @for (translation of translations; track $index) {
-                                    <li>
-                                      <app-reveal
-                                        [text]="translation.text"
-                                      />
-                                    </li>
+                                    <li>{{ translation.text }}</li>
                                   }
                                 </ul>
                               }
@@ -461,7 +455,6 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       overflow: auto;
       padding: 1.25rem;
       background: rgba(8, 10, 16, 0.78);
-      backdrop-filter: blur(6px);
     }
 
     .panel {
@@ -1148,7 +1141,20 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       line-height: 1.45;
     }
 
-    .sense-translations,
+    .sense-translations {
+      margin: 0.2rem 0 0;
+      padding: 0;
+      list-style: none;
+      color: #94a3b8;
+      font-size: 0.75rem;
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    .sense-translations li {
+      margin: 0;
+    }
+
     .sense-meta {
       display: flex;
       flex-wrap: wrap;
