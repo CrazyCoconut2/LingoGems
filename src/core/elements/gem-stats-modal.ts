@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   effect,
+  HostListener,
   inject,
   input,
   output,
@@ -30,14 +31,21 @@ const GAMES: readonly { game: GemGame; label: string }[] = [
   { game: 'definition', label: 'Definition' },
 ];
 
+type ActivityKey = 'added' | 'opened' | 'reworked';
+
 const ACTIVITIES: readonly {
-  key: 'added' | 'opened' | 'reworked';
+  key: ActivityKey;
   label: string;
 }[] = [
   { key: 'added', label: 'Added' },
   { key: 'opened', label: 'Opened' },
   { key: 'reworked', label: 'Reworked' },
 ];
+
+type ElementSort =
+  | { kind: 'exercises' }
+  | { kind: 'gem'; game: GemGame }
+  | { kind: 'activity'; key: ActivityKey };
 
 type GoalKind = keyof DailyGoals;
 
@@ -329,22 +337,64 @@ const EMPTY_DAY: DayStats = {
               </ul>
             </section>
             <section class="block deck">
-              <div class="block-head">
+              <div class="block-head elements-head">
                 <h3>Elements</h3>
+                <div class="sort-menu">
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    [class.on]="sortMenuOpen() || elementSort()"
+                    [attr.aria-expanded]="sortMenuOpen()"
+                    aria-label="Sort elements"
+                    title="Sort"
+                    (click)="toggleSortMenu($event)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m3 8 4-4 4 4" />
+                      <path d="M7 4v16" />
+                      <path d="m21 16-4 4-4-4" />
+                      <path d="M17 20V4" />
+                    </svg>
+                  </button>
+                  @if (sortMenuOpen()) {
+                    <div
+                      class="sort-popover"
+                      [class.above]="sortMenuAbove()"
+                      role="listbox"
+                      aria-label="Sort elements"
+                      [style.max-height.px]="sortMenuMax()"
+                      (click)="$event.stopPropagation()"
+                    >
+                      @for (option of elementSortOptions(); track option.id) {
+                        <button
+                          type="button"
+                          class="popover-option"
+                          role="option"
+                          [class.selected]="isSort(option.sort)"
+                          [attr.aria-selected]="isSort(option.sort)"
+                          (click)="chooseElementSort(option.sort)"
+                        >
+                          {{ option.label }}
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
               </div>
               <ul class="elements">
-                @if (day(); as current) {
-                  @for (element of current.elements; track element.id) {
+                @if (day()) {
+                  @for (element of sortedElements(); track element.id) {
                     <li class="row">
                       <div class="row-main">
                         <span class="title" [attr.title]="titleOf(element)">{{
                           titleOf(element)
                         }}</span>
-                        @if (hasBits(element)) {
+                        @if (hasBits(element) || elementSort()) {
                           <span class="bits">
-                            @if (element.exercises > 0) {
+                            @if (showsMetric(element.exercises, exerciseSort)) {
                               <span
                                 class="bit"
+                                [class.on]="isSort(exerciseSort)"
                                 [attr.aria-label]="exerciseLabel(element.exercises)"
                                 [attr.title]="exerciseLabel(element.exercises)"
                               >
@@ -353,9 +403,10 @@ const EMPTY_DAY: DayStats = {
                               </span>
                             }
                             @for (row of games(); track row.game) {
-                              @if (element.gems[row.game] > 0) {
+                              @if (showsMetric(element.gems[row.game], gemSort(row.game))) {
                                 <span
                                   class="bit"
+                                  [class.on]="isSort(gemSort(row.game))"
                                   [attr.data-game]="row.game"
                                   [attr.aria-label]="gemsLabel(row.label, element.gems[row.game])"
                                   [attr.title]="gemsLabel(row.label, element.gems[row.game])"
@@ -366,9 +417,10 @@ const EMPTY_DAY: DayStats = {
                               }
                             }
                             @for (row of activities; track row.key) {
-                              @if (element[row.key] > 0) {
+                              @if (showsMetric(element[row.key], activitySort(row.key))) {
                                 <span
                                   class="bit"
+                                  [class.on]="isSort(activitySort(row.key))"
                                   [attr.aria-label]="activityLabel(row.label, element[row.key])"
                                   [attr.title]="activityLabel(row.label, element[row.key])"
                                 >
@@ -884,6 +936,66 @@ const EMPTY_DAY: DayStats = {
       margin-bottom: 0.5rem;
     }
 
+    .elements-head {
+      align-items: center;
+    }
+
+    .sort-menu {
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .sort-menu .icon-btn.on {
+      background: #1b2136;
+      color: #d8b4fe;
+    }
+
+    .sort-popover {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 0.28rem);
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      min-width: 12.5rem;
+      overflow: auto;
+      padding: 0.55rem;
+      border: 1px solid var(--border);
+      border-radius: 0.65rem;
+      background: var(--surface);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+    }
+
+    .sort-popover.above {
+      top: auto;
+      bottom: calc(100% + 0.28rem);
+    }
+
+    .popover-option {
+      display: block;
+      width: 100%;
+      padding: 0.45rem 0.5rem;
+      border: 0;
+      border-radius: 0.4rem;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.8rem;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .popover-option:hover {
+      background: var(--surface-2);
+    }
+
+    .popover-option.selected {
+      background: rgba(var(--accent-rgb), 0.14);
+      color: var(--accent-text);
+      font-weight: 650;
+    }
+
     .block-note {
       margin: 0;
       color: var(--text-muted);
@@ -1226,6 +1338,14 @@ const EMPTY_DAY: DayStats = {
       color: var(--exercise-gem);
     }
 
+    .bit.on {
+      font-weight: 750;
+    }
+
+    .bit.on:not([data-game]) {
+      color: var(--text);
+    }
+
     .bit .mark,
     .bit .stone-icon {
       display: block;
@@ -1325,6 +1445,32 @@ export class GemStatsModal {
   readonly goalsOpen = signal(false);
   readonly goals = signal<DailyGoals>(emptyDailyGoals());
   readonly dayIndex = signal(0);
+  readonly elementSort = signal<ElementSort | null>(null);
+  readonly sortMenuOpen = signal(false);
+  readonly sortMenuAbove = signal(false);
+  readonly sortMenuMax = signal(280);
+  readonly exerciseSort: ElementSort = { kind: 'exercises' };
+  readonly elementSortOptions = computed(() => {
+    const options: { id: string; sort: ElementSort; label: string }[] = [
+      { id: 'exercises', sort: this.exerciseSort, label: 'Most exercises' },
+    ];
+    for (const row of this.games()) {
+      options.push({
+        id: row.game,
+        sort: { kind: 'gem', game: row.game },
+        label: `Most ${row.label.toLowerCase()} gems`,
+      });
+    }
+    for (const row of this.activities) {
+      if (row.key === 'added') continue;
+      options.push({
+        id: row.key,
+        sort: { kind: 'activity', key: row.key },
+        label: `Most ${row.label.toLowerCase()}`,
+      });
+    }
+    return options;
+  });
 
   private readonly job = inject(GemStatsJob);
 
@@ -1338,6 +1484,20 @@ export class GemStatsModal {
   readonly snapshot = computed(() => this.stats().snapshot);
   readonly day = computed(() => this.snapshot()?.days[this.dayIndex()] ?? null);
   readonly shown = computed(() => this.day() ?? EMPTY_DAY);
+  readonly sortedElements = computed(() => {
+    const elements = this.day()?.elements ?? [];
+    const sort = this.elementSort();
+    if (!sort) return elements;
+    const language = this.language();
+    return [...elements].sort((left, right) => {
+      const diff = metricCount(right, sort) - metricCount(left, sort);
+      if (diff) return diff;
+      return displayTitle(left.title, language).localeCompare(
+        displayTitle(right.title, language),
+        language,
+      );
+    });
+  });
   readonly gemTotals = computed(() => {
     const totals: GemCounts = { translation: 0, example: 0, definition: 0 };
     for (const day of this.snapshot()?.days ?? []) {
@@ -1375,6 +1535,8 @@ export class GemStatsModal {
       const language = this.language();
       untracked(() => {
         this.dayIndex.set(0);
+        this.elementSort.set(null);
+        this.sortMenuOpen.set(false);
         this.goalsOpen.set(false);
         this.goals.set(readDailyGoals(language));
         this.job.ensure(language);
@@ -1386,6 +1548,31 @@ export class GemStatsModal {
     if (event.target === event.currentTarget) this.closed.emit();
   }
 
+  @HostListener('document:click', ['$event'])
+  closeSortMenu(event: MouseEvent): void {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest('.sort-menu')) this.sortMenuOpen.set(false);
+  }
+
+  toggleSortMenu(event: Event): void {
+    event.stopPropagation();
+    const opening = !this.sortMenuOpen();
+    if (opening && event.currentTarget instanceof HTMLElement) {
+      const button = event.currentTarget.getBoundingClientRect();
+      const body = event.currentTarget.closest('.body')?.getBoundingClientRect();
+      const above = button.top - (body?.top ?? 0);
+      const below = (body?.bottom ?? window.innerHeight) - button.bottom;
+      this.sortMenuAbove.set(above > below);
+      this.sortMenuMax.set(Math.max(120, Math.max(above, below) - 10));
+    }
+    this.sortMenuOpen.set(opening);
+  }
+
+  chooseElementSort(sort: ElementSort): void {
+    this.sortMenuOpen.set(false);
+    this.toggleSort(sort);
+  }
+
   older(): void {
     if (!this.canGoOlder()) return;
     this.dayIndex.update((index) => index + 1);
@@ -1394,6 +1581,26 @@ export class GemStatsModal {
   newer(): void {
     if (!this.canGoNewer()) return;
     this.dayIndex.update((index) => index - 1);
+  }
+
+  gemSort(game: GemGame): ElementSort {
+    return { kind: 'gem', game };
+  }
+
+  activitySort(key: ActivityKey): ElementSort {
+    return { kind: 'activity', key };
+  }
+
+  isSort(sort: ElementSort): boolean {
+    return sameElementSort(this.elementSort(), sort);
+  }
+
+  toggleSort(sort: ElementSort): void {
+    this.elementSort.update((current) => (sameElementSort(current, sort) ? null : sort));
+  }
+
+  showsMetric(count: number, sort: ElementSort): boolean {
+    return count > 0 || this.isSort(sort);
   }
 
   toggleGoals(): void {
@@ -1504,6 +1711,24 @@ export class GemStatsModal {
     this.goals.set(next);
     writeDailyGoals(this.language(), next);
   }
+}
+
+function sameElementSort(current: ElementSort | null, sort: ElementSort): boolean {
+  if (!current || current.kind !== sort.kind) return false;
+  switch (sort.kind) {
+    case 'exercises':
+      return true;
+    case 'gem':
+      return current.kind === 'gem' && current.game === sort.game;
+    case 'activity':
+      return current.kind === 'activity' && current.key === sort.key;
+  }
+}
+
+function metricCount(element: ElementDayStats, sort: ElementSort): number {
+  if (sort.kind === 'exercises') return element.exercises;
+  if (sort.kind === 'gem') return element.gems[sort.game];
+  return element[sort.key];
 }
 
 function formatDay(day: string): string {
