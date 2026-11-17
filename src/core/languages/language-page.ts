@@ -1243,7 +1243,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       align-items: center;
       justify-content: center;
       padding: 1.25rem;
-      background: rgba(8, 10, 16, 0.55);
+      background: rgba(8, 10, 16, 0.78);
+      backdrop-filter: blur(6px);
     }
 
     .selection-sheet {
@@ -1261,7 +1262,9 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
     .selection-sheet h3 {
       margin: 0;
-      font-size: 1rem;
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
     }
 
     .selection-head {
@@ -1307,7 +1310,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       margin: 0;
       padding: 0.75rem 0.85rem;
       border: 1px solid color-mix(in srgb, var(--hero-gem) 48%, transparent);
-      border-radius: 12px;
+      border-radius: 1rem;
       background: color-mix(in srgb, var(--hero-gem) 12%, transparent);
       color: var(--text);
       font: inherit;
@@ -1357,7 +1360,17 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       gap: 0.45rem;
     }
 
+    .selection-actions .btn {
+      border-radius: 0.75rem;
+    }
+
+    .selection-actions .btn-secondary {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--bg);
+    }
+
     .btn-danger {
+      border-radius: 0.75rem;
       background: transparent;
       color: var(--danger);
       border: 1px solid rgba(255, 92, 122, 0.55);
@@ -1813,9 +1826,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       overflow: hidden;
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) + 4px);
-      background:
-        radial-gradient(120% 80% at 0% 0%, rgba(var(--accent-rgb), 0.12), transparent 55%),
-        var(--surface);
+      background: var(--surface);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
     }
 
@@ -1830,12 +1841,14 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       justify-content: space-between;
       gap: 1rem;
       padding: 0.9rem 1.15rem;
+      border-bottom: 1px solid var(--border);
     }
 
     .filter-title {
-      font-size: 1.35rem;
-      font-weight: 750;
-      letter-spacing: -0.03em;
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
     }
 
     .filter-subtitle {
@@ -1850,18 +1863,18 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 2.15rem;
-      height: 2.15rem;
+      width: 1.8rem;
+      height: 1.8rem;
       flex-shrink: 0;
       border: 0;
-      border-radius: 999px;
-      background: rgba(127, 127, 127, 0.1);
+      border-radius: 0.4rem;
+      background: transparent;
       color: var(--text-muted);
       cursor: pointer;
     }
 
     .icon-btn:hover {
-      background: rgba(127, 127, 127, 0.18);
+      background: rgba(139, 144, 165, 0.16);
       color: var(--text);
     }
 
@@ -1893,9 +1906,9 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     .filter-section {
       flex-shrink: 0;
       overflow: hidden;
-      border-radius: 0.9rem;
-      background: color-mix(in srgb, var(--surface) 70%, transparent);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: var(--surface-2);
     }
 
     .section-header {
@@ -1928,13 +1941,15 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       align-items: center;
       justify-content: center;
       min-width: 1.25rem;
-      height: 1.25rem;
-      padding: 0 0.35rem;
-      border-radius: 999px;
-      background: rgba(var(--accent-rgb), 0.16);
-      color: var(--accent-text);
+      height: auto;
+      padding: 0.15rem 0.45rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 0.5rem;
+      background: rgba(255, 255, 255, 0.04);
+      color: #94a3b8;
       font-size: 0.68rem;
-      font-weight: 750;
+      font-weight: 650;
+      letter-spacing: 0.02em;
     }
 
     .section-chevron {
@@ -1974,12 +1989,19 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
     .language-select {
       width: 100%;
-      padding: 0.75rem 0.85rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface);
+      padding: 0.7rem 0.85rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      background: var(--bg);
       color: var(--text);
       font: inherit;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
+    }
+
+    .language-select:focus {
+      outline: none;
+      border-color: rgba(255, 51, 102, 0.6);
+      box-shadow: 0 0 0 1px rgba(255, 51, 102, 0.35);
     }
 
     .support-field {
@@ -2071,16 +2093,15 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .meta-value {
-      border: 0;
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
       border-radius: 999px;
-      background: transparent;
+      background: var(--bg);
       color: var(--text);
       padding: 0.35rem 0.7rem;
       font: inherit;
       font-size: 0.78rem;
       font-weight: 650;
       cursor: pointer;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
     }
 
     .meta-value:hover {
@@ -2088,9 +2109,9 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .meta-value.selected {
-      background: rgba(var(--accent-rgb), 0.16);
+      background: var(--accent-soft);
       color: var(--accent-text);
-      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.45);
+      border-color: var(--accent-border);
     }
 
     .meta-value.colored,
@@ -2134,18 +2155,19 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
     .done-btn {
       border: 0;
-      border-radius: 999px;
-      background: var(--accent);
+      border-radius: 0.75rem;
+      background: linear-gradient(to right, #f43f5e, #ec4899, #7c3aed);
       color: white;
       font: inherit;
-      font-size: 0.88rem;
-      font-weight: 700;
-      padding: 0.65rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 650;
+      padding: 0.65rem 1.15rem;
+      box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.25);
       cursor: pointer;
     }
 
     .done-btn:hover {
-      filter: brightness(1.06);
+      opacity: 0.95;
     }
 
     @media (max-width: 720px) {

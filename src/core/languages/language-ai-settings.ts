@@ -407,9 +407,9 @@ type MetadataKind = 'definition' | 'example' | 'form';
     .settings-section {
       flex-shrink: 0;
       overflow: hidden;
-      border-radius: 0.9rem;
-      background: color-mix(in srgb, var(--surface) 70%, transparent);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: var(--surface-2);
     }
 
     .section-header {
@@ -442,13 +442,15 @@ type MetadataKind = 'definition' | 'example' | 'form';
       align-items: center;
       justify-content: center;
       min-width: 1.25rem;
-      height: 1.25rem;
-      padding: 0 0.35rem;
-      border-radius: 999px;
-      background: rgba(var(--accent-rgb), 0.16);
-      color: var(--accent-text);
+      height: auto;
+      padding: 0.15rem 0.45rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 0.5rem;
+      background: rgba(255, 255, 255, 0.04);
+      color: #94a3b8;
       font-size: 0.68rem;
-      font-weight: 750;
+      font-weight: 650;
+      letter-spacing: 0.02em;
     }
 
     .section-chevron {
@@ -507,10 +509,11 @@ type MetadataKind = 'definition' | 'example' | 'form';
 
     .reset,
     .metadata-add {
-      border-radius: 999px;
-      padding: 0.35rem 0.75rem;
+      border-radius: 0.75rem;
+      padding: 0.4rem 0.75rem;
       font-size: 0.8125rem;
       font-weight: 650;
+      background: var(--bg);
     }
 
     .reset {
@@ -525,12 +528,13 @@ type MetadataKind = 'definition' | 'example' | 'form';
     }
 
     select {
-      padding: 0.75rem 0.85rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface);
+      padding: 0.7rem 0.85rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      background: var(--bg);
       color: var(--text);
       font: inherit;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
     }
 
     label.translation-toggle {
@@ -552,12 +556,21 @@ type MetadataKind = 'definition' | 'example' | 'form';
 
     input,
     textarea {
-      padding: 0.75rem 0.85rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface);
+      padding: 0.7rem 0.85rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      background: var(--bg);
       color: var(--text);
       font: inherit;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: rgba(255, 51, 102, 0.6);
+      box-shadow: 0 0 0 1px rgba(255, 51, 102, 0.35);
     }
 
     textarea {
@@ -596,11 +609,19 @@ type MetadataKind = 'definition' | 'example' | 'form';
 
     .metadata-remove {
       flex: none;
-      width: 2.25rem;
-      height: 2.25rem;
-      border-radius: 999px;
-      font-size: 1.15rem;
+      width: 1.8rem;
+      height: 1.8rem;
+      border: 0;
+      border-radius: 0.4rem;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 1.05rem;
       line-height: 1;
+    }
+
+    .metadata-remove:hover:not(:disabled) {
+      background: rgba(139, 144, 165, 0.16);
+      color: var(--text);
     }
 
     .metadata-actions {
@@ -618,10 +639,10 @@ type MetadataKind = 'definition' | 'example' | 'form';
       align-items: flex-start;
       justify-content: space-between;
       gap: 0.75rem;
-      padding: 0.7rem 0.75rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface);
+      padding: 0.75rem 0.85rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: var(--bg);
     }
 
     .metadata-suggestion div {

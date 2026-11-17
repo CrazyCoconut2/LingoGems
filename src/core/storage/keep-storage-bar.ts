@@ -28,8 +28,7 @@ import { keepStorageFromUser, keepStorageMessage, storageKept } from './keep-sto
         max(1.25rem, env(safe-area-inset-right, 0px)) 0.75rem
         max(1.25rem, env(safe-area-inset-left, 0px));
       background: var(--surface);
-      border-bottom: 1px solid var(--accent-border);
-      box-shadow: var(--shadow);
+      border-bottom: 1px solid var(--border);
     }
 
     p {
@@ -42,6 +41,18 @@ import { keepStorageFromUser, keepStorageMessage, storageKept } from './keep-sto
 
     .btn {
       flex: none;
+      border-radius: 0.75rem;
+    }
+
+    .btn-primary {
+      border: 0;
+      background: linear-gradient(to right, #f43f5e, #ec4899, #7c3aed);
+      box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.25);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(to right, #f43f5e, #ec4899, #7c3aed);
+      opacity: 0.95;
     }
 
     @media (max-width: 640px) {

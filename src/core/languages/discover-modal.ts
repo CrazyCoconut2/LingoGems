@@ -477,9 +477,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       overflow: hidden;
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) + 4px);
-      background:
-        radial-gradient(120% 80% at 0% 0%, rgba(var(--accent-rgb), 0.12), transparent 55%),
-        var(--surface);
+      background: var(--surface);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
     }
 
@@ -493,13 +491,15 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       justify-content: space-between;
       gap: 1rem;
       padding: 0.9rem 1.15rem;
+      border-bottom: 1px solid var(--border);
     }
 
     h2 {
       margin: 0;
-      font-size: 1.35rem;
-      font-weight: 750;
-      letter-spacing: -0.03em;
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
     }
 
     .head p.learning {
@@ -528,18 +528,18 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 2.15rem;
-      height: 2.15rem;
+      width: 1.8rem;
+      height: 1.8rem;
       flex-shrink: 0;
       border: 0;
-      border-radius: 999px;
-      background: rgba(127, 127, 127, 0.1);
+      border-radius: 0.4rem;
+      background: transparent;
       color: var(--text-muted);
       cursor: pointer;
     }
 
     .icon-btn:hover {
-      background: rgba(127, 127, 127, 0.18);
+      background: rgba(139, 144, 165, 0.16);
       color: var(--text);
     }
 
@@ -562,7 +562,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       gap: 0.55rem;
       min-height: 0;
       overflow: hidden;
-      padding: 0 1.15rem 1rem;
+      padding: 0.85rem 1.15rem 1rem;
     }
 
     .query {
@@ -599,19 +599,20 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       align-self: flex-end;
       justify-content: center;
       border: 0;
-      border-radius: 999px;
-      background: var(--accent);
+      border-radius: 0.75rem;
+      background: linear-gradient(to right, #f43f5e, #ec4899, #7c3aed);
       color: white;
       font: inherit;
       font-weight: 650;
-      padding: 0.55rem 1rem;
-      font-size: 0.9375rem;
+      padding: 0.65rem 1rem;
+      font-size: 0.875rem;
       line-height: 1.1;
+      box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.25);
       cursor: pointer;
     }
 
     .discover-main:hover:not(:disabled) {
-      background: var(--accent-hover);
+      opacity: 0.95;
     }
 
     .discover-main:disabled {
@@ -632,13 +633,14 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     .constraint input {
       box-sizing: border-box;
       width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 0.7rem;
-      background: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      background: var(--bg);
       color: var(--text);
       font: inherit;
       font-size: 0.9rem;
-      padding: 0.65rem 0.75rem;
+      padding: 0.65rem 0.85rem;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
     }
 
     .instruction-field {
@@ -704,7 +706,8 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     .instruction:focus,
     .constraint input:focus {
       outline: none;
-      border-color: rgba(var(--accent-rgb), 0.55);
+      border-color: rgba(255, 51, 102, 0.6);
+      box-shadow: 0 0 0 1px rgba(255, 51, 102, 0.35);
     }
 
     .filter-btn {
@@ -712,11 +715,11 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       display: grid;
       flex: none;
       place-items: center;
-      width: 2.4rem;
-      height: 2.4rem;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--surface);
+      width: 2.5rem;
+      height: 2.5rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      background: var(--bg);
       color: var(--text-muted);
       cursor: pointer;
     }
@@ -738,9 +741,9 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     }
 
     .filter-btn.active {
-      color: var(--accent-text);
-      border-color: rgba(var(--accent-rgb), 0.45);
-      background: rgba(var(--accent-rgb), 0.12);
+      color: #ff3366;
+      border-color: rgba(255, 51, 102, 0.45);
+      background: rgba(255, 51, 102, 0.1);
     }
 
     .filter-backdrop {
@@ -764,9 +767,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       overflow: hidden;
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) + 4px);
-      background:
-        radial-gradient(120% 80% at 0% 0%, rgba(var(--accent-rgb), 0.12), transparent 55%),
-        var(--surface);
+      background: var(--surface);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
     }
 
@@ -780,11 +781,15 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       padding: 0.9rem 1rem;
     }
 
+    .filter-head {
+      border-bottom: 1px solid var(--border);
+    }
+
     .filter-head h3 {
       margin: 0;
       font-size: 1.15rem;
-      font-weight: 750;
-      letter-spacing: -0.03em;
+      font-weight: 600;
+      letter-spacing: -0.02em;
     }
 
     .filter-head p {
@@ -800,7 +805,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       gap: 0.55rem;
       min-height: 0;
       overflow: auto;
-      padding: 0 1rem 1rem;
+      padding: 0.85rem 1rem 1rem;
     }
 
     .filter-foot {
@@ -830,9 +835,9 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     .meta-section {
       flex-shrink: 0;
       overflow: hidden;
-      border-radius: 0.9rem;
-      background: color-mix(in srgb, var(--surface) 70%, transparent);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: var(--surface-2);
     }
 
     .section-header {
@@ -863,13 +868,15 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       align-items: center;
       justify-content: center;
       min-width: 1.25rem;
-      height: 1.25rem;
-      padding: 0 0.35rem;
-      border-radius: 999px;
-      background: rgba(var(--accent-rgb), 0.16);
-      color: var(--accent-text);
+      height: auto;
+      padding: 0.15rem 0.45rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 0.5rem;
+      background: rgba(255, 255, 255, 0.04);
+      color: #94a3b8;
       font-size: 0.68rem;
-      font-weight: 750;
+      font-weight: 650;
+      letter-spacing: 0.02em;
     }
 
     .chevron {
@@ -917,14 +924,13 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     }
 
     .meta-value {
-      border: 0;
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
       border-radius: 999px;
-      background: transparent;
+      background: var(--bg);
       color: var(--text);
       padding: 0.35rem 0.7rem;
       font-size: 0.78rem;
       font-weight: 650;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
     }
 
     .meta-value:hover {
@@ -932,9 +938,9 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     }
 
     .meta-value.selected {
-      background: rgba(var(--accent-rgb), 0.16);
+      background: var(--accent-soft);
       color: var(--accent-text);
-      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.45);
+      border-color: var(--accent-border);
     }
 
     .constraint {
@@ -989,10 +995,10 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       align-items: center;
       gap: 0.6rem;
       width: 100%;
-      border: 0;
-      border-radius: 0.8rem;
-      padding: 0.7rem 0.8rem;
-      background: rgba(127, 127, 127, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      padding: 0.7rem 0.85rem;
+      background: var(--surface-2);
       color: var(--text);
       font: inherit;
       font-size: 0.9rem;
@@ -1002,8 +1008,8 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     }
 
     .history-item.selected {
-      background: rgba(var(--accent-rgb), 0.18);
-      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.55);
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
     }
 
     .search-label {
@@ -1061,18 +1067,19 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     }
 
     .filter-chip {
-      border: 0;
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
       border-radius: 999px;
-      padding: 0.4rem 0.75rem;
-      background: rgba(127, 127, 127, 0.12);
+      padding: 0.35rem 0.75rem;
+      background: var(--bg);
       color: var(--text);
       font-size: 0.84rem;
       font-weight: 650;
     }
 
     .filter-chip.selected {
-      background: rgba(var(--accent-rgb), 0.18);
-      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.55);
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+      color: var(--accent-text);
     }
 
     .card-list {
@@ -1088,18 +1095,17 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       gap: 0.55rem;
       min-width: 0;
       margin: 0;
-      padding: 0.75rem 0.8rem;
-      border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
-      border-left: 3px solid color-mix(in srgb, var(--text) 7%, transparent);
-      border-radius: var(--radius);
-      background: color-mix(in srgb, var(--surface) 88%, transparent);
+      padding: 0.85rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: var(--surface-2);
       color: var(--text);
     }
 
     .card.collected {
-      background: color-mix(in srgb, var(--accent) 22%, var(--surface));
-      border-color: color-mix(in srgb, var(--accent) 52%, transparent);
-      border-left-color: var(--accent);
+      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+      background: var(--surface-2);
+      box-shadow: 0 0 16px -2px color-mix(in srgb, var(--accent) 45%, transparent);
     }
 
     .card-head {
@@ -1113,12 +1119,13 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       min-width: 0;
       border: 0;
       background: transparent;
-      color: inherit;
+      color: white;
       padding: 0;
       font: inherit;
-      font-size: 1.05rem;
-      font-weight: 700;
-      line-height: 1.25;
+      font-size: 1.125rem;
+      font-weight: 750;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
       text-align: left;
     }
 
@@ -1152,11 +1159,12 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
     }
 
     .sense-meta li {
-      border-radius: 999px;
-      background: rgba(127, 127, 127, 0.12);
-      padding: 0.2rem 0.55rem;
-      font-size: 0.75rem;
-      line-height: 1.35;
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+      border-radius: 0.5rem;
+      background: var(--bg);
+      padding: 0.25rem 0.625rem;
+      font-size: 0.6875rem;
+      line-height: 1.2;
     }
 
     .sense-meta li.colored {
@@ -1218,16 +1226,17 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       flex: none;
       height: 2.4rem;
       border: 0;
-      border-radius: 999px;
-      background: var(--accent);
+      border-radius: 0.75rem;
+      background: linear-gradient(to right, #f43f5e, #ec4899, #7c3aed);
       color: white;
-      font-size: 0.88rem;
-      font-weight: 700;
-      padding: 0 1.1rem;
+      font-size: 0.875rem;
+      font-weight: 650;
+      padding: 0 1rem;
+      box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.25);
     }
 
     .discover-btn:hover:not(:disabled) {
-      filter: brightness(1.06);
+      opacity: 0.95;
     }
 
     @media (max-width: 720px) {

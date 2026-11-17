@@ -97,10 +97,16 @@ const AI_PROVIDERS: ProviderOption<AiProviderId>[] = [
 
     .card {
       width: min(100%, 28rem);
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
       gap: 1.25rem;
+      padding: 1.25rem 1.15rem 1.15rem;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 4px);
+      background: var(--surface);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
     }
 
     .card .gem {
@@ -157,11 +163,39 @@ const AI_PROVIDERS: ProviderOption<AiProviderId>[] = [
 
     input,
     select {
-      padding: 0.75rem 0.85rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface);
+      padding: 0.7rem 0.85rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      background: var(--bg);
       color: var(--text);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
+    }
+
+    input:focus,
+    select:focus {
+      outline: none;
+      border-color: rgba(255, 51, 102, 0.6);
+      box-shadow: 0 0 0 1px rgba(255, 51, 102, 0.35);
+    }
+
+    .btn {
+      border-radius: 0.75rem;
+    }
+
+    .btn-primary {
+      border: 0;
+      background: linear-gradient(to right, #f43f5e, #ec4899, #7c3aed);
+      box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.25);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(to right, #f43f5e, #ec4899, #7c3aed);
+      opacity: 0.95;
+    }
+
+    .btn-secondary {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--bg);
     }
 
     .actions {

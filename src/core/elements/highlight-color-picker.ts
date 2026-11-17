@@ -90,16 +90,11 @@ const DEFAULT_COLOR = '#6c63ff';
       max-height: min(100%, 34rem);
       min-height: 0;
       padding: 0.75rem 0.9rem 0.7rem;
-      --surface: #14172b;
-      --surface-2: #1c2038;
-      --border: #2a2f4a;
-      --text: #f0f1f8;
-      --text-muted: #9499b3;
       border: 1px solid var(--border);
-      border-radius: calc(var(--radius) + 2px);
+      border-radius: calc(var(--radius) + 4px);
       background: var(--surface);
       color: var(--text);
-      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
       overflow: auto;
     }
 
@@ -131,7 +126,7 @@ const DEFAULT_COLOR = '#6c63ff';
       min-height: 4rem;
       max-height: 6.5rem;
       border: 1px solid var(--border);
-      border-radius: 0.7rem;
+      border-radius: 1rem;
       overflow: hidden;
       touch-action: none;
       user-select: none;
@@ -230,7 +225,7 @@ const DEFAULT_COLOR = '#6c63ff';
       width: 100%;
       min-width: 0;
       padding: 0.38rem 0.7rem;
-      border-radius: 0.55rem;
+      border-radius: 0.75rem;
       border: 1px solid var(--border);
       background: transparent;
       color: var(--text-muted);
@@ -263,13 +258,14 @@ const DEFAULT_COLOR = '#6c63ff';
 
     .picker-btn-primary {
       color: #fff;
-      background: var(--accent, #6c63ff);
       border-color: transparent;
+      background: linear-gradient(to right, #f43f5e, #ec4899, #7c3aed);
+      box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.25);
     }
 
     .picker-btn-primary:hover:not(:disabled) {
       color: #fff;
-      filter: brightness(1.06);
+      opacity: 0.95;
     }
   `,
 })

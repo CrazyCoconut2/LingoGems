@@ -481,9 +481,7 @@ const EMPTY_DAY: DayStats = {
       overflow: hidden;
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) + 4px);
-      background:
-        radial-gradient(120% 80% at 0% 0%, rgba(var(--accent-rgb), 0.12), transparent 55%),
-        var(--surface);
+      background: var(--surface);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
     }
 
@@ -510,9 +508,10 @@ const EMPTY_DAY: DayStats = {
     }
 
     h2 {
-      font-size: 1.35rem;
-      font-weight: 750;
-      letter-spacing: -0.03em;
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
     }
 
     .panel-header p {
@@ -543,24 +542,24 @@ const EMPTY_DAY: DayStats = {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 2.15rem;
-      height: 2.15rem;
+      width: 1.8rem;
+      height: 1.8rem;
       flex-shrink: 0;
       border: 0;
-      border-radius: 999px;
-      background: rgba(127, 127, 127, 0.1);
+      border-radius: 0.4rem;
+      background: transparent;
       color: var(--text-muted);
       cursor: pointer;
     }
 
     .icon-btn:hover:not(:disabled) {
-      background: rgba(127, 127, 127, 0.18);
+      background: rgba(139, 144, 165, 0.16);
       color: var(--text);
     }
 
     .icon-btn.on {
-      background: rgba(var(--accent-rgb), 0.18);
-      color: var(--accent-text);
+      background: rgba(255, 51, 102, 0.12);
+      color: #ff3366;
     }
 
     .icon-btn:disabled {
@@ -683,14 +682,10 @@ const EMPTY_DAY: DayStats = {
       min-width: 0;
       margin: 0.7rem 1rem 0;
       padding: 1rem 1.05rem 0.95rem;
-      border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
-      border-radius: 1.05rem;
-      background: linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--accent) 18%, transparent),
-        color-mix(in srgb, var(--accent) 7%, rgba(8, 10, 18, 0.35))
-      );
-      color: var(--accent);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: var(--surface-2);
+      color: var(--text);
     }
 
     .hero-top {
@@ -760,7 +755,7 @@ const EMPTY_DAY: DayStats = {
       display: block;
       height: 100%;
       border-radius: inherit;
-      background: currentColor;
+      background: #ff3366;
       transition: width 0.2s ease;
     }
 
@@ -776,8 +771,10 @@ const EMPTY_DAY: DayStats = {
       flex-shrink: 0;
       margin-top: 0.1rem;
       padding: 0.28rem 0.62rem;
+      border: 1px solid rgba(255, 51, 102, 0.35);
       border-radius: 999px;
-      background: rgba(0, 0, 0, 0.32);
+      background: rgba(255, 51, 102, 0.12);
+      color: #ff3366;
       font-size: 0.75rem;
       font-weight: 750;
       line-height: 1.2;
@@ -865,7 +862,7 @@ const EMPTY_DAY: DayStats = {
       gap: 0.15rem;
       padding: 0.85rem 0.55rem 0.7rem;
       border: 1px solid color-mix(in srgb, var(--exercise-gem) 32%, transparent);
-      border-radius: 1.05rem;
+      border-radius: 1rem;
       background: color-mix(in srgb, var(--exercise-gem) 13%, rgba(8, 10, 18, 0.55));
     }
 
@@ -1040,9 +1037,9 @@ const EMPTY_DAY: DayStats = {
       align-items: center;
       gap: 0.12rem;
       padding: 0.8rem 0.4rem 0.65rem;
-      border: 1px solid var(--border);
-      border-radius: 1.05rem;
-      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: var(--surface-2);
       color: var(--text-muted);
     }
 
@@ -1107,9 +1104,9 @@ const EMPTY_DAY: DayStats = {
       gap: 0.7rem;
       max-width: 100%;
       padding: 0.7rem 0.75rem;
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 0.95rem;
-      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: var(--surface-2);
     }
 
     .badge {
@@ -1184,8 +1181,8 @@ const EMPTY_DAY: DayStats = {
     }
 
     .hero-loading {
-      border-color: var(--border);
-      background: color-mix(in srgb, var(--text) 4%, transparent);
+      border-color: rgba(255, 255, 255, 0.08);
+      background: var(--surface-2);
       color: var(--text-muted);
     }
 
