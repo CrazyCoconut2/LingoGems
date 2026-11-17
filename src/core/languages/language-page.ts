@@ -89,6 +89,15 @@ function leadValueId(value: string): string {
   return value.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+/**
+ * Words used to be created with the first preset, a near-black fill.
+ * That swatch was never chosen, so it does not paint the card.
+ */
+function chosenElementColor(color: string | null): string | null {
+  if (!color || color === ELEMENT_COLOR_PRESETS[0]) return null;
+  return color;
+}
+
 function leadValueColor(value: string): string {
   const id = leadValueId(value);
   let hash = 2166136261;
@@ -267,34 +276,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             </div>
           </div>
         </section>
-
-        @if (leadValues().length) {
-          <div class="lead-chips" role="listbox" [attr.aria-label]="'Filter by ' + leadFieldKey()">
-            <button
-              type="button"
-              class="lead-chip"
-              role="option"
-              [class.active]="!leadChip()"
-              [attr.aria-selected]="!leadChip()"
-              (click)="chooseLeadChip('')"
-            >
-              All
-            </button>
-            @for (item of leadValues(); track item.id) {
-              <button
-                type="button"
-                class="lead-chip"
-                role="option"
-                [class.active]="leadChip() === item.id"
-                [attr.aria-selected]="leadChip() === item.id"
-                (click)="chooseLeadChip(item.id)"
-              >
-                <span class="lead-dot" [style.background]="item.color"></span>
-                {{ item.value }}
-              </button>
-            }
-          </div>
-        }
 
         @if (lookupError()) {
           <p class="lookup-error">{{ lookupError() }}</p>
@@ -909,27 +890,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           </button>
           <button
             type="button"
-            class="app-bar-btn cards"
-            [class.active]="cardsActive()"
-            aria-label="Cards"
-            (click)="showCards()"
-          >
-            <span class="nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M19 11H5" />
-                <path d="M19 11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2" />
-                <path
-                  d="M19 11V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10"
-                />
-              </svg>
-              @if (cardsActive()) {
-                <span class="nav-dot"></span>
-              }
-            </span>
-            <span>Cards</span>
-          </button>
-          <button
-            type="button"
             class="app-bar-btn"
             [class.active]="discoverOpen()"
             [disabled]="!code()"
@@ -1080,52 +1040,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       border-color: rgba(255, 255, 255, 0.2);
     }
 
-    .lead-chips {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      overflow-x: auto;
-      padding-bottom: 0.1rem;
-      font-size: 0.68rem;
-      font-weight: 550;
-      color: #94a3b8;
-      scrollbar-width: none;
-    }
-
-    .lead-chips::-webkit-scrollbar {
-      display: none;
-    }
-
-    .lead-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      flex: none;
-      padding: 0.28rem 0.7rem;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 999px;
-      background: #151928;
-      color: inherit;
-      font: inherit;
-      font-size: inherit;
-      font-weight: inherit;
-      cursor: pointer;
-    }
-
-    .lead-chip.active {
-      border-color: rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.1);
-      color: white;
-      font-weight: 650;
-    }
-
-    .lead-dot {
-      width: 0.38rem;
-      height: 0.38rem;
-      border-radius: 999px;
-      background: currentColor;
-    }
-
     .collection {
       min-height: 0;
       overflow: auto;
@@ -1199,23 +1113,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
-    }
-
-    .nav-icon {
-      position: relative;
-      display: grid;
-      place-items: center;
-    }
-
-    .nav-dot {
-      position: absolute;
-      top: -0.15rem;
-      right: -0.2rem;
-      width: 0.38rem;
-      height: 0.38rem;
-      border-radius: 999px;
-      background: #ff3366;
-      box-shadow: 0 0 6px #ff3366;
     }
 
     .entries-toolbar {
@@ -1874,18 +1771,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
-    }
-
-    .stat-opened svg {
-      color: #c4b5fd;
-    }
-
-    .stat-reworked svg {
-      color: #fbbf24;
-    }
-
-    .stat-revealed svg {
-      color: #38bdf8;
+      color: var(--score-color, #94a3b8);
     }
 
     .earned-gems {
@@ -2452,7 +2338,6 @@ export class LanguagePage {
   readonly ready = signal(false);
   readonly elements = signal<StoredElement[]>([]);
   readonly leadFieldKey = signal(readDefinitionMetadataFields()[0]?.key ?? '');
-  readonly leadChip = signal('');
   readonly query = signal('');
   readonly search = signal<ElementSearch>({ mode: 'browse', value: '' });
   readonly sort = signal<ElementSort>(DEFAULT_ELEMENT_SORT);
@@ -2494,22 +2379,6 @@ export class LanguagePage {
   readonly filtersOpen = signal(false);
   readonly settingsOpen = signal(false);
   readonly statsOpen = signal(false);
-  readonly leadValues = computed((): LeadValue[] => {
-    const key = this.leadFieldKey();
-    const seen = new Set<string>();
-    const values: LeadValue[] = [];
-    for (const element of this.elements()) {
-      for (const item of compiledLeadValues(element, key)) {
-        if (seen.has(item.id)) continue;
-        seen.add(item.id);
-        values.push(item);
-      }
-    }
-    return values;
-  });
-  readonly cardsActive = computed(
-    () => !this.statsOpen() && !this.discoverOpen() && !this.settingsOpen(),
-  );
   readonly playId = signal('');
   readonly playMode = signal<ElementMode | null>(null);
   readonly drillId = signal('');
@@ -2545,14 +2414,9 @@ export class LanguagePage {
     const definitionMeta = this.definitionMetaFilter();
     const exampleMeta = this.exampleMetaFilter();
     const formMeta = this.formMetaFilter();
-    const leadId = this.leadChip();
-    const leadKey = this.leadFieldKey();
     const matched = this.elements().filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
       if (!elementMatchesColor(element, color)) return false;
-      if (leadId && !compiledLeadValues(element, leadKey).some((item) => item.id === leadId)) {
-        return false;
-      }
       return elementMatchesMetadata(element, definitionMeta, exampleMeta, formMeta);
     });
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
@@ -3024,26 +2888,11 @@ export class LanguagePage {
   }
 
   cardAccent(element: StoredElement): string | null {
-    if (element.color) return element.color;
-    return this.leadPills(element)[0]?.color ?? null;
+    return chosenElementColor(element.color) ?? this.leadPills(element)[0]?.color ?? null;
   }
 
   pillColor(element: StoredElement, pill: LeadValue): string {
-    return element.color || pill.color;
-  }
-
-  chooseLeadChip(id: string): void {
-    this.leadChip.set(id);
-  }
-
-  showCards(): void {
-    this.sortOpen.set(false);
-    if (this.filtersOpen()) this.closeFilters();
-    if (this.statsOpen()) this.closeStats();
-    if (this.discoverOpen()) this.closeDiscover();
-    if (this.settingsOpen()) this.closeSettings();
-    if (this.elementId()) this.closeElement();
-    this.drillId.set('');
+    return chosenElementColor(element.color) ?? pill.color;
   }
 
   /** Scores are not gems. Totals stay empty until gems are attributed. */
@@ -3421,7 +3270,6 @@ export class LanguagePage {
     this.playId.set('');
     this.playMode.set(null);
     this.drillId.set('');
-    this.leadChip.set('');
     this.clearSelection();
     this.sortOpen.set(false);
     if (this.discoverOpen()) this.closeDiscover();
@@ -3450,9 +3298,7 @@ export class LanguagePage {
   }
 
   private refreshLeadField(): void {
-    const next = readDefinitionMetadataFields()[0]?.key ?? '';
-    if (leadValueId(next) !== leadValueId(this.leadFieldKey())) this.leadChip.set('');
-    this.leadFieldKey.set(next);
+    this.leadFieldKey.set(readDefinitionMetadataFields()[0]?.key ?? '');
   }
 
   private overlayOpen(): boolean {

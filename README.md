@@ -16,6 +16,7 @@ npm run deploy
 `deploy` bumps the patch version, builds, and publishes with Wrangler.
 
 TODO
+- The third icon for a card needs to be the amount of time it has been exercised. Not the eye icon.
 - Translations are always blurred. If you unblur too much
   that's usually a sign to rework the definition or other shit
   cause you don't want to systematically unblur. So we need to

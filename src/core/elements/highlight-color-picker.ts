@@ -1,4 +1,4 @@
-import { Component, effect, input, output, signal } from '@angular/core';
+import { Component, effect, input, output, signal, untracked } from '@angular/core';
 import { ELEMENT_COLOR_PRESETS, sanitizeElementColor } from 'collection';
 
 /** Starting swatch for a custom color that has not been chosen yet. */
@@ -292,18 +292,23 @@ export class HighlightColorPicker {
   readonly hue = signal(245);
   readonly sat = signal(0.61);
   readonly val = signal(1);
+  /** Saved color last copied into the draft. A later refresh must not undo a choice. */
+  private syncedColor: string | null | undefined = undefined;
 
   constructor() {
     effect(() => {
       const color = sanitizeElementColor(this.color());
-      const known = this.knownColors();
-      if (color) {
-        this.applyHex(color, false);
-        this.customOpen.set(!known.has(color));
-      } else {
-        this.clearDraft();
-        this.customOpen.set(false);
-      }
+      if (color === this.syncedColor) return;
+      this.syncedColor = color;
+      untracked(() => {
+        if (color) {
+          this.applyHex(color, false);
+          this.customOpen.set(!this.knownColors().has(color));
+        } else {
+          this.clearDraft();
+          this.customOpen.set(false);
+        }
+      });
     });
   }
 
