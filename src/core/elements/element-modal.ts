@@ -654,19 +654,6 @@ function writeExampleSuggestions(
             }
           }
           <div class="header-actions">
-            @if (shownPlayMode(); as mode) {
-              <button
-                type="button"
-                class="mode-btn"
-                aria-label="What to do"
-                title="What to do"
-                [attr.aria-expanded]="helpOpen()"
-                [disabled]="busy()"
-                (click)="openHelp()"
-              >
-                <app-mode-icon [mode]="mode" />
-              </button>
-            }
             @if (element().definitions.length) {
               @let index = visibleDefinitionIndex();
               @if (passagePick(index, null); as pick) {
