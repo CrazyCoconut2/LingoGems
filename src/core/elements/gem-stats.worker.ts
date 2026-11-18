@@ -13,6 +13,7 @@ export type ElementDayStats = {
   added: number;
   opened: number;
   reworked: number;
+  revealed: number;
   exercises: number;
 };
 
@@ -22,6 +23,7 @@ export type DayStats = {
   added: number;
   opened: number;
   reworked: number;
+  revealed: number;
   exercises: number;
   elements: ElementDayStats[];
 };
@@ -39,6 +41,7 @@ type MutableDay = {
   added: number;
   opened: number;
   reworked: number;
+  revealed: number;
   exercises: number;
   elements: Map<string, MutableElement>;
 };
@@ -122,6 +125,11 @@ function tally(records: unknown[], language: string): DayStats[] {
           elementOf(day, id, title).reworked += 1;
           continue;
         }
+        if (entry.event === 'reveal') {
+          day.revealed += 1;
+          elementOf(day, id, title).revealed += 1;
+          continue;
+        }
         if (entry.event === 'game' && isGame(entry.game)) {
           day.exercises += 1;
           elementOf(day, id, title).exercises += 1;
@@ -147,6 +155,7 @@ function tally(records: unknown[], language: string): DayStats[] {
       added: stats.added,
       opened: stats.opened,
       reworked: stats.reworked,
+      revealed: stats.revealed,
       exercises: stats.exercises,
       elements,
     });
@@ -165,6 +174,7 @@ function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {
       added: 0,
       opened: 0,
       reworked: 0,
+      revealed: 0,
       exercises: 0,
       elements: new Map(),
     };
@@ -183,6 +193,7 @@ function elementOf(day: MutableDay, id: string, title: string): MutableElement {
       added: 0,
       opened: 0,
       reworked: 0,
+      revealed: 0,
       exercises: 0,
     };
     day.elements.set(id, element);
@@ -200,7 +211,7 @@ function dayKey(at: number): string {
 function hasActivity(element: ElementDayStats): boolean {
   return (
     gemTotal(element.gems) > 0 ||
-    element.added + element.opened + element.reworked > 0 ||
+    element.added + element.opened + element.reworked + element.revealed > 0 ||
     element.exercises > 0
   );
 }
@@ -211,7 +222,10 @@ function compareElements(left: ElementDayStats, right: ElementDayStats, language
   const exercises = right.exercises - left.exercises;
   if (exercises) return exercises;
   const activity =
-    right.opened + right.reworked - (left.opened + left.reworked);
+    right.opened +
+      right.reworked +
+      right.revealed -
+      (left.opened + left.reworked + left.revealed);
   if (activity) return activity;
   return left.title.localeCompare(right.title, language);
 }

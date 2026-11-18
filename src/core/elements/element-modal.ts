@@ -88,6 +88,7 @@ import {
   type PlayRound,
 } from './play-session';
 import { Reveal } from './reveal';
+import { RevealIcon } from './reveal-icon';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { supportLanguageFor } from '../languages/translation-language';
 import { HighlightColorPicker } from './highlight-color-picker';
@@ -524,6 +525,7 @@ function writeExampleSuggestions(
   imports: [
     NgTemplateOutlet,
     Reveal,
+    RevealIcon,
     ModeIcon,
     GemIcon,
     HighlightColorPicker,
@@ -3147,9 +3149,19 @@ function writeExampleSuggestions(
                 <section class="stats-block">
                   <h3>Activity</h3>
                   <ul class="stats-activity">
-                    @let reworked = activityCount(definition, 'rework');
                     @let seen = activityCount(definition, 'view');
+                    @let reworked = activityCount(definition, 'rework');
                     @let revealed = activityCount(definition, 'reveal');
+                    <li [attr.aria-label]="activityLabel('view', seen)">
+                      <span class="stats-well" aria-hidden="true">
+                        <svg class="stats-mark" viewBox="0 0 24 24">
+                          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </span>
+                      <span class="stats-count">{{ seen }}</span>
+                      <span class="stats-caption">Seen</span>
+                    </li>
                     <li [attr.aria-label]="activityLabel('rework', reworked)">
                       <span class="stats-well" aria-hidden="true">
                         <svg class="stats-mark" viewBox="0 0 24 24">
@@ -3161,26 +3173,9 @@ function writeExampleSuggestions(
                       <span class="stats-count">{{ reworked }}</span>
                       <span class="stats-caption">Reworked</span>
                     </li>
-                    <li [attr.aria-label]="activityLabel('view', seen)">
-                      <span class="stats-well" aria-hidden="true">
-                        <svg class="stats-mark" viewBox="0 0 24 24">
-                          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                      </span>
-                      <span class="stats-count">{{ seen }}</span>
-                      <span class="stats-caption">Seen</span>
-                    </li>
                     <li [attr.aria-label]="activityLabel('reveal', revealed)">
                       <span class="stats-well" aria-hidden="true">
-                        <svg class="stats-mark" viewBox="0 0 24 24">
-                          <path d="m5 8 6 6" />
-                          <path d="m4 14 6-6 2-3" />
-                          <path d="M2 5h12" />
-                          <path d="M7 2h1" />
-                          <path d="m22 22-5-10-5 10" />
-                          <path d="M14 18h6" />
-                        </svg>
+                        <app-reveal-icon />
                       </span>
                       <span class="stats-count">{{ revealed }}</span>
                       <span class="stats-caption">Revealed</span>

@@ -20,6 +20,7 @@ import { ElementModal } from '../elements/element-modal';
 import { GemStatsModal } from '../elements/gem-stats-modal';
 import { HighlightColorPicker } from '../elements/highlight-color-picker';
 import { ModeIcon } from '../elements/mode-icon';
+import { RevealIcon } from '../elements/reveal-icon';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { DiscoverModal } from './discover-modal';
 import { ensureSelectedLanguage, writeSelectedLanguage } from './selected-language';
@@ -142,6 +143,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     CdkDragPreview,
     ElementModal,
     ModeIcon,
+    RevealIcon,
     DiscoverModal,
     Settings,
     GemStatsModal,
@@ -364,6 +366,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   <span class="bone bone-stat"></span>
                   <span class="bone bone-stat"></span>
                   <span class="bone bone-stat"></span>
+                  <span class="bone bone-stat"></span>
                 </div>
               </li>
             }
@@ -434,9 +437,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                     [attr.title]="openedLabel(activity.opened)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
-                      />
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                      <circle cx="12" cy="12" r="3" />
                     </svg>
                     <span>{{ activity.opened }}</span>
                   </span>
@@ -452,6 +454,15 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                       />
                     </svg>
                     <span>{{ activity.reworked }}</span>
+                  </span>
+                  <span
+                    class="stat stat-revealed"
+                    [class.zero]="activity.revealed === 0"
+                    [attr.aria-label]="revealedLabel(activity.revealed)"
+                    [attr.title]="revealedLabel(activity.revealed)"
+                  >
+                    <app-reveal-icon />
+                    <span>{{ activity.revealed }}</span>
                   </span>
                   <span
                     class="stat stat-exercised"
@@ -1725,6 +1736,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       opacity: 0.4;
     }
 
+    .stat app-reveal-icon {
+      width: 1.15rem;
+      height: 0.52rem;
+    }
+
     .stat svg {
       display: block;
       width: 0.75rem;
@@ -2904,14 +2920,21 @@ export class LanguagePage {
     return pills.map((pill) => pill.value).join(' · ');
   }
 
-  activityTotals(element: StoredElement): { opened: number; reworked: number; exercises: number } {
+  activityTotals(element: StoredElement): {
+    opened: number;
+    reworked: number;
+    revealed: number;
+    exercises: number;
+  } {
     let opened = 0;
     let reworked = 0;
+    let revealed = 0;
     let exercises = 0;
     for (const item of loggedDefinitions(element)) {
       for (const entry of item.log) {
         if (entry.event === 'view') opened += 1;
         else if (entry.event === 'rework') reworked += 1;
+        else if (entry.event === 'reveal') revealed += 1;
         else if (
           entry.event === 'game' &&
           (entry.game === 'translation' || entry.game === 'example' || entry.game === 'definition')
@@ -2920,17 +2943,22 @@ export class LanguagePage {
         }
       }
     }
-    return { opened, reworked, exercises };
+    return { opened, reworked, revealed, exercises };
   }
 
   openedLabel(count: number): string {
-    if (count === 0) return 'Not opened';
-    return count === 1 ? 'Opened once' : `Opened ${count} times`;
+    if (count === 0) return 'Not seen';
+    return count === 1 ? 'Seen once' : `Seen ${count} times`;
   }
 
   reworkedLabel(count: number): string {
     if (count === 0) return 'Not reworked';
     return count === 1 ? 'Reworked once' : `Reworked ${count} times`;
+  }
+
+  revealedLabel(count: number): string {
+    if (count === 0) return 'Not revealed';
+    return count === 1 ? 'Revealed once' : `Revealed ${count} times`;
   }
 
   exercisedLabel(count: number): string {

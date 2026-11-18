@@ -21,6 +21,7 @@ import {
 } from './gem-stats-goals';
 import { GemStatsJob } from './gem-stats-job';
 import { GemIcon } from './gem-icon';
+import { RevealIcon } from './reveal-icon';
 import type { DayStats, ElementDayStats, GemCounts } from './gem-stats.worker';
 
 type GemGame = keyof GemCounts;
@@ -31,15 +32,15 @@ const GAMES: readonly { game: GemGame; label: string }[] = [
   { game: 'definition', label: 'Definition' },
 ];
 
-type ActivityKey = 'added' | 'opened' | 'reworked';
+type ActivityKey = 'opened' | 'reworked' | 'revealed';
 
 const ACTIVITIES: readonly {
   key: ActivityKey;
   label: string;
 }[] = [
-  { key: 'added', label: 'Added' },
-  { key: 'opened', label: 'Opened' },
+  { key: 'opened', label: 'Seen' },
   { key: 'reworked', label: 'Reworked' },
+  { key: 'revealed', label: 'Revealed' },
 ];
 
 type ElementSort =
@@ -58,13 +59,14 @@ const EMPTY_DAY: DayStats = {
   added: 0,
   opened: 0,
   reworked: 0,
+  revealed: 0,
   exercises: 0,
   elements: [],
 };
 
 @Component({
   selector: 'app-gem-stats',
-  imports: [NgTemplateOutlet, GemIcon],
+  imports: [NgTemplateOutlet, GemIcon, RevealIcon],
   template: `
     <div
       class="backdrop"
@@ -209,6 +211,20 @@ const EMPTY_DAY: DayStats = {
                   <span class="caption">Streak</span>
                 </div>
               }
+              <div
+                class="streak-card added-card"
+                [attr.aria-label]="activityCardLabel('Added', shown().added)"
+                [attr.title]="activityCardLabel('Added', shown().added)"
+              >
+                <span class="well" aria-hidden="true">
+                  <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12h14" />
+                    <path d="M12 5v14" />
+                  </svg>
+                </span>
+                <span class="count">{{ formatCount(shown().added) }}</span>
+                <span class="caption">Added</span>
+              </div>
               <div class="hero" [attr.aria-label]="exerciseLabel(shown().exercises)">
               <div class="hero-copy">
                 <p class="eyebrow">
@@ -384,13 +400,32 @@ const EMPTY_DAY: DayStats = {
               <ul class="elements">
                 @if (day()) {
                   @for (element of sortedElements(); track element.id) {
-                    <li class="row">
+                    <li class="row" [class.has-new]="element.added > 0">
+                      @if (element.added > 0) {
+                        <span class="new-sign">New</span>
+                      }
                       <div class="row-main">
                         <span class="title" [attr.title]="titleOf(element)">{{
                           titleOf(element)
                         }}</span>
                         @if (hasBits(element) || elementSort()) {
                           <span class="bits">
+                            @for (row of activities; track row.key) {
+                              <span
+                                class="bit"
+                                [class.on]="isSort(activitySort(row.key))"
+                                [attr.aria-label]="activityLabel(row.label, element[row.key])"
+                                [attr.title]="activityLabel(row.label, element[row.key])"
+                              >
+                                <ng-container
+                                  *ngTemplateOutlet="
+                                    activityIcon;
+                                    context: { $implicit: row.key }
+                                  "
+                                />
+                                <span>{{ element[row.key] }}</span>
+                              </span>
+                            }
                             @if (showsMetric(element.exercises, exerciseSort)) {
                               <span
                                 class="bit"
@@ -413,24 +448,6 @@ const EMPTY_DAY: DayStats = {
                                 >
                                   <app-gem-icon class="stone-icon" [game]="row.game" />
                                   <span>{{ element.gems[row.game] }}</span>
-                                </span>
-                              }
-                            }
-                            @for (row of activities; track row.key) {
-                              @if (showsMetric(element[row.key], activitySort(row.key))) {
-                                <span
-                                  class="bit"
-                                  [class.on]="isSort(activitySort(row.key))"
-                                  [attr.aria-label]="activityLabel(row.label, element[row.key])"
-                                  [attr.title]="activityLabel(row.label, element[row.key])"
-                                >
-                                  <ng-container
-                                    *ngTemplateOutlet="
-                                      activityIcon;
-                                      context: { $implicit: row.key }
-                                    "
-                                  />
-                                  <span>{{ element[row.key] }}</span>
                                 </span>
                               }
                             }
@@ -494,18 +511,14 @@ const EMPTY_DAY: DayStats = {
     </ng-template>
     <ng-template #activityIcon let-key>
       @switch (key) {
-        @case ('added') {
-          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 12h14" />
-            <path d="M12 5v14" />
-          </svg>
-        }
         @case ('opened') {
           <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
-            />
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+            <circle cx="12" cy="12" r="3" />
           </svg>
+        }
+        @case ('revealed') {
+          <app-reveal-icon />
         }
         @case ('reworked') {
           <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
@@ -773,7 +786,7 @@ const EMPTY_DAY: DayStats = {
 
     .streak-card {
       display: flex;
-      flex: 0 0 5.6rem;
+      flex: 0 0 4.7rem;
       flex-direction: column;
       align-items: center;
       justify-content: center;
@@ -816,6 +829,27 @@ const EMPTY_DAY: DayStats = {
       line-height: 1.2;
       text-align: center;
       text-transform: uppercase;
+    }
+
+    .added-card .well {
+      background: rgba(8, 10, 18, 0.45);
+      color: var(--text-muted);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    .added-card .mark {
+      width: 1.05rem;
+      height: 1.05rem;
+    }
+
+    .activity app-reveal-icon {
+      width: 1.55rem;
+      height: 0.7rem;
+    }
+
+    .bit app-reveal-icon {
+      width: 1.15rem;
+      height: 0.52rem;
     }
 
     .hero-copy {
@@ -1282,6 +1316,7 @@ const EMPTY_DAY: DayStats = {
     }
 
     .row {
+      position: relative;
       display: flex;
       align-items: center;
       gap: 0.7rem;
@@ -1303,6 +1338,7 @@ const EMPTY_DAY: DayStats = {
     }
 
     .title {
+      align-self: stretch;
       flex: 0 1 auto;
       min-width: 0;
       overflow: hidden;
@@ -1313,10 +1349,14 @@ const EMPTY_DAY: DayStats = {
       white-space: nowrap;
     }
 
+    .row.has-new .title {
+      padding-right: 2.6rem;
+    }
+
     .bits {
       display: flex;
       flex: none;
-      flex-flow: row nowrap;
+      flex-flow: row wrap;
       align-items: center;
       gap: 0.45rem;
       line-height: 1;
@@ -1343,6 +1383,23 @@ const EMPTY_DAY: DayStats = {
 
     .bit.on:not([data-game]) {
       color: var(--text);
+    }
+
+    .new-sign {
+      position: absolute;
+      top: 0.55rem;
+      right: 0.6rem;
+      display: inline-flex;
+      align-items: center;
+      padding: 0.16rem 0.38rem;
+      border-radius: 999px;
+      background: var(--danger);
+      color: #fff;
+      font-size: 0.6rem;
+      font-weight: 750;
+      letter-spacing: 0.05em;
+      line-height: 1;
+      text-transform: uppercase;
     }
 
     .bit .mark,
@@ -1461,7 +1518,6 @@ export class GemStatsModal {
       });
     }
     for (const row of this.activities) {
-      if (row.key === 'added') continue;
       options.push({
         id: row.key,
         sort: { kind: 'activity', key: row.key },
@@ -1660,7 +1716,8 @@ export class GemStatsModal {
 
   hasBits(element: ElementDayStats): boolean {
     const gems = this.games().reduce((sum, row) => sum + element.gems[row.game], 0);
-    return gems + element.exercises + element.added + element.opened + element.reworked > 0;
+    const activity = element.added + element.opened + element.reworked + element.revealed;
+    return gems + element.exercises + activity > 0;
   }
 
   languageName(): string {
