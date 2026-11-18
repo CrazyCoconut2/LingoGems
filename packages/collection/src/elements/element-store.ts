@@ -94,14 +94,26 @@ export type DefinitionFormLog = {
   snapshot?: DefinitionSnapshot;
 };
 
+/** A translation uncovered on a definition or one of its examples. Older rows may only have `at`. */
+export type DefinitionRevealLog = {
+  event: 'reveal';
+  at: number;
+  /** Definition or example wording that was on screen. */
+  phrase?: string;
+  /** Translation that was uncovered. */
+  translation?: string;
+  /** Which passage was uncovered. Missing on older rows. */
+  kind?: 'definition' | 'example';
+};
+
 /** One interaction on a definition. `at` is Unix time in UTC. */
 export type DefinitionLogEntry =
   | DefinitionGameLog
   | DefinitionReworkLog
   | DefinitionExampleLog
   | DefinitionFormLog
-  | { event: 'view'; at: number }
-  | { event: 'reveal'; at: number };
+  | DefinitionRevealLog
+  | { event: 'view'; at: number };
 
 /** An open. `at` is when it happened. */
 export type ElementLogEntry = { event: 'click'; at: number };
@@ -859,11 +871,28 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     before?: unknown;
     after?: unknown;
     snapshot?: unknown;
+    phrase?: unknown;
+    translation?: unknown;
+    kind?: unknown;
   };
   const at = typeof source.at === 'number' && Number.isFinite(source.at) ? source.at : null;
-  if (source.event === 'view' || source.event === 'reveal') {
+  if (source.event === 'view') {
     if (at == null) return null;
-    return { event: source.event, at };
+    return { event: 'view', at };
+  }
+  if (source.event === 'reveal') {
+    if (at == null) return null;
+    const phrase = typeof source.phrase === 'string' ? source.phrase.trim() : '';
+    const translation = typeof source.translation === 'string' ? source.translation.trim() : '';
+    const kind =
+      source.kind === 'definition' || source.kind === 'example' ? source.kind : undefined;
+    return {
+      event: 'reveal',
+      at,
+      ...(phrase ? { phrase } : {}),
+      ...(translation ? { translation } : {}),
+      ...(kind ? { kind } : {}),
+    };
   }
   if (source.event === 'rework') {
     if (at == null) return null;
@@ -979,6 +1008,17 @@ function presentLog(log: DefinitionLogEntry[]): DefinitionLogEntry[] {
         at: entry.at,
         forms: entry.forms.map((form) => form.trim()).filter(Boolean),
         ...(entry.snapshot ? { snapshot: presentSnapshot(entry.snapshot) } : {}),
+      };
+    }
+    if (entry.event === 'reveal') {
+      const phrase = entry.phrase ? capitalizePhrase(entry.phrase) : '';
+      const translation = entry.translation ? capitalizePhrase(entry.translation) : '';
+      return {
+        event: 'reveal',
+        at: entry.at,
+        ...(phrase ? { phrase } : {}),
+        ...(translation ? { translation } : {}),
+        ...(entry.kind ? { kind: entry.kind } : {}),
       };
     }
     return entry;

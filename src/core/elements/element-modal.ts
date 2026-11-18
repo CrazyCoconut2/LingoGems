@@ -43,6 +43,7 @@ import {
   type DefinitionGameLog,
   type DefinitionHighlightMatch,
   type DefinitionLogEntry,
+  type DefinitionRevealLog,
   type DefinitionReworkLog,
   type DefinitionSnapshot,
   type DefinitionHighlightPart,
@@ -172,6 +173,7 @@ type DefinitionHistoryEntry =
   | DefinitionReworkLog
   | DefinitionExampleLog
   | DefinitionFormLog
+  | DefinitionRevealLog
   | { event: 'view'; at: number };
 
 type ExampleDraft = {
@@ -930,7 +932,9 @@ function writeExampleSuggestions(
                                 <app-reveal
                                   [text]="labeledTranslation(translation)"
                                   [locked]="definitionInPlay(index)"
-                                  (unveiled)="noteReveal(index)"
+                                  (unveiled)="
+                                    noteReveal(index, passage.text, translation.text, 'definition')
+                                  "
                                 />
                               </li>
                             }
@@ -1070,7 +1074,14 @@ function writeExampleSuggestions(
                                             <app-reveal
                                               [text]="labeledTranslation(translation)"
                                               [locked]="definitionInPlay(index)"
-                                              (unveiled)="noteReveal(index)"
+                                              (unveiled)="
+                                                noteReveal(
+                                                  index,
+                                                  passage.text,
+                                                  translation.text,
+                                                  'example'
+                                                )
+                                              "
                                             />
                                           </li>
                                         }
@@ -1704,7 +1715,14 @@ function writeExampleSuggestions(
                                             <li>
                                               <app-reveal
                                                 [text]="labeledTranslation(translation)"
-                                                (unveiled)="noteReveal(workIndex)"
+                                                (unveiled)="
+                                                  noteReveal(
+                                                    workIndex,
+                                                    passage.text,
+                                                    translation.text,
+                                                    'example'
+                                                  )
+                                                "
                                               />
                                             </li>
                                           }
@@ -2310,7 +2328,9 @@ function writeExampleSuggestions(
                               <li>
                                 <app-reveal
                                   [text]="labeledTranslation(translation)"
-                                  (unveiled)="noteReveal(prompt)"
+                                  (unveiled)="
+                                    noteReveal(prompt, passage.text, translation.text, 'definition')
+                                  "
                                 />
                               </li>
                             }
@@ -2507,7 +2527,9 @@ function writeExampleSuggestions(
                           <li>
                             <app-reveal
                               [text]="labeledTranslation(translation)"
-                              (unveiled)="noteReveal(prompt)"
+                              (unveiled)="
+                                noteReveal(prompt, gloss.text, translation.text, 'definition')
+                              "
                             />
                           </li>
                         }
@@ -2536,7 +2558,9 @@ function writeExampleSuggestions(
                               <li>
                                 <app-reveal
                                   [text]="labeledTranslation(translation)"
-                                  (unveiled)="noteReveal(prompt)"
+                                  (unveiled)="
+                                    noteReveal(prompt, gloss.text, translation.text, 'definition')
+                                  "
                                 />
                               </li>
                             }
@@ -2814,7 +2838,9 @@ function writeExampleSuggestions(
                             <app-reveal
                               [text]="labeledTranslation(translation)"
                               [locked]="!exampleSubmitted(prompt)"
-                              (unveiled)="noteReveal(prompt)"
+                              (unveiled)="
+                                noteReveal(prompt, gloss.text, translation.text, 'definition')
+                              "
                             />
                           </li>
                         }
@@ -3206,7 +3232,10 @@ function writeExampleSuggestions(
                       </button>
                     </ng-template>
                     @for (entry of definitionHistory(definition); track $index) {
-                      @if (entry.event === 'view') {
+                      @if (
+                        entry.event === 'view' ||
+                        (entry.event === 'reveal' && !entry.phrase && !entry.translation)
+                      ) {
                         <div
                           class="log-row log-plain"
                           [attr.aria-label]="historyAria(definition, entry)"
@@ -3269,6 +3298,7 @@ function writeExampleSuggestions(
                                 let-text="text"
                                 let-equivalent="equivalent"
                                 let-metadata="metadata"
+                                let-kind="kind"
                               >
                                 @let passage = parsePassage(text);
                                 @if (passage.text) {
@@ -3281,7 +3311,14 @@ function writeExampleSuggestions(
                                       <li>
                                         <app-reveal
                                           [text]="labeledTranslation(translation)"
-                                          (unveiled)="noteReveal(index)"
+                                          (unveiled)="
+                                            noteReveal(
+                                              index,
+                                              passage.text,
+                                              translation.text,
+                                              kind
+                                            )
+                                          "
                                         />
                                       </li>
                                     }
@@ -3311,7 +3348,19 @@ function writeExampleSuggestions(
                                   </ul>
                                 }
                               </ng-template>
-                              @if (entry.event === 'rework') {
+                              @if (entry.event === 'reveal') {
+                                @if (entry.phrase) {
+                                  <p class="field-label">
+                                    {{ entry.kind === 'example' ? 'Example' : 'Definition' }}
+                                  </p>
+                                  <p class="passage">{{ shownDefinition(entry.phrase) }}</p>
+                                }
+                                @if (entry.translation) {
+                                  <p class="field-label">Translation</p>
+                                  <p>{{ entry.translation }}</p>
+                                }
+                                <p class="hint">{{ exerciseWhen(entry.at) }}</p>
+                              } @else if (entry.event === 'rework') {
                                 @if (entry.before && entry.after) {
                                   <div class="compare">
                                     <div class="compare-side">
@@ -3322,6 +3371,7 @@ function writeExampleSuggestions(
                                           text: entry.before.text,
                                           equivalent: entry.before.equivalent,
                                           metadata: entry.before.metadata,
+                                          kind: 'definition',
                                         }"
                                       />
                                     </div>
@@ -3333,6 +3383,7 @@ function writeExampleSuggestions(
                                           text: entry.after.text,
                                           equivalent: entry.after.equivalent,
                                           metadata: entry.after.metadata,
+                                          kind: 'definition',
                                         }"
                                       />
                                     </div>
@@ -3345,6 +3396,7 @@ function writeExampleSuggestions(
                                       text: side.text,
                                       equivalent: side.equivalent,
                                       metadata: side.metadata,
+                                      kind: 'definition',
                                     }"
                                   />
                                 } @else if (entry.after; as side) {
@@ -3355,6 +3407,7 @@ function writeExampleSuggestions(
                                       text: side.text,
                                       equivalent: side.equivalent,
                                       metadata: side.metadata,
+                                      kind: 'definition',
                                     }"
                                   />
                                 } @else {
@@ -3370,6 +3423,7 @@ function writeExampleSuggestions(
                                       [ngTemplateOutletContext]="{
                                         text: snapshot.text,
                                         equivalent: snapshot.equivalent,
+                                        kind: 'definition',
                                       }"
                                     />
                                   </div>
@@ -3382,6 +3436,7 @@ function writeExampleSuggestions(
                                       [ngTemplateOutletContext]="{
                                         text: entry.example,
                                         equivalent: '',
+                                        kind: 'example',
                                       }"
                                     />
                                   </div>
@@ -3396,6 +3451,7 @@ function writeExampleSuggestions(
                                       [ngTemplateOutletContext]="{
                                         text: snapshot.text,
                                         equivalent: snapshot.equivalent,
+                                        kind: 'definition',
                                       }"
                                     />
                                   </div>
@@ -3430,7 +3486,14 @@ function writeExampleSuggestions(
                                           <li>
                                             <app-reveal
                                               [text]="labeledTranslation(translation)"
-                                              (unveiled)="noteReveal(index)"
+                                              (unveiled)="
+                                                noteReveal(
+                                                  index,
+                                                  passage.text,
+                                                  translation.text,
+                                                  'definition'
+                                                )
+                                              "
                                             />
                                           </li>
                                         }
@@ -3449,7 +3512,14 @@ function writeExampleSuggestions(
                                           <li>
                                             <app-reveal
                                               [text]="labeledTranslation(translation)"
-                                              (unveiled)="noteReveal(index)"
+                                              (unveiled)="
+                                                noteReveal(
+                                                  index,
+                                                  passage.text,
+                                                  translation.text,
+                                                  'definition'
+                                                )
+                                              "
                                             />
                                           </li>
                                         }
@@ -3486,7 +3556,14 @@ function writeExampleSuggestions(
                                               <li>
                                                 <app-reveal
                                                   [text]="labeledTranslation(translation)"
-                                                  (unveiled)="noteReveal(index)"
+                                                  (unveiled)="
+                                                    noteReveal(
+                                                      index,
+                                                      passage.text,
+                                                      translation.text,
+                                                      'definition'
+                                                    )
+                                                  "
                                                 />
                                               </li>
                                             }
@@ -8761,6 +8838,7 @@ export class ElementModal {
       if (entry?.event === 'example') return 'Delete this example?';
       if (entry?.event === 'form') return 'Delete these forms?';
       if (entry?.event === 'view') return 'Delete this seen event?';
+      if (entry?.event === 'reveal') return 'Delete this revealed event?';
       return 'Delete this exercise?';
     }
     return 'Delete this example?';
@@ -9255,11 +9333,22 @@ export class ElementModal {
   private deletePressX = 0;
   private deletePressY = 0;
 
-  noteReveal(index: number): void {
+  noteReveal(
+    index: number,
+    phrase: string,
+    translation: string,
+    kind: 'definition' | 'example',
+  ): void {
+    const wording = phrase.trim();
+    const meaning = translation.trim();
+    if (!wording || !meaning) return;
     const definitions = this.copyDefinitions();
     const definition = definitions[index];
     if (!definition) return;
-    definition.log = [...definition.log, { event: 'reveal', at: Date.now() }];
+    definition.log = [
+      ...definition.log,
+      { event: 'reveal', at: Date.now(), phrase: wording, translation: meaning, kind },
+    ];
     void this.persist(definitions, this.currentElement().equivalents, { busy: false });
   }
 
@@ -9685,7 +9774,7 @@ export class ElementModal {
     return 1;
   }
 
-  /** Reworks, saved examples, saved forms, exercises, and seen events for this definition. */
+  /** Reworks, saved examples, saved forms, exercises, reveals, and seen events for this definition. */
   definitionHistory(definition: ElementDefinition): DefinitionHistoryEntry[] {
     return definition.log
       .filter((entry): entry is DefinitionHistoryEntry => this.listedHistory(entry))
@@ -9697,6 +9786,7 @@ export class ElementModal {
     if (entry.event === 'example') return 'Example';
     if (entry.event === 'form') return 'Forms';
     if (entry.event === 'view') return 'Seen';
+    if (entry.event === 'reveal') return 'Revealed';
     return this.modeLabel(this.logMode(entry.game));
   }
 
@@ -9724,6 +9814,7 @@ export class ElementModal {
       entry.event === 'example' ||
       entry.event === 'form' ||
       entry.event === 'view' ||
+      entry.event === 'reveal' ||
       entry.event === 'game'
     );
   }

@@ -53,6 +53,7 @@ export {
   type DefinitionGameLog,
   type DefinitionLogBy,
   type DefinitionLogEntry,
+  type DefinitionRevealLog,
   type DefinitionReworkLog,
   type DefinitionSnapshot,
   type ElementDefinition,
