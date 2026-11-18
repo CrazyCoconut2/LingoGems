@@ -42,10 +42,12 @@ export {
 export { generateEquivalent, translateTexts } from './translate';
 
 export {
+  MAX_MISSING_DEFINITIONS_INSTRUCTION,
   generateDefinitionFromExample,
   generateDefinitions,
   generateElementFromSelection,
   generateForms,
+  type GeneratedDefinition,
 } from './definitions';
 
 export {
