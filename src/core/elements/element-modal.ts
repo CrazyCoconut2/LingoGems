@@ -857,16 +857,9 @@ function writeExampleSuggestions(
                           @if (definitionGame() && definitionConcealed(index)) {
                             <div class="spoken">
                               <div class="spoken-copy">
-                                <button
-                                  type="button"
-                                  class="definition-cue"
-                                  aria-label="Write the definition"
-                                  (click)="openDefinitionPrompt(index)"
-                                >
-                                  <span class="definition-cue-text" aria-hidden="true">{{
-                                    shownDefinition(passage.text)
-                                  }}</span>
-                                </button>
+                                <p class="passage definition-cue-text" aria-hidden="true">
+                                  {{ shownDefinition(passage.text) }}
+                                </p>
                                 <ng-container [ngTemplateOutlet]="passageTranslations" />
                               </div>
                               <ng-container
@@ -950,29 +943,21 @@ function writeExampleSuggestions(
                         <ul class="sense-meta">
                           @if (supportAvailable() && equivalent) {
                             <li class="sense-equivalent">
-                              @if (translationGame()) {
+                              @if (translationGame() && !equivalentSubmitted(index)) {
+                                <span class="guess-answer play-blur" aria-hidden="true">{{
+                                  labeledEquivalent(equivalent)
+                                }}</span>
+                              } @else if (translationGame()) {
                                 <button
                                   type="button"
                                   class="guess-open"
-                                  [class.needs-click]="!equivalentSubmitted(index)"
-                                  [attr.aria-label]="
-                                    equivalentSubmitted(index)
-                                      ? 'See your equivalent'
-                                      : 'Write the equivalent'
-                                  "
-                                  [attr.title]="
-                                    equivalentSubmitted(index)
-                                      ? 'See your equivalent'
-                                      : 'Write the equivalent'
-                                  "
+                                  aria-label="See your equivalent"
+                                  title="See your equivalent"
                                   (click)="openEquivalentPrompt(index)"
                                 >
-                                  <span
-                                    class="guess-answer"
-                                    [class.play-blur]="!equivalentSubmitted(index)"
-                                    [attr.aria-hidden]="equivalentSubmitted(index) ? null : true"
-                                    >{{ labeledEquivalent(equivalent) }}</span
-                                  >
+                                  <span class="guess-answer">{{
+                                    labeledEquivalent(equivalent)
+                                  }}</span>
                                 </button>
                               } @else {
                                 <ng-container [ngTemplateOutlet]="translationIcon" />
@@ -994,13 +979,22 @@ function writeExampleSuggestions(
                           }
                         </ul>
                       }
+                      @if (playCue(index); as cue) {
+                        <button
+                          type="button"
+                          class="btn btn-secondary play-cta"
+                          (click)="openPlayCue(index)"
+                        >
+                          {{ cue.label }}
+                          <span class="play-cta-count">{{ cue.left }} left</span>
+                        </button>
+                      }
                     </div>
                   </div>
 
-                  @if (definition.examples.length || exampleCue(index)) {
+                  @if (definition.examples.length) {
                     <section class="group">
-                      @if (definition.examples.length) {
-                        <ul class="examples" aria-label="Examples">
+                      <ul class="examples" aria-label="Examples">
                           @for (
                             exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
                             track exampleIndex
@@ -1108,17 +1102,7 @@ function writeExampleSuggestions(
                               </div>
                             </li>
                           }
-                        </ul>
-                      }
-                      @if (exampleCue(index)) {
-                        <button
-                          type="button"
-                          class="btn btn-secondary write-example"
-                          (click)="openExamplePrompt(index)"
-                        >
-                          Write an example
-                        </button>
-                      }
+                      </ul>
                     </section>
                   }
                   @if (definition.forms.length) {
@@ -3759,24 +3743,11 @@ function writeExampleSuggestions(
       --scintilla-hot: #b8f5bc;
     }
 
-    .definition-cue {
-      display: block;
-      width: 100%;
-      margin: 0;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      line-height: inherit;
-      text-align: start;
-      cursor: pointer;
-    }
-
     .definition-cue-text {
       color: var(--text-muted);
       white-space: pre-wrap;
       filter: blur(0.55em);
+      pointer-events: none;
       user-select: none;
       animation: blur-scintillate 1s linear infinite;
     }
@@ -3813,8 +3784,7 @@ function writeExampleSuggestions(
 
     @media (prefers-reduced-motion: reduce) {
       .definition-cue-text,
-      .guess-open.needs-click,
-      .write-example {
+      .play-cta {
         animation: none;
       }
     }
@@ -4145,8 +4115,7 @@ function writeExampleSuggestions(
     .sense > .group > .section-heading > .section-title,
     .sense > .group > .section-title,
     .sense > .group > .examples,
-    .sense > .group > .forms,
-    .sense > .group > .write-example {
+    .sense > .group > .forms {
       margin-inline-start: var(--phrase-indent, 0);
     }
 
@@ -4740,20 +4709,8 @@ function writeExampleSuggestions(
       cursor: pointer;
     }
 
-    .guess-open:hover:not(.needs-click) {
+    .guess-open:hover {
       background: rgba(var(--accent-rgb), 0.16);
-    }
-
-    .guess-open.needs-click {
-      color: var(--scintilla);
-      border-color: rgba(var(--scintilla-rgb), 0.78);
-      background: rgba(var(--scintilla-rgb), 0.14);
-      box-shadow: 0 0 10px rgba(var(--scintilla-rgb), 0.28);
-      animation: click-scintillate 1s linear infinite;
-    }
-
-    .guess-open.needs-click:hover {
-      background: rgba(var(--scintilla-rgb), 0.24);
     }
 
     .equivalent-prompt {
@@ -4816,8 +4773,7 @@ function writeExampleSuggestions(
       gap: 0.7rem;
     }
 
-    .sense-copy .passage,
-    .sense-copy .definition-cue {
+    .sense-copy .passage {
       font-size: 0.95rem;
       font-weight: 500;
       line-height: 1.625;
@@ -5437,13 +5393,20 @@ function writeExampleSuggestions(
       padding-top: 0;
     }
 
-    .write-example {
-      margin-top: 0.35rem;
+    .play-cta {
+      align-self: flex-start;
+      gap: 0.55rem;
       color: var(--scintilla);
       border-color: rgba(var(--scintilla-rgb), 0.78);
       background: rgba(var(--scintilla-rgb), 0.14);
       box-shadow: 0 0 10px rgba(var(--scintilla-rgb), 0.28);
       animation: click-scintillate 1s linear infinite;
+    }
+
+    .play-cta-count {
+      font-size: 0.75rem;
+      font-weight: 650;
+      opacity: 0.72;
     }
 
     .editor-sheet > .sheet-footer .btn {
@@ -9337,7 +9300,43 @@ export class ElementModal {
     return prompted > 0;
   }
 
-  /** This definition still needs an example, so its add button is the click. */
+  /** The button for this definition, with how many exercises this game still has. */
+  playCue(index: number): { label: string; left: number } | null {
+    if (this.definitionGame() && this.definitionConcealed(index)) {
+      return { label: 'Write the definition', left: this.playLeft(3) };
+    }
+    if (this.translationCue(index)) {
+      return { label: 'Write the equivalent', left: this.playLeft(1) };
+    }
+    if (this.exampleCue(index)) return { label: 'Write an example', left: this.playLeft(2) };
+    return null;
+  }
+
+  openPlayCue(index: number): void {
+    if (this.definitionGame() && this.definitionConcealed(index)) {
+      this.openDefinitionPrompt(index);
+      return;
+    }
+    if (this.translationCue(index)) {
+      this.openEquivalentPrompt(index);
+      return;
+    }
+    if (this.exampleCue(index)) this.openExamplePrompt(index);
+  }
+
+  /** Exercises in this game that are not scored yet. */
+  private playLeft(mode: ElementMode): number {
+    return this.unscoredExerciseIndexes(mode, this.element().definitions).length;
+  }
+
+  /** This definition still needs its equivalent written. */
+  translationCue(index: number): boolean {
+    if (!this.translationGame() || this.equivalentSubmitted(index)) return false;
+    const definition = this.element().definitions[index];
+    return !!definition && this.equivalentText(definition).trim().length > 0;
+  }
+
+  /** This definition still needs an example. */
   exampleCue(index: number): boolean {
     if (!this.exampleGame()) return false;
     if (this.exampleRewardAt(index)) return false;
@@ -9349,7 +9348,7 @@ export class ElementModal {
     return this.inPlay() && this.playMode() === 3;
   }
 
-  /** A definition is still hidden, so that blurred text is the click. */
+  /** A definition is still hidden. */
   definitionCue(): boolean {
     if (!this.definitionGame()) return false;
     return this.element().definitions.some((_, index) => this.definitionConcealed(index));
