@@ -400,7 +400,14 @@ const EMPTY_DAY: DayStats = {
               <ul class="elements">
                 @if (day()) {
                   @for (element of sortedElements(); track element.id) {
-                    <li class="row" [class.has-new]="element.added > 0">
+                    <li>
+                      <button
+                        type="button"
+                        class="row"
+                        [class.has-new]="element.added > 0"
+                        [attr.aria-label]="titleOf(element)"
+                        (click)="opened.emit(element.id)"
+                      >
                       @if (element.added > 0) {
                         <span class="new-sign">New</span>
                       }
@@ -454,6 +461,7 @@ const EMPTY_DAY: DayStats = {
                           </span>
                         }
                       </div>
+                      </button>
                     </li>
                   }
                 } @else {
@@ -1327,6 +1335,19 @@ const EMPTY_DAY: DayStats = {
       background: var(--surface-2);
     }
 
+    button.row {
+      width: 100%;
+      color: inherit;
+      font: inherit;
+      text-align: start;
+      cursor: pointer;
+    }
+
+    button.row:hover {
+      border-color: rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
     .row-main {
       display: flex;
       flex: 1;
@@ -1490,6 +1511,7 @@ const EMPTY_DAY: DayStats = {
 export class GemStatsModal {
   readonly language = input.required<string>();
   readonly closed = output<void>();
+  readonly opened = output<string>();
   readonly games = computed(() =>
     supportLanguageFor(this.language())
       ? GAMES

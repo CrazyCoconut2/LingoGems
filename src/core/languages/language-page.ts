@@ -896,7 +896,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       }
 
       @if (statsOpen()) {
-        <app-gem-stats [language]="code()" (closed)="closeStats()" />
+        <app-gem-stats
+          [language]="code()"
+          (closed)="closeStats()"
+          (opened)="openStatsElement($event)"
+        />
       }
 
       @if (opened(); as element) {
@@ -3247,6 +3251,11 @@ export class LanguagePage {
     if (!this.statsOpen()) return;
     this.statsOpen.set(false);
     this.unlockScroll();
+  }
+
+  openStatsElement(id: string): void {
+    this.closeStats();
+    this.openElement(id);
   }
 
   async recomputeMetadata(): Promise<void> {
