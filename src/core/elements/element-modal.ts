@@ -35,6 +35,7 @@ import {
   isValidForm,
   languageDisplayName,
   saveElement,
+  sensesWithEquivalents,
   sanitizeElementColor,
   TRANSLATION_GEM_MAX,
   type DefinitionExampleLog,
@@ -113,7 +114,7 @@ type PassageSelection = {
 type PreparedElement = {
   title: string;
   language: string;
-  definitions: ElementDefinition[];
+  definitions: Array<ElementDefinition & { equivalent?: string }>;
   example: string;
   definition: number;
 };
@@ -193,6 +194,7 @@ type StoredSuggestion = {
   text: string;
   metadata: ElementMetadata;
   example?: string;
+  equivalent?: string;
 };
 
 const SUGGESTIONS_KEY = 'lingogem.definition-suggestions.v1';
@@ -284,10 +286,14 @@ function suggestionList(raw: unknown): StoredSuggestion[] {
     const example = String((item as { example?: unknown }).example ?? '')
       .trim()
       .slice(0, MAX_EXAMPLE_LENGTH);
+    const equivalent = String((item as { equivalent?: unknown }).equivalent ?? '')
+      .trim()
+      .slice(0, EQUIVALENT_MAX);
     suggestions.push({
       text,
       metadata: suggestionMetadata((item as { metadata?: unknown }).metadata),
       ...(example ? { example } : {}),
+      ...(equivalent ? { equivalent } : {}),
     });
   }
   return suggestions;
@@ -7220,18 +7226,28 @@ export class ElementModal {
 
   private async commitGeneratedSenses(
     element: StoredElement,
-    senses: readonly { text: string; metadata: ElementMetadata; example?: string }[],
+    senses: readonly {
+      text: string;
+      metadata: ElementMetadata;
+      example?: string;
+      equivalent?: string;
+    }[],
   ): Promise<boolean> {
     if (!senses.length || this.element().id !== element.id) return false;
-    const created: ElementDefinition[] = senses.map((sense) => ({
+    const attached = sensesWithEquivalents(
+      this.element().equivalents,
+      this.translationTarget(),
+      senses,
+    );
+    const created: ElementDefinition[] = attached.senses.map((sense) => ({
       text: sense.text,
-      equivalentIds: {},
+      equivalentIds: sense.equivalentIds,
       forms: [],
       examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
       metadata: { ...sense.metadata },
       log: [],
     }));
-    if (!(await this.persist([...created, ...this.copyDefinitions()], element.equivalents)))
+    if (!(await this.persist([...created, ...this.copyDefinitions()], attached.equivalents)))
       return false;
     const glosses = created.map((definition) => definitionGloss(definition.text)).filter(Boolean);
     rememberNewDefinitions(element.id, glosses);
@@ -8374,6 +8390,7 @@ export class ElementModal {
         definition: pick?.definitionIndex ?? this.visibleDefinitionIndex(),
         definitions: generated.definitions.map((sense, index) => ({
           text: sense.text,
+          equivalent: sense.equivalent,
           equivalentIds: {},
           forms: selectionForms(generated.lemma, title),
           examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],

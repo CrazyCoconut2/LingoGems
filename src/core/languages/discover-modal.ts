@@ -17,7 +17,7 @@ import {
   normalizeMetadataVariability,
   parsePassage,
   saveElement,
-  type ElementDefinition,
+  sensesWithEquivalents,
   type ElementMetadataIndexes,
   type ElementMetadataVariability,
   type ParsedPassage,
@@ -237,6 +237,9 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                               @let passage = sensePassage(sense);
                               @if (passage.text) {
                                 <p class="sense-text">{{ passage.text }}</p>
+                              }
+                              @if (sense.equivalent) {
+                                <p class="sense-equivalent">{{ sense.equivalent }}</p>
                               }
                               @let translations = shownTranslations(passage);
                               @if (translations.length) {
@@ -1141,6 +1144,13 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       line-height: 1.45;
     }
 
+    .sense-equivalent {
+      margin: 0.15rem 0 0;
+      color: #94a3b8;
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+
     .sense-translations {
       margin: 0.2rem 0 0;
       padding: 0;
@@ -1716,6 +1726,7 @@ function hitFromDiscovered(element: DiscoveredElement): DiscoverHit {
     senses: element.senses.map((sense) => ({
       text: sense.text,
       metadata: { ...sense.metadata },
+      ...(sense.equivalent ? { equivalent: sense.equivalent } : {}),
     })),
   };
 }
@@ -1723,15 +1734,24 @@ function hitFromDiscovered(element: DiscoveredElement): DiscoverHit {
 async function saveDiscoveredElement(language: string, hit: DiscoverHit): Promise<void> {
   const created = await addElement(language, hit.title);
   if (created.definitions.length || !hit.senses.length) return;
-  const definitions: ElementDefinition[] = hit.senses.map((sense) => ({
-    text: sense.text,
-    equivalentIds: {},
-    forms: [],
-    examples: [],
-    metadata: { ...sense.metadata },
-    log: [],
-  }));
-  await saveElement({ ...created, definitions });
+  const attached = sensesWithEquivalents(
+    created.equivalents,
+    supportLanguageFor(language),
+    hit.senses.map((sense) => ({
+      text: sense.text,
+      equivalent: sense.equivalent,
+      equivalentIds: {},
+      forms: [],
+      examples: [],
+      metadata: { ...sense.metadata },
+      log: [],
+    })),
+  );
+  await saveElement({
+    ...created,
+    definitions: attached.senses,
+    equivalents: attached.equivalents,
+  });
 }
 
 function sameTitle(left: string, right: string): boolean {

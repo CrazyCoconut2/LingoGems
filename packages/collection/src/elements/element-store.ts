@@ -258,6 +258,28 @@ export function assignEquivalent(
   return { equivalents: [...equivalents, created], equivalentId: created.id };
 }
 
+/** Link each sense's support-language equivalent. Empty wording leaves that sense unlinked. */
+export function sensesWithEquivalents<T extends { equivalent?: string }>(
+  equivalents: readonly ElementEquivalent[],
+  language: string,
+  senses: readonly T[],
+): {
+  equivalents: ElementEquivalent[];
+  senses: Array<Omit<T, 'equivalent'> & { equivalentIds: EquivalentLinks }>;
+} {
+  let pool = [...equivalents];
+  const next = senses.map((sense) => {
+    const { equivalent, ...rest } = sense;
+    const linked = assignEquivalent(pool, equivalent ?? '', language);
+    pool = linked.equivalents;
+    return {
+      ...rest,
+      equivalentIds: linkEquivalent({}, language, linked.equivalentId),
+    };
+  });
+  return { equivalents: pool, senses: next };
+}
+
 /** Wording linked for one support language, or '' when that language has none. */
 export function equivalentTextFor(
   equivalents: readonly ElementEquivalent[],

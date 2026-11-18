@@ -24,6 +24,7 @@ import {
 } from './metadata-fields';
 import { readStoredAiCredentials } from './storage';
 import { translationLanguage, translationTarget } from './translation-settings';
+import { generateEquivalent } from './translate';
 import type { CompleteJsonInput } from './types';
 
 const MAX_SENSES = 8;
@@ -40,6 +41,14 @@ export const VERBATIM_SENSE_TRANSLATION =
 
 export const VERBATIM_SENSE_TRANSLATION_FIELD =
   'When translateFieldsIn is present, add "translation":"<verbatim translation of the gloss>" on each sense.';
+
+export const SENSE_EQUIVALENT =
+  'translateFieldsIn, when present, names the translation language. Then each sense MUST include "equivalent", the headword\'s equivalent in that language for this sense only: a word or short phrase a dictionary would list as the translation of the lemma. Use the gloss to choose the sense. Do not translate the gloss itself, and do not copy the gloss translation. Capitalize the first letter. When translateFieldsIn is absent, omit "equivalent".';
+
+export const SENSE_EQUIVALENT_FIELD =
+  'When translateFieldsIn is present, add "equivalent":"<headword equivalent in translateFieldsIn>" on each sense.';
+
+const EQUIVALENT_MAX_LENGTH = 200;
 
 function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
   return joinPrompt([
@@ -59,9 +68,11 @@ function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = fal
     '- Spelling MUST be correct in every gloss and its translation',
     ...metadataRuleLines('definition', fields, extra),
     VERBATIM_SENSE_TRANSLATION,
+    SENSE_EQUIVALENT,
     'Return JSON only with this shape:',
     `{"senses":[${definitionSenseShape(fields, extra)}]}`,
     VERBATIM_SENSE_TRANSLATION_FIELD,
+    SENSE_EQUIVALENT_FIELD,
   ]);
 }
 
@@ -88,9 +99,11 @@ function elementFromSelectionSystemPrompt(
     '- Spelling MUST be correct in the lemma, every gloss, and every translation',
     ...metadataRuleLines('definition', fields, extra),
     VERBATIM_SENSE_TRANSLATION,
+    SENSE_EQUIVALENT,
     'Return JSON only with this shape:',
     `{"lemma":"<root lemma>","senses":[${definitionSenseShape(fields, extra)}]}`,
     VERBATIM_SENSE_TRANSLATION_FIELD,
+    SENSE_EQUIVALENT_FIELD,
   ]);
 }
 
@@ -115,9 +128,12 @@ function definitionFromExampleSystemPrompt(
     '- Spelling MUST be correct in the gloss and its translation',
     ...metadataRuleLines('definition', fields, extra),
     'translateFieldsIn, when present, names the translation language. A new sense MUST include "translation", a verbatim translation of that sense\'s gloss. Translate the gloss text itself, in the same order and with the same wording. Do not paraphrase, shorten, or replace it with a different gloss. Capitalize the first letter. A match does not include a translation. When translateFieldsIn is absent, omit "translation".',
+    SENSE_EQUIVALENT,
+    'A match does not include an equivalent.',
     'A new sense uses this shape:',
     `{"senses":[${definitionSenseShape(fields, extra)}]}`,
     'When translateFieldsIn is present, add "translation":"<verbatim translation of the gloss>" on the new sense.',
+    SENSE_EQUIVALENT_FIELD,
   ]);
 }
 
@@ -167,6 +183,8 @@ type GenerateDefinitionFromExampleInput = GenerateDefinitionsInput & {
 export type GeneratedDefinition = {
   text: string;
   metadata: ElementMetadata;
+  /** Headword equivalent in the support language, when one was requested. */
+  equivalent?: string;
 };
 
 type GenerateFormsInput = {
@@ -223,6 +241,7 @@ export function parseGeneratedDefinitions(
       sense['translation'] ?? sense['english'],
       input.translation ?? '',
     );
+    const equivalent = takenEquivalent(language, sense['equivalent'], input.translation ?? '');
     const into = translationTarget(language, input.translation);
     definitions.push({
       text: english && into ? embedTranslation(gloss, into, english) : gloss,
@@ -231,9 +250,42 @@ export function parseGeneratedDefinitions(
         metadataFieldKeys(readDefinitionMetadataFields()),
         readDefinitionExtraFields(),
       ),
+      ...(equivalent ? { equivalent } : {}),
     });
   }
   return definitions;
+}
+
+/** Fill a missing support-language equivalent. Senses that already have one stay as they are. */
+export async function ensureSenseEquivalents(
+  lemma: string,
+  language: string,
+  translation: string | undefined,
+  senses: GeneratedDefinition[],
+): Promise<GeneratedDefinition[]> {
+  const target = translationTarget(language, translation);
+  if (!target) return senses;
+  return Promise.all(
+    senses.map(async (sense) => {
+      if (sense.equivalent?.trim()) return sense;
+      const passage = parsePassage(sense.text);
+      const definition = passage.text.trim();
+      if (!definition) return sense;
+      try {
+        const equivalent = await generateEquivalent({
+          lemma,
+          sourceLang: language,
+          definition,
+          english: passage.translations.find((item) => item.language === target)?.text ?? '',
+          targetLang: target,
+        });
+        const text = equivalent.trim().slice(0, EQUIVALENT_MAX_LENGTH);
+        return text ? { ...sense, equivalent: text } : sense;
+      } catch {
+        return sense;
+      }
+    }),
+  );
 }
 
 function buildDefinitionFromExampleUserMessage(input: GenerateDefinitionFromExampleInput): string {
@@ -318,7 +370,11 @@ export async function generateDefinitionFromExample(
     let placed = parseExamplePlacement(await complete(), prepared);
     if (!placed) placed = parseExamplePlacement(await complete(), prepared);
     if (!placed) aiError(AI_ERROR.RESPONSE_INVALID);
-    return placed;
+    if (placed.kind === 'existing') return placed;
+    const [definition] = await ensureSenseEquivalents(title, language, request.translation, [
+      placed.definition,
+    ]);
+    return definition ? { kind: 'new', definition } : placed;
   } catch (err) {
     throw attachAiPrompt(err, input);
   }
@@ -376,7 +432,15 @@ export async function generateElementFromSelection(
     let element = parseGeneratedElement(await complete(), prepared);
     if (!element) element = parseGeneratedElement(await complete(), prepared);
     if (!element) aiError(AI_ERROR.RESPONSE_INVALID);
-    return element;
+    return {
+      lemma: element.lemma,
+      definitions: await ensureSenseEquivalents(
+        element.lemma,
+        language,
+        request.translation,
+        element.definitions,
+      ),
+    };
   } catch (err) {
     throw attachAiPrompt(err, input);
   }
@@ -423,7 +487,7 @@ export async function generateDefinitions(
     if (!senses)
       senses = parseGeneratedDefinitions(await complete(), { ...request, title, language });
     if (!senses) aiError(AI_ERROR.RESPONSE_INVALID);
-    return senses;
+    return ensureSenseEquivalents(title, language, request.translation, senses);
   } catch (err) {
     throw attachAiPrompt(err, input);
   }
@@ -476,6 +540,13 @@ function plainText(value: unknown): string {
 function takenTranslation(language: string, raw: unknown, translation: string): string {
   if (!translationLanguage(language, translation)) return '';
   return plainText(raw).slice(0, META_VALUE_MAX_LENGTH);
+}
+
+function takenEquivalent(language: string, raw: unknown, translation: string): string {
+  if (!translationLanguage(language, translation)) return '';
+  const text = plainText(raw).replace(/]/g, '').replace(/\s+/g, ' ').trim();
+  const capitalized = text.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase('en'));
+  return capitalized.slice(0, EQUIVALENT_MAX_LENGTH);
 }
 
 function buildFormsUserMessage(input: GenerateFormsInput): string {

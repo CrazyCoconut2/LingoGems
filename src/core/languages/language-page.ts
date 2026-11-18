@@ -60,6 +60,7 @@ import {
   readMetadataCatalog,
   replaceElementColorOrder,
   saveElement,
+  sensesWithEquivalents,
   syncElementColorCatalog,
   type ElementCatalog,
   type ElementDefinition,
@@ -342,7 +343,12 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             <p class="selection-error">{{ selectionError() }}</p>
           }
         } @else {
-          <p class="list-count" aria-hidden="true"><span class="bone bone-count"></span></p>
+          <div class="list-toolbar" aria-hidden="true">
+            <p class="list-count">
+              <span class="bone bone-language"></span>
+              <span class="bone bone-count"></span>
+            </p>
+          </div>
         }
 
         @if (!ready()) {
@@ -354,7 +360,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   <span class="bone bone-pill"></span>
                 </div>
                 <span class="bone bone-drill"></span>
-                <span class="bone bone-side"></span>
+                <div class="stat-rail">
+                  <span class="bone bone-stat"></span>
+                  <span class="bone bone-stat"></span>
+                  <span class="bone bone-stat"></span>
+                </div>
               </li>
             }
           </ul>
@@ -1797,39 +1807,37 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       background: color-mix(in srgb, var(--text) 10%, transparent);
     }
 
-    .list-count .bone-count {
-      display: inline-block;
-      width: 5.5rem;
-      height: 0.72em;
-      vertical-align: -0.08em;
+    .list-count .bone-language {
+      width: 4.5rem;
+      height: 0.75rem;
     }
 
-    .skeleton .element {
-      gap: 0.55rem;
+    .list-count .bone-count {
+      width: 4.75rem;
+      height: calc(0.62rem * 1.2 + 0.24rem + 2px);
+      border-radius: 0.4rem;
     }
 
     .skeleton .bone-title {
       width: 62%;
-      height: 1rem;
+      height: calc(1.125rem * 1.2);
     }
 
     .skeleton .bone-pill {
       width: 42%;
-      height: 0.5rem;
+      height: 0.85rem;
     }
 
     .skeleton .bone-drill {
       width: 100%;
-      height: 1.7rem;
+      height: calc(0.75rem + 0.76rem + 2px);
       margin-top: 0.7rem;
       border-radius: 0.75rem;
     }
 
-    .skeleton .bone-side {
-      width: 100%;
-      height: 1.35rem;
-      margin-top: 0.7rem;
-      border-radius: 0;
+    .skeleton .bone-stat {
+      width: 1.6rem;
+      height: 0.75rem;
     }
 
     .empty {
@@ -2804,7 +2812,7 @@ export class LanguagePage {
     prepared: {
       title: string;
       language?: string;
-      definitions: ElementDefinition[];
+      definitions: Array<ElementDefinition & { equivalent?: string }>;
       example?: string;
       definition?: number;
     },
@@ -2816,7 +2824,16 @@ export class LanguagePage {
     const example = prepared.example?.replace(/\s+/g, ' ').trim() ?? '';
     let created = await addElement(code, name);
     if (!created.definitions.length && prepared.definitions.length) {
-      created = await saveElement({ ...created, definitions: prepared.definitions });
+      const attached = sensesWithEquivalents(
+        created.equivalents,
+        supportLanguageFor(code),
+        prepared.definitions,
+      );
+      created = await saveElement({
+        ...created,
+        definitions: attached.senses,
+        equivalents: attached.equivalents,
+      });
     } else if (example && created.definitions.length && !hasExample(created, example)) {
       const definitions = created.definitions.map((definition, index) =>
         index === 0
@@ -2971,6 +2988,7 @@ export class LanguagePage {
           title: generated.lemma,
           definitions: generated.definitions.map((sense) => ({
             text: sense.text,
+            equivalent: sense.equivalent,
             equivalentIds: {},
             forms: searchForms(generated.lemma, selected),
             examples: [],

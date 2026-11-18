@@ -25,6 +25,7 @@ export {
   readElements,
   replaceCollection,
   assignEquivalent,
+  sensesWithEquivalents,
   embedTranslation,
   equivalentTextFor,
   labeledSupportText,

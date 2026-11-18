@@ -16,6 +16,8 @@ const SENSE_MAX = 2000;
 export type DiscoverSense = {
   text: string;
   metadata: ElementMetadata;
+  /** Headword equivalent in the support language, when one was generated. */
+  equivalent?: string;
 };
 
 export type DiscoverHit = {
@@ -135,13 +137,21 @@ function readHit(raw: unknown): DiscoverHit | null {
 
 function readSense(raw: unknown): DiscoverSense | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const record = raw as { text?: unknown; metadata?: unknown };
+  const record = raw as { text?: unknown; metadata?: unknown; equivalent?: unknown };
   const text = String(record.text ?? '')
     .replace(/[ \t]+/g, ' ')
     .trim()
     .slice(0, SENSE_MAX);
   if (!text) return null;
-  return { text, metadata: readMetadata(record.metadata) };
+  const equivalent = String(record.equivalent ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200);
+  return {
+    text,
+    metadata: readMetadata(record.metadata),
+    ...(equivalent ? { equivalent } : {}),
+  };
 }
 
 function readMetadata(raw: unknown): ElementMetadata {

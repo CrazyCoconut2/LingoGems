@@ -6,7 +6,10 @@ import {
 } from 'collection';
 import { completeJson, runWithKeyFallback } from './complete';
 import {
+  ensureSenseEquivalents,
   parseGeneratedDefinitions,
+  SENSE_EQUIVALENT,
+  SENSE_EQUIVALENT_FIELD,
   VERBATIM_SENSE_TRANSLATION,
   VERBATIM_SENSE_TRANSLATION_FIELD,
   type GeneratedDefinition,
@@ -96,10 +99,11 @@ function parseDiscoveredElements(
     if (!senses?.length) continue;
     elements.push({
       title,
-      senses: senses.slice(0, DISCOVER_SENSE_COUNT).map((sense) => ({
-        text: sense.text,
-        metadata: { ...sense.metadata },
-      })),
+    senses: senses.slice(0, DISCOVER_SENSE_COUNT).map((sense) => ({
+      text: sense.text,
+      metadata: { ...sense.metadata },
+      ...(sense.equivalent ? { equivalent: sense.equivalent } : {}),
+    })),
     });
   }
   if (list.length > 0 && elements.length === 0) return null;
@@ -125,7 +129,12 @@ export async function discoverElements(input: DiscoverElementsInput): Promise<Di
     let elements = parseDiscoveredElements(await complete(), language, translation);
     if (!elements) elements = parseDiscoveredElements(await complete(), language, translation);
     if (!elements) aiError(AI_ERROR.RESPONSE_INVALID);
-    return elements;
+    return Promise.all(
+      elements.map(async (element) => ({
+        ...element,
+        senses: await ensureSenseEquivalents(element.title, language, translation, element.senses),
+      })),
+    );
   } catch (err) {
     throw attachAiPrompt(err, request);
   }
@@ -162,9 +171,11 @@ function discoverSystemPrompt(): string {
     '- Omit a title you cannot define',
     ...metadataRuleLines('definition', fields, extra),
     VERBATIM_SENSE_TRANSLATION,
+    SENSE_EQUIVALENT,
     'Return JSON only with this shape:',
     `{"elements":[{"title":"<citation form>","senses":[${sense}]}]}`,
     VERBATIM_SENSE_TRANSLATION_FIELD,
+    SENSE_EQUIVALENT_FIELD,
   ]
     .filter((line) => line !== '')
     .join('\n');
