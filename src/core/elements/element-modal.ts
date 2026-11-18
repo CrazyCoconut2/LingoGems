@@ -1144,18 +1144,41 @@ function writeExampleSuggestions(
           }
         </div>
         <footer class="definition-footer">
-          <button
-            type="button"
-            class="add-definition-bar"
-            [disabled]="inPlay() || aiBusy()"
-            [attr.aria-busy]="addingDefinitions() ? true : null"
-            (click)="openDefinitionMenu()"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            <span>Add a definition</span>
-          </button>
+          <form class="example-slot" (submit)="submitDefinitionExample($event)">
+            <div class="example-slot-field">
+              <input
+                type="text"
+                [value]="definitionExample()"
+                [attr.maxlength]="exampleLengthMax"
+                [disabled]="inPlay() || aiBusy()"
+                placeholder="Enter your own example…"
+                aria-label="Enter your own example"
+                aria-describedby="example-slot-hint"
+                (input)="definitionExample.set(inputValue($event))"
+              />
+              <button
+                type="submit"
+                class="example-slot-submit"
+                aria-label="Add example"
+                [disabled]="inPlay() || aiBusy() || !definitionExample().trim()"
+                [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                  />
+                  <path d="M5 3v4" />
+                  <path d="M3 5h4" />
+                  <path d="M19 17v4" />
+                  <path d="M17 19h4" />
+                </svg>
+              </button>
+            </div>
+            <p id="example-slot-hint" class="example-slot-hint">
+              This sentence is matched to a definition that already fits, or a new definition is
+              added.
+            </p>
+          </form>
         </footer>
         @if (editor(); as current) {
           <div class="sheet-backdrop" (click)="closeEditorSheet($event)">
@@ -2241,98 +2264,6 @@ function writeExampleSuggestions(
                 } @else {
                   <p class="hint">No attributes</p>
                 }
-              }
-            </section>
-          </div>
-        }
-
-        @if (definitionMenuOpen()) {
-          <div class="sheet-backdrop" (click)="closeAddDefinition($event)">
-            <section
-              class="sheet add-definition"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Add a definition"
-            >
-              <div class="sheet-head">
-                <h3>Add a definition</h3>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Close"
-                  [disabled]="asking()"
-                  (click)="closeDefinitionPrompts()"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div class="add-choices">
-                <button
-                  type="button"
-                  class="btn btn-secondary add-choice"
-                  [attr.aria-pressed]="definitionAddChoice() === 'example'"
-                  [disabled]="asking()"
-                  (click)="chooseDefinitionAdd('example')"
-                >
-                  From an example
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary add-choice"
-                  [disabled]="asking()"
-                  (click)="openMissingDefinitions()"
-                >
-                  Missing definitions
-                </button>
-              </div>
-              @if (definitionAddChoice() === 'example') {
-                <p>
-                  This sentence is added to a definition that already fits, or a new definition is
-                  written.
-                </p>
-                <div class="add-example">
-                  <div class="example-entry">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                      />
-                      <path
-                        d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                      />
-                    </svg>
-                    <textarea
-                      id="definition-example"
-                      rows="3"
-                      [value]="definitionExample()"
-                      [attr.maxlength]="exampleLengthMax"
-                      [disabled]="asking()"
-                      [attr.placeholder]="
-                        'Write a sentence in ' + originalLanguageName() + ' that uses this word'
-                      "
-                      aria-label="Example"
-                      (input)="definitionExample.set(inputValue($event))"
-                    ></textarea>
-                  </div>
-                </div>
-                <div class="sheet-actions example-actions">
-                  <div class="generate-bundle">
-                    <button
-                      type="button"
-                      class="generate-main"
-                      [disabled]="asking() || !definitionExample().trim()"
-                      [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
-                      (click)="addDefinitionFromExample()"
-                    >
-                      Ask
-                    </button>
-                  </div>
-                </div>
-              }
-              @if (error()) {
-                <p class="error">{{ error() }}</p>
               }
             </section>
           </div>
@@ -4401,49 +4332,90 @@ function writeExampleSuggestions(
       background: color-mix(in srgb, var(--surface) 95%, transparent);
     }
 
-    .add-definition-bar {
+    .example-slot {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin: 0;
+    }
+
+    .example-slot-field {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 0.35rem;
+      padding-right: 0.3rem;
+      border: 1px solid var(--border);
+      border-radius: 0.9rem;
+      background: var(--surface-2);
+    }
+
+    .example-slot-field:focus-within {
+      border-color: rgba(var(--accent-rgb), 0.55);
+    }
+
+    .example-slot-field input {
+      flex: 1;
+      width: auto;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    .example-slot-field input:focus {
+      outline: none;
+    }
+
+    .example-slot-field input:disabled {
+      opacity: 0.6;
+    }
+
+    .example-slot-submit {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0.5rem;
-      width: 100%;
-      margin: 0;
-      padding: 0.75rem 1rem;
+      flex: none;
+      width: 2.4rem;
+      height: 2.4rem;
       border: 0;
-      border-radius: 0.75rem;
+      border-radius: 0.7rem;
       background: linear-gradient(to right, #f43f5e, #ec4899, #7c3aed);
       color: white;
-      font: inherit;
-      font-size: 0.875rem;
-      font-weight: 650;
-      line-height: 1.2;
       box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.25);
       cursor: pointer;
     }
 
-    .add-definition-bar:hover:not(:disabled) {
+    .example-slot-submit:hover:not(:disabled) {
       opacity: 0.95;
     }
 
-    .add-definition-bar:active:not(:disabled) {
+    .example-slot-submit:active:not(:disabled) {
       transform: scale(0.98);
     }
 
-    .add-definition-bar:disabled {
+    .example-slot-submit:disabled {
       opacity: 0.45;
       cursor: not-allowed;
     }
 
-    .add-definition-bar svg {
+    .example-slot-submit svg {
       display: block;
-      width: 1rem;
-      height: 1rem;
+      width: 1.05rem;
+      height: 1.05rem;
       flex: none;
       fill: none;
       stroke: currentColor;
-      stroke-width: 2.2;
+      stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .example-slot-hint {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      line-height: 1.35;
+      text-align: center;
     }
 
     h3 {
@@ -5121,39 +5093,10 @@ function writeExampleSuggestions(
       background: rgba(8, 10, 16, 0.55);
     }
 
-    .add-definition {
-      gap: 0.75rem;
-    }
-
-    .add-choices,
-    .add-example {
+    .add-choices {
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
-    }
-
-    .example-entry {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.55rem;
-    }
-
-    .example-entry svg {
-      display: block;
-      width: 1.15rem;
-      height: 1.15rem;
-      flex: none;
-      margin-top: 0.65rem;
-      fill: none;
-      stroke: var(--accent-text);
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .example-entry textarea {
-      flex: 1;
-      min-width: 0;
     }
 
     .add-choice {
@@ -5486,8 +5429,7 @@ function writeExampleSuggestions(
       line-height: 1.45;
     }
 
-    .engineer-sheet,
-    .add-definition {
+    .engineer-sheet {
       overflow: visible;
     }
 
@@ -6295,8 +6237,6 @@ export class ElementModal {
   readonly titleError = signal('');
   /** Color chosen in the element editor. Null clears it. */
   readonly colorDraft = signal<string | null>(null);
-  readonly definitionMenuOpen = signal(false);
-  readonly definitionAddChoice = signal<'example' | null>(null);
   readonly missingDefinitionsOpen = signal(false);
   readonly missingSaving = signal(false);
   readonly missingSaveError = signal('');
@@ -6413,7 +6353,6 @@ export class ElementModal {
       this.equivalentPrompt.set(-1);
       this.definitionPrompt.set(-1);
       this.examplePrompt.set(-1);
-      this.closeDefinitionPrompts();
       this.unveiledEquivalents.set(new Set());
       this.helpOpen.set(false);
       this.exerciseLog.set(-1);
@@ -6508,10 +6447,6 @@ export class ElementModal {
     }
     if (this.helpOpen()) {
       this.helpOpen.set(false);
-      return;
-    }
-    if (this.definitionMenuOpen()) {
-      if (!this.asking()) this.closeDefinitionPrompts();
       return;
     }
     if (this.confirm()) {
@@ -6983,31 +6918,6 @@ export class ElementModal {
     );
   }
 
-  openDefinitionMenu(): void {
-    if (this.inPlay() || this.aiBusy()) return;
-    this.error.set('');
-    this.definitionExample.set('');
-    this.editor.set(null);
-    this.formEdit.set(null);
-    this.formFeatureEdit.set(null);
-    this.metaEdit.set(null);
-    this.exampleEngineer.set(null);
-    this.definitionEngineer.set(null);
-    this.confirm.set(null);
-    this.definitionAddChoice.set(null);
-    this.definitionMenuOpen.set(true);
-  }
-
-  chooseDefinitionAdd(choice: 'example'): void {
-    if (this.asking()) return;
-    this.definitionAddChoice.set(choice);
-  }
-
-  closeDefinitionPrompts(): void {
-    this.definitionMenuOpen.set(false);
-    this.definitionAddChoice.set(null);
-  }
-
   generateExample(index: number): void {
     if (
       (this.inPlay() && !this.translationGame() && !this.definitionGame()) ||
@@ -7041,21 +6951,18 @@ export class ElementModal {
     this.openExample(index, null);
   }
 
-  closeAddDefinition(event?: MouseEvent): void {
-    if (event && event.target !== event.currentTarget) return;
-    if (this.asking()) return;
-    this.closeDefinitionPrompts();
+  submitDefinitionExample(event: Event): void {
+    event.preventDefault();
+    void this.addDefinitionFromExample();
   }
 
   addDefinitionManually(): void {
     if (this.inPlay() || this.asking()) return;
-    this.closeDefinitionPrompts();
     this.openDefinition(null);
   }
 
   openMissingDefinitions(): void {
     if (this.inPlay() || this.aiBusy()) return;
-    this.closeDefinitionPrompts();
     this.missingSaveError.set('');
     this.missingDefinitionsOpen.set(true);
   }
@@ -7117,9 +7024,9 @@ export class ElementModal {
         await this.attachExample(element, key, example);
         return;
       }
-      if (!(await this.commitGeneratedSenses(element, [{ ...placed.definition, example }]))) return;
+      if (!(await this.commitGeneratedSenses(element, [{ ...placed.definition, example }], 'end')))
+        return;
       this.definitionExample.set('');
-      this.closeDefinitionPrompts();
     } catch {
       if (this.element().id === element.id) {
         this.error.set('Could not place that example.');
@@ -7157,7 +7064,6 @@ export class ElementModal {
       this.scrollDefinitionPanel();
     }
     this.definitionExample.set('');
-    this.closeDefinitionPrompts();
   }
 
   dismissNew(text: string): void {
@@ -7203,6 +7109,7 @@ export class ElementModal {
       example?: string;
       equivalent?: string;
     }[],
+    placement: 'start' | 'end' = 'start',
   ): Promise<boolean> {
     if (!senses.length || this.element().id !== element.id) return false;
     const attached = sensesWithEquivalents(
@@ -7218,16 +7125,18 @@ export class ElementModal {
       metadata: { ...sense.metadata },
       log: [],
     }));
-    if (!(await this.persist([...created, ...this.copyDefinitions()], attached.equivalents)))
-      return false;
+    const existing = this.copyDefinitions();
+    const next = placement === 'end' ? [...existing, ...created] : [...created, ...existing];
+    if (!(await this.persist(next, attached.equivalents))) return false;
     const glosses = created.map((definition) => definitionGloss(definition.text)).filter(Boolean);
     rememberNewDefinitions(element.id, glosses);
     if (this.element().id === element.id) {
-      this.shiftDefinitionIndexes(created.length);
+      if (placement === 'start') this.shiftDefinitionIndexes(created.length);
       this.formAttributesView.set(null);
-      this.definitionPanel.set(0);
+      const index = placement === 'end' ? next.length - 1 : 0;
+      this.definitionPanel.set(index);
       this.scrollDefinitionPanel();
-      this.noteDefinitionView(0);
+      this.noteDefinitionView(index);
       this.newGlosses.set(new Set(readNewDefinitions(element.id)));
     }
     return true;
@@ -7498,7 +7407,6 @@ export class ElementModal {
     this.metaValue.set('');
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
-    this.closeDefinitionPrompts();
     this.exampleError.set('');
     this.formsError.set('');
     if (this.exampleDraft()?.definitionIndex !== index) this.exampleDraft.set(null);
@@ -7541,7 +7449,6 @@ export class ElementModal {
     this.metaValue.set('');
     this.exampleEngineer.set(null);
     this.definitionEngineer.set(null);
-    this.closeDefinitionPrompts();
     this.sheetMetadata.set({ ...(example?.metadata ?? {}) });
     this.beginSheet(example?.text ?? '');
     this.editor.set({ kind: 'example', definitionIndex, exampleIndex });
@@ -7581,7 +7488,6 @@ export class ElementModal {
     const key = senseKey(definition?.text ?? '');
     if (!definition || !key) return;
     this.definitionEngineer.set(null);
-    this.closeDefinitionPrompts();
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -7940,7 +7846,6 @@ export class ElementModal {
 
   openForm(definitionIndex: number, form?: { text: string; metadata: ElementMetadata }): void {
     if (!this.sheetDefinition(definitionIndex)) return;
-    this.closeDefinitionPrompts();
     this.confirm.set(null);
     this.metaEdit.set(null);
     this.formError.set('');
