@@ -1,12 +1,13 @@
-import type { DayStats, ElementDayStats, GemCounts } from './gem-stats.worker';
+import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
 
-const KEY_PREFIX = 'lingogem.stats.v10.';
+const KEY_PREFIX = 'lingogem.stats.v11.';
 
 export type StatsPhase = 'empty' | 'pending' | 'ready' | 'error';
 
 export type StatsSnapshot = {
   computedAt: number;
   days: DayStats[];
+  missing: MissingToken[];
 };
 
 export type StatsView = {
@@ -26,7 +27,10 @@ export function readStatsView(language: string): StatsView {
   if (!record) return EMPTY_VIEW;
   if (record.status === 'pending') return { phase: 'pending', snapshot: null };
   if (record.status === 'error') return { phase: 'error', snapshot: null };
-  return { phase: 'ready', snapshot: { computedAt: record.computedAt, days: record.days } };
+  return {
+    phase: 'ready',
+    snapshot: { computedAt: record.computedAt, days: record.days, missing: record.missing },
+  };
 }
 
 export function writeStatsSnapshot(language: string, snapshot: StatsSnapshot): void {
@@ -76,7 +80,7 @@ export function clearStatsCache(): void {
 type StatsRecord =
   | { status: 'pending' }
   | { status: 'error' }
-  | { status: 'ready'; computedAt: number; days: DayStats[] };
+  | { status: 'ready'; computedAt: number; days: DayStats[]; missing: MissingToken[] };
 
 function readRecord(language: string): StatsRecord | null {
   if (typeof localStorage === 'undefined') return null;
@@ -108,7 +112,12 @@ function recordOf(value: unknown): StatsRecord | null {
   if (status === 'error') return { status: 'error' };
   if (status !== undefined && status !== 'ready') return null;
   if (!isSnapshot(value)) return null;
-  return { status: 'ready', computedAt: value.computedAt, days: value.days };
+  return {
+    status: 'ready',
+    computedAt: value.computedAt,
+    days: value.days,
+    missing: value.missing,
+  };
 }
 
 function cacheKey(language: string): string {
@@ -118,8 +127,14 @@ function cacheKey(language: string): string {
 
 function isSnapshot(value: unknown): value is StatsSnapshot {
   if (!value || typeof value !== 'object') return false;
-  const source = value as { computedAt?: unknown; days?: unknown };
-  return isCount(source.computedAt) && Array.isArray(source.days) && source.days.every(isDay);
+  const source = value as { computedAt?: unknown; days?: unknown; missing?: unknown };
+  return (
+    isCount(source.computedAt) &&
+    Array.isArray(source.days) &&
+    source.days.every(isDay) &&
+    Array.isArray(source.missing) &&
+    source.missing.every(isMissingToken)
+  );
 }
 
 function isDay(value: unknown): value is DayStats {
@@ -160,6 +175,19 @@ function isGemCounts(value: unknown): value is GemCounts {
   if (!value || typeof value !== 'object') return false;
   const source = value as GemCounts;
   return isCount(source.translation) && isCount(source.example) && isCount(source.definition);
+}
+
+function isMissingToken(value: unknown): value is MissingToken {
+  if (!value || typeof value !== 'object') return false;
+  const source = value as MissingToken;
+  return (
+    typeof source.key === 'string' &&
+    source.key.trim().length > 0 &&
+    typeof source.title === 'string' &&
+    source.title.trim().length > 0 &&
+    isCount(source.seen) &&
+    source.seen > 0
+  );
 }
 
 function isCount(value: unknown): value is number {

@@ -9,9 +9,9 @@ import {
   type StatsSnapshot,
   type StatsView,
 } from './gem-stats-cache';
-import type { DayStats } from './gem-stats.worker';
+import type { DayStats, MissingToken } from './gem-stats.worker';
 
-type StatsMessage = { ok?: boolean; days?: DayStats[] };
+type StatsMessage = { ok?: boolean; days?: DayStats[]; missing?: MissingToken[] };
 
 const DEBOUNCE_MS = 300;
 
@@ -142,12 +142,16 @@ export class GemStatsJob {
       this.pump();
       return;
     }
-    if (!message?.ok || !Array.isArray(message.days)) {
+    if (!message?.ok || !Array.isArray(message.days) || !Array.isArray(message.missing)) {
       this.markError(language);
       this.pump();
       return;
     }
-    const snapshot: StatsSnapshot = { computedAt: Date.now(), days: message.days };
+    const snapshot: StatsSnapshot = {
+      computedAt: Date.now(),
+      days: message.days,
+      missing: message.missing,
+    };
     writeStatsSnapshot(language, snapshot);
     this.remember(language, { phase: 'ready', snapshot });
     this.pump();

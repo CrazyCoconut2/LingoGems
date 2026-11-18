@@ -98,6 +98,26 @@ export function isValidForm(source: string): boolean {
   return compileForm(source) !== null;
 }
 
+/** Words in a phrase, using the same character class as form boundaries. */
+export function phraseTokens(phrase: string): string[] {
+  return phrase.match(new RegExp(`${WORD_CHAR}+`, 'gu')) ?? [];
+}
+
+/** Match terms against one form without compiling it on every call. */
+export function compileFormMatcher(form: string): ((term: string) => boolean) | null {
+  const source = compileForm(form);
+  if (!source) return null;
+  try {
+    const pattern = new RegExp(source, 'iu');
+    return (term: string) => {
+      const text = term.trim();
+      return !!text && pattern.test(text);
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** True when `term` matches the compiled form. */
 export function formMatchesTerm(form: string, term: string): boolean {
   const source = compileForm(form);

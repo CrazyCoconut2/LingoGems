@@ -68,7 +68,7 @@ export {
   type StoredElement,
 } from './elements/element-store';
 
-export { formMatchesTerm, isValidForm } from './elements/forms';
+export { compileFormMatcher, formMatchesTerm, isValidForm, phraseTokens } from './elements/forms';
 
 export { surfaceSpans } from './elements/definition-eligibility';
 

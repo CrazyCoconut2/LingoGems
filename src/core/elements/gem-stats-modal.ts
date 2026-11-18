@@ -20,9 +20,14 @@ import {
   type DailyGoals,
 } from './gem-stats-goals';
 import { GemStatsJob } from './gem-stats-job';
+import {
+  ignoreMissingToken,
+  readMissingBlacklist,
+  restoreMissingToken,
+} from './gem-stats-missing';
 import { GemIcon } from './gem-icon';
 import { RevealIcon } from './reveal-icon';
-import type { DayStats, ElementDayStats, GemCounts } from './gem-stats.worker';
+import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
 
 type GemGame = keyof GemCounts;
 
@@ -397,6 +402,9 @@ const EMPTY_DAY: DayStats = {
                   }
                 </div>
               </div>
+              @if (askError()) {
+                <p class="hint missing-error">{{ askError() }}</p>
+              }
               <ul class="elements">
                 @if (day()) {
                   @for (element of sortedElements(); track element.id) {
@@ -464,7 +472,101 @@ const EMPTY_DAY: DayStats = {
                       </button>
                     </li>
                   }
-                } @else {
+                }
+                @for (token of visibleMissing(); track token.key) {
+                  <li>
+                    <div class="row missing-row">
+                      <div class="row-main">
+                        <span class="title" [attr.title]="token.title">{{ token.title }}</span>
+                        <span class="bits">
+                          <span
+                            class="bit"
+                            [attr.aria-label]="seenLabel(token.seen)"
+                            [attr.title]="seenLabel(token.seen)"
+                          >
+                            <ng-container
+                              *ngTemplateOutlet="activityIcon; context: { $implicit: 'opened' }"
+                            />
+                            <span>{{ formatCount(token.seen) }}</span>
+                          </span>
+                        </span>
+                      </div>
+                      <div class="missing-actions">
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Add entry"
+                          title="Add"
+                          [disabled]="asking()"
+                          (click)="addMissing.emit(token.title)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12h14" />
+                            <path d="M12 5v14" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Ask AI"
+                          title="Ask AI"
+                          [disabled]="asking()"
+                          [attr.aria-busy]="asking() ? true : null"
+                          (click)="askMissing.emit(token.title)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Remove"
+                          title="Remove"
+                          [disabled]="asking()"
+                          (click)="hideMissing(token)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M18 6 6 18" />
+                            <path d="m6 6 12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                }
+                @if (hiddenTokens().length) {
+                  <li class="hidden-row">
+                    <button
+                      type="button"
+                      class="hidden-toggle"
+                      [attr.aria-expanded]="hiddenOpen()"
+                      (click)="hiddenOpen.update((open) => !open)"
+                    >
+                      Hidden {{ hiddenTokens().length }}
+                    </button>
+                    @if (hiddenOpen()) {
+                      <ul class="hidden-list">
+                        @for (token of hiddenTokens(); track token.key) {
+                          <li>
+                            <span class="title" [attr.title]="token.title">{{ token.title }}</span>
+                            <button
+                              type="button"
+                              class="restore"
+                              [attr.aria-label]="'Restore ' + token.title"
+                              (click)="restoreMissing(token.key)"
+                            >
+                              Restore
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                    }
+                  </li>
+                }
+                @if (!day() && !visibleMissing().length && !hiddenTokens().length) {
                   <li class="placeholder">
                     <p class="hint">Nothing recorded yet.</p>
                   </li>
@@ -1406,6 +1508,89 @@ const EMPTY_DAY: DayStats = {
       color: var(--text);
     }
 
+    .missing-row {
+      gap: 0.45rem;
+      border-color: rgba(255, 255, 255, 0.04);
+      background: color-mix(in srgb, var(--surface-2) 55%, var(--bg));
+    }
+
+    .missing-row .title,
+    .missing-row .bit {
+      color: var(--text-muted);
+    }
+
+    .missing-actions {
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .hidden-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .hidden-toggle {
+      align-self: flex-start;
+      margin: 0;
+      padding: 0.35rem 0.15rem;
+      border: 0;
+      background: none;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .hidden-toggle:hover {
+      color: var(--text);
+    }
+
+    .hidden-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .hidden-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.7rem;
+      min-width: 0;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 0.8rem;
+      background: rgba(8, 10, 18, 0.35);
+    }
+
+    .restore {
+      flex-shrink: 0;
+      margin: 0;
+      padding: 0.2rem 0.15rem;
+      border: 0;
+      background: none;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.75rem;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .restore:hover {
+      color: var(--text);
+    }
+
+    .missing-error {
+      margin: 0 0 0.55rem;
+      color: var(--danger);
+    }
+
     .new-sign {
       position: absolute;
       top: 0.55rem;
@@ -1510,8 +1695,12 @@ const EMPTY_DAY: DayStats = {
 })
 export class GemStatsModal {
   readonly language = input.required<string>();
+  readonly asking = input(false);
+  readonly askError = input('');
   readonly closed = output<void>();
   readonly opened = output<string>();
+  readonly addMissing = output<string>();
+  readonly askMissing = output<string>();
   readonly games = computed(() =>
     supportLanguageFor(this.language())
       ? GAMES
@@ -1522,6 +1711,8 @@ export class GemStatsModal {
   readonly loadingRows = LOADING_ROWS;
   readonly goalsOpen = signal(false);
   readonly goals = signal<DailyGoals>(emptyDailyGoals());
+  readonly blacklist = signal<string[]>([]);
+  readonly hiddenOpen = signal(false);
   readonly dayIndex = signal(0);
   readonly elementSort = signal<ElementSort | null>(null);
   readonly sortMenuOpen = signal(false);
@@ -1561,6 +1752,17 @@ export class GemStatsModal {
   readonly snapshot = computed(() => this.stats().snapshot);
   readonly day = computed(() => this.snapshot()?.days[this.dayIndex()] ?? null);
   readonly shown = computed(() => this.day() ?? EMPTY_DAY);
+  readonly visibleMissing = computed(() => {
+    const hidden = new Set(this.blacklist());
+    return (this.snapshot()?.missing ?? []).filter((token) => !hidden.has(token.key));
+  });
+  readonly hiddenTokens = computed(() => {
+    const language = this.language();
+    return this.blacklist().map((key) => ({
+      key,
+      title: displayTitle(key, language) || key,
+    }));
+  });
   readonly sortedElements = computed(() => {
     const elements = this.day()?.elements ?? [];
     const sort = this.elementSort();
@@ -1616,6 +1818,8 @@ export class GemStatsModal {
         this.sortMenuOpen.set(false);
         this.goalsOpen.set(false);
         this.goals.set(readDailyGoals(language));
+        this.blacklist.set(readMissingBlacklist(language));
+        this.hiddenOpen.set(false);
         this.job.ensure(language);
       });
     });
@@ -1770,6 +1974,22 @@ export class GemStatsModal {
 
   activityLabel(label: string, count: number): string {
     return `${count} ${label.toLowerCase()}`;
+  }
+
+  seenLabel(count: number): string {
+    const amount = this.formatCount(count);
+    return count === 1 ? `Seen ${amount} time` : `Seen ${amount} times`;
+  }
+
+  hideMissing(token: MissingToken): void {
+    if (this.asking()) return;
+    this.blacklist.set(ignoreMissingToken(this.language(), token.key));
+  }
+
+  restoreMissing(key: string): void {
+    const next = restoreMissingToken(this.language(), key);
+    this.blacklist.set(next);
+    if (!next.length) this.hiddenOpen.set(false);
   }
 
   activityCardLabel(label: string, day: number): string {

@@ -898,8 +898,12 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       @if (statsOpen()) {
         <app-gem-stats
           [language]="code()"
+          [asking]="asking()"
+          [askError]="statsAskError()"
           (closed)="closeStats()"
           (opened)="openStatsElement($event)"
+          (addMissing)="addMissingElement($event)"
+          (askMissing)="askMissingElement($event)"
         />
       }
 
@@ -2331,6 +2335,7 @@ export class LanguagePage {
   readonly asking = signal(false);
   readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
+  readonly statsAskError = signal('');
   readonly selecting = signal(false);
   readonly selectedIds = signal<ReadonlySet<string>>(new Set());
   readonly selectionBusy = signal(false);
@@ -3253,6 +3258,7 @@ export class LanguagePage {
     if (this.discoverOpen()) this.closeDiscover();
     if (this.settingsOpen()) this.closeSettings();
     if (this.statsOpen()) return;
+    this.statsAskError.set('');
     this.statsOpen.set(true);
     this.lockScroll();
   }
@@ -3260,12 +3266,70 @@ export class LanguagePage {
   closeStats(): void {
     if (!this.statsOpen()) return;
     this.statsOpen.set(false);
+    this.statsAskError.set('');
     this.unlockScroll();
   }
 
   openStatsElement(id: string): void {
     this.closeStats();
     this.openElement(id);
+  }
+
+  async addMissingElement(title: string): Promise<void> {
+    const name = title.replace(/\s+/g, ' ').trim();
+    const code = this.code();
+    if (!name || !code || this.asking()) return;
+    this.statsAskError.set('');
+    try {
+      const created = await addElement(code, name);
+      this.elements.set(await readElements(code));
+      this.clearSearch();
+      this.closeStats();
+      this.trail.set([{ id: created.id, definition: 0 }]);
+      this.showElement(created.id);
+    } catch {
+      this.statsAskError.set('Could not add that element.');
+    }
+  }
+
+  async askMissingElement(title: string): Promise<void> {
+    const selected = title.replace(/\s+/g, ' ').trim();
+    const code = this.code();
+    if (!selected || !code || this.asking()) return;
+    this.asking.set(true);
+    this.statsAskError.set('');
+    try {
+      const generated = await generateElementFromSelection({
+        language: code,
+        selected,
+        context: '',
+        translation: this.translationTarget(),
+      });
+      if (!generated) {
+        this.statsAskError.set('Could not add that element.');
+        return;
+      }
+      await this.addPrepared(
+        {
+          title: generated.lemma,
+          definitions: generated.definitions.map((sense) => ({
+            text: sense.text,
+            equivalent: sense.equivalent,
+            equivalentIds: {},
+            forms: searchForms(generated.lemma, selected),
+            examples: [],
+            metadata: { ...sense.metadata },
+            log: [],
+          })),
+        },
+        true,
+      );
+      this.closeStats();
+    } catch {
+      this.statsAskError.set('Could not add that element.');
+    } finally {
+      this.asking.set(false);
+    }
   }
 
   async recomputeMetadata(): Promise<void> {
