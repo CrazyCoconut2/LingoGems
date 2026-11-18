@@ -1729,6 +1729,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       align-items: center;
       gap: 0.22rem;
       min-width: 0;
+      height: 0.75rem;
       color: #cbd5e1;
       font-size: 0.625rem;
       font-weight: 550;
@@ -1736,13 +1737,22 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       line-height: 1;
     }
 
+    .stat > span {
+      display: block;
+      line-height: 1;
+      transform: translateY(0.5px);
+    }
+
     .stat.zero {
       opacity: 0.4;
     }
 
     .stat app-reveal-icon {
+      display: flex;
+      align-items: center;
       width: 1.15rem;
-      height: 0.52rem;
+      height: 0.75rem;
+      color: var(--card-accent, #94a3b8);
     }
 
     .stat svg {
