@@ -81,6 +81,9 @@ import {
   DEFINITION_MAX,
   EQUIVALENT_MAX,
   emptyPlayRound,
+  insertRoundSlots,
+  moveRoundSlot,
+  removeRoundSlot,
   type EquivalentReward,
   type PlayRound,
 } from './play-session';
@@ -567,6 +570,38 @@ function writeExampleSuggestions(
             </button>
           }
         </ng-template>
+        <ng-template #lookupActions let-text="text">
+          <div class="lookup-actions">
+            <button
+              type="button"
+              class="lookup-chip"
+              aria-label="Add element"
+              [disabled]="aiBusy()"
+              (pointerdown)="confirmPassagePick($event, text)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12h14" />
+                <path d="M12 5v14" />
+              </svg>
+              Add
+            </button>
+            <button
+              type="button"
+              class="lookup-chip"
+              aria-label="Add element with AI"
+              [disabled]="aiBusy()"
+              [attr.aria-busy]="addingSelection() ? true : null"
+              (pointerdown)="confirmPassagePick($event, text, true)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                />
+              </svg>
+              Ask AI
+            </button>
+          </div>
+        </ng-template>
         <ng-template #translationIcon>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m5 8 6 6" />
@@ -619,7 +654,7 @@ function writeExampleSuggestions(
                 [style.--swatch]="element().color || null"
                 aria-label="Edit element"
                 title="Edit element"
-                [disabled]="inPlay() || aiBusy()"
+                [disabled]="aiBusy()"
                 (click)="openTitle()"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -637,7 +672,7 @@ function writeExampleSuggestions(
                 class="icon-btn danger"
                 aria-label="Delete element"
                 title="Delete element"
-                [disabled]="inPlay() || busy()"
+                [disabled]="busy()"
                 (click)="askDeleteElement()"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -662,43 +697,6 @@ function writeExampleSuggestions(
               </button>
             </div>
           </div>
-          <div class="header-actions">
-            @if (element().definitions.length) {
-              @let index = visibleDefinitionIndex();
-              @if (passagePick(index, null); as pick) {
-                <span class="lookup-actions">
-                  <button
-                    type="button"
-                    class="lookup-chip"
-                    aria-label="Add element"
-                    [disabled]="aiBusy()"
-                    (pointerdown)="confirmPassagePick($event, pick.text)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M5 12h14" />
-                      <path d="M12 5v14" />
-                    </svg>
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    class="lookup-chip"
-                    aria-label="Add element with AI"
-                    [disabled]="aiBusy()"
-                    [attr.aria-busy]="addingSelection() ? true : null"
-                    (pointerdown)="confirmPassagePick($event, pick.text, true)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                      />
-                    </svg>
-                    Ask AI
-                  </button>
-                </span>
-              }
-            }
-          </div>
         </header>
         <div #definitionBody class="body" cdkScrollable>
           @if (collision(); as matches) {
@@ -720,88 +718,88 @@ function writeExampleSuggestions(
               <ol class="definitions">
                 <li class="sense">
                   <div class="sense-toolbar">
-                      <div class="sense-pager">
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Previous definition"
-                          [disabled]="index === 0"
-                          (click)="showDefinition(index - 1)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m15 18-6-6 6-6" />
-                          </svg>
-                        </button>
-                        <label class="definition-order">
-                          <input
-                            class="order-input"
-                            type="text"
-                            inputmode="numeric"
-                            autocomplete="off"
-                            [style.--digits]="orderDigits(definitions.length)"
-                            [attr.aria-label]="
-                              'Position ' + (index + 1) + ' of ' + definitions.length
-                            "
-                            [disabled]="inPlay() || definitions.length < 2"
-                            [value]="index + 1"
-                            (focus)="focusOrderInput($event)"
-                            (input)="editOrderInput($event)"
-                            (keydown.enter)="commitOrderInput($event, definitions.length)"
-                            (keydown.escape)="cancelOrderInput($event)"
-                            (blur)="commitOrderInput($event, definitions.length)"
-                          />
-                          <span class="order-total">/{{ definitions.length }}</span>
-                        </label>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Next definition"
-                          [disabled]="index >= definitions.length - 1"
-                          (click)="showDefinition(index + 1)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m9 18 6-6-6-6" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Add a definition"
-                          title="Add a definition"
-                          [disabled]="inPlay() || aiBusy()"
-                          (click)="addDefinitionManually()"
-                        >
+                    <div class="sense-pager">
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Previous definition"
+                        [disabled]="index === 0"
+                        (click)="showDefinition(index - 1)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m15 18-6-6 6-6" />
+                        </svg>
+                      </button>
+                      <label class="definition-order">
+                        <input
+                          class="order-input"
+                          type="text"
+                          inputmode="numeric"
+                          autocomplete="off"
+                          [style.--digits]="orderDigits(definitions.length)"
+                          [attr.aria-label]="
+                            'Position ' + (index + 1) + ' of ' + definitions.length
+                          "
+                          [disabled]="definitions.length < 2"
+                          [value]="index + 1"
+                          (focus)="focusOrderInput($event)"
+                          (input)="editOrderInput($event)"
+                          (keydown.enter)="commitOrderInput($event, definitions.length)"
+                          (keydown.escape)="cancelOrderInput($event)"
+                          (blur)="commitOrderInput($event, definitions.length)"
+                        />
+                        <span class="order-total">/{{ definitions.length }}</span>
+                      </label>
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Next definition"
+                        [disabled]="index >= definitions.length - 1"
+                        (click)="showDefinition(index + 1)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m9 18 6-6-6-6" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Add a definition"
+                        title="Add a definition"
+                        [disabled]="aiBusy()"
+                        (click)="addDefinitionManually()"
+                      >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                           <path d="M12 5v14" />
                           <path d="M5 12h14" />
                         </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Missing definitions"
-                          title="Missing definitions"
-                          [disabled]="inPlay() || aiBusy()"
-                          (click)="openMissingDefinitions()"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                            />
-                            <path d="M5 3v4" />
-                            <path d="M3 5h4" />
-                            <path d="M19 17v4" />
-                            <path d="M17 19h4" />
-                          </svg>
-                        </button>
-                      </div>
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Missing definitions"
+                        title="Missing definitions"
+                        [disabled]="aiBusy()"
+                        (click)="openMissingDefinitions()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                          />
+                          <path d="M5 3v4" />
+                          <path d="M3 5h4" />
+                          <path d="M19 17v4" />
+                          <path d="M17 19h4" />
+                        </svg>
+                      </button>
+                    </div>
                     <div class="sense-actions">
                       <button
                         type="button"
                         class="icon-btn"
                         aria-label="Stats"
                         title="Stats"
-                        [disabled]="inPlay()"
+                        [disabled]="definitionInPlay(index)"
                         (click)="openExerciseLog(index)"
                       >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -816,7 +814,7 @@ function writeExampleSuggestions(
                         class="icon-btn"
                         [attr.aria-label]="definitionActionLabel(definition)"
                         [attr.title]="definitionActionLabel(definition)"
-                        [disabled]="inPlay() || aiBusy()"
+                        [disabled]="definitionInPlay(index) || aiBusy()"
                         (click)="openDefinition(index)"
                       >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -830,7 +828,7 @@ function writeExampleSuggestions(
                         class="icon-btn danger"
                         [attr.aria-label]="deleteLabel()"
                         [attr.title]="deleteTitle()"
-                        [disabled]="inPlay() || busy() || aiBusy()"
+                        [disabled]="definitionInPlay(index) || busy() || aiBusy()"
                         (pointerdown)="startDeletePress($event)"
                         (pointermove)="moveDeletePress($event)"
                         (pointerup)="endDeletePress()"
@@ -854,7 +852,7 @@ function writeExampleSuggestions(
                       <ng-container [ngTemplateOutlet]="definitionPassage" />
                       <ng-template #definitionPassage>
                         @if (passage.text) {
-                          @if (definitionGame() && definitionConcealed(index)) {
+                          @if (definitionConcealed(index)) {
                             <div class="spoken">
                               <div class="spoken-copy">
                                 <p class="passage definition-cue-text" aria-hidden="true">
@@ -929,7 +927,7 @@ function writeExampleSuggestions(
                               <li>
                                 <app-reveal
                                   [text]="labeledTranslation(translation)"
-                                  [locked]="inPlay()"
+                                  [locked]="definitionInPlay(index)"
                                   (unveiled)="noteReveal(index)"
                                 />
                               </li>
@@ -943,11 +941,11 @@ function writeExampleSuggestions(
                         <ul class="sense-meta">
                           @if (supportAvailable() && equivalent) {
                             <li class="sense-equivalent">
-                              @if (translationGame() && !equivalentSubmitted(index)) {
+                              @if (translationGame(index) && !equivalentSubmitted(index)) {
                                 <span class="guess-answer play-blur" aria-hidden="true">{{
                                   labeledEquivalent(equivalent)
                                 }}</span>
-                              } @else if (translationGame()) {
+                              } @else if (translationGame(index)) {
                                 <button
                                   type="button"
                                   class="guess-open"
@@ -963,7 +961,7 @@ function writeExampleSuggestions(
                                 <ng-container [ngTemplateOutlet]="translationIcon" />
                                 <app-reveal
                                   [text]="labeledEquivalent(equivalent)"
-                                  [locked]="inPlay()"
+                                  [locked]="definitionInPlay(index)"
                                   [open]="equivalentUnveiled(equivalent)"
                                   (unveiled)="unveilEquivalent(equivalent)"
                                 />
@@ -978,6 +976,12 @@ function writeExampleSuggestions(
                             </li>
                           }
                         </ul>
+                      }
+                      @if (passagePick(index, null); as pick) {
+                        <ng-container
+                          [ngTemplateOutlet]="lookupActions"
+                          [ngTemplateOutletContext]="{ text: pick.text }"
+                        />
                       }
                       @if (playCue(index); as cue) {
                         <button
@@ -995,113 +999,116 @@ function writeExampleSuggestions(
                   @if (definition.examples.length) {
                     <section class="group">
                       <ul class="examples" aria-label="Examples">
-                          @for (
-                            exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
-                            track exampleIndex
-                          ) {
-                            @let example = definition.examples[exampleIndex];
-                            <li class="saved-example">
-                              <div
-                                class="example-quote"
-                                [class.play-blur]="exampleGame()"
-                                [attr.aria-hidden]="exampleGame() ? true : null"
-                              >
-                                @let passage = parsePassage(example.text);
-                                @if (passage.text) {
-                                  <div class="spoken">
-                                    <div class="spoken-copy">
-                                      <p
-                                        class="passage sense-selectable"
-                                        [attr.data-definition-index]="index"
-                                        [attr.data-example-index]="exampleIndex"
-                                      >
-                                        @for (
-                                          part of highlightPassage(passage.text);
-                                          track $index
-                                        ) {
-                                          @if (part.matches.length > 1) {
-                                            <button
-                                              type="button"
-                                              class="linguagem-highlighted"
-                                              [style.--score-color]="part.color || null"
-                                              [textContent]="part.text"
-                                              (click)="
-                                                showCollision(
-                                                  $event,
-                                                  part.matches,
-                                                  index,
-                                                  example.text
-                                                )
-                                              "
-                                            ></button>
-                                          } @else if (part.matches.length === 1 && !part.current) {
-                                            <button
-                                              type="button"
-                                              class="linguagem-highlighted"
-                                              [style.--score-color]="part.color || null"
-                                              [textContent]="part.text"
-                                              (click)="
-                                                visitHighlight(
-                                                  part.matches[0].elementId,
-                                                  index,
-                                                  example.text
-                                                )
-                                              "
-                                            ></button>
-                                          } @else if (part.current) {
-                                            <span
-                                              class="linguagem-highlighted linguagem-highlighted--current"
-                                              [style.--score-color]="part.color || null"
-                                              [textContent]="part.text"
-                                            ></span>
-                                          } @else {
-                                            <span [textContent]="part.text"></span>
-                                          }
+                        @for (
+                          exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
+                          track exampleIndex
+                        ) {
+                          @let example = definition.examples[exampleIndex];
+                          <li class="saved-example">
+                            <div
+                              class="example-quote"
+                              [class.play-blur]="exampleGame(index)"
+                              [attr.aria-hidden]="exampleGame(index) ? true : null"
+                            >
+                              @let passage = parsePassage(example.text);
+                              @if (passage.text) {
+                                <div class="spoken">
+                                  <div class="spoken-copy">
+                                    <p
+                                      class="passage sense-selectable"
+                                      [attr.data-definition-index]="index"
+                                      [attr.data-example-index]="exampleIndex"
+                                    >
+                                      @for (part of highlightPassage(passage.text); track $index) {
+                                        @if (part.matches.length > 1) {
+                                          <button
+                                            type="button"
+                                            class="linguagem-highlighted"
+                                            [style.--score-color]="part.color || null"
+                                            [textContent]="part.text"
+                                            (click)="
+                                              showCollision(
+                                                $event,
+                                                part.matches,
+                                                index,
+                                                example.text
+                                              )
+                                            "
+                                          ></button>
+                                        } @else if (part.matches.length === 1 && !part.current) {
+                                          <button
+                                            type="button"
+                                            class="linguagem-highlighted"
+                                            [style.--score-color]="part.color || null"
+                                            [textContent]="part.text"
+                                            (click)="
+                                              visitHighlight(
+                                                part.matches[0].elementId,
+                                                index,
+                                                example.text
+                                              )
+                                            "
+                                          ></button>
+                                        } @else if (part.current) {
+                                          <span
+                                            class="linguagem-highlighted linguagem-highlighted--current"
+                                            [style.--score-color]="part.color || null"
+                                            [textContent]="part.text"
+                                          ></span>
+                                        } @else {
+                                          <span [textContent]="part.text"></span>
                                         }
-                                      </p>
-                                      @let translations = shownTranslations(passage);
-                                      @if (translations.length) {
-                                        <ul class="equivalents">
-                                          @for (translation of translations; track $index) {
-                                            <li>
-                                              <app-reveal
-                                                [text]="labeledTranslation(translation)"
-                                                [locked]="inPlay()"
-                                                (unveiled)="noteReveal(index)"
-                                              />
-                                            </li>
-                                          }
-                                        </ul>
                                       }
-                                    </div>
-                                    <ng-container
-                                      [ngTemplateOutlet]="hearButton"
-                                      [ngTemplateOutletContext]="{
-                                        key: 'example:' + index + ':' + exampleIndex,
-                                        text: example.text,
-                                        label: 'example',
-                                      }"
-                                    />
+                                    </p>
+                                    @let translations = shownTranslations(passage);
+                                    @if (translations.length) {
+                                      <ul class="equivalents">
+                                        @for (translation of translations; track $index) {
+                                          <li>
+                                            <app-reveal
+                                              [text]="labeledTranslation(translation)"
+                                              [locked]="definitionInPlay(index)"
+                                              (unveiled)="noteReveal(index)"
+                                            />
+                                          </li>
+                                        }
+                                      </ul>
+                                    }
                                   </div>
+                                  <ng-container
+                                    [ngTemplateOutlet]="hearButton"
+                                    [ngTemplateOutletContext]="{
+                                      key: 'example:' + index + ':' + exampleIndex,
+                                      text: example.text,
+                                      label: 'example',
+                                    }"
+                                  />
+                                </div>
+                              }
+                              @if (entries(example.metadata); as meta) {
+                                @if (meta.length) {
+                                  <ul class="pills">
+                                    @for (entry of meta; track entry.key) {
+                                      @let color = metaColor('examples', entry.key);
+                                      <li [class.colored]="color" [style.--meta-color]="color">
+                                        <span>
+                                          <span class="sense-meta-key">{{ entry.key }}</span>
+                                          <span class="sense-meta-value">{{ entry.value }}</span>
+                                        </span>
+                                      </li>
+                                    }
+                                  </ul>
                                 }
-                                @if (entries(example.metadata); as meta) {
-                                  @if (meta.length) {
-                                    <ul class="pills">
-                                      @for (entry of meta; track entry.key) {
-                                        @let color = metaColor('examples', entry.key);
-                                        <li [class.colored]="color" [style.--meta-color]="color">
-                                          <span>
-                                            <span class="sense-meta-key">{{ entry.key }}</span>
-                                            <span class="sense-meta-value">{{ entry.value }}</span>
-                                          </span>
-                                        </li>
-                                      }
-                                    </ul>
-                                  }
-                                }
-                              </div>
-                            </li>
-                          }
+                              }
+                            </div>
+                            @if (passagePick(index, exampleIndex); as pick) {
+                              <ng-container
+                                [ngTemplateOutlet]="lookupActions"
+                                [ngTemplateOutletContext]="{ text: pick.text }"
+                              />
+                            }
+                          </li>
+                        }
                       </ul>
                     </section>
                   }
@@ -1153,7 +1160,7 @@ function writeExampleSuggestions(
                   type="text"
                   [value]="definitionExample()"
                   [attr.maxlength]="exampleLengthMax"
-                  [disabled]="inPlay() || aiBusy()"
+                  [disabled]="aiBusy()"
                   placeholder="Enter your own example…"
                   aria-label="Enter your own example"
                   aria-describedby="example-slot-hint"
@@ -1164,7 +1171,7 @@ function writeExampleSuggestions(
                 type="submit"
                 class="example-slot-submit"
                 aria-label="Add example"
-                [disabled]="inPlay() || aiBusy() || !definitionExample().trim()"
+                [disabled]="aiBusy() || !definitionExample().trim()"
                 [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1729,39 +1736,7 @@ function writeExampleSuggestions(
                                 }
                               </div>
                               <div class="item-actions">
-                                @if (passagePick(workIndex, exampleIndex); as pick) {
-                                  <span class="lookup-actions">
-                                    <button
-                                      type="button"
-                                      class="lookup-chip"
-                                      aria-label="Add element"
-                                      [disabled]="aiBusy()"
-                                      (pointerdown)="confirmPassagePick($event, pick.text)"
-                                    >
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <path d="M5 12h14" />
-                                        <path d="M12 5v14" />
-                                      </svg>
-                                      Add
-                                    </button>
-                                    <button
-                                      type="button"
-                                      class="lookup-chip"
-                                      aria-label="Add element with AI"
-                                      [disabled]="aiBusy()"
-                                      [attr.aria-busy]="addingSelection() ? true : null"
-                                      (pointerdown)="confirmPassagePick($event, pick.text, true)"
-                                    >
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <path
-                                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                                        />
-                                      </svg>
-                                      Ask AI
-                                    </button>
-                                  </span>
-                                } @else {
-                                  <span class="item-actions-main">
+                                <span class="item-actions-main">
                                     <button
                                       type="button"
                                       class="icon-btn"
@@ -1793,8 +1768,13 @@ function writeExampleSuggestions(
                                       </svg>
                                     </button>
                                   </span>
-                                }
                               </div>
+                              @if (passagePick(workIndex, exampleIndex); as pick) {
+                                <ng-container
+                                  [ngTemplateOutlet]="lookupActions"
+                                  [ngTemplateOutletContext]="{ text: pick.text }"
+                                />
+                              }
                             </li>
                           }
                         </ul>
@@ -3112,7 +3092,7 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (!inPlay() && statsDefinition(); as definition) {
+        @if (!definitionInPlay(exerciseLog()) && statsDefinition(); as definition) {
           @let index = exerciseLog();
           <div class="sheet-backdrop" (click)="closeExerciseLog($event)">
             <section
@@ -3136,375 +3116,435 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <p class="stats-definition">
-                {{ shownDefinition(parsePassage(definition.text).text) }}
-              </p>
-              @if (exerciseEntry() < 0) {
-                <div class="stats-summary">
-                  <section class="stats-block">
-                    <h3>Exercises</h3>
-                    <ul class="stats-gems">
-                      @for (row of exerciseStats; track row.game) {
-                        @if (row.game !== 'translation' || supportAvailable()) {
-                          <li
-                            [attr.data-game]="row.game"
-                            [attr.aria-label]="
-                              exerciseAverageLabel(definition, row.game, modeLabel(row.mode))
-                            "
-                          >
-                            <span class="stats-stone" aria-hidden="true">
-                              <app-mode-icon class="stats-stone-icon" [mode]="row.mode" />
+              <div class="stats-summary">
+                <section class="stats-block">
+                  <h3>Exercises</h3>
+                  <ul class="stats-gems">
+                    @for (row of exerciseStats; track row.game) {
+                      @if (row.game !== 'translation' || supportAvailable()) {
+                        <li
+                          [attr.data-game]="row.game"
+                          [attr.aria-label]="
+                            exerciseAverageLabel(definition, row.game, modeLabel(row.mode))
+                          "
+                        >
+                          <span class="stats-stone" aria-hidden="true">
+                            <app-mode-icon class="stats-stone-icon" [mode]="row.mode" />
+                          </span>
+                          @if (exerciseAverage(definition, row.game); as average) {
+                            <span class="stats-count">
+                              {{ average }}<span class="score-max">/5</span>
                             </span>
-                            @if (exerciseAverage(definition, row.game); as average) {
-                              <span class="stats-count">
-                                {{ average }}<span class="score-max">/5</span>
-                              </span>
-                            } @else {
-                              <span class="stats-count stats-na">N/A</span>
-                            }
-                            <span class="stats-caption">{{ modeLabel(row.mode) }}</span>
-                          </li>
-                        }
+                          } @else {
+                            <span class="stats-count stats-na">N/A</span>
+                          }
+                          <span class="stats-caption">{{ modeLabel(row.mode) }}</span>
+                        </li>
                       }
-                    </ul>
-                  </section>
-                  <section class="stats-block">
-                    <h3>Activity</h3>
-                    <ul class="stats-activity">
-                      <li [attr.aria-label]="reworkLabel(reworkCount(definition))">
-                        <span class="stats-well" aria-hidden="true">
-                          <svg class="stats-mark" viewBox="0 0 24 24">
-                            <path
-                              d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-                            />
-                          </svg>
-                        </span>
-                        <span class="stats-count">{{ reworkCount(definition) }}</span>
-                        <span class="stats-caption">Reworked</span>
-                      </li>
-                    </ul>
-                  </section>
-                </div>
-                @if (definitionHistory(definition).length) {
-                  <section class="stats-log">
-                    <h3>History</h3>
-                    <div class="add-choices">
-                      @for (entry of definitionHistory(definition); track $index) {
-                        <button
-                          type="button"
-                          class="btn btn-secondary add-choice log-row"
+                    }
+                  </ul>
+                </section>
+                <section class="stats-block">
+                  <h3>Activity</h3>
+                  <ul class="stats-activity">
+                    @let reworked = activityCount(definition, 'rework');
+                    @let seen = activityCount(definition, 'view');
+                    @let revealed = activityCount(definition, 'reveal');
+                    <li [attr.aria-label]="activityLabel('rework', reworked)">
+                      <span class="stats-well" aria-hidden="true">
+                        <svg class="stats-mark" viewBox="0 0 24 24">
+                          <path
+                            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+                          />
+                        </svg>
+                      </span>
+                      <span class="stats-count">{{ reworked }}</span>
+                      <span class="stats-caption">Reworked</span>
+                    </li>
+                    <li [attr.aria-label]="activityLabel('view', seen)">
+                      <span class="stats-well" aria-hidden="true">
+                        <svg class="stats-mark" viewBox="0 0 24 24">
+                          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </span>
+                      <span class="stats-count">{{ seen }}</span>
+                      <span class="stats-caption">Seen</span>
+                    </li>
+                    <li [attr.aria-label]="activityLabel('reveal', revealed)">
+                      <span class="stats-well" aria-hidden="true">
+                        <svg class="stats-mark" viewBox="0 0 24 24">
+                          <path d="m5 8 6 6" />
+                          <path d="m4 14 6-6 2-3" />
+                          <path d="M2 5h12" />
+                          <path d="M7 2h1" />
+                          <path d="m22 22-5-10-5 10" />
+                          <path d="M14 18h6" />
+                        </svg>
+                      </span>
+                      <span class="stats-count">{{ revealed }}</span>
+                      <span class="stats-caption">Revealed</span>
+                    </li>
+                  </ul>
+                </section>
+              </div>
+              @if (definitionHistory(definition).length) {
+                <section class="stats-log">
+                  <h3>History</h3>
+                  <div class="add-choices">
+                    <ng-template #historyDelete let-historyIndex="historyIndex">
+                      <button
+                        type="button"
+                        class="icon-btn danger log-delete"
+                        aria-label="Delete"
+                        title="Delete"
+                        [disabled]="busy()"
+                        (click)="askDeleteExercise(index, historyIndex)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                          <path d="M10 11v6" />
+                          <path d="M14 11v6" />
+                        </svg>
+                      </button>
+                    </ng-template>
+                    @for (entry of definitionHistory(definition); track $index) {
+                      @if (entry.event === 'view') {
+                        <div
+                          class="log-row log-plain"
                           [attr.aria-label]="historyAria(definition, entry)"
-                          (click)="exerciseEntry.set($index)"
                         >
                           <span class="log-copy">
                             <span class="log-game">{{ historyTitle(entry) }}</span>
                             <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                           </span>
-                          @if (entry.event === 'game') {
-                            <span
-                              class="score-readout"
-                              [attr.data-game]="entry.game"
-                              aria-hidden="true"
-                            >
-                              @if (earnedGameGem(definition, entry)) {
-                                <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
+                          <ng-container
+                            [ngTemplateOutlet]="historyDelete"
+                            [ngTemplateOutletContext]="{ historyIndex: $index }"
+                          />
+                        </div>
+                      } @else {
+                        <div class="log-item">
+                          <div class="log-row">
+                          <button
+                            type="button"
+                            class="log-open"
+                            [attr.aria-expanded]="exerciseEntry() === $index"
+                            [attr.aria-label]="historyAria(definition, entry)"
+                            (click)="toggleExerciseEntry($index)"
+                          >
+                            <span class="log-copy">
+                              <span class="log-game">{{ historyTitle(entry) }}</span>
+                              <span class="hint">{{ exerciseWhen(entry.at) }}</span>
+                            </span>
+                            <span class="log-side">
+                              @if (entry.event === 'game') {
+                                <span
+                                  class="score-readout"
+                                  [attr.data-game]="entry.game"
+                                  aria-hidden="true"
+                                >
+                                  @if (earnedGameGem(definition, entry)) {
+                                    <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
+                                  }
+                                  {{ entry.score }}<span class="score-max">/5</span>
+                                </span>
                               }
-                              {{ entry.score }}<span class="score-max">/5</span>
-                            </span>
-                          }
-                        </button>
-                      }
-                    </div>
-                  </section>
-                }
-              } @else {
-                @let entry = definitionHistory(definition)[exerciseEntry()];
-                @if (entry) {
-                  <ng-template
-                    #historyPassage
-                    let-text="text"
-                    let-equivalent="equivalent"
-                    let-metadata="metadata"
-                  >
-                    @let passage = parsePassage(text);
-                    @if (passage.text) {
-                      <p class="passage">{{ shownDefinition(passage.text) }}</p>
-                    }
-                    @let translations = shownTranslations(passage);
-                    @if (translations.length) {
-                      <ul class="equivalents">
-                        @for (translation of translations; track $index) {
-                          <li>
-                            <app-reveal
-                              [text]="labeledTranslation(translation)"
-                              (unveiled)="noteReveal(index)"
-                            />
-                          </li>
-                        }
-                      </ul>
-                    }
-                    @if (equivalent || entries(metadata ?? {}).length) {
-                      <ul class="sense-meta">
-                        @if (equivalent) {
-                          <li class="sense-equivalent">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
-                            <span>{{ equivalent }}</span>
-                          </li>
-                        }
-                        @for (item of entries(metadata ?? {}); track item.key) {
-                          <li>
-                            <span class="sense-meta-key">{{ item.key }}</span>
-                            <span class="sense-meta-value">{{ item.value }}</span>
-                          </li>
-                        }
-                      </ul>
-                    }
-                  </ng-template>
-                  @if (entry.event === 'rework') {
-                    @if (entry.before && entry.after) {
-                      <div class="compare">
-                        <div class="compare-side">
-                          <p class="field-label">Before</p>
-                          <ng-container
-                            [ngTemplateOutlet]="historyPassage"
-                            [ngTemplateOutletContext]="{
-                              text: entry.before.text,
-                              equivalent: entry.before.equivalent,
-                              metadata: entry.before.metadata,
-                            }"
-                          />
-                        </div>
-                        <div class="compare-side yours">
-                          <p class="field-label">After</p>
-                          <ng-container
-                            [ngTemplateOutlet]="historyPassage"
-                            [ngTemplateOutletContext]="{
-                              text: entry.after.text,
-                              equivalent: entry.after.equivalent,
-                              metadata: entry.after.metadata,
-                            }"
-                          />
-                        </div>
-                      </div>
-                    } @else if (entry.before; as side) {
-                      <p class="field-label">Before</p>
-                      <ng-container
-                        [ngTemplateOutlet]="historyPassage"
-                        [ngTemplateOutletContext]="{
-                          text: side.text,
-                          equivalent: side.equivalent,
-                          metadata: side.metadata,
-                        }"
-                      />
-                    } @else if (entry.after; as side) {
-                      <p class="field-label">After</p>
-                      <ng-container
-                        [ngTemplateOutlet]="historyPassage"
-                        [ngTemplateOutletContext]="{
-                          text: side.text,
-                          equivalent: side.equivalent,
-                          metadata: side.metadata,
-                        }"
-                      />
-                    } @else {
-                      <p class="field-label">Reworked</p>
-                    }
-                    <p class="hint">{{ exerciseWhen(entry.at) }}</p>
-                  } @else if (entry.event === 'example') {
-                    @if (entry.snapshot; as snapshot) {
-                      <div class="equivalent-gloss">
-                        <p class="field-label">Definition</p>
-                        <ng-container
-                          [ngTemplateOutlet]="historyPassage"
-                          [ngTemplateOutletContext]="{
-                            text: snapshot.text,
-                            equivalent: snapshot.equivalent,
-                          }"
-                        />
-                      </div>
-                    }
-                    @if (entry.example) {
-                      <div class="compare-side yours">
-                        <p class="field-label">Example</p>
-                        <ng-container
-                          [ngTemplateOutlet]="historyPassage"
-                          [ngTemplateOutletContext]="{ text: entry.example, equivalent: '' }"
-                        />
-                      </div>
-                    }
-                    <p class="hint">{{ exerciseWhen(entry.at) }}</p>
-                  } @else if (entry.event === 'form') {
-                    @if (entry.snapshot; as snapshot) {
-                      <div class="equivalent-gloss">
-                        <p class="field-label">Definition</p>
-                        <ng-container
-                          [ngTemplateOutlet]="historyPassage"
-                          [ngTemplateOutletContext]="{
-                            text: snapshot.text,
-                            equivalent: snapshot.equivalent,
-                          }"
-                        />
-                      </div>
-                    }
-                    @if (entry.forms.length) {
-                      <ul class="forms">
-                        @for (form of entry.forms; track form) {
-                          <li>
-                            <span class="form-chip readonly">
-                              <ng-container [ngTemplateOutlet]="formIcon" />
-                              {{ form }}
-                            </span>
-                          </li>
-                        }
-                      </ul>
-                    }
-                    <p class="hint">{{ exerciseWhen(entry.at) }}</p>
-                  } @else if (entry.event === 'view') {
-                    <p class="field-label">Seen</p>
-                    <p class="hint">{{ exerciseWhen(entry.at) }}</p>
-                  } @else {
-                    @let passage = parsePassage(entry.snapshot?.text ?? definition.text);
-                    @let gloss = passage.text;
-                    @let equivalent = entry.snapshot?.equivalent ?? equivalentText(definition);
-                    @if (gloss && entry.answer && entry.game !== 'definition') {
-                      <div class="equivalent-gloss">
-                        <p class="field-label">Definition</p>
-                        <p>{{ shownDefinition(gloss) }}</p>
-                        @let translations = shownTranslations(passage);
-                        @if (translations.length) {
-                          <ul class="equivalents">
-                            @for (translation of translations; track $index) {
-                              <li>
-                                <app-reveal
-                                  [text]="labeledTranslation(translation)"
-                                  (unveiled)="noteReveal(index)"
-                                />
-                              </li>
-                            }
-                          </ul>
-                        }
-                      </div>
-                    }
-                    @if (!entry.answer) {
-                      <p class="field-label">You gave up</p>
-                      @if (entry.game === 'definition' || entry.game === 'example') {
-                        <p class="passage">{{ shownDefinition(gloss) }}</p>
-                        @let translations = shownTranslations(passage);
-                        @if (translations.length) {
-                          <ul class="equivalents">
-                            @for (translation of translations; track $index) {
-                              <li>
-                                <app-reveal
-                                  [text]="labeledTranslation(translation)"
-                                  (unveiled)="noteReveal(index)"
-                                />
-                              </li>
-                            }
-                          </ul>
-                        }
-                      } @else if (equivalent) {
-                        <p class="equivalent-result">
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                          <span>{{ equivalent }}</span>
-                        </p>
-                      }
-                    } @else if (entry.game === 'example') {
-                      <div class="compare-side yours">
-                        <p class="field-label">You wrote</p>
-                        <p>{{ entry.answer }}</p>
-                      </div>
-                    } @else {
-                      <div class="compare">
-                        <div class="compare-side">
-                          @if (entry.game === 'definition') {
-                            <p class="field-label">Definition</p>
-                            <p class="passage">{{ shownDefinition(gloss) }}</p>
-                            @let translations = shownTranslations(passage);
-                            @if (translations.length) {
-                              <ul class="equivalents">
-                                @for (translation of translations; track $index) {
-                                  <li>
-                                    <app-reveal
-                                      [text]="labeledTranslation(translation)"
-                                      (unveiled)="noteReveal(index)"
-                                    />
-                                  </li>
-                                }
-                              </ul>
-                            }
-                          } @else {
-                            <p class="field-label">Equivalent</p>
-                            <p class="equivalent-result">
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m5 8 6 6" />
-                                <path d="m4 14 6-6 2-3" />
-                                <path d="M2 5h12" />
-                                <path d="M7 2h1" />
-                                <path d="m22 22-5-10-5 10" />
-                                <path d="M14 18h6" />
+                              <svg
+                                class="log-chevron"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                                [class.open]="exerciseEntry() === $index"
+                              >
+                                <path d="m6 9 6 6 6-6" />
                               </svg>
-                              <span>{{ equivalent }}</span>
-                            </p>
+                            </span>
+                          </button>
+                          <ng-container
+                            [ngTemplateOutlet]="historyDelete"
+                            [ngTemplateOutletContext]="{ historyIndex: $index }"
+                          />
+                          </div>
+                          @if (exerciseEntry() === $index) {
+                            <div class="log-detail">
+                              <ng-template
+                                #historyPassage
+                                let-text="text"
+                                let-equivalent="equivalent"
+                                let-metadata="metadata"
+                              >
+                                @let passage = parsePassage(text);
+                                @if (passage.text) {
+                                  <p class="passage">{{ shownDefinition(passage.text) }}</p>
+                                }
+                                @let translations = shownTranslations(passage);
+                                @if (translations.length) {
+                                  <ul class="equivalents">
+                                    @for (translation of translations; track $index) {
+                                      <li>
+                                        <app-reveal
+                                          [text]="labeledTranslation(translation)"
+                                          (unveiled)="noteReveal(index)"
+                                        />
+                                      </li>
+                                    }
+                                  </ul>
+                                }
+                                @if (equivalent || entries(metadata ?? {}).length) {
+                                  <ul class="sense-meta">
+                                    @if (equivalent) {
+                                      <li class="sense-equivalent">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                                          <path d="m5 8 6 6" />
+                                          <path d="m4 14 6-6 2-3" />
+                                          <path d="M2 5h12" />
+                                          <path d="M7 2h1" />
+                                          <path d="m22 22-5-10-5 10" />
+                                          <path d="M14 18h6" />
+                                        </svg>
+                                        <span>{{ equivalent }}</span>
+                                      </li>
+                                    }
+                                    @for (item of entries(metadata ?? {}); track item.key) {
+                                      <li>
+                                        <span class="sense-meta-key">{{ item.key }}</span>
+                                        <span class="sense-meta-value">{{ item.value }}</span>
+                                      </li>
+                                    }
+                                  </ul>
+                                }
+                              </ng-template>
+                              @if (entry.event === 'rework') {
+                                @if (entry.before && entry.after) {
+                                  <div class="compare">
+                                    <div class="compare-side">
+                                      <p class="field-label">Before</p>
+                                      <ng-container
+                                        [ngTemplateOutlet]="historyPassage"
+                                        [ngTemplateOutletContext]="{
+                                          text: entry.before.text,
+                                          equivalent: entry.before.equivalent,
+                                          metadata: entry.before.metadata,
+                                        }"
+                                      />
+                                    </div>
+                                    <div class="compare-side yours">
+                                      <p class="field-label">After</p>
+                                      <ng-container
+                                        [ngTemplateOutlet]="historyPassage"
+                                        [ngTemplateOutletContext]="{
+                                          text: entry.after.text,
+                                          equivalent: entry.after.equivalent,
+                                          metadata: entry.after.metadata,
+                                        }"
+                                      />
+                                    </div>
+                                  </div>
+                                } @else if (entry.before; as side) {
+                                  <p class="field-label">Before</p>
+                                  <ng-container
+                                    [ngTemplateOutlet]="historyPassage"
+                                    [ngTemplateOutletContext]="{
+                                      text: side.text,
+                                      equivalent: side.equivalent,
+                                      metadata: side.metadata,
+                                    }"
+                                  />
+                                } @else if (entry.after; as side) {
+                                  <p class="field-label">After</p>
+                                  <ng-container
+                                    [ngTemplateOutlet]="historyPassage"
+                                    [ngTemplateOutletContext]="{
+                                      text: side.text,
+                                      equivalent: side.equivalent,
+                                      metadata: side.metadata,
+                                    }"
+                                  />
+                                } @else {
+                                  <p class="field-label">Reworked</p>
+                                }
+                                <p class="hint">{{ exerciseWhen(entry.at) }}</p>
+                              } @else if (entry.event === 'example') {
+                                @if (entry.snapshot; as snapshot) {
+                                  <div class="equivalent-gloss">
+                                    <p class="field-label">Definition</p>
+                                    <ng-container
+                                      [ngTemplateOutlet]="historyPassage"
+                                      [ngTemplateOutletContext]="{
+                                        text: snapshot.text,
+                                        equivalent: snapshot.equivalent,
+                                      }"
+                                    />
+                                  </div>
+                                }
+                                @if (entry.example) {
+                                  <div class="compare-side yours">
+                                    <p class="field-label">Example</p>
+                                    <ng-container
+                                      [ngTemplateOutlet]="historyPassage"
+                                      [ngTemplateOutletContext]="{
+                                        text: entry.example,
+                                        equivalent: '',
+                                      }"
+                                    />
+                                  </div>
+                                }
+                                <p class="hint">{{ exerciseWhen(entry.at) }}</p>
+                              } @else if (entry.event === 'form') {
+                                @if (entry.snapshot; as snapshot) {
+                                  <div class="equivalent-gloss">
+                                    <p class="field-label">Definition</p>
+                                    <ng-container
+                                      [ngTemplateOutlet]="historyPassage"
+                                      [ngTemplateOutletContext]="{
+                                        text: snapshot.text,
+                                        equivalent: snapshot.equivalent,
+                                      }"
+                                    />
+                                  </div>
+                                }
+                                @if (entry.forms.length) {
+                                  <ul class="forms">
+                                    @for (form of entry.forms; track form) {
+                                      <li>
+                                        <span class="form-chip readonly">
+                                          <ng-container [ngTemplateOutlet]="formIcon" />
+                                          {{ form }}
+                                        </span>
+                                      </li>
+                                    }
+                                  </ul>
+                                }
+                                <p class="hint">{{ exerciseWhen(entry.at) }}</p>
+                              } @else {
+                                @let passage =
+                                  parsePassage(entry.snapshot?.text ?? definition.text);
+                                @let gloss = passage.text;
+                                @let equivalent =
+                                  entry.snapshot?.equivalent ?? equivalentText(definition);
+                                @if (gloss && entry.answer && entry.game !== 'definition') {
+                                  <div class="equivalent-gloss">
+                                    <p class="field-label">Definition</p>
+                                    <p>{{ shownDefinition(gloss) }}</p>
+                                    @let translations = shownTranslations(passage);
+                                    @if (translations.length) {
+                                      <ul class="equivalents">
+                                        @for (translation of translations; track $index) {
+                                          <li>
+                                            <app-reveal
+                                              [text]="labeledTranslation(translation)"
+                                              (unveiled)="noteReveal(index)"
+                                            />
+                                          </li>
+                                        }
+                                      </ul>
+                                    }
+                                  </div>
+                                }
+                                @if (!entry.answer) {
+                                  <p class="field-label">You gave up</p>
+                                  @if (entry.game === 'definition' || entry.game === 'example') {
+                                    <p class="passage">{{ shownDefinition(gloss) }}</p>
+                                    @let translations = shownTranslations(passage);
+                                    @if (translations.length) {
+                                      <ul class="equivalents">
+                                        @for (translation of translations; track $index) {
+                                          <li>
+                                            <app-reveal
+                                              [text]="labeledTranslation(translation)"
+                                              (unveiled)="noteReveal(index)"
+                                            />
+                                          </li>
+                                        }
+                                      </ul>
+                                    }
+                                  } @else if (equivalent) {
+                                    <p class="equivalent-result">
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m5 8 6 6" />
+                                        <path d="m4 14 6-6 2-3" />
+                                        <path d="M2 5h12" />
+                                        <path d="M7 2h1" />
+                                        <path d="m22 22-5-10-5 10" />
+                                        <path d="M14 18h6" />
+                                      </svg>
+                                      <span>{{ equivalent }}</span>
+                                    </p>
+                                  }
+                                } @else if (entry.game === 'example') {
+                                  <div class="compare-side yours">
+                                    <p class="field-label">You wrote</p>
+                                    <p>{{ entry.answer }}</p>
+                                  </div>
+                                } @else {
+                                  <div class="compare">
+                                    <div class="compare-side">
+                                      @if (entry.game === 'definition') {
+                                        <p class="field-label">Definition</p>
+                                        <p class="passage">{{ shownDefinition(gloss) }}</p>
+                                        @let translations = shownTranslations(passage);
+                                        @if (translations.length) {
+                                          <ul class="equivalents">
+                                            @for (translation of translations; track $index) {
+                                              <li>
+                                                <app-reveal
+                                                  [text]="labeledTranslation(translation)"
+                                                  (unveiled)="noteReveal(index)"
+                                                />
+                                              </li>
+                                            }
+                                          </ul>
+                                        }
+                                      } @else {
+                                        <p class="field-label">Equivalent</p>
+                                        <p class="equivalent-result">
+                                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="m5 8 6 6" />
+                                            <path d="m4 14 6-6 2-3" />
+                                            <path d="M2 5h12" />
+                                            <path d="M7 2h1" />
+                                            <path d="m22 22-5-10-5 10" />
+                                            <path d="M14 18h6" />
+                                          </svg>
+                                          <span>{{ equivalent }}</span>
+                                        </p>
+                                      }
+                                    </div>
+                                    <div class="compare-side yours">
+                                      <p class="field-label">You wrote</p>
+                                      <p>{{ entry.answer }}</p>
+                                    </div>
+                                  </div>
+                                }
+                                <p class="field-label">Score</p>
+                                <p
+                                  class="score-readout"
+                                  [attr.data-game]="entry.game"
+                                  role="img"
+                                  [attr.aria-label]="scoreAria(definition, entry)"
+                                >
+                                  @if (earnedGameGem(definition, entry)) {
+                                    <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
+                                  }
+                                  {{ entry.score }}<span class="score-max">/5</span>
+                                </p>
+                                @if (entry.explanation) {
+                                  <p>{{ entry.explanation }}</p>
+                                }
+                                <p class="hint">
+                                  {{ entry.by === 'ai' ? 'AI' : 'You' }} ·
+                                  {{ exerciseWhen(entry.at) }}
+                                </p>
+                              }
+                            </div>
                           }
                         </div>
-                        <div class="compare-side yours">
-                          <p class="field-label">You wrote</p>
-                          <p>{{ entry.answer }}</p>
-                        </div>
-                      </div>
-                    }
-                    <p class="field-label">Score</p>
-                    <p
-                      class="score-readout"
-                      [attr.data-game]="entry.game"
-                      role="img"
-                      [attr.aria-label]="scoreAria(definition, entry)"
-                    >
-                      @if (earnedGameGem(definition, entry)) {
-                        <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
                       }
-                      {{ entry.score }}<span class="score-max">/5</span>
-                    </p>
-                    @if (entry.explanation) {
-                      <p>{{ entry.explanation }}</p>
                     }
-                    <p class="hint">
-                      {{ entry.by === 'ai' ? 'AI' : 'You' }} · {{ exerciseWhen(entry.at) }}
-                    </p>
-                  }
-                  <div class="sheet-actions">
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      [disabled]="busy()"
-                      (click)="exerciseEntry.set(-1)"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-danger"
-                      [disabled]="busy()"
-                      (click)="askDeleteExercise(index, exerciseEntry())"
-                    >
-                      Delete
-                    </button>
                   </div>
-                }
+                </section>
               }
             </section>
           </div>
@@ -3673,24 +3713,6 @@ function writeExampleSuggestions(
       border-bottom: 1px solid var(--card-line);
     }
 
-    header > .header-actions {
-      justify-content: flex-end;
-      flex-wrap: wrap;
-    }
-
-    header > .header-actions:not(:has(button, .lookup-actions)) {
-      display: none;
-    }
-
-    .header-actions .lookup-actions {
-      flex-wrap: nowrap;
-      margin-left: 0;
-    }
-
-    .header-actions .lookup-chip {
-      height: 1.8rem;
-    }
-
     .title-row {
       display: flex;
       align-items: center;
@@ -3778,7 +3800,9 @@ function writeExampleSuggestions(
       74%,
       86% {
         color: #fff;
-        box-shadow: 0 0 2px #fff, 0 0 8px var(--scintilla-hot);
+        box-shadow:
+          0 0 2px #fff,
+          0 0 8px var(--scintilla-hot);
       }
     }
 
@@ -4163,11 +4187,11 @@ function writeExampleSuggestions(
       padding-inline: 0 0.15rem;
     }
 
-    .saved-example:has(.lookup-actions) > .item-actions {
+    .sense-copy > .lookup-actions,
+    .saved-example > .lookup-actions {
       justify-content: flex-start;
-      margin-inline: 0;
-      padding-inline: 0;
-      margin-inline-start: 0.5rem;
+      margin-top: 0.35rem;
+      margin-left: 0;
     }
 
     .icon-btn:disabled,
@@ -4223,6 +4247,7 @@ function writeExampleSuggestions(
     .lookup-chip svg,
     .equivalent-prompt svg,
     .forms-toggle svg,
+    .log-chevron,
     .form-chip svg,
     .form-attributes-title svg,
     .engineer-forms .equivalent-choices svg,
@@ -4276,9 +4301,8 @@ function writeExampleSuggestions(
     .lookup-actions {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-end;
+      justify-content: flex-start;
       gap: 0.35rem;
-      margin-left: auto;
     }
 
     .lookup-chip {
@@ -4321,8 +4345,7 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      padding: 0.85rem var(--header-inline) 0.75rem
-        calc(var(--header-pad-left) + var(--title-lead));
+      padding: 0.85rem var(--header-inline) 0.75rem calc(var(--header-pad-left) + var(--title-lead));
     }
 
     .definition-footer {
@@ -5161,13 +5184,6 @@ function writeExampleSuggestions(
       gap: 0.85rem;
     }
 
-    .stats-definition {
-      margin: 0;
-      color: var(--text);
-      font-size: 0.92rem;
-      line-height: 1.45;
-    }
-
     .stats-summary,
     .stats-log {
       display: flex;
@@ -5241,11 +5257,7 @@ function writeExampleSuggestions(
     }
 
     .stats-activity {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .stats-activity:has(> li:only-child) {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .stats-gems li,
@@ -5907,16 +5919,74 @@ function writeExampleSuggestions(
       cursor: pointer;
     }
 
-    button.log-row {
+    .log-row {
+      display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 0.75rem;
+      width: 100%;
       height: auto;
+      box-sizing: border-box;
       padding: 0.55rem 0.7rem;
       text-align: start;
     }
 
-    button.log-row .log-copy {
+    .log-plain {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 0.9375rem;
+    }
+
+    .log-item {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-2);
+    }
+
+    .log-item > .log-row {
+      gap: 0.1rem;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .log-open {
+      display: flex;
+      flex: 1 1 auto;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: start;
+      cursor: pointer;
+    }
+
+    .log-detail {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      padding: 0.15rem 0.75rem 0.75rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .log-detail .hint {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+    }
+
+    .log-row .log-copy {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
@@ -5924,12 +5994,12 @@ function writeExampleSuggestions(
       min-width: 0;
     }
 
-    button.log-row .log-game {
+    .log-row .log-game {
       font-weight: 700;
       line-height: 1.2;
     }
 
-    button.log-row .hint {
+    .log-row .hint {
       max-width: 100%;
       overflow: hidden;
       font-size: 0.75rem;
@@ -5939,19 +6009,19 @@ function writeExampleSuggestions(
       text-overflow: ellipsis;
     }
 
-    button.log-row .gem-pick {
+    .log-open .gem-pick {
       flex: none;
       flex-wrap: nowrap;
       gap: 0.12rem;
     }
 
-    button.log-row .gem-pick-stone {
+    .log-open .gem-pick-stone {
       width: 1.05rem;
       height: 1.05rem;
       cursor: inherit;
     }
 
-    button.log-row .gem-gain-stone {
+    .log-open .gem-gain-stone {
       --gem-size: 0.72rem;
     }
 
@@ -6046,9 +6116,28 @@ function writeExampleSuggestions(
       font-weight: 650;
     }
 
-    button.log-row .score-readout {
+    .log-row .score-readout {
       flex: none;
       font-size: 1rem;
+    }
+
+    .log-side {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex: none;
+    }
+
+    .log-chevron {
+      width: 1rem;
+      height: 1rem;
+      flex: none;
+      color: var(--text-muted);
+      transition: transform 0.18s ease;
+    }
+
+    .log-chevron.open {
+      transform: rotate(180deg);
     }
 
     @media (max-width: 720px) {
@@ -6435,6 +6524,11 @@ export class ElementModal {
       void this.adoptStoredSuggestions(id);
     });
     effect(() => {
+      const count = this.element().definitions.length;
+      if (!this.playing()) return;
+      this.seatRound(count);
+    });
+    effect(() => {
       const id = this.element().id;
       const count = this.element().definitions.length;
       queueMicrotask(() => {
@@ -6551,7 +6645,7 @@ export class ElementModal {
   }
 
   openTitle(): void {
-    if (this.inPlay() || this.aiBusy() || this.titleEdit()) return;
+    if (this.aiBusy() || this.titleEdit()) return;
     this.titleError.set('');
     this.titleDraft.set(this.element().title);
     this.colorDraft.set(sanitizeElementColor(this.element().color));
@@ -6971,22 +7065,17 @@ export class ElementModal {
   }
 
   generateExample(index: number): void {
-    if (
-      (this.inPlay() && !this.translationGame() && !this.definitionGame()) ||
-      this.aiBusy() ||
-      !this.element().definitions[index]
-    )
-      return;
+    if (this.exampleGame(index) || this.aiBusy() || !this.element().definitions[index]) return;
     this.openExampleEngineer(index);
   }
 
   generateForms(index: number): void {
-    if (this.inPlay() || this.aiBusy() || !this.sheetDefinition(index)) return;
+    if (this.definitionInPlay(index) || this.aiBusy() || !this.sheetDefinition(index)) return;
     void this.askForms(index);
   }
 
   addFormManually(index: number): void {
-    if (this.inPlay() || this.aiBusy() || !this.element().definitions[index]) return;
+    if (this.definitionInPlay(index) || this.aiBusy() || !this.element().definitions[index]) return;
     this.openForm(index);
   }
 
@@ -6999,7 +7088,7 @@ export class ElementModal {
   }
 
   addExampleManually(index: number): void {
-    if (this.inPlay() || this.aiBusy()) return;
+    if (this.definitionInPlay(index) || this.aiBusy()) return;
     this.openExample(index, null);
   }
 
@@ -7009,12 +7098,12 @@ export class ElementModal {
   }
 
   addDefinitionManually(): void {
-    if (this.inPlay() || this.asking()) return;
+    if (this.asking()) return;
     this.openDefinition(null);
   }
 
   openMissingDefinitions(): void {
-    if (this.inPlay() || this.aiBusy()) return;
+    if (this.aiBusy()) return;
     this.missingSaveError.set('');
     this.missingDefinitionsOpen.set(true);
   }
@@ -7180,12 +7269,16 @@ export class ElementModal {
       log: [],
     }));
     const existing = this.copyDefinitions();
+    this.seatRound(existing.length);
     const next = placement === 'end' ? [...existing, ...created] : [...created, ...existing];
     if (!(await this.persist(next, attached.equivalents))) return false;
     const glosses = created.map((definition) => definitionGloss(definition.text)).filter(Boolean);
     rememberNewDefinitions(element.id, glosses);
     if (this.element().id === element.id) {
-      if (placement === 'start') this.shiftDefinitionIndexes(created.length);
+      if (placement === 'start') {
+        this.noteRoundInsert(0, created.length);
+        this.shiftDefinitionIndexes(created.length);
+      }
       this.formAttributesView.set(null);
       const index = placement === 'end' ? next.length - 1 : 0;
       this.definitionPanel.set(index);
@@ -7392,7 +7485,7 @@ export class ElementModal {
       input.blur();
       this.orderSettling = false;
     }
-    if (next !== current && !this.inPlay() && count > 1) void this.moveDefinition(next - 1);
+    if (next !== current && count > 1) void this.moveDefinition(next - 1);
   }
 
   cancelOrderInput(event: Event): void {
@@ -7410,7 +7503,8 @@ export class ElementModal {
   private async moveDefinition(to: number): Promise<void> {
     const from = this.visibleDefinitionIndex();
     const elementId = this.currentElement().id;
-    if (this.inPlay() || from === to) return;
+    if (from === to) return;
+    this.seatRound(this.element().definitions.length);
     const definitions = this.copyDefinitions();
     if (to < 0 || to >= definitions.length) return;
     const [moved] = definitions.splice(from, 1);
@@ -7418,6 +7512,7 @@ export class ElementModal {
     definitions.splice(to, 0, moved);
     if (!(await this.persist(definitions, this.currentElement().equivalents))) return;
     if (this.element().id !== elementId) return;
+    this.noteRoundMove(from, to);
     this.definitionPanel.set(to);
   }
 
@@ -7450,7 +7545,7 @@ export class ElementModal {
   }
 
   openDefinition(index: number | null): void {
-    if (this.inPlay()) return;
+    if (index != null && this.definitionInPlay(index)) return;
     const definition =
       index == null ? null : (this.sheetDefinition(index) ?? this.element().definitions[index]);
     if (index != null && !definition) return;
@@ -7491,7 +7586,7 @@ export class ElementModal {
   }
 
   openExample(definitionIndex: number, exampleIndex: number | null): void {
-    if (this.inPlay()) return;
+    if (this.definitionInPlay(definitionIndex)) return;
     const definition = this.sheetDefinition(definitionIndex);
     if (!definition) return;
     const example = exampleIndex == null ? null : definition.examples[exampleIndex];
@@ -7887,7 +7982,7 @@ export class ElementModal {
   }
 
   openExistingForm(definitionIndex: number, text: string): void {
-    if (this.inPlay() || this.busy()) return;
+    if (this.definitionInPlay(definitionIndex) || this.busy()) return;
     const form = this.sheetDefinition(definitionIndex)?.forms.find((item) => item.text === text);
     if (!form) return;
     this.openForm(definitionIndex, form);
@@ -8080,11 +8175,79 @@ export class ElementModal {
     index: number,
     definition: ElementDefinition,
   ): boolean {
+    if (!this.inThisRound(index)) return false;
     if (mode === 1) return !!this.equivalentText(definition) && !this.equivalentRewardAt(index);
     if (mode === 2) {
       return parsePassage(definition.text).text.trim().length > 0 && !this.exampleRewardAt(index);
     }
     return !this.definitionRewardAt(index);
+  }
+
+  /** A definition is in this exercise when it was on the card as play started. */
+  private inThisRound(index: number): boolean {
+    if (!this.playing()) return false;
+    const included = this.round().included;
+    if (included == null) return true;
+    return included[index] === true;
+  }
+
+  /** Remember who is playing before the definition list changes. */
+  private seatRound(count: number): void {
+    if (!this.playing() || this.round().included != null) return;
+    this.writeRound({
+      ...this.round(),
+      included: Array.from({ length: count }, () => true),
+    });
+  }
+
+  private noteRoundInsert(index: number, count: number): void {
+    if (count <= 0) return;
+    this.retargetPlayIndexes((current) => (current >= index ? current + count : current));
+    if (this.round().included == null) return;
+    this.writeRound(insertRoundSlots(this.round(), index, count));
+  }
+
+  private noteRoundRemove(index: number): void {
+    this.retargetPlayIndexes((current) => {
+      if (current === index) return -1;
+      return current > index ? current - 1 : current;
+    });
+    if (this.round().included == null) return;
+    this.writeRound(removeRoundSlot(this.round(), index));
+  }
+
+  private noteRoundMove(from: number, to: number): void {
+    if (from === to) return;
+    this.retargetPlayIndexes((current) => {
+      if (current === from) return to;
+      if (from < to && current > from && current <= to) return current - 1;
+      if (to < from && current >= to && current < from) return current + 1;
+      return current;
+    });
+    if (this.round().included == null) return;
+    this.writeRound(moveRoundSlot(this.round(), from, to));
+  }
+
+  /** Nothing in this round is left to score. */
+  private clearRoundSlots(): void {
+    const playing = this.playing();
+    this.writeRound({
+      ...emptyPlayRound(),
+      givenUp: playing && this.round().givenUp,
+      included: playing ? [] : null,
+    });
+    this.equivalentPrompt.set(-1);
+    this.definitionPrompt.set(-1);
+    this.examplePrompt.set(-1);
+    this.exerciseLog.set(-1);
+  }
+
+  /** Keep an open sheet on the same definition after the list changes. */
+  private retargetPlayIndexes(map: (current: number) => number): void {
+    this.equivalentPrompt.update(map);
+    this.definitionPrompt.update(map);
+    this.examplePrompt.update(map);
+    this.exerciseLog.update(map);
   }
 
   /** Append a 0 for each pending exercise. `logIndexes` lines up with `indexes`. */
@@ -8363,7 +8526,7 @@ export class ElementModal {
     }
     if (this.addingSelection()) return;
     const pick = readPassageSelection();
-    if (this.exampleGame() && pick?.exampleIndex != null) {
+    if (pick?.exampleIndex != null && this.exampleGame(pick.definitionIndex)) {
       window.getSelection()?.removeAllRanges();
       this.passageSelection.set(null);
       return;
@@ -8460,8 +8623,10 @@ export class ElementModal {
         metadata: this.metadataToStore(),
         log: this.logWithRework(current, text, equivalent, this.metadataToStore()),
       };
-      if (editor.index == null) unlinked.push(next);
-      else unlinked[editor.index] = next;
+      if (editor.index == null) {
+        this.seatRound(definitions.length);
+        unlinked.push(next);
+      } else unlinked[editor.index] = next;
       const index = editor.index ?? unlinked.length - 1;
       if (await this.persist(unlinked, linked.equivalents)) {
         if (editor.index == null) {
@@ -8576,7 +8741,7 @@ export class ElementModal {
   }
 
   async removeForm(definitionIndex: number, form: string): Promise<void> {
-    if (this.inPlay() || this.busy()) return;
+    if (this.definitionInPlay(definitionIndex) || this.busy()) return;
     const definitions = this.copyDefinitions();
     const definition = definitions[definitionIndex];
     if (!definition) return;
@@ -8618,7 +8783,8 @@ export class ElementModal {
 
   startDeletePress(event: PointerEvent): void {
     if (event.button !== 0 || !this.element().definitions.length) return;
-    if (this.inPlay() || this.busy() || this.aiBusy()) return;
+    if (this.definitionInPlay(this.visibleDefinitionIndex()) || this.busy() || this.aiBusy())
+      return;
     this.endDeletePress();
     this.deletePressX = event.clientX;
     this.deletePressY = event.clientY;
@@ -8654,7 +8820,7 @@ export class ElementModal {
   }
 
   askDeleteElement(): void {
-    if (this.inPlay() || this.busy()) return;
+    if (this.busy()) return;
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -8663,19 +8829,19 @@ export class ElementModal {
   }
 
   askDeleteDefinition(index: number): void {
-    if (this.inPlay() || this.aiBusy() || this.busy()) return;
+    if (this.definitionInPlay(index) || this.aiBusy() || this.busy()) return;
     if (!this.element().definitions[index]) return;
     this.confirm.set({ kind: 'definition', index });
   }
 
   askDeleteAllDefinitions(): void {
-    if (this.inPlay() || this.aiBusy() || this.busy()) return;
+    if (this.aiBusy() || this.busy()) return;
     if (!this.element().definitions.length) return;
     this.confirm.set({ kind: 'definitions' });
   }
 
   askDeleteExample(definitionIndex: number, exampleIndex: number): void {
-    if (this.inPlay() || this.aiBusy() || this.busy()) return;
+    if (this.definitionInPlay(definitionIndex) || this.aiBusy() || this.busy()) return;
     this.confirm.set({ kind: 'example', definitionIndex, exampleIndex });
   }
 
@@ -8701,6 +8867,7 @@ export class ElementModal {
       await this.removeAllDefinitions();
       return;
     }
+    if (pending.kind === 'definition') this.seatRound(this.element().definitions.length);
     const definitions = this.copyDefinitions();
     const archived = pending.kind === 'definition' ? definitions[pending.index] : undefined;
     const removed = archived ? senseKey(archived.text) : '';
@@ -8720,6 +8887,7 @@ export class ElementModal {
     )
       return;
     if (pending.kind === 'definition') {
+      this.noteRoundRemove(pending.index);
       if (removed && !definitions.some((definition) => senseKey(definition.text) === removed)) {
         this.engineerDrafts.delete(removed);
         this.definitionEngineerDrafts.delete(removed);
@@ -8791,6 +8959,7 @@ export class ElementModal {
       ...definitions.map((definition) => ({ ...definition, deletedAt: Date.now() })),
     ];
     if (!(await this.persist([], this.element().equivalents, { removedDefinitions }))) return;
+    this.clearRoundSlots();
     for (const key of removed) {
       this.engineerDrafts.delete(key);
       this.definitionEngineerDrafts.delete(key);
@@ -8845,10 +9014,6 @@ export class ElementModal {
     }
     this.adjustExerciseRound(definitionIndex, logIndex);
     this.confirm.set(null);
-    if (!this.definitionHistory(next).length) {
-      this.closeExerciseLog();
-      return;
-    }
     this.exerciseEntry.set(-1);
   }
 
@@ -9103,12 +9268,24 @@ export class ElementModal {
     void this.persist(definitions, this.currentElement().equivalents, { busy: false });
   }
 
-  reworkCount(definition: ElementDefinition): number {
-    return definition.log.filter((entry) => entry.event === 'rework').length;
+  activityCount(definition: ElementDefinition, event: 'rework' | 'view' | 'reveal'): number {
+    return definition.log.filter((entry) => entry.event === event).length;
   }
 
-  reworkLabel(count: number): string {
-    return count === 1 ? 'Reworked 1 time' : `Reworked ${count} times`;
+  activityLabel(event: 'rework' | 'view' | 'reveal', count: number): string {
+    const once =
+      event === 'rework'
+        ? 'Reworked 1 time'
+        : event === 'view'
+          ? 'Seen 1 time'
+          : 'Translation revealed 1 time';
+    const many =
+      event === 'rework'
+        ? `Reworked ${count} times`
+        : event === 'view'
+          ? `Seen ${count} times`
+          : `Translation revealed ${count} times`;
+    return count === 1 ? once : many;
   }
 
   private async persist(
@@ -9229,8 +9406,8 @@ export class ElementModal {
   }
 
   /**
-   * Play locks the element until the current game is finished and its result
-   * sheet is closed. Done then returns the element to normal editing.
+   * This card still has an unfinished exercise, or a result sheet is open.
+   * Give up and help use this. A finished definition is not locked.
    */
   inPlay(): boolean {
     if (!this.playing()) return false;
@@ -9244,16 +9421,39 @@ export class ElementModal {
     return false;
   }
 
+  /** This definition still owes its exercise, or its result sheet is open. */
+  definitionInPlay(index: number): boolean {
+    if (index < 0 || !this.playing() || this.round().givenUp) return false;
+    const mode = this.playMode();
+    if (mode !== 1 && mode !== 2 && mode !== 3) return false;
+    if (
+      this.equivalentPrompt() === index ||
+      this.definitionPrompt() === index ||
+      this.examplePrompt() === index
+    ) {
+      return true;
+    }
+    const definition = this.element().definitions[index];
+    if (!definition) return false;
+    return this.exercisePending(mode, index, definition);
+  }
+
   equivalentGameDone(): boolean {
     if (this.playMode() !== 1) return false;
     const definitions = this.element().definitions;
+    const included = this.round().included;
+    let members = 0;
     let prompted = 0;
     for (let index = 0; index < definitions.length; index += 1) {
+      if (included != null && included[index] !== true) continue;
       const definition = definitions[index];
-      if (!definition || !this.equivalentText(definition)) continue;
+      if (!definition) continue;
+      members += 1;
+      if (!this.equivalentText(definition)) continue;
       prompted += 1;
       if (!this.equivalentRewardAt(index)) return false;
     }
+    if (included != null && members === 0) return true;
     return prompted > 0;
   }
 
@@ -9261,13 +9461,16 @@ export class ElementModal {
   definitionGameDone(): boolean {
     if (this.playMode() !== 3) return false;
     const definitions = this.element().definitions;
+    const included = this.round().included;
     let prompted = 0;
     for (let index = 0; index < definitions.length; index += 1) {
+      if (included != null && included[index] !== true) continue;
       const definition = definitions[index];
       if (!definition) continue;
       prompted += 1;
       if (!this.definitionRewardAt(index)) return false;
     }
+    if (included != null && prompted === 0) return true;
     return prompted > 0;
   }
 
@@ -9278,31 +9481,38 @@ export class ElementModal {
     return mode;
   }
 
-  translationGame(): boolean {
-    return this.supportAvailable() && this.inPlay() && this.playMode() === 1;
+  translationGame(index: number): boolean {
+    return this.supportAvailable() && this.playMode() === 1 && this.definitionInPlay(index);
   }
 
-  exampleGame(): boolean {
-    return this.inPlay() && this.playMode() === 2;
+  exampleGame(index: number): boolean {
+    return this.playMode() === 2 && this.definitionInPlay(index);
   }
 
   /** Every definition with a gloss has been scored. The result sheet is separate. */
   exampleGameDone(): boolean {
     if (this.playMode() !== 2) return false;
     const definitions = this.element().definitions;
+    const included = this.round().included;
+    let members = 0;
     let prompted = 0;
     for (let index = 0; index < definitions.length; index += 1) {
-      const text = parsePassage(definitions[index]?.text ?? '').text.trim();
+      if (included != null && included[index] !== true) continue;
+      const definition = definitions[index];
+      if (!definition) continue;
+      members += 1;
+      const text = parsePassage(definition.text).text.trim();
       if (!text) continue;
       prompted += 1;
       if (!this.exampleRewardAt(index)) return false;
     }
+    if (included != null && members === 0) return true;
     return prompted > 0;
   }
 
   /** The button for this definition, with how many exercises this game still has. */
   playCue(index: number): { label: string; left: number } | null {
-    if (this.definitionGame() && this.definitionConcealed(index)) {
+    if (this.definitionConcealed(index)) {
       return { label: 'Write the definition', left: this.playLeft(3) };
     }
     if (this.translationCue(index)) {
@@ -9313,7 +9523,7 @@ export class ElementModal {
   }
 
   openPlayCue(index: number): void {
-    if (this.definitionGame() && this.definitionConcealed(index)) {
+    if (this.definitionConcealed(index)) {
       this.openDefinitionPrompt(index);
       return;
     }
@@ -9331,26 +9541,26 @@ export class ElementModal {
 
   /** This definition still needs its equivalent written. */
   translationCue(index: number): boolean {
-    if (!this.translationGame() || this.equivalentSubmitted(index)) return false;
+    if (!this.translationGame(index) || this.equivalentSubmitted(index)) return false;
     const definition = this.element().definitions[index];
     return !!definition && this.equivalentText(definition).trim().length > 0;
   }
 
   /** This definition still needs an example. */
   exampleCue(index: number): boolean {
-    if (!this.exampleGame()) return false;
+    if (!this.exampleGame(index)) return false;
     if (this.exampleRewardAt(index)) return false;
     const text = parsePassage(this.element().definitions[index]?.text ?? '').text.trim();
     return text.length > 0;
   }
 
-  definitionGame(): boolean {
-    return this.inPlay() && this.playMode() === 3;
+  definitionGame(index: number): boolean {
+    return this.playMode() === 3 && this.definitionInPlay(index);
   }
 
   /** A definition is still hidden. */
   definitionCue(): boolean {
-    if (!this.definitionGame()) return false;
+    if (this.playMode() !== 3 || !this.playing() || this.round().givenUp) return false;
     return this.element().definitions.some((_, index) => this.definitionConcealed(index));
   }
 
@@ -9363,7 +9573,7 @@ export class ElementModal {
   }
 
   openEquivalentPrompt(index: number): void {
-    if (!this.translationGame()) return;
+    if (!this.translationGame(index)) return;
     this.equivalentGradeError.set('');
     this.equivalentPrompt.set(index);
     if (!this.equivalentSubmitted(index)) setTimeout(() => this.focusEquivalentField());
@@ -9410,7 +9620,7 @@ export class ElementModal {
   submitEquivalent(index: number, event?: Event): void {
     event?.preventDefault();
     if (
-      !this.translationGame() ||
+      !this.translationGame(index) ||
       this.equivalentSubmitted(index) ||
       !this.equivalentDraftAt(index).trim()
     ) {
@@ -9425,7 +9635,7 @@ export class ElementModal {
 
   /** Concede this equivalent. The answer is shown and the attempt scores 0. */
   async giveUpEquivalent(index: number): Promise<void> {
-    if (!this.translationGame() || this.equivalentSubmitted(index) || this.aiBusy()) return;
+    if (!this.translationGame(index) || this.equivalentSubmitted(index) || this.aiBusy()) return;
     this.equivalentGradeError.set('');
     const logIndex = await this.recordEquivalentReward(index, {
       score: 0,
@@ -9452,10 +9662,7 @@ export class ElementModal {
   }
 
   /** Mean score for one exercise on this definition. Null when it has not been played. */
-  exerciseAverage(
-    definition: ElementDefinition,
-    game: DefinitionGameLog['game'],
-  ): string | null {
+  exerciseAverage(definition: ElementDefinition, game: DefinitionGameLog['game']): string | null {
     let total = 0;
     let count = 0;
     for (const entry of definition.log) {
@@ -9542,8 +9749,12 @@ export class ElementModal {
     return this.currentElement().definitions[index] ?? null;
   }
 
+  toggleExerciseEntry(index: number): void {
+    this.exerciseEntry.update((current) => (current === index ? -1 : index));
+  }
+
   openExerciseLog(index: number): void {
-    if (this.inPlay() || !this.currentElement().definitions[index]) return;
+    if (this.definitionInPlay(index) || !this.currentElement().definitions[index]) return;
     this.exerciseEntry.set(-1);
     this.exerciseLog.set(index);
   }
@@ -9559,7 +9770,7 @@ export class ElementModal {
   }
 
   async awardEquivalent(index: number, score: number): Promise<void> {
-    if (!this.translationGame() || this.aiBusy() || !this.equivalentSubmitted(index)) return;
+    if (!this.translationGame(index) || this.aiBusy() || !this.equivalentSubmitted(index)) return;
     if (this.equivalentGaveUp(index) || score < 0 || score > TRANSLATION_GEM_MAX) return;
     const current = this.equivalentRewardAt(index);
     if (current?.by === 'user' && current.score === score) return;
@@ -9673,9 +9884,9 @@ export class ElementModal {
   }
 
   definitionConcealed(index: number): boolean {
-    if (!this.definitionGame()) return false;
+    if (!this.definitionGame(index)) return false;
     if (this.definitionRewardAt(index) && this.definitionPrompt() !== index) return false;
-    return index < this.element().definitions.length;
+    return true;
   }
 
   definitionPromptOpen(): boolean {
@@ -9781,7 +9992,7 @@ export class ElementModal {
 
   /** Correct the working-language draft, or propose three other wordings above it. */
   async polishWorkingDefinition(index: number, task: PolishDefinitionTask): Promise<void> {
-    if (!this.canPolishDefinition(index) || !this.definitionGame()) return;
+    if (!this.canPolishDefinition(index) || !this.definitionGame(index)) return;
     const element = this.element();
     const text = this.definitionDraftAt(index).trim();
     this.askingPolish.set(task);
@@ -9854,7 +10065,7 @@ export class ElementModal {
   }
 
   submitDefinition(index: number): void {
-    if (!this.definitionGame() || this.aiBusy() || this.definitionSubmitted(index)) return;
+    if (!this.definitionGame(index) || this.aiBusy() || this.definitionSubmitted(index)) return;
     if (!this.definitionDraftAt(index).trim()) return;
     const definitionSubmitted = this.round().definitionSubmitted.slice();
     while (definitionSubmitted.length <= index) definitionSubmitted.push(false);
@@ -9874,7 +10085,7 @@ export class ElementModal {
 
   /** Concede this definition. The gloss is shown and the attempt scores 0. */
   async giveUpDefinition(index: number): Promise<void> {
-    if (!this.definitionGame() || this.aiBusy() || this.definitionSubmitted(index)) return;
+    if (!this.definitionGame(index) || this.aiBusy() || this.definitionSubmitted(index)) return;
     const definition = this.element().definitions[index];
     if (!definition) return;
     this.error.set('');
@@ -9899,7 +10110,7 @@ export class ElementModal {
   }
 
   async awardDefinition(index: number, score: number): Promise<void> {
-    if (!this.definitionGame() || this.aiBusy() || !this.definitionSubmitted(index)) return;
+    if (!this.definitionGame(index) || this.aiBusy() || !this.definitionSubmitted(index)) return;
     if (this.definitionGaveUp(index) || score < 0 || score > TRANSLATION_GEM_MAX) return;
     const current = this.definitionRewardAt(index);
     if (current?.by === 'user' && current.score === score) return;
@@ -10148,7 +10359,7 @@ export class ElementModal {
 
   /** Fix spelling in the visible draft. Wording and meaning stay as written. */
   async correctExample(index: number): Promise<void> {
-    if (!this.canCorrectExample(index) || !this.exampleGame()) return;
+    if (!this.canCorrectExample(index) || !this.exampleGame(index)) return;
     const element = this.element();
     const text = this.exampleDraftAt(index).trim();
     this.askingPolish.set('correct');
@@ -10198,7 +10409,12 @@ export class ElementModal {
   }
 
   submitExample(index: number): void {
-    if (!this.exampleGame() || this.aiBusy() || this.translating() || this.exampleSubmitted(index))
+    if (
+      !this.exampleGame(index) ||
+      this.aiBusy() ||
+      this.translating() ||
+      this.exampleSubmitted(index)
+    )
       return;
     if (!this.exampleReady(index)) return;
     const exampleSubmitted = this.round().exampleSubmitted?.slice() ?? [];
@@ -10211,7 +10427,7 @@ export class ElementModal {
 
   /** Concede this example. The attempt scores 0 and the saved examples stay hidden. */
   async giveUpExample(index: number): Promise<void> {
-    if (!this.exampleGame() || this.aiBusy() || this.exampleSubmitted(index)) return;
+    if (!this.exampleGame(index) || this.aiBusy() || this.exampleSubmitted(index)) return;
     const text = parsePassage(this.element().definitions[index]?.text ?? '').text.trim();
     if (!text) return;
     this.error.set('');
