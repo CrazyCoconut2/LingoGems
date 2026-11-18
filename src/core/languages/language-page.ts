@@ -71,6 +71,8 @@ import {
   type StoredElement,
 } from 'collection';
 
+type ElementTrailStop = { id: string; definition: number };
+
 type FilterSection = 'language' | 'color' | 'definitions' | 'examples' | 'forms';
 
 type MetadataKind = 'definitions' | 'examples' | 'forms';
@@ -882,6 +884,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           [collection]="elements()"
           [colors]="colorOptions()"
           [canGoBack]="canGoBack()"
+          [definitionIndex]="openedDefinition()"
           [playing]="element.id === playId()"
           [playMode]="element.id === playId() ? playMode() : null"
           (closed)="closeElement()"
@@ -2359,8 +2362,9 @@ export class LanguagePage {
   readonly drillId = signal('');
   readonly expanded = signal<FilterSection | null>('definitions');
   readonly elementId = signal('');
-  readonly trail = signal<string[]>([]);
+  readonly trail = signal<ElementTrailStop[]>([]);
   readonly canGoBack = computed(() => this.trail().length > 1);
+  readonly openedDefinition = computed(() => this.trail().at(-1)?.definition ?? 0);
   readonly opened = computed(() => {
     const id = this.elementId();
     if (!id) return null;
@@ -2484,7 +2488,7 @@ export class LanguagePage {
       this.playMode.set(null);
     }
     this.drillId.set('');
-    this.trail.set([id]);
+    this.trail.set([{ id, definition: 0 }]);
     this.showElement(id);
   }
 
@@ -2761,9 +2765,16 @@ export class LanguagePage {
     }
   }
 
-  visitElement(id: string): void {
+  visitElement(visit: { id: string; definition: number }): void {
+    const id = visit.id;
     if (!id || id === this.elementId()) return;
-    this.trail.update((trail) => [...trail, id]);
+    this.trail.update((trail) => {
+      const next = trail.slice();
+      const current = next.at(-1);
+      if (current) next[next.length - 1] = { ...current, definition: visit.definition };
+      next.push({ id, definition: 0 });
+      return next;
+    });
     this.showElement(id);
   }
 
@@ -2772,17 +2783,21 @@ export class LanguagePage {
     if (trail.length < 2) return;
     const next = trail.slice(0, -1);
     this.trail.set(next);
-    this.showElement(next[next.length - 1] ?? '');
+    this.showElement(next.at(-1)?.id ?? '');
   }
 
-  async addFromSelection(pick: { title: string; language: string }): Promise<void> {
+  async addFromSelection(pick: {
+    title: string;
+    language: string;
+    definition: number;
+  }): Promise<void> {
     const name = pick.title.replace(/\s+/g, ' ').trim();
     const code = pick.language.trim().toLowerCase();
     if (!name || !code) return;
     const created = await addElement(code, name);
     if (code === this.code()) this.elements.set(await readElements(code));
     if (created.id === this.elementId()) return;
-    this.visitElement(created.id);
+    this.visitElement({ id: created.id, definition: pick.definition });
   }
 
   async addPrepared(
@@ -2791,6 +2806,7 @@ export class LanguagePage {
       language?: string;
       definitions: ElementDefinition[];
       example?: string;
+      definition?: number;
     },
     fromSearch = false,
   ): Promise<void> {
@@ -2816,12 +2832,12 @@ export class LanguagePage {
     this.applyCatalog(await readMetadataCatalog());
     if (fromSearch) {
       this.clearSearch();
-      this.trail.set([created.id]);
+      this.trail.set([{ id: created.id, definition: 0 }]);
       this.showElement(created.id);
       return;
     }
     if (created.id === this.elementId()) return;
-    this.visitElement(created.id);
+    this.visitElement({ id: created.id, definition: prepared.definition ?? 0 });
   }
 
   replaceElement(saved: StoredElement): void {
@@ -2928,7 +2944,7 @@ export class LanguagePage {
     const created = await addElement(code, title);
     this.elements.set(await readElements(code));
     this.clearSearch();
-    this.trail.set([created.id]);
+    this.trail.set([{ id: created.id, definition: 0 }]);
     this.showElement(created.id);
   }
 

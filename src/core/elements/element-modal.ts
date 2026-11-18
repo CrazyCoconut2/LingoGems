@@ -115,6 +115,7 @@ type PreparedElement = {
   language: string;
   definitions: ElementDefinition[];
   example: string;
+  definition: number;
 };
 
 type HighlightSource = {
@@ -867,7 +868,7 @@ function writeExampleSuggestions(
                                         class="linguagem-highlighted"
                                         [style.--score-color]="part.color || null"
                                         [textContent]="part.text"
-                                        (click)="showCollision($event, part.matches)"
+                                        (click)="showCollision($event, part.matches, index)"
                                       ></button>
                                     } @else if (part.matches.length === 1 && !part.current) {
                                       <button
@@ -875,7 +876,7 @@ function writeExampleSuggestions(
                                         class="linguagem-highlighted"
                                         [style.--score-color]="part.color || null"
                                         [textContent]="part.text"
-                                        (click)="visitHighlight(part.matches[0].elementId)"
+                                        (click)="visitHighlight(part.matches[0].elementId, index)"
                                       ></button>
                                     } @else if (part.current) {
                                       <span
@@ -1013,7 +1014,7 @@ function writeExampleSuggestions(
                                               class="linguagem-highlighted"
                                               [style.--score-color]="part.color || null"
                                               [textContent]="part.text"
-                                              (click)="showCollision($event, part.matches)"
+                                              (click)="showCollision($event, part.matches, index)"
                                             ></button>
                                           } @else if (part.matches.length === 1 && !part.current) {
                                             <button
@@ -1021,7 +1022,7 @@ function writeExampleSuggestions(
                                               class="linguagem-highlighted"
                                               [style.--score-color]="part.color || null"
                                               [textContent]="part.text"
-                                              (click)="visitHighlight(part.matches[0].elementId)"
+                                              (click)="visitHighlight(part.matches[0].elementId, index)"
                                             ></button>
                                           } @else if (part.current) {
                                             <span
@@ -1602,7 +1603,7 @@ function writeExampleSuggestions(
                                               class="linguagem-highlighted"
                                               [style.--score-color]="part.color || null"
                                               [textContent]="part.text"
-                                              (click)="showCollision($event, part.matches)"
+                                              (click)="showCollision($event, part.matches, workIndex)"
                                             ></button>
                                           } @else if (part.matches.length === 1 && !part.current) {
                                             <button
@@ -1610,7 +1611,9 @@ function writeExampleSuggestions(
                                               class="linguagem-highlighted"
                                               [style.--score-color]="part.color || null"
                                               [textContent]="part.text"
-                                              (click)="visitHighlight(part.matches[0].elementId)"
+                                              (click)="
+                                                visitHighlight(part.matches[0].elementId, workIndex)
+                                              "
                                             ></button>
                                           } @else if (part.current) {
                                             <span
@@ -2260,14 +2263,6 @@ function writeExampleSuggestions(
                   (click)="chooseDefinitionAdd('missing')"
                 >
                   Missing definitions
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary add-choice"
-                  [disabled]="asking()"
-                  (click)="addDefinitionManually()"
-                >
-                  Manually
                 </button>
               </div>
               @if (definitionAddChoice() === 'example') {
@@ -6203,6 +6198,8 @@ export class ElementModal {
   /** Presets and custom colors already saved, for the highlight picker. */
   readonly colors = input<readonly string[]>([]);
   readonly canGoBack = input(false);
+  /** Definition to show when this element opens, including a return from Back. */
+  readonly definitionIndex = input(0);
   /** Play uses this card. `playMode` decides which field is typed. */
   readonly playing = input(false);
   /** Exercise for this session. Null while editing. */
@@ -6210,9 +6207,9 @@ export class ElementModal {
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
   readonly deleted = output<void>();
-  readonly visit = output<string>();
+  readonly visit = output<{ id: string; definition: number }>();
   readonly back = output<void>();
-  readonly addSelection = output<{ title: string; language: string }>();
+  readonly addSelection = output<{ title: string; language: string; definition: number }>();
   readonly addPrepared = output<PreparedElement>();
 
   readonly scores = Array.from({ length: TRANSLATION_GEM_MAX + 1 }, (_, score) => score);
@@ -6288,6 +6285,8 @@ export class ElementModal {
   readonly metaValue = signal('');
   readonly sheetMetadata = signal<ElementMetadata>({});
   readonly collision = signal<DefinitionHighlightMatch[] | null>(null);
+  /** Definition that opened the collision menu. */
+  private collisionDefinition = 0;
   readonly passageSelection = signal<PassageSelection | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
@@ -6391,6 +6390,7 @@ export class ElementModal {
     effect(() => {
       const id = this.element().id;
       if (id === this.trackedElementId) return;
+      const definition = this.definitionIndex();
       this.trackedElementId = id;
       this.endDeletePress();
       this.deletePressHeld = false;
@@ -6427,7 +6427,7 @@ export class ElementModal {
       this.exerciseEntry.set(-1);
       this.definitionExample.set('');
       this.formAttributesView.set(null);
-      this.definitionPanel.set(0);
+      this.definitionPanel.set(definition > 0 ? definition : 0);
       this.addingDefinitions.set(null);
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
@@ -8302,16 +8302,21 @@ export class ElementModal {
     return this.chosenColor() !== sanitizeElementColor(this.element().color);
   }
 
-  showCollision(event: MouseEvent, matches: DefinitionHighlightMatch[]): void {
+  showCollision(
+    event: MouseEvent,
+    matches: DefinitionHighlightMatch[],
+    definition: number,
+  ): void {
     event.preventDefault();
     event.stopPropagation();
+    this.collisionDefinition = definition;
     this.collision.set(matches);
   }
 
-  visitHighlight(id: string): void {
+  visitHighlight(id: string, definition = this.collisionDefinition): void {
     this.collision.set(null);
     if (!id || id === this.element().id) return;
-    this.visit.emit(id);
+    this.visit.emit({ id, definition });
   }
 
   passagePick(definitionIndex: number, exampleIndex: number | null): PassageSelection | null {
@@ -8330,12 +8335,14 @@ export class ElementModal {
     if (ai) this.addingSelection.set(true);
     this.blockPassageSelectionUntil = Date.now() + 400;
     window.getSelection()?.removeAllRanges();
+    const pick = this.passageSelection();
+    const definition = pick?.definitionIndex ?? this.visibleDefinitionIndex();
     if (!ai) {
       this.passageSelection.set(null);
-      this.addSelection.emit({ title, language: this.element().language });
+      this.addSelection.emit({ title, language: this.element().language, definition });
       return;
     }
-    void this.askSelectionElement(title, this.passageSelection());
+    void this.askSelectionElement(title, pick);
   }
 
   private async askSelectionElement(title: string, pick: PassageSelection | null): Promise<void> {
@@ -8364,6 +8371,7 @@ export class ElementModal {
         title: generated.lemma,
         language: element.language,
         example,
+        definition: pick?.definitionIndex ?? this.visibleDefinitionIndex(),
         definitions: generated.definitions.map((sense, index) => ({
           text: sense.text,
           equivalentIds: {},
