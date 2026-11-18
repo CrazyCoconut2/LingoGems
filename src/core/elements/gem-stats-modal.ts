@@ -53,6 +53,10 @@ type ElementSort =
   | { kind: 'gem'; game: GemGame }
   | { kind: 'activity'; key: ActivityKey };
 
+type ListedRow =
+  | { kind: 'element'; id: string; title: string; element: ElementDayStats }
+  | { kind: 'missing'; id: string; title: string; token: MissingToken };
+
 type GoalKind = keyof DailyGoals;
 
 const LOADING_ACTIVITY = [0, 1, 2];
@@ -406,63 +410,69 @@ const EMPTY_DAY: DayStats = {
                 <p class="hint missing-error">{{ askError() }}</p>
               }
               <ul class="elements">
-                @if (day()) {
-                  @for (element of sortedElements(); track element.id) {
+                @for (entry of sortedRows(); track entry.id) {
+                  @if (entry.kind === 'element') {
                     <li>
                       <button
                         type="button"
                         class="row"
-                        [class.has-new]="element.added > 0"
-                        [attr.aria-label]="titleOf(element)"
-                        (click)="opened.emit(element.id)"
+                        [class.has-new]="entry.element.added > 0"
+                        [attr.aria-label]="titleOf(entry.element)"
+                        (click)="opened.emit(entry.element.id)"
                       >
-                      @if (element.added > 0) {
+                      @if (entry.element.added > 0) {
                         <span class="new-sign">New</span>
                       }
                       <div class="row-main">
-                        <span class="title" [attr.title]="titleOf(element)">{{
-                          titleOf(element)
+                        <span class="title" [attr.title]="titleOf(entry.element)">{{
+                          titleOf(entry.element)
                         }}</span>
-                        @if (hasBits(element) || elementSort()) {
+                        @if (hasBits(entry.element) || elementSort()) {
                           <span class="bits">
-                            @for (row of activities; track row.key) {
+                            @for (activity of activities; track activity.key) {
                               <span
                                 class="bit"
-                                [class.on]="isSort(activitySort(row.key))"
-                                [attr.aria-label]="activityLabel(row.label, element[row.key])"
-                                [attr.title]="activityLabel(row.label, element[row.key])"
+                                [class.on]="isSort(activitySort(activity.key))"
+                                [attr.aria-label]="
+                                  activityLabel(activity.label, entry.element[activity.key])
+                                "
+                                [attr.title]="
+                                  activityLabel(activity.label, entry.element[activity.key])
+                                "
                               >
                                 <ng-container
                                   *ngTemplateOutlet="
                                     activityIcon;
-                                    context: { $implicit: row.key }
+                                    context: { $implicit: activity.key }
                                   "
                                 />
-                                <span>{{ element[row.key] }}</span>
+                                <span>{{ entry.element[activity.key] }}</span>
                               </span>
                             }
-                            @if (showsMetric(element.exercises, exerciseSort)) {
+                            @if (showsMetric(entry.element.exercises, exerciseSort)) {
                               <span
                                 class="bit"
                                 [class.on]="isSort(exerciseSort)"
-                                [attr.aria-label]="exerciseLabel(element.exercises)"
-                                [attr.title]="exerciseLabel(element.exercises)"
+                                [attr.aria-label]="exerciseLabel(entry.element.exercises)"
+                                [attr.title]="exerciseLabel(entry.element.exercises)"
                               >
                                 <ng-container *ngTemplateOutlet="exerciseIcon" />
-                                <span>{{ formatCount(element.exercises) }}</span>
+                                <span>{{ formatCount(entry.element.exercises) }}</span>
                               </span>
                             }
-                            @for (row of games(); track row.game) {
-                              @if (showsMetric(element.gems[row.game], gemSort(row.game))) {
+                            @for (game of games(); track game.game) {
+                              @if (showsMetric(entry.element.gems[game.game], gemSort(game.game))) {
                                 <span
                                   class="bit"
-                                  [class.on]="isSort(gemSort(row.game))"
-                                  [attr.data-game]="row.game"
-                                  [attr.aria-label]="gemsLabel(row.label, element.gems[row.game])"
-                                  [attr.title]="gemsLabel(row.label, element.gems[row.game])"
+                                  [class.on]="isSort(gemSort(game.game))"
+                                  [attr.data-game]="game.game"
+                                  [attr.aria-label]="
+                                    gemsLabel(game.label, entry.element.gems[game.game])
+                                  "
+                                  [attr.title]="gemsLabel(game.label, entry.element.gems[game.game])"
                                 >
-                                  <app-gem-icon class="stone-icon" [game]="row.game" />
-                                  <span>{{ element.gems[row.game] }}</span>
+                                  <app-gem-icon class="stone-icon" [game]="game.game" />
+                                  <span>{{ entry.element.gems[game.game] }}</span>
                                 </span>
                               }
                             }
@@ -471,71 +481,73 @@ const EMPTY_DAY: DayStats = {
                       </div>
                       </button>
                     </li>
-                  }
-                }
-                @for (token of visibleMissing(); track token.key) {
-                  <li>
-                    <div class="row missing-row">
-                      <div class="row-main">
-                        <span class="title" [attr.title]="token.title">{{ token.title }}</span>
-                        <span class="bits">
-                          <span
-                            class="bit"
-                            [attr.aria-label]="seenLabel(token.seen)"
-                            [attr.title]="seenLabel(token.seen)"
-                          >
-                            <ng-container
-                              *ngTemplateOutlet="activityIcon; context: { $implicit: 'opened' }"
-                            />
-                            <span>{{ formatCount(token.seen) }}</span>
+                  } @else {
+                    <li>
+                      <div class="row missing-row">
+                        <div class="row-main">
+                          <span class="title" [attr.title]="entry.token.title">{{
+                            entry.token.title
+                          }}</span>
+                          <span class="bits">
+                            <span
+                              class="bit"
+                              [class.on]="isSort(activitySort('opened'))"
+                              [attr.aria-label]="seenLabel(entry.token.seen)"
+                              [attr.title]="seenLabel(entry.token.seen)"
+                            >
+                              <ng-container
+                                *ngTemplateOutlet="activityIcon; context: { $implicit: 'opened' }"
+                              />
+                              <span>{{ formatCount(entry.token.seen) }}</span>
+                            </span>
                           </span>
-                        </span>
+                        </div>
+                        <div class="missing-actions">
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Add entry"
+                            title="Add"
+                            [disabled]="asking()"
+                            (click)="addMissing.emit(entry.token.title)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M5 12h14" />
+                              <path d="M12 5v14" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Ask AI"
+                            title="Ask AI"
+                            [disabled]="asking()"
+                            [attr.aria-busy]="asking() ? true : null"
+                            (click)="askMissing.emit(entry.token.title)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path
+                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                              />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Remove"
+                            title="Remove"
+                            [disabled]="asking()"
+                            (click)="hideMissing(entry.token)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M18 6 6 18" />
+                              <path d="m6 6 12 12" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
-                      <div class="missing-actions">
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Add entry"
-                          title="Add"
-                          [disabled]="asking()"
-                          (click)="addMissing.emit(token.title)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M5 12h14" />
-                            <path d="M12 5v14" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Ask AI"
-                          title="Ask AI"
-                          [disabled]="asking()"
-                          [attr.aria-busy]="asking() ? true : null"
-                          (click)="askMissing.emit(token.title)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                            />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Remove"
-                          title="Remove"
-                          [disabled]="asking()"
-                          (click)="hideMissing(token)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M18 6 6 18" />
-                            <path d="m6 6 12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </li>
+                    </li>
+                  }
                 }
                 @if (hiddenTokens().length) {
                   <li class="hidden-row">
@@ -566,7 +578,7 @@ const EMPTY_DAY: DayStats = {
                     }
                   </li>
                 }
-                @if (!day() && !visibleMissing().length && !hiddenTokens().length) {
+                @if (!sortedRows().length && !hiddenTokens().length) {
                   <li class="placeholder">
                     <p class="hint">Nothing recorded yet.</p>
                   </li>
@@ -1763,19 +1775,23 @@ export class GemStatsModal {
       title: displayTitle(key, language) || key,
     }));
   });
-  readonly sortedElements = computed(() => {
-    const elements = this.day()?.elements ?? [];
-    const sort = this.elementSort();
-    if (!sort) return elements;
+  readonly sortedRows = computed(() => {
     const language = this.language();
-    return [...elements].sort((left, right) => {
-      const diff = metricCount(right, sort) - metricCount(left, sort);
-      if (diff) return diff;
-      return displayTitle(left.title, language).localeCompare(
-        displayTitle(right.title, language),
-        language,
-      );
-    });
+    const sort = this.elementSort();
+    const rows: ListedRow[] = [];
+    for (const element of this.day()?.elements ?? []) {
+      rows.push({
+        kind: 'element',
+        id: element.id,
+        title: displayTitle(element.title, language),
+        element,
+      });
+    }
+    for (const token of this.visibleMissing()) {
+      rows.push({ kind: 'missing', id: token.key, title: token.title, token });
+    }
+    rows.sort((left, right) => compareRows(left, right, sort, language));
+    return rows;
   });
   readonly gemTotals = computed(() => {
     const totals: GemCounts = { translation: 0, example: 0, definition: 0 };
@@ -2027,6 +2043,48 @@ function metricCount(element: ElementDayStats, sort: ElementSort): number {
   if (sort.kind === 'exercises') return element.exercises;
   if (sort.kind === 'gem') return element.gems[sort.game];
   return element[sort.key];
+}
+
+function compareRows(
+  left: ListedRow,
+  right: ListedRow,
+  sort: ElementSort | null,
+  language: string,
+): number {
+  const diff = sort ? rowMetric(right, sort) - rowMetric(left, sort) : compareDefault(left, right);
+  if (diff) return diff;
+  return left.title.localeCompare(right.title, language);
+}
+
+/** Missing words count in Seen. They have no gems, exercises, reworks, or reveals. */
+function rowMetric(row: ListedRow, sort: ElementSort): number {
+  if (row.kind === 'missing') {
+    return sort.kind === 'activity' && sort.key === 'opened' ? row.token.seen : 0;
+  }
+  return metricCount(row.element, sort);
+}
+
+function compareDefault(left: ListedRow, right: ListedRow): number {
+  const gems = gemScore(right) - gemScore(left);
+  if (gems) return gems;
+  const exercises = exerciseScore(right) - exerciseScore(left);
+  if (exercises) return exercises;
+  return activityScore(right) - activityScore(left);
+}
+
+function gemScore(row: ListedRow): number {
+  if (row.kind === 'missing') return 0;
+  const gems = row.element.gems;
+  return gems.translation + gems.example + gems.definition;
+}
+
+function exerciseScore(row: ListedRow): number {
+  return row.kind === 'element' ? row.element.exercises : 0;
+}
+
+function activityScore(row: ListedRow): number {
+  if (row.kind === 'missing') return row.token.seen;
+  return row.element.opened + row.element.reworked + row.element.revealed;
 }
 
 function formatDay(day: string): string {
