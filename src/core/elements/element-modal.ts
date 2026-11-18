@@ -875,7 +875,6 @@ function writeExampleSuggestions(
                                   }}</span>
                                 </button>
                                 <ng-container [ngTemplateOutlet]="passageTranslations" />
-                                <ng-container [ngTemplateOutlet]="definitionGloss" />
                               </div>
                               <ng-container
                                 [ngTemplateOutlet]="hearButton"
@@ -923,7 +922,6 @@ function writeExampleSuggestions(
                                   }
                                 </p>
                                 <ng-container [ngTemplateOutlet]="passageTranslations" />
-                                <ng-container [ngTemplateOutlet]="definitionGloss" />
                               </div>
                               <ng-container
                                 [ngTemplateOutlet]="hearButton"
@@ -953,36 +951,37 @@ function writeExampleSuggestions(
                           </ul>
                         }
                       </ng-template>
-                      <ng-template #definitionGloss>
-                        @let equivalent = equivalentText(definition);
-                        @if (supportAvailable() && equivalent) {
-                          <div class="sense-gloss">
-                            @if (translationGame()) {
-                              <button
-                                type="button"
-                                class="guess-open"
-                                [class.needs-click]="!equivalentSubmitted(index)"
-                                [attr.aria-label]="
-                                  equivalentSubmitted(index)
-                                    ? 'See your equivalent'
-                                    : 'Write the equivalent'
-                                "
-                                [attr.title]="
-                                  equivalentSubmitted(index)
-                                    ? 'See your equivalent'
-                                    : 'Write the equivalent'
-                                "
-                                (click)="openEquivalentPrompt(index)"
-                              >
-                                <span
-                                  class="guess-answer"
-                                  [class.play-blur]="!equivalentSubmitted(index)"
-                                  [attr.aria-hidden]="equivalentSubmitted(index) ? null : true"
-                                  >{{ labeledEquivalent(equivalent) }}</span
+                      @let equivalent = equivalentText(definition);
+                      @let meta = entries(definition.metadata);
+                      @if ((supportAvailable() && equivalent) || meta.length) {
+                        <ul class="sense-meta">
+                          @if (supportAvailable() && equivalent) {
+                            <li class="sense-equivalent">
+                              @if (translationGame()) {
+                                <button
+                                  type="button"
+                                  class="guess-open"
+                                  [class.needs-click]="!equivalentSubmitted(index)"
+                                  [attr.aria-label]="
+                                    equivalentSubmitted(index)
+                                      ? 'See your equivalent'
+                                      : 'Write the equivalent'
+                                  "
+                                  [attr.title]="
+                                    equivalentSubmitted(index)
+                                      ? 'See your equivalent'
+                                      : 'Write the equivalent'
+                                  "
+                                  (click)="openEquivalentPrompt(index)"
                                 >
-                              </button>
-                            } @else {
-                              <span class="sense-equivalent">
+                                  <span
+                                    class="guess-answer"
+                                    [class.play-blur]="!equivalentSubmitted(index)"
+                                    [attr.aria-hidden]="equivalentSubmitted(index) ? null : true"
+                                    >{{ labeledEquivalent(equivalent) }}</span
+                                  >
+                                </button>
+                              } @else {
                                 <ng-container [ngTemplateOutlet]="translationIcon" />
                                 <app-reveal
                                   [text]="labeledEquivalent(equivalent)"
@@ -990,17 +989,9 @@ function writeExampleSuggestions(
                                   [open]="equivalentUnveiled(equivalent)"
                                   (unveiled)="unveilEquivalent(equivalent)"
                                 />
-                              </span>
-                            }
-                          </div>
-                        }
-                      </ng-template>
-                      @if (!passage.text) {
-                        <ng-container [ngTemplateOutlet]="definitionGloss" />
-                      }
-                      @let meta = entries(definition.metadata);
-                      @if (meta.length) {
-                        <ul class="sense-meta">
+                              }
+                            </li>
+                          }
                           @for (entry of meta; track entry.key) {
                             @let color = metaColor('definitions', entry.key);
                             <li [class.colored]="color" [style.--meta-color]="color">
@@ -3306,32 +3297,28 @@ function writeExampleSuggestions(
                         }
                       </ul>
                     }
-                    @if (equivalent) {
-                      <p class="equivalent-result">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m5 8 6 6" />
-                          <path d="m4 14 6-6 2-3" />
-                          <path d="M2 5h12" />
-                          <path d="M7 2h1" />
-                          <path d="m22 22-5-10-5 10" />
-                          <path d="M14 18h6" />
-                        </svg>
-                        <span>{{ equivalent }}</span>
-                      </p>
-                    }
-                    @if (entries(metadata ?? {}); as meta) {
-                      @if (meta.length) {
-                        <ul class="pills">
-                          @for (item of meta; track item.key) {
-                            <li>
-                              <span>
-                                <span class="sense-meta-key">{{ item.key }}</span>
-                                <span class="sense-meta-value">{{ item.value }}</span>
-                              </span>
-                            </li>
-                          }
-                        </ul>
-                      }
+                    @if (equivalent || entries(metadata ?? {}).length) {
+                      <ul class="sense-meta">
+                        @if (equivalent) {
+                          <li class="sense-equivalent">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
+                            </svg>
+                            <span>{{ equivalent }}</span>
+                          </li>
+                        }
+                        @for (item of entries(metadata ?? {}); track item.key) {
+                          <li>
+                            <span class="sense-meta-key">{{ item.key }}</span>
+                            <span class="sense-meta-value">{{ item.value }}</span>
+                          </li>
+                        }
+                      </ul>
                     }
                   </ng-template>
                   @if (entry.event === 'rework') {
@@ -4660,13 +4647,14 @@ function writeExampleSuggestions(
 
     .sense-meta li.sense-equivalent {
       gap: 0.35rem;
-      height: 1.85rem;
-      min-height: 1.85rem;
-      padding-block: 0;
+      height: auto;
+      min-height: 0;
+      border-radius: 999px;
       border-color: var(--accent-border);
       background: var(--accent-soft);
       color: var(--accent-text);
       font-weight: 600;
+      white-space: normal;
     }
 
     .sense-equivalent svg {
@@ -4795,32 +4783,6 @@ function writeExampleSuggestions(
       font-size: 0.75rem;
       font-style: italic;
       line-height: 1.4;
-    }
-
-    .sense-gloss {
-      margin: 0;
-    }
-
-    .sense-gloss .sense-equivalent {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.375rem;
-      max-width: 100%;
-      height: auto;
-      padding: 0.25rem 0.625rem;
-      border: 1px solid var(--accent-border);
-      border-radius: 999px;
-      background: var(--accent-soft);
-      color: var(--accent-text);
-      font-size: 0.75rem;
-      font-style: normal;
-      font-weight: 600;
-      line-height: 1.2;
-    }
-
-    .sense-gloss .sense-equivalent app-reveal,
-    .sense-gloss .guess-answer {
-      color: var(--text);
     }
 
     .passage {

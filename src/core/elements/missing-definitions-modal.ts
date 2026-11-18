@@ -118,37 +118,29 @@ function senseGloss(text: string): string {
                               </ul>
                             }
                           </div>
-                          @if (row.equivalent) {
-                            <div class="sense-gloss">
-                              <span class="sense-equivalent">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="m5 8 6 6" />
-                                  <path d="m4 14 6-6 2-3" />
-                                  <path d="M2 5h12" />
-                                  <path d="M7 2h1" />
-                                  <path d="m22 22-5-10-5 10" />
-                                  <path d="M14 18h6" />
-                                </svg>
-                                <span>{{ row.equivalent }}</span>
-                              </span>
-                            </div>
-                          }
-                          @if (senseMeta(row); as meta) {
-                            @if (meta.length) {
-                              <ul class="sense-meta">
-                                @for (entry of meta; track entry.key) {
-                                  <li
-                                    [class.colored]="entry.color"
-                                    [style.--meta-color]="entry.color"
-                                  >
-                                    <span class="sense-meta-key">{{ metaLabel(entry.key) }}</span>
-                                    <span class="sense-meta-value">{{
-                                      metaLabel(entry.value)
-                                    }}</span>
-                                  </li>
-                                }
-                              </ul>
-                            }
+                          @let meta = senseMeta(row);
+                          @if (row.equivalent || meta.length) {
+                            <ul class="sense-meta">
+                              @if (row.equivalent) {
+                                <li class="sense-equivalent">
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="m5 8 6 6" />
+                                    <path d="m4 14 6-6 2-3" />
+                                    <path d="M2 5h12" />
+                                    <path d="M7 2h1" />
+                                    <path d="m22 22-5-10-5 10" />
+                                    <path d="M14 18h6" />
+                                  </svg>
+                                  <span>{{ row.equivalent }}</span>
+                                </li>
+                              }
+                              @for (entry of meta; track entry.key) {
+                                <li [class.colored]="entry.color" [style.--meta-color]="entry.color">
+                                  <span class="sense-meta-key">{{ metaLabel(entry.key) }}</span>
+                                  <span class="sense-meta-value">{{ metaLabel(entry.value) }}</span>
+                                </li>
+                              }
+                            </ul>
                           }
                         </div>
                         @if (saved(row)) {
@@ -499,27 +491,18 @@ function senseGloss(text: string): string {
       margin: 0;
     }
 
-    .sense-gloss {
-      margin: 0;
-    }
-
-    .sense-equivalent {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.375rem;
+    .sense-meta li.sense-equivalent {
+      gap: 0.35rem;
       max-width: 100%;
-      padding: 0.25rem 0.625rem;
-      border: 1px solid var(--accent-border);
       border-radius: 999px;
+      border-color: var(--accent-border);
       background: var(--accent-soft);
       color: var(--text);
       font-size: 0.75rem;
-      font-style: normal;
       font-weight: 600;
-      line-height: 1.2;
     }
 
-    .sense-equivalent svg {
+    .sense-meta li.sense-equivalent svg {
       width: 0.95rem;
       height: 0.95rem;
       flex: none;

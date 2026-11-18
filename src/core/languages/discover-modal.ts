@@ -238,9 +238,6 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                               @if (passage.text) {
                                 <p class="sense-text">{{ passage.text }}</p>
                               }
-                              @if (sense.equivalent) {
-                                <p class="sense-equivalent">{{ sense.equivalent }}</p>
-                              }
                               @let translations = shownTranslations(passage);
                               @if (translations.length) {
                                 <ul class="sense-translations">
@@ -249,24 +246,34 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                                   }
                                 </ul>
                               }
-                              @if (senseMeta(sense); as meta) {
-                                @if (meta.length) {
-                                  <ul class="sense-meta">
-                                    @for (entry of meta; track entry.key) {
-                                      <li
-                                        [class.colored]="entry.color"
-                                        [style.--meta-color]="entry.color"
-                                      >
-                                        <span class="sense-meta-key">{{
-                                          metaLabel(entry.key)
-                                        }}</span>
-                                        <span class="sense-meta-value">{{
-                                          metaLabel(entry.value)
-                                        }}</span>
-                                      </li>
-                                    }
-                                  </ul>
-                                }
+                              @let meta = senseMeta(sense);
+                              @if (sense.equivalent || meta.length) {
+                                <ul class="sense-meta">
+                                  @if (sense.equivalent) {
+                                    <li class="sense-equivalent">
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m5 8 6 6" />
+                                        <path d="m4 14 6-6 2-3" />
+                                        <path d="M2 5h12" />
+                                        <path d="M7 2h1" />
+                                        <path d="m22 22-5-10-5 10" />
+                                        <path d="M14 18h6" />
+                                      </svg>
+                                      <span>{{ sense.equivalent }}</span>
+                                    </li>
+                                  }
+                                  @for (entry of meta; track entry.key) {
+                                    <li
+                                      [class.colored]="entry.color"
+                                      [style.--meta-color]="entry.color"
+                                    >
+                                      <span class="sense-meta-key">{{ metaLabel(entry.key) }}</span>
+                                      <span class="sense-meta-value">{{
+                                        metaLabel(entry.value)
+                                      }}</span>
+                                    </li>
+                                  }
+                                </ul>
                               }
                             </li>
                           }
@@ -1144,11 +1151,29 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       line-height: 1.45;
     }
 
-    .sense-equivalent {
-      margin: 0.15rem 0 0;
-      color: #94a3b8;
-      font-size: 0.84rem;
-      line-height: 1.35;
+    .sense-meta li.sense-equivalent {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      max-width: 100%;
+      border-radius: 999px;
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-size: 0.75rem;
+      font-style: normal;
+      font-weight: 600;
+    }
+
+    .sense-meta li.sense-equivalent svg {
+      width: 0.95rem;
+      height: 0.95rem;
+      flex: none;
+      fill: none;
+      stroke: var(--accent-text);
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .sense-translations {
