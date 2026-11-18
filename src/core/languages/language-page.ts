@@ -72,7 +72,7 @@ import {
   type StoredElement,
 } from 'collection';
 
-type ElementTrailStop = { id: string; definition: number };
+type ElementTrailStop = { id: string; definition: number; example?: string };
 
 type FilterSection = 'language' | 'color' | 'definitions' | 'examples' | 'forms';
 
@@ -812,8 +812,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             <p class="selection-hint">
               {{
                 selectedIds().size === 1
-                  ? 'This element will be removed.'
-                  : 'These elements will be removed.'
+                  ? 'This element will be removed. All gems accumulated for it and all of its stats will disappear.'
+                  : 'These elements will be removed. All gems accumulated for them and all of their stats will disappear.'
               }}
             </p>
             <div class="selection-actions">
@@ -895,6 +895,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           [colors]="colorOptions()"
           [canGoBack]="canGoBack()"
           [definitionIndex]="openedDefinition()"
+          [arrivedExample]="arrivedExample()"
           [playing]="element.id === playId()"
           [playMode]="element.id === playId() ? playMode() : null"
           (closed)="closeElement()"
@@ -2373,6 +2374,7 @@ export class LanguagePage {
   readonly trail = signal<ElementTrailStop[]>([]);
   readonly canGoBack = computed(() => this.trail().length > 1);
   readonly openedDefinition = computed(() => this.trail().at(-1)?.definition ?? 0);
+  readonly arrivedExample = computed(() => this.trail().at(-1)?.example?.trim() ?? '');
   readonly opened = computed(() => {
     const id = this.elementId();
     if (!id) return null;
@@ -2773,14 +2775,15 @@ export class LanguagePage {
     }
   }
 
-  visitElement(visit: { id: string; definition: number }): void {
+  visitElement(visit: { id: string; definition: number; example?: string }): void {
     const id = visit.id;
     if (!id || id === this.elementId()) return;
+    const example = visit.example?.trim() ?? '';
     this.trail.update((trail) => {
       const next = trail.slice();
       const current = next.at(-1);
       if (current) next[next.length - 1] = { ...current, definition: visit.definition };
-      next.push({ id, definition: 0 });
+      next.push({ id, definition: 0, ...(example ? { example } : {}) });
       return next;
     });
     this.showElement(id);
@@ -2798,6 +2801,7 @@ export class LanguagePage {
     title: string;
     language: string;
     definition: number;
+    example?: string;
   }): Promise<void> {
     const name = pick.title.replace(/\s+/g, ' ').trim();
     const code = pick.language.trim().toLowerCase();
@@ -2805,7 +2809,7 @@ export class LanguagePage {
     const created = await addElement(code, name);
     if (code === this.code()) this.elements.set(await readElements(code));
     if (created.id === this.elementId()) return;
-    this.visitElement({ id: created.id, definition: pick.definition });
+    this.visitElement({ id: created.id, definition: pick.definition, example: pick.example });
   }
 
   async addPrepared(
@@ -2834,16 +2838,6 @@ export class LanguagePage {
         definitions: attached.senses,
         equivalents: attached.equivalents,
       });
-    } else if (example && created.definitions.length && !hasExample(created, example)) {
-      const definitions = created.definitions.map((definition, index) =>
-        index === 0
-          ? {
-              ...definition,
-              examples: [{ text: example, metadata: {} }, ...definition.examples],
-            }
-          : definition,
-      );
-      created = await saveElement({ ...created, definitions });
     }
     if (this.code() === code) this.elements.set(await readElements(code));
     this.applyCatalog(await readMetadataCatalog());
@@ -2854,7 +2848,11 @@ export class LanguagePage {
       return;
     }
     if (created.id === this.elementId()) return;
-    this.visitElement({ id: created.id, definition: prepared.definition ?? 0 });
+    this.visitElement({
+      id: created.id,
+      definition: prepared.definition ?? 0,
+      example,
+    });
   }
 
   replaceElement(saved: StoredElement): void {
@@ -3346,13 +3344,6 @@ export class LanguagePage {
     }
     this.search.set(elementPrefixSearch(this.query()));
   }
-}
-
-function hasExample(element: StoredElement, example: string): boolean {
-  const key = example.trim().toLowerCase();
-  return element.definitions.some((definition) =>
-    definition.examples.some((item) => item.text.trim().toLowerCase() === key),
-  );
 }
 
 function searchForms(lemma: string, selected: string): ElementDefinition['forms'] {

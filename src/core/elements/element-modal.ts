@@ -633,6 +633,22 @@ function writeExampleSuggestions(
             </div>
             <div class="title-end">
               <button
+                type="button"
+                class="icon-btn danger"
+                aria-label="Delete element"
+                title="Delete element"
+                [disabled]="inPlay() || busy()"
+                (click)="askDeleteElement()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
+                </svg>
+              </button>
+              <button
                 #closeButton
                 type="button"
                 class="close"
@@ -682,36 +698,13 @@ function writeExampleSuggestions(
                 </span>
               }
             }
-            @if (!element().definitions.length) {
-              <button
-                type="button"
-                class="icon-btn danger"
-                [attr.aria-label]="deleteLabel()"
-                [attr.title]="deleteTitle()"
-                [disabled]="inPlay() || busy()"
-                (pointerdown)="startDeletePress($event)"
-                (pointermove)="moveDeletePress($event)"
-                (pointerup)="endDeletePress()"
-                (pointercancel)="endDeletePress()"
-                (contextmenu)="$event.preventDefault()"
-                (click)="onDeleteClick()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 6h18" />
-                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                  <path d="M10 11v6" />
-                  <path d="M14 11v6" />
-                </svg>
-              </button>
-            }
           </div>
         </header>
         <div #definitionBody class="body" cdkScrollable>
           @if (collision(); as matches) {
             <div class="collision" role="menu" aria-label="Matching elements">
               @for (match of matches; track match.elementId) {
-                <button type="button" (click)="visitHighlight(match.elementId)">
+                <button type="button" (click)="visitCollision(match.elementId)">
                   {{ shownTitle(match.title) }}
                 </button>
               }
@@ -1038,7 +1031,14 @@ function writeExampleSuggestions(
                                               class="linguagem-highlighted"
                                               [style.--score-color]="part.color || null"
                                               [textContent]="part.text"
-                                              (click)="showCollision($event, part.matches, index)"
+                                              (click)="
+                                                showCollision(
+                                                  $event,
+                                                  part.matches,
+                                                  index,
+                                                  example.text
+                                                )
+                                              "
                                             ></button>
                                           } @else if (part.matches.length === 1 && !part.current) {
                                             <button
@@ -1046,7 +1046,13 @@ function writeExampleSuggestions(
                                               class="linguagem-highlighted"
                                               [style.--score-color]="part.color || null"
                                               [textContent]="part.text"
-                                              (click)="visitHighlight(part.matches[0].elementId, index)"
+                                              (click)="
+                                                visitHighlight(
+                                                  part.matches[0].elementId,
+                                                  index,
+                                                  example.text
+                                                )
+                                              "
                                             ></button>
                                           } @else if (part.current) {
                                             <span
@@ -1145,17 +1151,31 @@ function writeExampleSuggestions(
         </div>
         <footer class="definition-footer">
           <form class="example-slot" (submit)="submitDefinitionExample($event)">
-            <div class="example-slot-field">
-              <input
-                type="text"
-                [value]="definitionExample()"
-                [attr.maxlength]="exampleLengthMax"
-                [disabled]="inPlay() || aiBusy()"
-                placeholder="Enter your own example…"
-                aria-label="Enter your own example"
-                aria-describedby="example-slot-hint"
-                (input)="definitionExample.set(inputValue($event))"
-              />
+            <div class="example-slot-field" [class.arrived]="!!heldExample()">
+              @if (heldExample(); as held) {
+                @let passage = parsePassage(held);
+                <div class="example-slot-text">
+                  @if (passage.text) {
+                    <p>{{ passage.text }}</p>
+                  }
+                  @for (translation of shownTranslations(passage); track $index) {
+                    <p class="example-slot-gloss">
+                      <app-reveal [text]="labeledTranslation(translation)" [locked]="true" />
+                    </p>
+                  }
+                </div>
+              } @else {
+                <input
+                  type="text"
+                  [value]="definitionExample()"
+                  [attr.maxlength]="exampleLengthMax"
+                  [disabled]="inPlay() || aiBusy()"
+                  placeholder="Enter your own example…"
+                  aria-label="Enter your own example"
+                  aria-describedby="example-slot-hint"
+                  (input)="definitionExample.set(inputValue($event))"
+                />
+              }
               <button
                 type="submit"
                 class="example-slot-submit"
@@ -1650,7 +1670,14 @@ function writeExampleSuggestions(
                                               class="linguagem-highlighted"
                                               [style.--score-color]="part.color || null"
                                               [textContent]="part.text"
-                                              (click)="showCollision($event, part.matches, workIndex)"
+                                              (click)="
+                                                showCollision(
+                                                  $event,
+                                                  part.matches,
+                                                  workIndex,
+                                                  example.text
+                                                )
+                                              "
                                             ></button>
                                           } @else if (part.matches.length === 1 && !part.current) {
                                             <button
@@ -1659,7 +1686,11 @@ function writeExampleSuggestions(
                                               [style.--score-color]="part.color || null"
                                               [textContent]="part.text"
                                               (click)="
-                                                visitHighlight(part.matches[0].elementId, workIndex)
+                                                visitHighlight(
+                                                  part.matches[0].elementId,
+                                                  workIndex,
+                                                  example.text
+                                                )
                                               "
                                             ></button>
                                           } @else if (part.current) {
@@ -3548,7 +3579,7 @@ function writeExampleSuggestions(
               <p class="hint">
                 {{
                   pending.kind === 'element'
-                    ? 'This element will be removed.'
+                    ? 'This element will be removed. All gems accumulated for it and all of its stats will disappear.'
                     : pending.kind === 'definitions'
                       ? 'Every definition will be removed.'
                       : 'This will be removed.'
@@ -4341,10 +4372,11 @@ function writeExampleSuggestions(
 
     .example-slot-field {
       display: flex;
-      align-items: center;
+      align-items: stretch;
       min-width: 0;
-      gap: 0.35rem;
-      padding-right: 0.3rem;
+      gap: 0;
+      padding-right: 0;
+      overflow: hidden;
       border: 1px solid var(--border);
       border-radius: 0.9rem;
       background: var(--surface-2);
@@ -4359,6 +4391,7 @@ function writeExampleSuggestions(
       width: auto;
       min-width: 0;
       border: 0;
+      border-radius: 0;
       background: transparent;
     }
 
@@ -4370,19 +4403,61 @@ function writeExampleSuggestions(
       opacity: 0.6;
     }
 
+    .example-slot-field.arrived {
+      align-items: flex-start;
+      gap: 0.35rem;
+      overflow: visible;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    .example-slot-text {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: 0.2rem;
+      min-width: 0;
+      margin: 0;
+      padding: 0.45rem 0.2rem 0.45rem 0;
+      color: var(--text);
+      font-size: 0.92rem;
+      line-height: 1.4;
+    }
+
+    .example-slot-text p {
+      margin: 0;
+    }
+
+    .example-slot-gloss {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
     .example-slot-submit {
       display: flex;
       align-items: center;
       justify-content: center;
       flex: none;
-      width: 2.4rem;
-      height: 2.4rem;
+      align-self: stretch;
+      width: 2.6rem;
+      height: auto;
+      margin: -1px -1px -1px 0;
       border: 0;
-      border-radius: 0.7rem;
+      border-radius: 0;
       background: linear-gradient(to right, #f43f5e, #ec4899, #7c3aed);
       color: white;
-      box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.25);
+      box-shadow: none;
       cursor: pointer;
+    }
+
+    .example-slot-field.arrived .example-slot-submit {
+      align-self: flex-start;
+      width: 2.4rem;
+      height: 2.4rem;
+      margin: 0;
+      border-radius: 0.7rem;
+      box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.25);
     }
 
     .example-slot-submit:hover:not(:disabled) {
@@ -4768,8 +4843,10 @@ function writeExampleSuggestions(
       border-bottom: none;
       text-decoration-line: underline;
       text-decoration-style: solid;
-      text-decoration-color: var(--score-color, var(--accent));
-      text-decoration-thickness: 1px;
+      text-decoration-color: oklch(
+        from var(--score-color, var(--accent)) 0.74 calc(min(max(c, 0.16), 0.24)) h
+      );
+      text-decoration-thickness: 2px;
       text-underline-offset: 0.18em;
     }
 
@@ -6132,6 +6209,8 @@ export class ElementModal {
   readonly canGoBack = input(false);
   /** Definition to show when this element opens, including a return from Back. */
   readonly definitionIndex = input(0);
+  /** Example sentence carried in from the element that opened this one. */
+  readonly arrivedExample = input('');
   /** Play uses this card. `playMode` decides which field is typed. */
   readonly playing = input(false);
   /** Exercise for this session. Null while editing. */
@@ -6139,9 +6218,14 @@ export class ElementModal {
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
   readonly deleted = output<void>();
-  readonly visit = output<{ id: string; definition: number }>();
+  readonly visit = output<{ id: string; definition: number; example: string }>();
   readonly back = output<void>();
-  readonly addSelection = output<{ title: string; language: string; definition: number }>();
+  readonly addSelection = output<{
+    title: string;
+    language: string;
+    definition: number;
+    example: string;
+  }>();
   readonly addPrepared = output<PreparedElement>();
 
   readonly scores = Array.from({ length: TRANSLATION_GEM_MAX + 1 }, (_, score) => score);
@@ -6219,6 +6303,7 @@ export class ElementModal {
   readonly collision = signal<DefinitionHighlightMatch[] | null>(null);
   /** Definition that opened the collision menu. */
   private collisionDefinition = 0;
+  private collisionExample = '';
   readonly passageSelection = signal<PassageSelection | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
@@ -6243,6 +6328,8 @@ export class ElementModal {
   readonly unveiledEquivalents = signal<ReadonlySet<string>>(new Set());
   readonly addingDefinitions = signal<'example' | null>(null);
   readonly definitionExample = signal('');
+  /** Arrived example shown as text until it is placed. */
+  readonly heldExample = signal('');
   readonly askingForms = signal<number | null>(null);
   readonly askingExamples = signal<number | null>(null);
   readonly workTab = signal<WorkTab>('definitions');
@@ -6357,7 +6444,9 @@ export class ElementModal {
       this.helpOpen.set(false);
       this.exerciseLog.set(-1);
       this.exerciseEntry.set(-1);
-      this.definitionExample.set('');
+      const arrived = this.arrivedExample().trim().slice(0, MAX_EXAMPLE_LENGTH);
+      this.definitionExample.set(arrived);
+      this.heldExample.set(arrived);
       this.formAttributesView.set(null);
       this.definitionPanel.set(definition > 0 ? definition : 0);
       this.addingDefinitions.set(null);
@@ -7027,6 +7116,7 @@ export class ElementModal {
       if (!(await this.commitGeneratedSenses(element, [{ ...placed.definition, example }], 'end')))
         return;
       this.definitionExample.set('');
+      this.heldExample.set('');
     } catch {
       if (this.element().id === element.id) {
         this.error.set('Could not place that example.');
@@ -7064,6 +7154,7 @@ export class ElementModal {
       this.scrollDefinitionPanel();
     }
     this.definitionExample.set('');
+    this.heldExample.set('');
   }
 
   dismissNew(text: string): void {
@@ -8198,17 +8289,24 @@ export class ElementModal {
     event: MouseEvent,
     matches: DefinitionHighlightMatch[],
     definition: number,
+    example = '',
   ): void {
     event.preventDefault();
     event.stopPropagation();
     this.collisionDefinition = definition;
+    this.collisionExample = example.trim();
     this.collision.set(matches);
   }
 
-  visitHighlight(id: string, definition = this.collisionDefinition): void {
+  visitCollision(id: string): void {
+    this.visitHighlight(id, this.collisionDefinition, this.collisionExample);
+  }
+
+  visitHighlight(id: string, definition = this.collisionDefinition, example = ''): void {
     this.collision.set(null);
+    this.collisionExample = '';
     if (!id || id === this.element().id) return;
-    this.visit.emit({ id, definition });
+    this.visit.emit({ id, definition, example: example.trim() });
   }
 
   passagePick(definitionIndex: number, exampleIndex: number | null): PassageSelection | null {
@@ -8217,6 +8315,12 @@ export class ElementModal {
       return null;
     }
     return pick;
+  }
+
+  private passageExample(pick: PassageSelection | null): string {
+    if (!pick || pick.exampleIndex == null) return '';
+    const definition = this.element().definitions[pick.definitionIndex];
+    return parsePassage(definition?.examples[pick.exampleIndex]?.text ?? '').text.trim();
   }
 
   confirmPassagePick(event: Event, text: string, ai = false): void {
@@ -8231,7 +8335,12 @@ export class ElementModal {
     const definition = pick?.definitionIndex ?? this.visibleDefinitionIndex();
     if (!ai) {
       this.passageSelection.set(null);
-      this.addSelection.emit({ title, language: this.element().language, definition });
+      this.addSelection.emit({
+        title,
+        language: this.element().language,
+        definition,
+        example: this.passageExample(pick),
+      });
       return;
     }
     void this.askSelectionElement(title, pick);
@@ -8264,12 +8373,12 @@ export class ElementModal {
         language: element.language,
         example,
         definition: pick?.definitionIndex ?? this.visibleDefinitionIndex(),
-        definitions: generated.definitions.map((sense, index) => ({
+        definitions: generated.definitions.map((sense) => ({
           text: sense.text,
           equivalent: sense.equivalent,
           equivalentIds: {},
           forms: selectionForms(generated.lemma, title),
-          examples: index === 0 && example ? [{ text: example, metadata: {} }] : [],
+          examples: [],
           metadata: { ...sense.metadata },
           log: [],
         })),
