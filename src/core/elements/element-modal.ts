@@ -3308,19 +3308,7 @@ function writeExampleSuggestions(
                                 @if (translations.length) {
                                   <ul class="equivalents">
                                     @for (translation of translations; track $index) {
-                                      <li>
-                                        <app-reveal
-                                          [text]="labeledTranslation(translation)"
-                                          (unveiled)="
-                                            noteReveal(
-                                              index,
-                                              passage.text,
-                                              translation.text,
-                                              kind
-                                            )
-                                          "
-                                        />
-                                      </li>
+                                      <li>{{ labeledTranslation(translation) }}</li>
                                     }
                                   </ul>
                                 }
@@ -3483,19 +3471,7 @@ function writeExampleSuggestions(
                                     @if (translations.length) {
                                       <ul class="equivalents">
                                         @for (translation of translations; track $index) {
-                                          <li>
-                                            <app-reveal
-                                              [text]="labeledTranslation(translation)"
-                                              (unveiled)="
-                                                noteReveal(
-                                                  index,
-                                                  passage.text,
-                                                  translation.text,
-                                                  'definition'
-                                                )
-                                              "
-                                            />
-                                          </li>
+                                          <li>{{ labeledTranslation(translation) }}</li>
                                         }
                                       </ul>
                                     }
@@ -3509,19 +3485,7 @@ function writeExampleSuggestions(
                                     @if (translations.length) {
                                       <ul class="equivalents">
                                         @for (translation of translations; track $index) {
-                                          <li>
-                                            <app-reveal
-                                              [text]="labeledTranslation(translation)"
-                                              (unveiled)="
-                                                noteReveal(
-                                                  index,
-                                                  passage.text,
-                                                  translation.text,
-                                                  'definition'
-                                                )
-                                              "
-                                            />
-                                          </li>
+                                          <li>{{ labeledTranslation(translation) }}</li>
                                         }
                                       </ul>
                                     }
@@ -3553,19 +3517,7 @@ function writeExampleSuggestions(
                                         @if (translations.length) {
                                           <ul class="equivalents">
                                             @for (translation of translations; track $index) {
-                                              <li>
-                                                <app-reveal
-                                                  [text]="labeledTranslation(translation)"
-                                                  (unveiled)="
-                                                    noteReveal(
-                                                      index,
-                                                      passage.text,
-                                                      translation.text,
-                                                      'definition'
-                                                    )
-                                                  "
-                                                />
-                                              </li>
+                                              <li>{{ labeledTranslation(translation) }}</li>
                                             }
                                           </ul>
                                         }
