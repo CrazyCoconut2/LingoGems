@@ -562,8 +562,22 @@ const EMPTY_DAY: DayStats = {
                     @if (hiddenOpen()) {
                       <ul class="hidden-list">
                         @for (token of hiddenTokens(); track token.key) {
-                          <li>
-                            <span class="title" [attr.title]="token.title">{{ token.title }}</span>
+                          <li class="missing-row">
+                            <div class="row-main">
+                              <span class="title" [attr.title]="token.title">{{ token.title }}</span>
+                              <span class="bits">
+                                <span
+                                  class="bit"
+                                  [attr.aria-label]="seenLabel(token.seen)"
+                                  [attr.title]="seenLabel(token.seen)"
+                                >
+                                  <ng-container
+                                    *ngTemplateOutlet="activityIcon; context: { $implicit: 'opened' }"
+                                  />
+                                  <span>{{ formatCount(token.seen) }}</span>
+                                </span>
+                              </span>
+                            </div>
                             <button
                               type="button"
                               class="restore"
@@ -1572,13 +1586,12 @@ const EMPTY_DAY: DayStats = {
     .hidden-list li {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 0.7rem;
+      gap: 0.45rem;
       min-width: 0;
-      padding: 0.45rem 0.75rem;
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 0.8rem;
-      background: rgba(8, 10, 18, 0.35);
+      padding: 0.7rem 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 1rem;
+      background: color-mix(in srgb, var(--surface-2) 55%, var(--bg));
     }
 
     .restore {
@@ -1770,9 +1783,11 @@ export class GemStatsModal {
   });
   readonly hiddenTokens = computed(() => {
     const language = this.language();
+    const seen = new Map((this.snapshot()?.missing ?? []).map((token) => [token.key, token.seen]));
     return this.blacklist().map((key) => ({
       key,
       title: displayTitle(key, language) || key,
+      seen: seen.get(key) ?? 0,
     }));
   });
   readonly sortedRows = computed(() => {

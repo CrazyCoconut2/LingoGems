@@ -267,9 +267,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         @if (lookupError()) {
           <p class="lookup-error">{{ lookupError() }}</p>
         }
-      </div>
 
-      <div class="collection">
         @if (ready()) {
           <div class="list-toolbar">
             <p class="list-count">
@@ -352,7 +350,9 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             </p>
           </div>
         }
+      </div>
 
+      <div class="collection">
         @if (!ready()) {
           <ul class="elements" aria-hidden="true">
             @for (item of skeletons; track item) {
@@ -1009,7 +1009,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       display: flex;
       flex-direction: column;
       gap: 0.65rem;
-      padding: calc(1.25rem + env(safe-area-inset-top, 0px)) 1.25rem 0.35rem;
+      padding: calc(1.25rem + env(safe-area-inset-top, 0px)) 1.25rem 0.85rem;
     }
 
     .collection {
@@ -1018,7 +1018,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      padding: 0.15rem 1.25rem 1.25rem;
+      padding: 0 1.25rem 1.25rem;
       overscroll-behavior: contain;
     }
 
