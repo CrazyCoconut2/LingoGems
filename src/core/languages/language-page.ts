@@ -1228,15 +1228,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .count-badge {
-      padding: 0.12rem 0.45rem;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 0.4rem;
-      background: rgba(255, 255, 255, 0.05);
       color: #94a3b8;
-      font-size: 0.62rem;
-      font-weight: 650;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
+      font-weight: 500;
     }
 
     .list-toolbar {
@@ -1849,8 +1842,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
     .list-count .bone-count {
       width: 4.75rem;
-      height: calc(0.62rem * 1.2 + 0.24rem + 2px);
-      border-radius: 0.4rem;
+      height: 0.75rem;
     }
 
     .skeleton .bone-title {

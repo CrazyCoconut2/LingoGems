@@ -932,8 +932,11 @@ function writeExampleSuggestions(
                                 <app-reveal
                                   [text]="labeledTranslation(translation)"
                                   [locked]="definitionInPlay(index)"
+                                  [open]="supportRevealed()"
+                                  [scope]="index"
                                   (unveiled)="
-                                    noteReveal(index, passage.text, translation.text, 'definition')
+                                    noteReveal(index, passage.text, translation.text, 'definition');
+                                    unveilSupport(index)
                                   "
                                 />
                               </li>
@@ -969,7 +972,8 @@ function writeExampleSuggestions(
                                   [text]="labeledEquivalent(equivalent)"
                                   [locked]="definitionInPlay(index)"
                                   [open]="equivalentUnveiled(equivalent)"
-                                  (unveiled)="unveilEquivalent(equivalent)"
+                                  [scope]="index"
+                                  (unveiled)="unveilSupport(index)"
                                 />
                               }
                             </li>
@@ -1074,13 +1078,16 @@ function writeExampleSuggestions(
                                             <app-reveal
                                               [text]="labeledTranslation(translation)"
                                               [locked]="definitionInPlay(index)"
+                                              [open]="supportRevealed()"
+                                              [scope]="index"
                                               (unveiled)="
                                                 noteReveal(
                                                   index,
                                                   passage.text,
                                                   translation.text,
                                                   'example'
-                                                )
+                                                );
+                                                unveilSupport(index)
                                               "
                                             />
                                           </li>
@@ -6402,6 +6409,8 @@ export class ElementModal {
   readonly missingSaving = signal(false);
   readonly missingSaveError = signal('');
   readonly unveiledEquivalents = signal<ReadonlySet<string>>(new Set());
+  /** Definition translations and the equivalent, opened together. */
+  readonly supportRevealed = signal(false);
   readonly addingDefinitions = signal<'example' | null>(null);
   readonly definitionExample = signal('');
   /** Arrived example shown as text until it is placed. */
@@ -6517,6 +6526,7 @@ export class ElementModal {
       this.definitionPrompt.set(-1);
       this.examplePrompt.set(-1);
       this.unveiledEquivalents.set(new Set());
+      this.supportRevealed.set(false);
       this.helpOpen.set(false);
       this.exerciseLog.set(-1);
       this.exerciseEntry.set(-1);
@@ -6927,6 +6937,15 @@ export class ElementModal {
 
   equivalentUnveiled(text: string): boolean {
     return this.unveiledEquivalents().has(text);
+  }
+
+  /** Open the equivalent and the translations together. Only a translation click is logged. */
+  unveilSupport(index: number): void {
+    this.supportRevealed.set(true);
+    const definition = this.shownDefinitions()[index];
+    if (!definition) return;
+    const equivalent = this.equivalentText(definition);
+    if (equivalent) this.unveilEquivalent(equivalent);
   }
 
   unveilEquivalent(text: string): void {
@@ -7472,6 +7491,8 @@ export class ElementModal {
   showDefinition(index: number): void {
     const count = this.shownDefinitions().length;
     if (index < 0 || index >= count || index === this.visibleDefinitionIndex()) return;
+    this.unveiledEquivalents.set(new Set());
+    this.supportRevealed.set(false);
     this.formAttributesView.set(null);
     this.definitionPanel.set(index);
     this.scrollDefinitionPanel();

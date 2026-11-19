@@ -54,6 +54,8 @@ export class Reveal {
   readonly locked = input(false);
   /** Already unveiled somewhere else that shows the same text. */
   readonly open = input(false);
+  /** Changing this puts the blur back, even when the text stays the same. */
+  readonly scope = input<string | number | null>(null);
   readonly unveiled = output<void>();
   readonly shown = signal(false);
   /** Inside a button or link, so this stays a plain label instead of a second control. */
@@ -66,6 +68,7 @@ export class Reveal {
     });
     effect(() => {
       this.text();
+      this.scope();
       this.shown.set(false);
     });
   }
