@@ -1664,6 +1664,15 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       text-align: left;
       cursor: pointer;
       appearance: none;
+      user-select: none;
+      outline: none;
+    }
+
+    .element:focus,
+    .element:focus-visible,
+    .drill:focus,
+    .drill:focus-visible {
+      outline: none;
     }
 
     .title {
@@ -1747,7 +1756,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     .stat app-reveal-icon {
       display: flex;
       align-items: center;
-      width: 1.15rem;
+      width: 1.44rem;
       height: 0.75rem;
       color: var(--card-accent, #94a3b8);
     }

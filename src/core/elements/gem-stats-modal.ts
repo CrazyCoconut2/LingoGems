@@ -979,13 +979,13 @@ const EMPTY_DAY: DayStats = {
     }
 
     .activity app-reveal-icon {
-      width: 1.55rem;
-      height: 0.7rem;
+      width: 1.82rem;
+      height: 0.95rem;
     }
 
     .bit app-reveal-icon {
-      width: 1.15rem;
-      height: 0.52rem;
+      width: 1.76rem;
+      height: 0.92rem;
     }
 
     .hero-copy {
@@ -1775,7 +1775,11 @@ export class GemStatsModal {
   readonly ready = computed(() => this.stats().phase === 'ready');
   readonly error = computed(() => this.stats().phase === 'error');
   readonly snapshot = computed(() => this.stats().snapshot);
-  readonly day = computed(() => this.snapshot()?.days[this.dayIndex()] ?? null);
+  readonly days = computed(() => {
+    const days = this.snapshot()?.days;
+    return days ? daysWithToday(days) : [];
+  });
+  readonly day = computed(() => this.days()[this.dayIndex()] ?? null);
   readonly shown = computed(() => this.day() ?? EMPTY_DAY);
   readonly visibleMissing = computed(() => {
     const hidden = new Set(this.blacklist());
@@ -1817,10 +1821,7 @@ export class GemStatsModal {
     }
     return totals;
   });
-  readonly canGoOlder = computed(() => {
-    const total = this.snapshot()?.days.length ?? 0;
-    return this.dayIndex() < total - 1;
-  });
+  readonly canGoOlder = computed(() => this.dayIndex() < this.days().length - 1);
   readonly canGoNewer = computed(() => this.dayIndex() > 0);
   readonly dayLabel = computed(() => {
     const current = this.day();
@@ -2162,4 +2163,23 @@ function dayKey(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/** Today stays first, with zero counts, when nothing happened yet. */
+function daysWithToday(days: readonly DayStats[]): readonly DayStats[] {
+  const today = dayKey(new Date());
+  if (days.some((day) => day.day === today)) return days;
+  return [
+    {
+      day: today,
+      gems: { translation: 0, example: 0, definition: 0 },
+      added: 0,
+      opened: 0,
+      reworked: 0,
+      revealed: 0,
+      exercises: 0,
+      elements: [],
+    },
+    ...days,
+  ];
 }

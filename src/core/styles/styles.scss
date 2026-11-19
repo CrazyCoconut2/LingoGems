@@ -79,6 +79,16 @@ select {
   touch-action: manipulation;
 }
 
+button {
+  user-select: none;
+  outline: none;
+}
+
+button:focus,
+button:focus-visible {
+  outline: none;
+}
+
 .gem {
   --gem-size: 1.75rem;
   position: relative;

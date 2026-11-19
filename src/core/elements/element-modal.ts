@@ -5370,7 +5370,7 @@ function writeExampleSuggestions(
       height: 0.95rem;
       fill: none;
       stroke: currentColor;
-      stroke-width: 1.75;
+      stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
     }
