@@ -105,6 +105,8 @@ const META_VALUE_MAX_LENGTH = 100;
 
 type Editor =
   | { kind: 'definition'; index: number | null }
+  | { kind: 'examples'; index: number }
+  | { kind: 'forms'; index: number }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number | null };
 
 type FormEdit = { definitionIndex: number; originalText: string | null };
@@ -186,8 +188,6 @@ type PendingForms = {
   definitionIndex: number;
   forms: ElementForm[];
 };
-
-type WorkTab = 'definitions' | 'examples' | 'forms';
 
 type ConfirmDelete =
   | { kind: 'element' }
@@ -809,20 +809,6 @@ function writeExampleSuggestions(
                       </button>
                       <button
                         type="button"
-                        class="icon-btn"
-                        [attr.aria-label]="definitionActionLabel(definition)"
-                        [attr.title]="definitionActionLabel(definition)"
-                        [disabled]="definitionInPlay(index) || aiBusy()"
-                        (click)="openDefinition(index)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
                         class="icon-btn danger"
                         [attr.aria-label]="deleteLabel()"
                         [attr.title]="deleteTitle()"
@@ -848,13 +834,28 @@ function writeExampleSuggestions(
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
                       <ng-container [ngTemplateOutlet]="definitionPassage" />
+                      <ng-template #definitionPencil>
+                        <button
+                          type="button"
+                          class="inline-pencil"
+                          [attr.aria-label]="definitionActionLabel(definition)"
+                          [attr.title]="definitionActionLabel(definition)"
+                          [disabled]="definitionInPlay(index) || aiBusy()"
+                          (click)="openDefinition(index); $event.stopPropagation()"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                          </svg>
+                        </button>
+                      </ng-template>
                       <ng-template #definitionPassage>
                         @if (passage.text) {
                           @if (definitionConcealed(index)) {
                             <div class="spoken">
                               <div class="spoken-copy">
-                                <p class="passage definition-cue-text" aria-hidden="true">
-                                  {{ shownDefinition(passage.text) }}
+                                <p class="passage definition-cue-text">
+                                  <span aria-hidden="true">{{ shownDefinition(passage.text) }}</span>
+                                  <ng-container [ngTemplateOutlet]="definitionPencil" />
                                 </p>
                                 <ng-container [ngTemplateOutlet]="passageTranslations" />
                               </div>
@@ -902,6 +903,7 @@ function writeExampleSuggestions(
                                       <span [textContent]="part.text"></span>
                                     }
                                   }
+                                  <ng-container [ngTemplateOutlet]="definitionPencil" />
                                 </p>
                                 <ng-container [ngTemplateOutlet]="passageTranslations" />
                               </div>
@@ -915,6 +917,8 @@ function writeExampleSuggestions(
                               />
                             </div>
                           }
+                        } @else {
+                          <ng-container [ngTemplateOutlet]="definitionPencil" />
                         }
                       </ng-template>
                       <ng-template #passageTranslations>
@@ -1000,8 +1004,8 @@ function writeExampleSuggestions(
                     </div>
                   </div>
 
-                  @if (definition.examples.length) {
-                    <section class="group">
+                  <section class="group examples-region">
+                    @if (definition.examples.length) {
                       <ul class="examples" aria-label="Examples">
                         @for (
                           exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
@@ -1063,6 +1067,20 @@ function writeExampleSuggestions(
                                           <span [textContent]="part.text"></span>
                                         }
                                       }
+                                      <button
+                                        type="button"
+                                        class="inline-pencil"
+                                        aria-label="Edit examples"
+                                        title="Edit examples"
+                                        [disabled]="definitionInPlay(index) || aiBusy()"
+                                        (click)="openExamples(index); $event.stopPropagation()"
+                                      >
+                                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                                          <path
+                                            d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
+                                          />
+                                        </svg>
+                                      </button>
                                     </p>
                                     @let translations = shownTranslations(passage);
                                     @if (translations.length) {
@@ -1124,11 +1142,20 @@ function writeExampleSuggestions(
                           </li>
                         }
                       </ul>
-                    </section>
-                  }
-                  @if (definition.forms.length) {
-                    <section class="group">
-                      <ul class="forms" aria-label="Forms">
+                    } @else {
+                      <button
+                        type="button"
+                        class="example-cta"
+                        [disabled]="definitionInPlay(index) || aiBusy()"
+                        (click)="addExampleManually(index)"
+                      >
+                        Add an example
+                      </button>
+                    }
+                  </section>
+                  <section class="group forms-region" (click)="onFormsClick($event, index)">
+                    <ul class="forms" aria-label="Forms">
+                      @if (definition.forms.length) {
                         @for (form of definition.forms; track form.text) {
                           @let chip = formChipColor(form);
                           <li>
@@ -1144,9 +1171,20 @@ function writeExampleSuggestions(
                             </button>
                           </li>
                         }
-                      </ul>
-                    </section>
-                  }
+                      } @else {
+                        <li>
+                          <button
+                            type="button"
+                            class="form-chip readonly form-cta"
+                            [disabled]="definitionInPlay(index) || aiBusy()"
+                            (click)="openForms(index)"
+                          >
+                            Add forms
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  </section>
                 </li>
               </ol>
             }
@@ -1208,78 +1246,34 @@ function writeExampleSuggestions(
         @if (editor(); as current) {
           <div class="sheet-backdrop" (click)="closeEditorSheet($event)">
             <section
-              #editorSheet
               class="sheet editor-sheet"
               role="dialog"
               aria-modal="true"
-              [attr.aria-label]="
-                current.kind === 'definition' ? workSectionLabel(current) : sheetTitle(current)
-              "
+              [attr.aria-label]="sheetTitle(current)"
             >
-              @if (current.kind === 'example') {
-                <div class="sheet-head">
-                  <h3>{{ sheetTitle(current) }}</h3>
-                  <span class="sheet-tools">
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Close"
-                      (click)="closeEditor()"
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <path d="M18 6 6 18" />
-                        <path d="m6 6 12 12" />
-                      </svg>
-                    </button>
-                  </span>
-                </div>
-              } @else {
-                <div
-                  class="lang work-tabs"
-                  role="tablist"
-                  [attr.aria-label]="workSectionLabel(current)"
-                >
+              <div class="sheet-head">
+                <h3>{{ sheetTitle(current) }}</h3>
+                <span class="sheet-tools">
+                  @if (current.kind === 'definition' || current.kind === 'example') {
+                    <ng-container [ngTemplateOutlet]="draftActions" />
+                  }
                   <button
                     type="button"
-                    role="tab"
-                    [class.on]="workTab() === 'definitions'"
-                    [attr.aria-selected]="workTab() === 'definitions'"
-                    (click)="showWorkTab('definitions')"
+                    class="icon-btn"
+                    aria-label="Close"
+                    [disabled]="workCloseDisabled()"
+                    (click)="closeEditor()"
                   >
-                    Definition
+                    <svg viewBox="0 0 24 24">
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
                   </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    [class.on]="workTab() === 'examples'"
-                    [attr.aria-selected]="workTab() === 'examples'"
-                    [disabled]="current.index == null"
-                    (click)="showWorkTab('examples')"
-                  >
-                    Examples
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    [class.on]="workTab() === 'forms'"
-                    [attr.aria-selected]="workTab() === 'forms'"
-                    [disabled]="current.index == null"
-                    (click)="showWorkTab('forms')"
-                  >
-                    Forms
-                  </button>
-                </div>
-              }
-              <ng-template #editorFields>
-                <div class="field-heading" [class.work-title]="current.kind === 'definition'">
-                  <label
-                    class="work-title-text"
-                    [attr.for]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
-                  >
-                    {{ current.kind === 'definition' ? 'Definition' : 'Example' }}
-                  </label>
-                  <span class="header-actions work-title-actions">
-                    @if (supportAvailable()) {
+                </span>
+              </div>
+              <ng-template #draftActions>
+                <span class="header-actions work-title-actions">
+                  @if (supportAvailable()) {
                       <span class="generate-bundle translate-split">
                         <button
                           type="button"
@@ -1324,11 +1318,38 @@ function writeExampleSuggestions(
                         </svg>
                       </button>
                     }
-                  </span>
-                </div>
+                    @if (current.kind === 'example' && current.exampleIndex == null) {
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Engineer example"
+                        title="Engineer example"
+                        [class.active]="exampleEngineerOpen()"
+                        [attr.aria-pressed]="exampleEngineerOpen()"
+                        [attr.aria-busy]="askingExamples() !== null ? true : null"
+                        [disabled]="aiBusy() && !exampleEngineerOpen()"
+                        (click)="toggleExampleEngineer()"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                          />
+                          <path d="M5 3v4" />
+                          <path d="M3 5h4" />
+                          <path d="M19 17v4" />
+                          <path d="M17 19h4" />
+                        </svg>
+                      </button>
+                    }
+                </span>
+              </ng-template>
+              <ng-template #editorFields>
                 <div
                   class="definition-slot"
-                  [class.engineering]="current.kind === 'definition' && !!definitionEngineer()"
+                  [class.engineering]="
+                    (current.kind === 'definition' && !!definitionEngineer()) ||
+                    exampleEngineerOpen()
+                  "
                 >
                   @if (current.kind === 'definition' && definitionEngineer(); as engineer) {
                     <div class="definition-ai">
@@ -1401,9 +1422,91 @@ function writeExampleSuggestions(
                       </div>
                     </div>
                   }
+                  @if (exampleEngineerOpen()) {
+                    @if (exampleEngineer(); as engineer) {
+                    <div class="definition-ai">
+                      <label class="field-label" for="example-note">Note</label>
+                      <textarea
+                        id="example-note"
+                        rows="3"
+                        [value]="engineer.instruction"
+                        [attr.maxlength]="exampleInstructionMax"
+                        [disabled]="askingExamples() !== null"
+                        placeholder="A walk to the market"
+                        aria-label="Note"
+                        (input)="onEngineerInstruction($event)"
+                      ></textarea>
+                      @if (definitionForms(engineer.definitionIndex); as forms) {
+                        @if (forms.length) {
+                          <button
+                            type="button"
+                            class="forms-toggle"
+                            [attr.aria-expanded]="engineer.formsOpen"
+                            [disabled]="askingExamples() !== null"
+                            (click)="toggleEngineerForms()"
+                          >
+                            <span>Forms</span>
+                            <span class="forms-toggle-side">
+                              @if (!engineer.formsOpen && engineer.forms.length) {
+                                <span>{{ engineer.forms.join(', ') }}</span>
+                              }
+                              <svg
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                                [class.open]="engineer.formsOpen"
+                              >
+                                <path d="m6 9 6 6 6-6" />
+                              </svg>
+                            </span>
+                          </button>
+                          @if (engineer.formsOpen) {
+                            <div class="engineer-forms">
+                              <p class="hint">
+                                Select forms to require. More than one picks a form at random.
+                              </p>
+                              <ul class="equivalent-choices">
+                                @for (form of forms; track form) {
+                                  <li>
+                                    <button
+                                      type="button"
+                                      [class.selected]="engineerFormChosen(form)"
+                                      [attr.aria-pressed]="engineerFormChosen(form)"
+                                      [disabled]="askingExamples() !== null"
+                                      (click)="toggleEngineerForm(form)"
+                                    >
+                                      <ng-container [ngTemplateOutlet]="formIcon" />
+                                      {{ form }}
+                                    </button>
+                                  </li>
+                                }
+                              </ul>
+                            </div>
+                          }
+                        }
+                      }
+                      @if (exampleError()) {
+                        <p class="error">{{ exampleError() }}</p>
+                      }
+                      <div class="sheet-actions example-actions">
+                        <div class="generate-bundle">
+                          <button
+                            type="button"
+                            class="generate-main"
+                            [disabled]="askingExamples() !== null"
+                            [attr.aria-busy]="askingExamples() !== null ? true : null"
+                            (click)="generateEngineeredExample()"
+                          >
+                            Generate
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    }
+                  }
                   <textarea
                     #draftField
                     [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
+                    [attr.aria-label]="current.kind === 'definition' ? 'Definition' : 'Example'"
                     rows="3"
                     [value]="textDraft()"
                     (input)="textDraft.set(inputValue($event))"
@@ -1622,12 +1725,11 @@ function writeExampleSuggestions(
               </ng-template>
               <div class="sheet-scroll">
                 @if (current.kind === 'definition') {
-                  @if (workTab() === 'definitions' || current.index == null) {
-                    <section class="sheet-part work-section">
-                      <ng-container [ngTemplateOutlet]="editorFields" />
-                    </section>
-                  }
-                  @if (current.index != null && workTab() === 'examples') {
+                  <section class="sheet-part work-section">
+                    <ng-container [ngTemplateOutlet]="editorFields" />
+                  </section>
+                }
+                @if (current.kind === 'examples') {
                     @let workIndex = current.index;
                     @let worked = sheetDefinition(workIndex);
                     <section class="sheet-part work-section">
@@ -1816,88 +1918,9 @@ function writeExampleSuggestions(
                           }
                         </div>
                       }
-                      @if (exampleEngineer(); as engineer) {
-                        @if (engineer.definitionIndex === workIndex) {
-                          <label class="field-label" for="example-note">Note</label>
-                          <textarea
-                            id="example-note"
-                            rows="3"
-                            [value]="engineer.instruction"
-                            [attr.maxlength]="exampleInstructionMax"
-                            [disabled]="askingExamples() !== null"
-                            placeholder="A walk to the market"
-                            aria-label="Note"
-                            (input)="onEngineerInstruction($event)"
-                          ></textarea>
-                          @if (definitionForms(workIndex); as forms) {
-                            @if (forms.length) {
-                              <button
-                                type="button"
-                                class="forms-toggle"
-                                [attr.aria-expanded]="engineer.formsOpen"
-                                [disabled]="askingExamples() !== null"
-                                (click)="toggleEngineerForms()"
-                              >
-                                <span>Forms</span>
-                                <span class="forms-toggle-side">
-                                  @if (!engineer.formsOpen && engineer.forms.length) {
-                                    <span>{{ engineer.forms.join(', ') }}</span>
-                                  }
-                                  <svg
-                                    viewBox="0 0 24 24"
-                                    aria-hidden="true"
-                                    [class.open]="engineer.formsOpen"
-                                  >
-                                    <path d="m6 9 6 6 6-6" />
-                                  </svg>
-                                </span>
-                              </button>
-                              @if (engineer.formsOpen) {
-                                <div class="engineer-forms">
-                                  <p class="hint">
-                                    Select forms to require. More than one picks a form at random.
-                                  </p>
-                                  <ul class="equivalent-choices">
-                                    @for (form of forms; track form) {
-                                      <li>
-                                        <button
-                                          type="button"
-                                          [class.selected]="engineerFormChosen(form)"
-                                          [attr.aria-pressed]="engineerFormChosen(form)"
-                                          [disabled]="askingExamples() !== null"
-                                          (click)="toggleEngineerForm(form)"
-                                        >
-                                          <ng-container [ngTemplateOutlet]="formIcon" />
-                                          {{ form }}
-                                        </button>
-                                      </li>
-                                    }
-                                  </ul>
-                                </div>
-                              }
-                            }
-                          }
-                          @if (exampleError()) {
-                            <p class="error">{{ exampleError() }}</p>
-                          }
-                          <div class="sheet-actions example-actions">
-                            <div class="generate-bundle">
-                              <button
-                                type="button"
-                                class="generate-main"
-                                [disabled]="askingExamples() !== null"
-                                [attr.aria-busy]="askingExamples() !== null ? true : null"
-                                (click)="generateEngineeredExample()"
-                              >
-                                Generate
-                              </button>
-                            </div>
-                          </div>
-                        }
-                      }
                     </section>
                   }
-                  @if (current.index != null && workTab() === 'forms') {
+                @if (current.kind === 'forms') {
                     @let workIndex = current.index;
                     @let worked = sheetDefinition(workIndex);
                     <section class="sheet-part work-section">
@@ -2002,12 +2025,16 @@ function writeExampleSuggestions(
                         <p class="error">{{ formsError() }}</p>
                       }
                     </section>
-                  }
-                } @else {
+                }
+                @if (current.kind === 'example') {
                   <ng-container [ngTemplateOutlet]="editorFields" />
                 }
               </div>
-              @if (current.kind === 'definition') {
+              @if (
+                current.kind === 'definition' ||
+                current.kind === 'examples' ||
+                current.kind === 'forms'
+              ) {
                 <div class="sheet-actions sheet-footer">
                   <button
                     type="button"
@@ -2015,7 +2042,7 @@ function writeExampleSuggestions(
                     [disabled]="workSaveDisabled()"
                     (click)="saveWork()"
                   >
-                    @if (workTab() === 'definitions' || current.index == null) {
+                    @if (current.kind === 'definition') {
                       <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path
                           d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
@@ -2039,7 +2066,13 @@ function writeExampleSuggestions(
                   <button
                     type="button"
                     class="btn btn-primary"
-                    [disabled]="busy() || translating() || askingEquivalent() || !draftGloss()"
+                    [disabled]="
+                      busy() ||
+                      translating() ||
+                      askingEquivalent() ||
+                      askingExamples() !== null ||
+                      !draftGloss()
+                    "
                     (click)="saveEditor()"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -4683,6 +4716,10 @@ function writeExampleSuggestions(
       background: var(--surface);
     }
 
+    .forms-region {
+      cursor: pointer;
+    }
+
     .sense-meta {
       display: flex;
       flex-wrap: wrap;
@@ -5058,7 +5095,7 @@ function writeExampleSuggestions(
       font-style: normal;
     }
 
-    .sense > .group > .examples .example-quote {
+    .examples-region .example-quote {
       padding: 0.75rem;
       border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
       border-radius: 0.75rem;
@@ -5069,13 +5106,71 @@ function writeExampleSuggestions(
       font-weight: 500;
     }
 
-    .sense > .group > .examples .example-quote .passage {
+    .examples-region .example-quote .passage {
       font-weight: 500;
     }
 
-    .sense > .group > .examples .example-quote .pills {
+    .examples-region .example-quote .pills {
       font-style: normal;
       font-weight: 400;
+    }
+
+    .inline-pencil {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.05em;
+      height: 1.05em;
+      margin: 0 0 0 0.35em;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      vertical-align: -0.15em;
+      cursor: pointer;
+    }
+
+    .inline-pencil svg {
+      width: 0.9em;
+      height: 0.9em;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .inline-pencil:hover:not(:disabled) {
+      color: var(--text);
+    }
+
+    .inline-pencil:disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
+
+    .example-cta {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px dashed color-mix(in srgb, var(--border) 90%, transparent);
+      border-radius: 0.75rem;
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-align: start;
+      cursor: pointer;
+    }
+
+    .example-cta:hover:not(:disabled) {
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .example-cta:disabled {
+      cursor: default;
+      opacity: 0.55;
     }
 
     .sense > .group > .forms .form-chip.readonly {
@@ -5095,6 +5190,12 @@ function writeExampleSuggestions(
       border-color: color-mix(in srgb, var(--form-color) 30%, transparent);
       color: var(--form-color);
       font-weight: 600;
+    }
+
+    .sense > .group > .forms .form-chip.readonly.form-cta {
+      border-style: dashed;
+      background: transparent;
+      color: var(--text-muted);
     }
 
     button.form-chip {
@@ -5415,8 +5516,7 @@ function writeExampleSuggestions(
       resize: none;
     }
 
-    .editor-sheet > .sheet-head,
-    .editor-sheet > .lang.work-tabs {
+    .editor-sheet > .sheet-head {
       flex: none;
       margin-bottom: 0.55rem;
     }
@@ -5591,6 +5691,44 @@ function writeExampleSuggestions(
 
     .definition-ai .entry-confirm:disabled {
       color: rgba(255, 255, 255, 0.4);
+    }
+
+    .definition-ai .field-label,
+    .definition-ai .forms-toggle,
+    .definition-ai .hint {
+      color: white;
+    }
+
+    .definition-ai textarea {
+      border: 0;
+      border-radius: 0.75rem;
+      background: rgba(255, 255, 255, 0.16);
+      color: white;
+    }
+
+    .definition-ai textarea::placeholder {
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .definition-ai .engineer-forms .equivalent-choices button {
+      border-color: rgba(255, 255, 255, 0.35);
+      background: rgba(255, 255, 255, 0.12);
+      color: white;
+    }
+
+    .definition-ai .engineer-forms .equivalent-choices button.selected {
+      background: white;
+      color: var(--accent);
+      border-color: white;
+    }
+
+    .definition-ai .example-actions .generate-main {
+      background: white;
+      color: var(--accent);
+    }
+
+    .definition-ai .example-actions .generate-main:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.86);
     }
 
     .instruct-field {
@@ -6232,22 +6370,6 @@ function writeExampleSuggestions(
       cursor: not-allowed;
     }
 
-    .lang.work-tabs {
-      display: flex;
-      align-self: stretch;
-      box-sizing: border-box;
-      width: 100%;
-      min-width: 0;
-      padding-inline: 0;
-    }
-
-    .lang.work-tabs button {
-      flex: 1 1 0;
-      min-width: 0;
-      text-align: start;
-      padding-inline: 0.7rem;
-    }
-
     .work-title {
       display: flex;
       align-items: center;
@@ -6425,7 +6547,6 @@ export class ElementModal {
   readonly heldExample = signal('');
   readonly askingForms = signal<number | null>(null);
   readonly askingExamples = signal<number | null>(null);
-  readonly workTab = signal<WorkTab>('definitions');
   readonly formAttributesView = signal<ElementForm | null>(null);
   /** Generated example waiting to be saved. */
   readonly exampleDraft = signal<ExampleDraft | null>(null);
@@ -6467,7 +6588,6 @@ export class ElementModal {
   private viewedElementKey = '';
   private engineerDrafts = new Map<string, EngineerDraft>();
   private definitionEngineerDrafts = new Map<string, DefinitionEngineerDraft>();
-  private readonly editorSheet = viewChild<ElementRef<HTMLElement>>('editorSheet');
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly draftField = viewChild<ElementRef<HTMLTextAreaElement>>('draftField');
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
@@ -6873,7 +6993,8 @@ export class ElementModal {
 
   async askMetadata(): Promise<void> {
     const editor = this.editor();
-    if (!editor || !this.canAskMetadata()) return;
+    if (!editor || (editor.kind !== 'definition' && editor.kind !== 'example')) return;
+    if (!this.canAskMetadata()) return;
     const existing = this.metadataToStore();
     this.askingMetadata.set(true);
     this.sheetError.set('');
@@ -6991,17 +7112,19 @@ export class ElementModal {
     return (event.target as HTMLInputElement | HTMLTextAreaElement).value;
   }
 
-  workSectionLabel(editor: Editor): string {
-    if (editor.kind !== 'definition' || editor.index == null) return 'Definition';
-    if (this.workTab() === 'examples') return 'Examples';
-    if (this.workTab() === 'forms') return 'Forms';
-    return 'Definition';
+  sheetTitle(editor: Editor): string {
+    if (editor.kind === 'definition') {
+      return editor.index == null ? 'Add a definition' : 'Edit definition';
+    }
+    if (editor.kind === 'examples') return 'Examples';
+    if (editor.kind === 'forms') return 'Forms';
+    return editor.exampleIndex == null ? 'Add an example' : 'Edit example';
   }
 
   workSaveDisabled(): boolean {
     const editor = this.editor();
-    if (!editor || editor.kind !== 'definition') return true;
-    if (editor.index != null && this.workTab() === 'examples') {
+    if (!editor) return true;
+    if (editor.kind === 'examples') {
       const draft = this.exampleDraft();
       return (
         this.busy() ||
@@ -7010,7 +7133,7 @@ export class ElementModal {
         !draft.text.trim()
       );
     }
-    if (editor.index != null && this.workTab() === 'forms') {
+    if (editor.kind === 'forms') {
       const pending = this.pendingForms();
       return (
         this.busy() ||
@@ -7019,6 +7142,7 @@ export class ElementModal {
         !pending.forms.length
       );
     }
+    if (editor.kind !== 'definition') return true;
     return this.busy() || this.translating() || this.askingEquivalent() || !this.draftGloss();
   }
 
@@ -7033,23 +7157,16 @@ export class ElementModal {
 
   saveWork(): void {
     const editor = this.editor();
-    if (!editor || editor.kind !== 'definition' || this.workSaveDisabled()) return;
-    if (editor.index != null && this.workTab() === 'examples') {
+    if (!editor || this.workSaveDisabled()) return;
+    if (editor.kind === 'examples') {
       void this.saveExampleDraft();
       return;
     }
-    if (editor.index != null && this.workTab() === 'forms') {
+    if (editor.kind === 'forms') {
       void this.savePendingForms();
       return;
     }
-    void this.saveEditor();
-  }
-
-  sheetTitle(editor: Editor): string {
-    if (editor.kind === 'definition') {
-      return editor.index == null ? 'Add a definition' : 'Work';
-    }
-    return editor.exampleIndex == null ? 'Add an example' : 'Edit example';
+    if (editor.kind === 'definition') void this.saveEditor();
   }
 
   /** Saved definition, including edits that have not reached the parent yet. */
@@ -7068,7 +7185,7 @@ export class ElementModal {
       return;
     }
     if (editor.kind === 'example') {
-      this.openDefinition(editor.definitionIndex);
+      this.openExamples(editor.definitionIndex);
       return;
     }
     this.editor.set(null);
@@ -7083,13 +7200,6 @@ export class ElementModal {
   closeEditorSheet(event: MouseEvent): void {
     if (event.target !== event.currentTarget) return;
     this.closeEditor();
-  }
-
-  showWorkTab(tab: WorkTab): void {
-    const editor = this.editor();
-    if (tab !== 'definitions' && (editor?.kind !== 'definition' || editor.index == null)) return;
-    this.workTab.set(tab);
-    this.editorSheet()?.nativeElement.querySelector('.sheet-scroll')?.scrollTo({ top: 0 });
   }
 
   aiBusy(): boolean {
@@ -7357,6 +7467,9 @@ export class ElementModal {
     const editor = this.editor();
     if (editor?.kind === 'definition' && editor.index != null) {
       this.editor.set({ kind: 'definition', index: editor.index + by });
+    }
+    if (editor?.kind === 'examples' || editor?.kind === 'forms') {
+      this.editor.set({ ...editor, index: editor.index + by });
     }
     if (editor?.kind === 'example') {
       this.editor.set({ ...editor, definitionIndex: editor.definitionIndex + by });
@@ -7634,14 +7747,54 @@ export class ElementModal {
     this.sheetEquivalents.set(this.element().equivalents.map((item) => ({ ...item })));
     this.beginSheet(definition?.text ?? '');
     if (definition) this.dismissNew(definition.text);
-    const previous = this.editor();
-    const staying =
-      index != null &&
-      ((previous?.kind === 'definition' && previous.index === index) ||
-        (previous?.kind === 'example' && previous.definitionIndex === index));
-    if (!staying) this.workTab.set('definitions');
     this.editor.set({ kind: 'definition', index });
-    if (index != null) this.ensureExampleEngineer(index);
+  }
+
+  onFormsClick(event: MouseEvent, index: number): void {
+    if (this.definitionInPlay(index) || this.aiBusy()) return;
+    if (this.ignoredSheetClick(event, 'button, a, input, textarea')) return;
+    this.openForms(index);
+  }
+
+  private ignoredSheetClick(event: MouseEvent, selector: string): boolean {
+    const target = event.target;
+    return !(target instanceof Element) || !!target.closest(selector);
+  }
+
+  openExamples(index: number): void {
+    if (this.definitionInPlay(index)) return;
+    const definition = this.sheetDefinition(index) ?? this.element().definitions[index];
+    if (!definition) return;
+    this.formEdit.set(null);
+    this.formFeatureEdit.set(null);
+    this.metaEdit.set(null);
+    this.metaKey.set('');
+    this.metaValue.set('');
+    this.definitionEngineer.set(null);
+    this.exampleError.set('');
+    this.formsError.set('');
+    if (this.exampleDraft()?.definitionIndex !== index) this.exampleDraft.set(null);
+    if (this.pendingForms()?.definitionIndex !== index) this.pendingForms.set(null);
+    this.editor.set({ kind: 'examples', index });
+    this.exampleEngineer.set(null);
+  }
+
+  openForms(index: number): void {
+    if (this.definitionInPlay(index) || this.aiBusy()) return;
+    const definition = this.sheetDefinition(index) ?? this.element().definitions[index];
+    if (!definition) return;
+    this.formEdit.set(null);
+    this.formFeatureEdit.set(null);
+    this.metaEdit.set(null);
+    this.metaKey.set('');
+    this.metaValue.set('');
+    this.definitionEngineer.set(null);
+    this.exampleEngineer.set(null);
+    this.exampleError.set('');
+    this.formsError.set('');
+    if (this.exampleDraft()?.definitionIndex !== index) this.exampleDraft.set(null);
+    if (this.pendingForms()?.definitionIndex !== index) this.pendingForms.set(null);
+    this.editor.set({ kind: 'forms', index });
   }
 
   openExample(definitionIndex: number, exampleIndex: number | null): void {
@@ -7715,6 +7868,29 @@ export class ElementModal {
     if (event && event.target !== event.currentTarget) return;
     if (this.askingExamples() !== null) return;
     this.exampleEngineer.set(null);
+  }
+
+  exampleEngineerOpen(): boolean {
+    const editor = this.editor();
+    const engineer = this.exampleEngineer();
+    return (
+      editor?.kind === 'example' &&
+      editor.exampleIndex == null &&
+      engineer?.definitionIndex === editor.definitionIndex
+    );
+  }
+
+  toggleExampleEngineer(): void {
+    const editor = this.editor();
+    if (!editor || editor.kind !== 'example' || editor.exampleIndex != null) return;
+    if (this.exampleEngineerOpen()) {
+      if (this.askingExamples() !== null) return;
+      this.exampleEngineer.set(null);
+      return;
+    }
+    if (this.aiBusy()) return;
+    this.exampleError.set('');
+    this.ensureExampleEngineer(editor.definitionIndex);
   }
 
   definitionEngineerBusy(index: number): boolean {
@@ -7946,9 +8122,14 @@ export class ElementModal {
       return text ? [text] : [];
     });
     const required = selected.length ? selected[Math.floor(Math.random() * selected.length)] : '';
-    const held = this.exampleDraftFor(engineer.definitionIndex);
-    const job = ++this.exampleJob;
     const index = engineer.definitionIndex;
+    const editor = this.editor();
+    const editing =
+      editor?.kind === 'example' && editor.definitionIndex === index && editor.exampleIndex == null
+        ? this.draftGloss()
+        : '';
+    const held = this.exampleDraftFor(index);
+    const job = ++this.exampleJob;
     this.askingExamples.set(index);
     this.exampleError.set('');
     try {
@@ -7960,6 +8141,7 @@ export class ElementModal {
         metadata: definition.metadata,
         existingExamples: [
           ...definition.examples.map((example) => parsePassage(example.text).text),
+          ...(editing ? [editing] : []),
           ...(held ? [parsePassage(held.text).text] : []),
         ],
         forms: required ? [] : definition.forms.map((form) => form.text),
@@ -7987,9 +8169,20 @@ export class ElementModal {
       if (
         !sentenceKey ||
         target.examples.some((example) => senseKey(example.text) === sentenceKey) ||
-        (held && senseKey(held.text) === sentenceKey)
+        (held && senseKey(held.text) === sentenceKey) ||
+        (editing && senseKey(editing) === sentenceKey)
       ) {
         this.exampleError.set('No further examples.');
+        return;
+      }
+      if (
+        editor?.kind === 'example' &&
+        editor.definitionIndex === index &&
+        editor.exampleIndex == null
+      ) {
+        this.sheetMetadata.set({ ...sentence.metadata });
+        this.seedEditingTranslations(sentence.text);
+        this.textDraft.set(passageForEditing(sentence.text, this.translationTarget()));
         return;
       }
       this.exampleDraft.set({
@@ -8696,6 +8889,7 @@ export class ElementModal {
       }
       return;
     }
+    if (editor.kind !== 'example') return;
     const definition = definitions[editor.definitionIndex];
     if (!definition) return;
     const current = editor.exampleIndex == null ? null : definition.examples[editor.exampleIndex];
@@ -8711,7 +8905,7 @@ export class ElementModal {
     } else definition.examples[exampleIndex] = next;
     const definitionIndex = editor.definitionIndex;
     if (await this.persist(definitions, this.element().equivalents)) {
-      this.openDefinition(definitionIndex);
+      this.openExamples(definitionIndex);
     }
   }
 
