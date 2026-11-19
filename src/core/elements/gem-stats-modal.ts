@@ -561,19 +561,6 @@ const EMPTY_DAY: DayStats = {
                             <button
                               type="button"
                               class="icon-btn"
-                              aria-label="Add entry"
-                              title="Add"
-                              [disabled]="asking()"
-                              (click)="addMissing.emit(token.title)"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M5 12h14" />
-                                <path d="M12 5v14" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              class="icon-btn"
                               aria-label="Ask AI"
                               title="Ask AI"
                               [disabled]="asking()"
@@ -1809,7 +1796,6 @@ export class GemStatsModal {
   readonly askError = input('');
   readonly closed = output<void>();
   readonly opened = output<string>();
-  readonly addMissing = output<string>();
   readonly askMissing = output<string>();
   readonly games = computed(() =>
     supportLanguageFor(this.language()) ? GAMES : GAMES.filter((row) => row.game !== 'translation'),

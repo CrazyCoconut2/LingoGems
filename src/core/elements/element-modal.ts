@@ -117,6 +117,10 @@ type PassageSelection = {
   text: string;
   definitionIndex: number;
   exampleIndex: number | null;
+  top: number;
+  left: number;
+  before: boolean;
+  visible: boolean;
 };
 
 type PreparedElement = {
@@ -573,38 +577,33 @@ function writeExampleSuggestions(
             </button>
           }
         </ng-template>
-        <ng-template #lookupActions let-text="text">
-          <div class="lookup-actions">
-            <button
-              type="button"
-              class="lookup-chip"
-              aria-label="Add element"
-              [disabled]="aiBusy()"
-              (pointerdown)="confirmPassagePick($event, text)"
+        @if (passageSelection(); as pick) {
+          @if (pick.visible) {
+            <div
+              class="lookup-actions lookup-float"
+              [class.before]="pick.before"
+              [style.top.px]="pick.top"
+              [style.left.px]="pick.left"
+              (pointerdown)="$event.preventDefault()"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5 12h14" />
-                <path d="M12 5v14" />
-              </svg>
-              Add
-            </button>
-            <button
-              type="button"
-              class="lookup-chip"
-              aria-label="Add element with AI"
-              [disabled]="aiBusy()"
-              [attr.aria-busy]="addingSelection() ? true : null"
-              (pointerdown)="confirmPassagePick($event, text, true)"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                />
-              </svg>
-              Ask AI
-            </button>
-          </div>
-        </ng-template>
+              <button
+                type="button"
+                class="lookup-chip"
+                aria-label="Add element with AI"
+                [disabled]="aiBusy()"
+                [attr.aria-busy]="addingSelection() ? true : null"
+                (pointerdown)="confirmPassagePick($event, pick.text)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                  />
+                </svg>
+                Ask AI
+              </button>
+            </div>
+          }
+        }
         <ng-template #translationIcon>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m5 8 6 6" />
@@ -985,12 +984,6 @@ function writeExampleSuggestions(
                           }
                         </ul>
                       }
-                      @if (passagePick(index, null); as pick) {
-                        <ng-container
-                          [ngTemplateOutlet]="lookupActions"
-                          [ngTemplateOutletContext]="{ text: pick.text }"
-                        />
-                      }
                       @if (playCue(index); as cue) {
                         <button
                           type="button"
@@ -1133,12 +1126,6 @@ function writeExampleSuggestions(
                                 }
                               }
                             </div>
-                            @if (passagePick(index, exampleIndex); as pick) {
-                              <ng-container
-                                [ngTemplateOutlet]="lookupActions"
-                                [ngTemplateOutletContext]="{ text: pick.text }"
-                              />
-                            }
                           </li>
                         }
                       </ul>
@@ -1189,7 +1176,17 @@ function writeExampleSuggestions(
               </ol>
             }
           } @else {
-            <p class="empty">No definitions yet.</p>
+            <div class="empty-definitions">
+              <p class="empty">No definitions yet.</p>
+              <button
+                type="button"
+                class="example-cta"
+                [disabled]="aiBusy()"
+                (click)="addDefinitionManually()"
+              >
+                Add a definition
+              </button>
+            </div>
           }
         </div>
         <footer class="definition-footer">
@@ -1892,12 +1889,6 @@ function writeExampleSuggestions(
                                     </button>
                                   </span>
                               </div>
-                              @if (passagePick(workIndex, exampleIndex); as pick) {
-                                <ng-container
-                                  [ngTemplateOutlet]="lookupActions"
-                                  [ngTemplateOutletContext]="{ text: pick.text }"
-                                />
-                              }
                             </li>
                           }
                         </ul>
@@ -4271,11 +4262,21 @@ function writeExampleSuggestions(
       padding-inline: 0 0.15rem;
     }
 
-    .sense-copy > .lookup-actions,
-    .saved-example > .lookup-actions {
-      justify-content: flex-start;
-      margin-top: 0.35rem;
-      margin-left: 0;
+    .lookup-float {
+      position: fixed;
+      z-index: 6;
+      flex-wrap: nowrap;
+      width: max-content;
+      transform: translate(0.45rem, -50%);
+      pointer-events: auto;
+    }
+
+    .lookup-float.before {
+      transform: translate(calc(-100% - 0.45rem), -50%);
+    }
+
+    .lookup-float .lookup-chip {
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32);
     }
 
     .icon-btn:disabled,
@@ -4581,6 +4582,12 @@ function writeExampleSuggestions(
       width: 1.15rem;
       height: 1.15rem;
       flex: none;
+    }
+
+    .empty-definitions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
     }
 
     .empty,
@@ -6441,6 +6448,7 @@ export class ElementModal {
     language: string;
     definition: number;
     example: string;
+    done: (saved: boolean) => void;
   }>();
   readonly addPrepared = output<PreparedElement>();
 
@@ -6712,11 +6720,15 @@ export class ElementModal {
     document.addEventListener('selectionchange', this.syncPassageSelection);
     document.addEventListener('pointerdown', this.onSelectionPointerDown, true);
     document.addEventListener('pointerup', this.syncPassageSelection, true);
+    document.addEventListener('scroll', this.syncPassageSelection, true);
+    window.addEventListener('resize', this.syncPassageSelection);
     inject(DestroyRef).onDestroy(() => {
       stopWatchingExamples();
       document.removeEventListener('selectionchange', this.syncPassageSelection);
       document.removeEventListener('pointerdown', this.onSelectionPointerDown, true);
       document.removeEventListener('pointerup', this.syncPassageSelection, true);
+      document.removeEventListener('scroll', this.syncPassageSelection, true);
+      window.removeEventListener('resize', this.syncPassageSelection);
       document.body.style.overflow = previous;
     });
     afterNextRender(() => this.closeButton()?.nativeElement.focus());
@@ -8705,41 +8717,15 @@ export class ElementModal {
     this.visit.emit({ id, definition, example: example.trim() });
   }
 
-  passagePick(definitionIndex: number, exampleIndex: number | null): PassageSelection | null {
-    const pick = this.passageSelection();
-    if (!pick || pick.definitionIndex !== definitionIndex || pick.exampleIndex !== exampleIndex) {
-      return null;
-    }
-    return pick;
-  }
-
-  private passageExample(pick: PassageSelection | null): string {
-    if (!pick || pick.exampleIndex == null) return '';
-    const definition = this.element().definitions[pick.definitionIndex];
-    return parsePassage(definition?.examples[pick.exampleIndex]?.text ?? '').text.trim();
-  }
-
-  confirmPassagePick(event: Event, text: string, ai = false): void {
+  confirmPassagePick(event: Event, text: string): void {
     event.preventDefault();
     event.stopPropagation();
     const title = text.replace(/\s+/g, ' ').trim();
     if (!title || this.aiBusy()) return;
-    if (ai) this.addingSelection.set(true);
+    this.addingSelection.set(true);
     this.blockPassageSelectionUntil = Date.now() + 400;
     window.getSelection()?.removeAllRanges();
-    const pick = this.passageSelection();
-    const definition = pick?.definitionIndex ?? this.visibleDefinitionIndex();
-    if (!ai) {
-      this.passageSelection.set(null);
-      this.addSelection.emit({
-        title,
-        language: this.element().language,
-        definition,
-        example: this.passageExample(pick),
-      });
-      return;
-    }
-    void this.askSelectionElement(title, pick);
+    void this.askSelectionElement(title, this.passageSelection());
   }
 
   private async askSelectionElement(title: string, pick: PassageSelection | null): Promise<void> {
@@ -8749,41 +8735,64 @@ export class ElementModal {
       pick?.exampleIndex == null ? definition?.text : definition?.examples[pick.exampleIndex]?.text;
     const context = parsePassage(source ?? '').text;
     const example = pick?.exampleIndex == null ? '' : context;
+    const definitionIndex = pick?.definitionIndex ?? this.visibleDefinitionIndex();
     this.addingSelection.set(true);
     this.error.set('');
     try {
-      const generated = await generateElementFromSelection({
-        language: element.language,
-        selected: title,
-        context,
-        translation: this.translationTarget(),
-      });
+      const generated = await this.elementFromSelection(element.language, title, context);
       if (this.element().id !== element.id) return;
-      if (!generated) {
-        this.error.set('Could not add that element.');
+      if (generated) {
+        this.passageSelection.set(null);
+        this.addPrepared.emit({
+          title: generated.lemma,
+          language: element.language,
+          example,
+          definition: definitionIndex,
+          definitions: generated.definitions.map((sense) => ({
+            text: sense.text,
+            equivalent: sense.equivalent,
+            equivalentIds: {},
+            forms: selectionForms(generated.lemma, title),
+            examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
+            metadata: { ...sense.metadata },
+            log: [],
+          })),
+        });
         return;
       }
-      this.passageSelection.set(null);
-      this.addPrepared.emit({
-        title: generated.lemma,
-        language: element.language,
+      const saved = await this.saveBareSelection(
+        title,
+        element.language,
+        definitionIndex,
         example,
-        definition: pick?.definitionIndex ?? this.visibleDefinitionIndex(),
-        definitions: generated.definitions.map((sense) => ({
-          text: sense.text,
-          equivalent: sense.equivalent,
-          equivalentIds: {},
-          forms: selectionForms(generated.lemma, title),
-          examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
-          metadata: { ...sense.metadata },
-          log: [],
-        })),
-      });
-    } catch {
-      if (this.element().id === element.id) this.error.set('Could not add that element.');
+      );
+      if (!saved && this.element().id === element.id) {
+        this.error.set('Could not add that element.');
+      }
     } finally {
       if (this.element().id === element.id) this.addingSelection.set(false);
     }
+  }
+
+  private elementFromSelection(language: string, selected: string, context: string) {
+    return generateElementFromSelection({
+      language,
+      selected,
+      context,
+      translation: this.translationTarget(),
+    }).catch(() => null);
+  }
+
+  private saveBareSelection(
+    title: string,
+    language: string,
+    definition: number,
+    example: string,
+  ): Promise<boolean> {
+    this.passageSelection.set(null);
+    return new Promise((resolve) => {
+      this.addSelection.emit({ title, language, definition, example, done: resolve });
+    });
   }
 
   private blockPassageSelectionUntil = 0;
@@ -8801,12 +8810,24 @@ export class ElementModal {
       this.passageSelection.set(null);
       return;
     }
+    const current = this.passageSelection();
+    if (
+      current?.text === pick?.text &&
+      current?.definitionIndex === pick?.definitionIndex &&
+      current?.exampleIndex === pick?.exampleIndex &&
+      current?.top === pick?.top &&
+      current?.left === pick?.left &&
+      current?.before === pick?.before &&
+      current?.visible === pick?.visible
+    ) {
+      return;
+    }
     this.passageSelection.set(pick);
   };
 
   private readonly onSelectionPointerDown = (event: Event): void => {
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('.sense-selectable, .lookup-chip')) return;
+    if (target?.closest('.sense-selectable, .lookup-chip, .lookup-float')) return;
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
     const anchor = selection.anchorNode;
@@ -10839,7 +10860,46 @@ function readPassageSelection(): PassageSelection | null {
   const exampleRaw = passage.getAttribute('data-example-index');
   const exampleIndex = exampleRaw == null ? null : Number(exampleRaw);
   if (exampleIndex != null && (!Number.isInteger(exampleIndex) || exampleIndex < 0)) return null;
-  return { text, definitionIndex, exampleIndex };
+  const placed = placePassageActions(range, passage);
+  return {
+    text,
+    definitionIndex,
+    exampleIndex,
+    top: placed?.top ?? 0,
+    left: placed?.left ?? 0,
+    before: placed?.before ?? false,
+    visible: placed != null,
+  };
+}
+
+function placePassageActions(
+  range: Range,
+  passage: Element,
+): { top: number; left: number; before: boolean } | null {
+  const caret = selectionCaret(range);
+  if (!caret) return null;
+  const scroller = passage.closest('.body, .sheet-scroll');
+  if (scroller) {
+    const view = scroller.getBoundingClientRect();
+    const visibleTop = Math.max(caret.top, view.top);
+    const visibleBottom = Math.min(caret.bottom, view.bottom);
+    if (visibleBottom - visibleTop < Math.min(caret.height, 8)) return null;
+  }
+  const width = 120;
+  const gap = 8;
+  const before = caret.right + gap + width > window.innerWidth - 8;
+  return {
+    top: Math.round(caret.top + caret.height / 2),
+    left: Math.round(before ? caret.left : caret.right),
+    before,
+  };
+}
+
+function selectionCaret(range: Range): DOMRect | null {
+  const rects = Array.from(range.getClientRects()).filter(
+    (rect) => rect.width > 0 && rect.height > 0,
+  );
+  return rects.at(-1) ?? null;
 }
 
 function selectionCoversPassage(passage: Element, range: Range): boolean {

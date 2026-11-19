@@ -153,7 +153,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     <main>
       <div class="page-top">
         <section class="entries-toolbar" aria-label="Search">
-          <form class="search-bar" autocomplete="off" (submit)="lookup($event)">
+          <form class="search-bar" autocomplete="off" (submit)="askFromSearch($event)">
             <span class="search-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="7" />
@@ -174,29 +174,17 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             @if (query().trim()) {
               <div class="search-actions">
                 <button
-                  type="button"
+                  type="submit"
                   class="search-add"
                   aria-label="Ask AI"
                   title="Ask AI"
                   [disabled]="asking()"
                   [attr.aria-busy]="asking() ? true : null"
-                  (click)="askFromSearch()"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path
                       d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
                     />
-                  </svg>
-                </button>
-                <button
-                  type="submit"
-                  class="search-add"
-                  aria-label="Add entry"
-                  [disabled]="asking()"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M5 12h14" />
-                    <path d="M12 5v14" />
                   </svg>
                 </button>
               </div>
@@ -902,7 +890,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           [askError]="statsAskError()"
           (closed)="closeStats()"
           (opened)="openStatsElement($event)"
-          (addMissing)="addMissingElement($event)"
           (askMissing)="askMissingElement($event)"
         />
       }
@@ -2838,14 +2825,25 @@ export class LanguagePage {
     language: string;
     definition: number;
     example?: string;
+    done?: (saved: boolean) => void;
   }): Promise<void> {
+    const finish = (saved: boolean) => pick.done?.(saved);
     const name = pick.title.replace(/\s+/g, ' ').trim();
     const code = pick.language.trim().toLowerCase();
-    if (!name || !code) return;
-    const created = await addElement(code, name);
-    if (code === this.code()) this.elements.set(await readElements(code));
-    if (created.id === this.elementId()) return;
-    this.visitElement({ id: created.id, definition: pick.definition, example: pick.example });
+    if (!name || !code) {
+      finish(false);
+      return;
+    }
+    try {
+      const created = await addElement(code, name);
+      if (code === this.code()) this.elements.set(await readElements(code));
+      if (created.id !== this.elementId()) {
+        this.visitElement({ id: created.id, definition: pick.definition, example: pick.example });
+      }
+      finish(true);
+    } catch {
+      finish(false);
+    }
   }
 
   async addPrepared(
@@ -2998,20 +2996,8 @@ export class LanguagePage {
     this.searchTimer = setTimeout(() => this.commitSearch(), 250);
   }
 
-  async lookup(event: Event): Promise<void> {
-    event.preventDefault();
-    const title = this.query().trim();
-    const code = this.code();
-    if (!title || !code || this.asking()) return;
-    if (this.searchTimer) clearTimeout(this.searchTimer);
-    const created = await addElement(code, title);
-    this.elements.set(await readElements(code));
-    this.clearSearch();
-    this.trail.set([{ id: created.id, definition: 0 }]);
-    this.showElement(created.id);
-  }
-
-  async askFromSearch(): Promise<void> {
+  async askFromSearch(event?: Event): Promise<void> {
+    event?.preventDefault();
     const selected = this.query().trim();
     const code = this.code();
     if (!selected || !code || this.asking()) return;
@@ -3019,14 +3005,9 @@ export class LanguagePage {
     this.asking.set(true);
     this.lookupError.set('');
     try {
-      const generated = await generateElementFromSelection({
-        language: code,
-        selected,
-        context: '',
-        translation: this.translationTarget(),
-      });
+      const generated = await this.elementFromQuery(code, selected);
       if (!generated) {
-        this.lookupError.set('Could not add that element.');
+        await this.openBareElement(code, selected);
         return;
       }
       await this.addPrepared(
@@ -3049,6 +3030,27 @@ export class LanguagePage {
     } finally {
       this.asking.set(false);
     }
+  }
+
+  private async elementFromQuery(language: string, selected: string) {
+    try {
+      return await generateElementFromSelection({
+        language,
+        selected,
+        context: '',
+        translation: this.translationTarget(),
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  private async openBareElement(code: string, title: string): Promise<void> {
+    const created = await addElement(code, title);
+    this.elements.set(await readElements(code));
+    this.clearSearch();
+    this.trail.set([{ id: created.id, definition: 0 }]);
+    this.showElement(created.id);
   }
 
   private clearSearch(): void {
@@ -3276,23 +3278,6 @@ export class LanguagePage {
     this.openElement(id);
   }
 
-  async addMissingElement(title: string): Promise<void> {
-    const name = title.replace(/\s+/g, ' ').trim();
-    const code = this.code();
-    if (!name || !code || this.asking()) return;
-    this.statsAskError.set('');
-    try {
-      const created = await addElement(code, name);
-      this.elements.set(await readElements(code));
-      this.clearSearch();
-      this.closeStats();
-      this.trail.set([{ id: created.id, definition: 0 }]);
-      this.showElement(created.id);
-    } catch {
-      this.statsAskError.set('Could not add that element.');
-    }
-  }
-
   async askMissingElement(title: string): Promise<void> {
     const selected = title.replace(/\s+/g, ' ').trim();
     const code = this.code();
@@ -3300,14 +3285,10 @@ export class LanguagePage {
     this.asking.set(true);
     this.statsAskError.set('');
     try {
-      const generated = await generateElementFromSelection({
-        language: code,
-        selected,
-        context: '',
-        translation: this.translationTarget(),
-      });
+      const generated = await this.elementFromQuery(code, selected);
       if (!generated) {
-        this.statsAskError.set('Could not add that element.');
+        await this.openBareElement(code, selected);
+        this.closeStats();
         return;
       }
       await this.addPrepared(
