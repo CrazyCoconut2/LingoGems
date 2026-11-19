@@ -28,7 +28,6 @@ import { generateEquivalent } from './translate';
 import type { CompleteJsonInput } from './types';
 
 const MAX_SENSES = 8;
-export const MAX_MISSING_DEFINITIONS_INSTRUCTION = 200;
 const META_VALUE_MAX_LENGTH = 100;
 const FORM_MAX_LENGTH = 100;
 const DEFINITIONS_MAX_TOKENS = 4096;
@@ -66,11 +65,9 @@ function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = fal
     'Every gloss MUST be in the language named by writeFieldsIn.',
     'Do not use English for a gloss unless writeFieldsIn is English.',
     metadataIntro(fields, extra),
-    'instruction, when present, is a note from the learner in any language. Every new sense must fit that note.',
     'Rules:',
-    '- One sense per distinct meaning',
+    '- Return exactly one new sense',
     '- Do not repeat a meaning or a gloss already listed in existingDefinitions. Those are senses already kept, and they include no forms',
-    `- Return at most ${MAX_SENSES} senses`,
     '- One short dictionary-style gloss per sense',
     NO_SELF_MENTION,
     '- Do not include forms',
@@ -190,8 +187,6 @@ type GenerateDefinitionsInput = {
     metadata: ElementMetadata;
   }>;
   translation?: string;
-  /** Learner note that every new sense must fit. */
-  instruction?: string;
 };
 
 type GenerateDefinitionFromExampleInput = GenerateDefinitionsInput & {
@@ -218,14 +213,10 @@ function buildDefinitionsUserMessage(input: GenerateDefinitionsInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   const translateFieldsIn = translationLanguage(language, input.translation);
-  const instruction = (input.instruction ?? '')
-    .trim()
-    .slice(0, MAX_MISSING_DEFINITIONS_INSTRUCTION);
   return JSON.stringify({
     language,
     writeFieldsIn,
     ...(translateFieldsIn ? { translateFieldsIn } : {}),
-    ...(instruction ? { instruction } : {}),
     lemma: input.title.trim(),
     existingDefinitions: describedDefinitions(
       language,
@@ -497,7 +488,7 @@ function parseGeneratedElement(
   return { lemma, definitions };
 }
 
-/** Ask the saved model for senses this headword does not already have. */
+/** Ask the saved model for one sense this headword does not already have. */
 export async function generateDefinitions(
   request: GenerateDefinitionsInput,
 ): Promise<GeneratedDefinition[]> {
@@ -518,7 +509,7 @@ export async function generateDefinitions(
     if (!senses)
       senses = parseGeneratedDefinitions(await complete(), { ...request, title, language });
     if (!senses) aiError(AI_ERROR.RESPONSE_INVALID);
-    return ensureSenseEquivalents(title, language, request.translation, senses);
+    return ensureSenseEquivalents(title, language, request.translation, senses.slice(0, 1));
   } catch (err) {
     throw attachAiPrompt(err, input);
   }

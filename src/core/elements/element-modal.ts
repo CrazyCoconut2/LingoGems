@@ -60,8 +60,8 @@ import {
   MAX_EXAMPLE_LENGTH,
   MAX_RELATED_PICKS,
   generateDefinitionFromExample,
+  generateDefinitions,
   generateElementFromSelection,
-  type GeneratedDefinition,
   generateEquivalent,
   generateExamples,
   generateForms,
@@ -71,6 +71,7 @@ import {
   gradeExample,
   polishDefinition,
   polishExample,
+  readStoredAiCredentials,
   suggestMetadata,
   type PolishDefinitionTask,
   sentenceUsesForm,
@@ -95,7 +96,6 @@ import { supportLanguageFor } from '../languages/translation-language';
 import { HighlightColorPicker } from './highlight-color-picker';
 import { GemIcon } from './gem-icon';
 import { ModeIcon } from './mode-icon';
-import { MissingDefinitionsModal } from './missing-definitions-modal';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
@@ -532,7 +532,6 @@ function writeExampleSuggestions(
     GemIcon,
     HighlightColorPicker,
     CdkScrollable,
-    MissingDefinitionsModal,
   ],
   template: `
     <div
@@ -784,7 +783,8 @@ function writeExampleSuggestions(
                         aria-label="Missing definitions"
                         title="Missing definitions"
                         [disabled]="aiBusy()"
-                        (click)="openMissingDefinitions()"
+                        [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
+                        (click)="addMissingDefinition()"
                       >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                           <path
@@ -3665,17 +3665,6 @@ function writeExampleSuggestions(
         }
       </div>
     </div>
-    @if (missingDefinitionsOpen()) {
-      <app-missing-definitions-modal
-        [language]="element().language"
-        [title]="element().title"
-        [definitions]="element().definitions"
-        [saving]="missingSaving()"
-        [saveError]="missingSaveError()"
-        (closed)="closeMissingDefinitions()"
-        (add)="addProposedDefinition($event)"
-      />
-    }
   `,
   styles: `
     :host {
@@ -6407,13 +6396,10 @@ export class ElementModal {
   readonly titleError = signal('');
   /** Color chosen in the element editor. Null clears it. */
   readonly colorDraft = signal<string | null>(null);
-  readonly missingDefinitionsOpen = signal(false);
-  readonly missingSaving = signal(false);
-  readonly missingSaveError = signal('');
   readonly unveiledEquivalents = signal<ReadonlySet<string>>(new Set());
   /** Definition translations and the equivalent, opened together. */
   readonly supportRevealed = signal(false);
-  readonly addingDefinitions = signal<'example' | null>(null);
+  readonly addingDefinitions = signal<'example' | 'missing' | null>(null);
   readonly definitionExample = signal('');
   /** Arrived example shown as text until it is placed. */
   readonly heldExample = signal('');
@@ -6538,9 +6524,6 @@ export class ElementModal {
       this.formAttributesView.set(null);
       this.definitionPanel.set(definition > 0 ? definition : 0);
       this.addingDefinitions.set(null);
-      this.missingDefinitionsOpen.set(false);
-      this.missingSaving.set(false);
-      this.missingSaveError.set('');
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
       this.askingMetadata.set(false);
@@ -6598,10 +6581,6 @@ export class ElementModal {
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    if (this.missingDefinitionsOpen()) {
-      this.closeMissingDefinitions();
-      return;
-    }
     if (this.equivalentPromptOpen()) {
       this.closeEquivalentPrompt();
       return;
@@ -7147,29 +7126,42 @@ export class ElementModal {
     this.openDefinition(null);
   }
 
-  openMissingDefinitions(): void {
+  async addMissingDefinition(): Promise<void> {
     if (this.aiBusy()) return;
-    this.missingSaveError.set('');
-    this.missingDefinitionsOpen.set(true);
-  }
-
-  closeMissingDefinitions(): void {
-    this.missingDefinitionsOpen.set(false);
-    this.missingSaveError.set('');
-  }
-
-  async addProposedDefinition(sense: GeneratedDefinition): Promise<void> {
-    if (this.missingSaving()) return;
     const element = this.element();
-    this.missingSaving.set(true);
-    this.missingSaveError.set('');
+    const title = element.title.trim();
+    if (!title) return;
+    if (!readStoredAiCredentials().keys.length) {
+      this.error.set('Save an API key first.');
+      return;
+    }
+    this.addingDefinitions.set('missing');
+    this.asking.set(true);
+    this.error.set('');
     try {
-      const saved = await this.commitGeneratedSenses(element, [sense]);
-      if (this.missingDefinitionsOpen() && !saved) {
-        this.missingSaveError.set('Could not add that definition.');
+      const senses = await generateDefinitions({
+        language: element.language,
+        title,
+        translation: this.translationTarget(),
+        existingDefinitions: element.definitions.map((definition) => ({
+          text: definition.text,
+          metadata: definition.metadata,
+        })),
+      });
+      if (this.element().id !== element.id) return;
+      const sense = senses[0];
+      if (!sense) {
+        this.error.set('No further definitions.');
+        return;
       }
+      if (!(await this.commitGeneratedSenses(element, [sense], 'end'))) {
+        if (this.element().id === element.id) this.error.set('Could not add that definition.');
+      }
+    } catch {
+      if (this.element().id === element.id) this.error.set('Could not add that definition.');
     } finally {
-      this.missingSaving.set(false);
+      if (this.element().id === element.id) this.asking.set(false);
+      this.addingDefinitions.set(null);
     }
   }
 
