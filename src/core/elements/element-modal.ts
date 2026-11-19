@@ -5126,7 +5126,7 @@ function writeExampleSuggestions(
       border: 0;
       background: transparent;
       color: var(--text-muted);
-      vertical-align: -0.15em;
+      vertical-align: -0.09em;
       cursor: pointer;
     }
 
