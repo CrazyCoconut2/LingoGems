@@ -246,6 +246,21 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                                   }
                                 </ul>
                               }
+                              @if (examplePassage(sense); as example) {
+                                <div class="sense-example">
+                                  @if (example.text) {
+                                    <p class="sense-example-text">{{ example.text }}</p>
+                                  }
+                                  @let exampleTranslations = shownTranslations(example);
+                                  @if (exampleTranslations.length) {
+                                    <ul class="sense-translations">
+                                      @for (translation of exampleTranslations; track $index) {
+                                        <li>{{ translation.text }}</li>
+                                      }
+                                    </ul>
+                                  }
+                                </div>
+                              }
                               @let meta = senseMeta(sense);
                               @if (sense.equivalent || meta.length) {
                                 <ul class="sense-meta">
@@ -1190,6 +1205,29 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
       margin: 0;
     }
 
+    .sense-example {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      margin-top: 0.45rem;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+      border-radius: 0.75rem;
+      background: color-mix(in srgb, var(--surface-2) 90%, transparent);
+    }
+
+    .sense-example-text {
+      margin: 0;
+      color: #e2e8f0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+
+    .sense-example .sense-translations {
+      margin-top: 0.15rem;
+    }
+
     .sense-meta {
       display: flex;
       flex-wrap: wrap;
@@ -1518,6 +1556,15 @@ export class DiscoverModal implements OnInit {
     return { ...passage, text: displayTitle(passage.text, this.language()) };
   }
 
+  examplePassage(sense: DiscoverSense): ParsedPassage | null {
+    const raw = sense.example?.trim() ?? '';
+    if (!raw) return null;
+    const passage = parsePassage(raw);
+    const text = displayTitle(passage.text, this.language());
+    if (!text && !this.shownTranslations(passage).length) return null;
+    return { ...passage, text };
+  }
+
   senseMeta(sense: DiscoverSense): { key: string; value: string; color: string | null }[] {
     return Object.entries(sense.metadata).map(([key, value]) => ({
       key,
@@ -1752,6 +1799,7 @@ function hitFromDiscovered(element: DiscoveredElement): DiscoverHit {
       text: sense.text,
       metadata: { ...sense.metadata },
       ...(sense.equivalent ? { equivalent: sense.equivalent } : {}),
+      ...(sense.example ? { example: sense.example } : {}),
     })),
   };
 }
@@ -1767,7 +1815,7 @@ async function saveDiscoveredElement(language: string, hit: DiscoverHit): Promis
       equivalent: sense.equivalent,
       equivalentIds: {},
       forms: [],
-      examples: [],
+      examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
       metadata: { ...sense.metadata },
       log: [],
     })),

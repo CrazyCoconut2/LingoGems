@@ -216,10 +216,15 @@ export function metadataRuleLines(
   return lines;
 }
 
-export function definitionSenseShape(fields: readonly AiMetadataField[], extra = false): string {
+export function definitionSenseShape(
+  fields: readonly AiMetadataField[],
+  extra = false,
+  withExample = false,
+): string {
   const meta = metadataSuffix(fields, extra);
+  const example = withExample ? ',"example":"<sentence in writeFieldsIn>"' : '';
   const rest = meta === '}' ? '}' : `${meta.slice(0, -1)}}`;
-  return `{"gloss":"<definition in writeFieldsIn>"${rest}`;
+  return `{"gloss":"<definition in writeFieldsIn>"${example}${rest}`;
 }
 
 export function exampleSentenceShape(fields: readonly AiMetadataField[], extra = false): string {

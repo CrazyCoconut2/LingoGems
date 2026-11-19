@@ -8551,7 +8551,7 @@ export class ElementModal {
           equivalent: sense.equivalent,
           equivalentIds: {},
           forms: selectionForms(generated.lemma, title),
-          examples: [],
+          examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
           metadata: { ...sense.metadata },
           log: [],
         })),

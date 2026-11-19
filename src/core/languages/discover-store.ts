@@ -18,6 +18,8 @@ export type DiscoverSense = {
   metadata: ElementMetadata;
   /** Headword equivalent in the support language, when one was generated. */
   equivalent?: string;
+  /** Example sentence, with its translation embedded when one was generated. */
+  example?: string;
 };
 
 export type DiscoverHit = {
@@ -137,7 +139,12 @@ function readHit(raw: unknown): DiscoverHit | null {
 
 function readSense(raw: unknown): DiscoverSense | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const record = raw as { text?: unknown; metadata?: unknown; equivalent?: unknown };
+  const record = raw as {
+    text?: unknown;
+    metadata?: unknown;
+    equivalent?: unknown;
+    example?: unknown;
+  };
   const text = String(record.text ?? '')
     .replace(/[ \t]+/g, ' ')
     .trim()
@@ -147,10 +154,15 @@ function readSense(raw: unknown): DiscoverSense | null {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 200);
+  const example = String(record.example ?? '')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+    .slice(0, SENSE_MAX);
   return {
     text,
     metadata: readMetadata(record.metadata),
     ...(equivalent ? { equivalent } : {}),
+    ...(example ? { example } : {}),
   };
 }
 

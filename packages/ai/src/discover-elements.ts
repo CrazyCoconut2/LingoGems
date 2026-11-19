@@ -10,6 +10,9 @@ import {
   parseGeneratedDefinitions,
   SENSE_EQUIVALENT,
   SENSE_EQUIVALENT_FIELD,
+  SENSE_EXAMPLE,
+  SENSE_EXAMPLE_FIELD,
+  SENSE_EXAMPLE_TRANSLATION,
   VERBATIM_SENSE_TRANSLATION,
   VERBATIM_SENSE_TRANSLATION_FIELD,
   type GeneratedDefinition,
@@ -99,11 +102,12 @@ function parseDiscoveredElements(
     if (!senses?.length) continue;
     elements.push({
       title,
-    senses: senses.slice(0, DISCOVER_SENSE_COUNT).map((sense) => ({
-      text: sense.text,
-      metadata: { ...sense.metadata },
-      ...(sense.equivalent ? { equivalent: sense.equivalent } : {}),
-    })),
+      senses: senses.slice(0, DISCOVER_SENSE_COUNT).map((sense) => ({
+        text: sense.text,
+        metadata: { ...sense.metadata },
+        ...(sense.equivalent ? { equivalent: sense.equivalent } : {}),
+        ...(sense.example ? { example: sense.example } : {}),
+      })),
     });
   }
   if (list.length > 0 && elements.length === 0) return null;
@@ -143,7 +147,7 @@ export async function discoverElements(input: DiscoverElementsInput): Promise<Di
 function discoverSystemPrompt(): string {
   const fields = readDefinitionMetadataFields();
   const extra = readDefinitionExtraFields();
-  const sense = definitionSenseShape(fields, extra);
+  const sense = definitionSenseShape(fields, extra, true);
   return [
     'You suggest dictionary elements for a language learner to add.',
     'JSON keys stay in English.',
@@ -164,17 +168,20 @@ function discoverSystemPrompt(): string {
     `- Return at most ${DISCOVER_SENSE_COUNT} senses for each title`,
     '- One short dictionary-style gloss per sense',
     '- A gloss MUST NOT contain the lemma or any inflected form of the lemma',
-    '- Do not include examples, forms, or citations',
+    '- Do not include forms',
     '- Do not add bracket tags such as [en:…]',
-    '- Spelling MUST be correct in every title, gloss, and translation',
+    '- Spelling MUST be correct in every title, gloss, example, and translation',
+    SENSE_EXAMPLE,
     '- Return at most count elements',
     '- Omit a title you cannot define',
     ...metadataRuleLines('definition', fields, extra),
     VERBATIM_SENSE_TRANSLATION,
+    SENSE_EXAMPLE_TRANSLATION,
     SENSE_EQUIVALENT,
     'Return JSON only with this shape:',
     `{"elements":[{"title":"<citation form>","senses":[${sense}]}]}`,
     VERBATIM_SENSE_TRANSLATION_FIELD,
+    SENSE_EXAMPLE_FIELD,
     SENSE_EQUIVALENT_FIELD,
   ]
     .filter((line) => line !== '')
