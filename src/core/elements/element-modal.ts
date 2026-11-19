@@ -3635,9 +3635,11 @@ function writeExampleSuggestions(
                 {{
                   pending.kind === 'element'
                     ? 'This element will be removed. All gems accumulated for it and all of its stats will disappear.'
-                    : pending.kind === 'definitions'
-                      ? 'Every definition will be removed.'
-                      : 'This will be removed.'
+                    : pending.kind === 'definition'
+                      ? 'This definition will be removed. The stats and gems gained for it will be lost.'
+                      : pending.kind === 'definitions'
+                        ? 'Every definition will be removed. The stats and gems gained for them will be lost.'
+                        : 'This will be removed.'
                 }}
               </p>
               <div class="sheet-actions">
@@ -8924,14 +8926,7 @@ export class ElementModal {
       }
       definitions.splice(pending.index, 1);
     } else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
-    if (
-      !(await this.persist(definitions, this.element().equivalents, {
-        removedDefinitions: archived
-          ? [...this.copyRemovedDefinitions(), { ...archived, deletedAt: Date.now() }]
-          : undefined,
-      }))
-    )
-      return;
+    if (!(await this.persist(definitions, this.element().equivalents))) return;
     if (pending.kind === 'definition') {
       this.noteRoundRemove(pending.index);
       if (removed && !definitions.some((definition) => senseKey(definition.text) === removed)) {
@@ -9000,11 +8995,7 @@ export class ElementModal {
   private async removeAllDefinitions(): Promise<void> {
     const definitions = this.copyDefinitions();
     const removed = definitions.map((definition) => senseKey(definition.text)).filter(Boolean);
-    const removedDefinitions = [
-      ...this.copyRemovedDefinitions(),
-      ...definitions.map((definition) => ({ ...definition, deletedAt: Date.now() })),
-    ];
-    if (!(await this.persist([], this.element().equivalents, { removedDefinitions }))) return;
+    if (!(await this.persist([], this.element().equivalents))) return;
     this.clearRoundSlots();
     for (const key of removed) {
       this.engineerDrafts.delete(key);
@@ -9192,13 +9183,6 @@ export class ElementModal {
 
   private copyDefinitions(): ElementDefinition[] {
     return this.currentElement().definitions.map((definition) => this.copyDefinition(definition));
-  }
-
-  private copyRemovedDefinitions(): RemovedDefinition[] {
-    return (this.currentElement().removedDefinitions ?? []).map((definition) => ({
-      ...this.copyDefinition(definition),
-      deletedAt: definition.deletedAt,
-    }));
   }
 
   private copyDefinition(definition: ElementDefinition): ElementDefinition {
