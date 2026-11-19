@@ -641,7 +641,19 @@ function writeExampleSuggestions(
               </button>
             }
             <div class="title-main">
-              <h2>{{ shownTitle() }}</h2>
+              <h2>
+                <button
+                  type="button"
+                  class="element-title"
+                  [class.has-color]="!!element().color"
+                  [style.--swatch]="element().color || null"
+                  title="Edit element"
+                  [disabled]="aiBusy()"
+                  (click)="openTitle()"
+                >
+                  {{ shownTitle() }}
+                </button>
+              </h2>
               <ng-container
                 [ngTemplateOutlet]="hearButton"
                 [ngTemplateOutletContext]="{
@@ -650,24 +662,6 @@ function writeExampleSuggestions(
                   label: 'title',
                 }"
               />
-              <button
-                type="button"
-                class="icon-btn color-btn"
-                [class.has-color]="!!element().color"
-                [style.--swatch]="element().color || null"
-                aria-label="Edit element"
-                title="Edit element"
-                [disabled]="aiBusy()"
-                (click)="openTitle()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  @if (element().color) {
-                    <path class="nib" d="M2 22 7.5 20.5 19.6 8.4 15.6 4.4 3.5 16.5Z" />
-                  }
-                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                  <path d="m15 5 4 4" />
-                </svg>
-              </button>
             </div>
             <div class="title-end">
               <button
@@ -3842,8 +3836,43 @@ function writeExampleSuggestions(
     }
 
     .title-main h2 {
+      display: flex;
       flex: 0 1 auto;
+      min-width: 0;
       color: var(--text);
+    }
+
+    .element-title {
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      letter-spacing: inherit;
+      text-align: start;
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-decoration-color: var(--text-muted);
+      text-underline-offset: 0.16em;
+      cursor: pointer;
+    }
+
+    .element-title.has-color {
+      text-decoration-color: oklch(from var(--swatch) 0.74 calc(min(max(c, 0.16), 0.24)) h);
+    }
+
+    .element-title:hover:not(:disabled) {
+      text-decoration-color: var(--text);
+    }
+
+    .element-title.has-color:hover:not(:disabled) {
+      text-decoration-color: oklch(from var(--swatch) 0.84 calc(min(max(c, 0.16), 0.24)) h);
+    }
+
+    .element-title:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .mode-btn {
@@ -4297,15 +4326,6 @@ function writeExampleSuggestions(
     .icon-btn svg .solid {
       fill: currentColor;
       stroke: none;
-    }
-
-    .color-btn svg .nib {
-      fill: oklch(from var(--swatch) 0.74 calc(min(max(c, 0.16), 0.24)) h);
-      stroke: none;
-    }
-
-    .color-btn.has-color:hover:not(:disabled) svg .nib {
-      fill: oklch(from var(--swatch) 0.84 calc(min(max(c, 0.16), 0.24)) h);
     }
 
     .item-actions,
