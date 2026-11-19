@@ -1090,8 +1090,8 @@ function writeExampleSuggestions(
                                             <app-reveal
                                               [text]="labeledTranslation(translation)"
                                               [locked]="definitionInPlay(index)"
-                                              [open]="supportRevealed()"
-                                              [scope]="index"
+                                              [open]="exampleRevealed(exampleIndex)"
+                                              [scope]="exampleIndex"
                                               (unveiled)="
                                                 noteReveal(
                                                   index,
@@ -1099,7 +1099,7 @@ function writeExampleSuggestions(
                                                   translation.text,
                                                   'example'
                                                 );
-                                                unveilSupport(index)
+                                                unveilExample(exampleIndex)
                                               "
                                             />
                                           </li>
@@ -6541,6 +6541,8 @@ export class ElementModal {
   readonly unveiledEquivalents = signal<ReadonlySet<string>>(new Set());
   /** Definition translations and the equivalent, opened together. */
   readonly supportRevealed = signal(false);
+  /** Example indexes whose translations are open. Separate from the definition. */
+  readonly revealedExamples = signal<ReadonlySet<number>>(new Set());
   readonly addingDefinitions = signal<'example' | 'missing' | null>(null);
   readonly definitionExample = signal('');
   /** Arrived example shown as text until it is placed. */
@@ -6655,6 +6657,7 @@ export class ElementModal {
       this.examplePrompt.set(-1);
       this.unveiledEquivalents.set(new Set());
       this.supportRevealed.set(false);
+      this.revealedExamples.set(new Set());
       this.helpOpen.set(false);
       this.exerciseLog.set(-1);
       this.exerciseEntry.set(-1);
@@ -7061,13 +7064,27 @@ export class ElementModal {
     return this.unveiledEquivalents().has(text);
   }
 
-  /** Open the equivalent and the translations together. Only a translation click is logged. */
+  /** Open the equivalent and the definition translations together. Only a translation click is logged. */
   unveilSupport(index: number): void {
     this.supportRevealed.set(true);
     const definition = this.shownDefinitions()[index];
     if (!definition) return;
     const equivalent = this.equivalentText(definition);
     if (equivalent) this.unveilEquivalent(equivalent);
+  }
+
+  exampleRevealed(exampleIndex: number): boolean {
+    return this.revealedExamples().has(exampleIndex);
+  }
+
+  /** Open this example's translations without opening the definition. */
+  unveilExample(exampleIndex: number): void {
+    this.revealedExamples.update((current) => {
+      if (current.has(exampleIndex)) return current;
+      const next = new Set(current);
+      next.add(exampleIndex);
+      return next;
+    });
   }
 
   unveilEquivalent(text: string): void {
@@ -7620,6 +7637,7 @@ export class ElementModal {
     if (index < 0 || index >= count || index === this.visibleDefinitionIndex()) return;
     this.unveiledEquivalents.set(new Set());
     this.supportRevealed.set(false);
+    this.revealedExamples.set(new Set());
     this.formAttributesView.set(null);
     this.definitionPanel.set(index);
     this.scrollDefinitionPanel();
