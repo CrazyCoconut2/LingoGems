@@ -20,11 +20,7 @@ import {
   type DailyGoals,
 } from './gem-stats-goals';
 import { GemStatsJob } from './gem-stats-job';
-import {
-  ignoreMissingToken,
-  readMissingBlacklist,
-  restoreMissingToken,
-} from './gem-stats-missing';
+import { ignoreMissingToken, readMissingBlacklist, restoreMissingToken } from './gem-stats-missing';
 import { GemIcon } from './gem-icon';
 import { RevealIcon } from './reveal-icon';
 import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
@@ -49,13 +45,7 @@ const ACTIVITIES: readonly {
 ];
 
 type ElementSort =
-  | { kind: 'exercises' }
-  | { kind: 'gem'; game: GemGame }
-  | { kind: 'activity'; key: ActivityKey };
-
-type ListedRow =
-  | { kind: 'element'; id: string; title: string; element: ElementDayStats }
-  | { kind: 'missing'; id: string; title: string; token: MissingToken };
+  { kind: 'exercises' } | { kind: 'gem'; game: GemGame } | { kind: 'activity'; key: ActivityKey };
 
 type GoalKind = keyof DailyGoals;
 
@@ -233,44 +223,74 @@ const EMPTY_DAY: DayStats = {
                 </span>
                 <span class="count">{{ formatCount(shown().added) }}</span>
                 <span class="caption">Added</span>
+                @if (goalsOpen() || goals().added !== null) {
+                  <div class="card-foot">
+                    @if (goalsOpen()) {
+                      <span class="card-goal-label">Goal</span>
+                      <ng-container
+                        *ngTemplateOutlet="goalStepper; context: { kind: 'added', label: 'added' }"
+                      />
+                    }
+                    @if (goals().added; as goal) {
+                      <div
+                        class="meter"
+                        role="progressbar"
+                        aria-valuemin="0"
+                        [attr.aria-valuenow]="meterNow(shown().added, goal)"
+                        [attr.aria-valuemax]="goal"
+                        [attr.aria-label]="addedMeterLabel(goal)"
+                      >
+                        <span class="meter-track">
+                          <span
+                            class="meter-fill"
+                            [style.width.%]="meterPercent(shown().added, goal)"
+                          ></span>
+                        </span>
+                        <span class="meter-label">{{ meterText(shown().added, goal) }}</span>
+                      </div>
+                    }
+                  </div>
+                }
               </div>
               <div class="hero" [attr.aria-label]="exerciseLabel(shown().exercises)">
-              <div class="hero-copy">
-                <p class="eyebrow">
-                  <ng-container *ngTemplateOutlet="exerciseIcon" />
-                  Exercises
-                </p>
-                <p class="hero-value">{{ formatCount(shown().exercises) }}</p>
-              </div>
-              @if (goalsOpen()) {
-                <div class="goal-edit">
-                  <span class="goal-edit-label">Daily goal</span>
-                  <ng-container
-                    *ngTemplateOutlet="
-                      goalStepper;
-                      context: { kind: 'exercises', label: 'exercises' }
-                    "
-                  />
-                </div>
-              }
-              @if (goals().exercises; as goal) {
-                <div
-                  class="meter"
-                  role="progressbar"
-                  aria-valuemin="0"
-                  [attr.aria-valuenow]="meterNow(shown().exercises, goal)"
-                  [attr.aria-valuemax]="goal"
-                  [attr.aria-label]="exerciseMeterLabel(goal)"
-                >
-                  <span class="meter-track">
-                    <span
-                      class="meter-fill"
-                      [style.width.%]="meterPercent(shown().exercises, goal)"
-                    ></span>
+                <div class="hero-stats">
+                  <span class="well" aria-hidden="true">
+                    <ng-container *ngTemplateOutlet="exerciseIcon" />
                   </span>
-                  <span class="meter-label">{{ meterText(shown().exercises, goal) }}</span>
+                  <span class="count">{{ formatCount(shown().exercises) }}</span>
+                  <span class="caption">Exercises</span>
                 </div>
-              }
+                @if (goalsOpen() || goals().exercises !== null) {
+                  <div class="card-foot">
+                    @if (goalsOpen()) {
+                      <span class="card-goal-label">Goal</span>
+                      <ng-container
+                        *ngTemplateOutlet="
+                          goalStepper;
+                          context: { kind: 'exercises', label: 'exercises' }
+                        "
+                      />
+                    }
+                    @if (goals().exercises; as goal) {
+                      <div
+                        class="meter"
+                        role="progressbar"
+                        aria-valuemin="0"
+                        [attr.aria-valuenow]="meterNow(shown().exercises, goal)"
+                        [attr.aria-valuemax]="goal"
+                        [attr.aria-label]="exerciseMeterLabel(goal)"
+                      >
+                        <span class="meter-track">
+                          <span
+                            class="meter-fill"
+                            [style.width.%]="meterPercent(shown().exercises, goal)"
+                          ></span>
+                        </span>
+                        <span class="meter-label">{{ meterText(shown().exercises, goal) }}</span>
+                      </div>
+                    }
+                  </div>
+                }
               </div>
             </div>
             <section class="block">
@@ -363,7 +383,19 @@ const EMPTY_DAY: DayStats = {
             </section>
             <section class="block deck">
               <div class="block-head elements-head">
-                <h3>Elements</h3>
+                <button
+                  type="button"
+                  class="fold"
+                  [class.open]="elementsOpen()"
+                  [attr.aria-expanded]="elementsOpen()"
+                  (click)="elementsOpen.update((open) => !open)"
+                >
+                  <svg class="fold-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                  <span class="fold-title">Elements</span>
+                  <span class="fold-count">{{ formatCount(sortedElements().length) }}</span>
+                </button>
                 <div class="sort-menu">
                   <button
                     type="button"
@@ -406,199 +438,228 @@ const EMPTY_DAY: DayStats = {
                   }
                 </div>
               </div>
-              @if (askError()) {
-                <p class="hint missing-error">{{ askError() }}</p>
-              }
-              <ul class="elements">
-                @for (entry of sortedRows(); track entry.id) {
-                  @if (entry.kind === 'element') {
+              @if (elementsOpen()) {
+                <ul class="elements">
+                  @for (element of sortedElements(); track element.id) {
                     <li>
                       <button
                         type="button"
                         class="row"
-                        [class.has-new]="entry.element.added > 0"
-                        [attr.aria-label]="titleOf(entry.element)"
-                        (click)="opened.emit(entry.element.id)"
+                        [class.has-new]="element.added > 0"
+                        [attr.aria-label]="titleOf(element)"
+                        (click)="opened.emit(element.id)"
                       >
-                      @if (entry.element.added > 0) {
-                        <span class="new-sign">New</span>
-                      }
-                      <div class="row-main">
-                        <span class="title" [attr.title]="titleOf(entry.element)">{{
-                          titleOf(entry.element)
-                        }}</span>
-                        @if (hasBits(entry.element) || elementSort()) {
-                          <span class="bits">
-                            @for (activity of activities; track activity.key) {
-                              <span
-                                class="bit"
-                                [class.on]="isSort(activitySort(activity.key))"
-                                [attr.aria-label]="
-                                  activityLabel(activity.label, entry.element[activity.key])
-                                "
-                                [attr.title]="
-                                  activityLabel(activity.label, entry.element[activity.key])
-                                "
-                              >
-                                <ng-container
-                                  *ngTemplateOutlet="
-                                    activityIcon;
-                                    context: { $implicit: activity.key }
-                                  "
-                                />
-                                <span>{{ entry.element[activity.key] }}</span>
-                              </span>
-                            }
-                            @if (showsMetric(entry.element.exercises, exerciseSort)) {
-                              <span
-                                class="bit"
-                                [class.on]="isSort(exerciseSort)"
-                                [attr.aria-label]="exerciseLabel(entry.element.exercises)"
-                                [attr.title]="exerciseLabel(entry.element.exercises)"
-                              >
-                                <ng-container *ngTemplateOutlet="exerciseIcon" />
-                                <span>{{ formatCount(entry.element.exercises) }}</span>
-                              </span>
-                            }
-                            @for (game of games(); track game.game) {
-                              @if (showsMetric(entry.element.gems[game.game], gemSort(game.game))) {
-                                <span
-                                  class="bit"
-                                  [class.on]="isSort(gemSort(game.game))"
-                                  [attr.data-game]="game.game"
-                                  [attr.aria-label]="
-                                    gemsLabel(game.label, entry.element.gems[game.game])
-                                  "
-                                  [attr.title]="gemsLabel(game.label, entry.element.gems[game.game])"
-                                >
-                                  <app-gem-icon class="stone-icon" [game]="game.game" />
-                                  <span>{{ entry.element.gems[game.game] }}</span>
-                                </span>
-                              }
-                            }
-                          </span>
+                        @if (element.added > 0) {
+                          <span class="new-sign">New</span>
                         }
-                      </div>
-                      </button>
-                    </li>
-                  } @else {
-                    <li>
-                      <div class="row missing-row">
                         <div class="row-main">
-                          <span class="title" [attr.title]="entry.token.title">{{
-                            entry.token.title
+                          <span class="title" [attr.title]="titleOf(element)">{{
+                            titleOf(element)
                           }}</span>
-                          <span class="bits">
-                            <span
-                              class="bit"
-                              [class.on]="isSort(activitySort('opened'))"
-                              [attr.aria-label]="seenLabel(entry.token.seen)"
-                              [attr.title]="seenLabel(entry.token.seen)"
-                            >
-                              <ng-container
-                                *ngTemplateOutlet="activityIcon; context: { $implicit: 'opened' }"
-                              />
-                              <span>{{ formatCount(entry.token.seen) }}</span>
-                            </span>
-                          </span>
-                        </div>
-                        <div class="missing-actions">
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Add entry"
-                            title="Add"
-                            [disabled]="asking()"
-                            (click)="addMissing.emit(entry.token.title)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M5 12h14" />
-                              <path d="M12 5v14" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Ask AI"
-                            title="Ask AI"
-                            [disabled]="asking()"
-                            [attr.aria-busy]="asking() ? true : null"
-                            (click)="askMissing.emit(entry.token.title)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path
-                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Remove"
-                            title="Remove"
-                            [disabled]="asking()"
-                            (click)="hideMissing(entry.token)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M18 6 6 18" />
-                              <path d="m6 6 12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    </li>
-                  }
-                }
-                @if (hiddenTokens().length) {
-                  <li class="hidden-row">
-                    <button
-                      type="button"
-                      class="hidden-toggle"
-                      [attr.aria-expanded]="hiddenOpen()"
-                      (click)="hiddenOpen.update((open) => !open)"
-                    >
-                      Hidden {{ hiddenTokens().length }}
-                    </button>
-                    @if (hiddenOpen()) {
-                      <ul class="hidden-list">
-                        @for (token of hiddenTokens(); track token.key) {
-                          <li class="missing-row">
-                            <div class="row-main">
-                              <span class="title" [attr.title]="token.title">{{ token.title }}</span>
-                              <span class="bits">
+                          @if (hasBits(element) || elementSort()) {
+                            <span class="bits">
+                              @for (activity of activities; track activity.key) {
                                 <span
                                   class="bit"
-                                  [attr.aria-label]="seenLabel(token.seen)"
-                                  [attr.title]="seenLabel(token.seen)"
+                                  [class.on]="isSort(activitySort(activity.key))"
+                                  [attr.aria-label]="
+                                    activityLabel(activity.label, element[activity.key])
+                                  "
+                                  [attr.title]="
+                                    activityLabel(activity.label, element[activity.key])
+                                  "
                                 >
                                   <ng-container
-                                    *ngTemplateOutlet="activityIcon; context: { $implicit: 'opened' }"
+                                    *ngTemplateOutlet="
+                                      activityIcon;
+                                      context: { $implicit: activity.key }
+                                    "
                                   />
-                                  <span>{{ formatCount(token.seen) }}</span>
+                                  <span>{{ element[activity.key] }}</span>
                                 </span>
+                              }
+                              @if (showsMetric(element.exercises, exerciseSort)) {
+                                <span
+                                  class="bit"
+                                  [class.on]="isSort(exerciseSort)"
+                                  [attr.aria-label]="exerciseLabel(element.exercises)"
+                                  [attr.title]="exerciseLabel(element.exercises)"
+                                >
+                                  <ng-container *ngTemplateOutlet="exerciseIcon" />
+                                  <span>{{ formatCount(element.exercises) }}</span>
+                                </span>
+                              }
+                              @for (game of games(); track game.game) {
+                                @if (showsMetric(element.gems[game.game], gemSort(game.game))) {
+                                  <span
+                                    class="bit"
+                                    [class.on]="isSort(gemSort(game.game))"
+                                    [attr.data-game]="game.game"
+                                    [attr.aria-label]="
+                                      gemsLabel(game.label, element.gems[game.game])
+                                    "
+                                    [attr.title]="gemsLabel(game.label, element.gems[game.game])"
+                                  >
+                                    <app-gem-icon class="stone-icon" [game]="game.game" />
+                                    <span>{{ element.gems[game.game] }}</span>
+                                  </span>
+                                }
+                              }
+                            </span>
+                          }
+                        </div>
+                      </button>
+                    </li>
+                  }
+                </ul>
+                @if (!sortedElements().length) {
+                  <p class="hint elements-empty">Nothing recorded yet.</p>
+                }
+              }
+            </section>
+            @if (visibleMissing().length || hiddenTokens().length) {
+              <section class="block">
+                <div class="block-head">
+                  <button
+                    type="button"
+                    class="fold"
+                    [class.open]="missingOpen()"
+                    [attr.aria-expanded]="missingOpen()"
+                    (click)="missingOpen.update((open) => !open)"
+                  >
+                    <svg class="fold-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m9 18 6-6-6-6" />
+                    </svg>
+                    <span class="fold-title">Missing</span>
+                    <span class="fold-count">{{ formatCount(visibleMissing().length) }}</span>
+                  </button>
+                </div>
+                @if (missingOpen()) {
+                  @if (askError()) {
+                    <p class="hint missing-error">{{ askError() }}</p>
+                  }
+                  <ul class="elements">
+                    @for (token of visibleMissing(); track token.key) {
+                      <li>
+                        <div class="row missing-row">
+                          <div class="row-main">
+                            <span class="title" [attr.title]="token.title">{{ token.title }}</span>
+                            <span class="bits">
+                              <span
+                                class="bit"
+                                [attr.aria-label]="seenLabel(token.seen)"
+                                [attr.title]="seenLabel(token.seen)"
+                              >
+                                <ng-container
+                                  *ngTemplateOutlet="activityIcon; context: { $implicit: 'opened' }"
+                                />
+                                <span>{{ formatCount(token.seen) }}</span>
                               </span>
-                            </div>
+                            </span>
+                          </div>
+                          <div class="missing-actions">
                             <button
                               type="button"
-                              class="restore"
-                              [attr.aria-label]="'Restore ' + token.title"
-                              (click)="restoreMissing(token.key)"
+                              class="icon-btn"
+                              aria-label="Add entry"
+                              title="Add"
+                              [disabled]="asking()"
+                              (click)="addMissing.emit(token.title)"
                             >
-                              Restore
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M5 12h14" />
+                                <path d="M12 5v14" />
+                              </svg>
                             </button>
-                          </li>
-                        }
-                      </ul>
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              aria-label="Ask AI"
+                              title="Ask AI"
+                              [disabled]="asking()"
+                              [attr.aria-busy]="asking() ? true : null"
+                              (click)="askMissing.emit(token.title)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                  d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              aria-label="Remove"
+                              title="Remove"
+                              [disabled]="asking()"
+                              (click)="hideMissing(token)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M18 6 6 18" />
+                                <path d="m6 6 12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </li>
                     }
-                  </li>
+                    @if (hiddenTokens().length) {
+                      <li class="hidden-row">
+                        <button
+                          type="button"
+                          class="hidden-toggle"
+                          [class.open]="hiddenOpen()"
+                          [attr.aria-expanded]="hiddenOpen()"
+                          (click)="hiddenOpen.update((open) => !open)"
+                        >
+                          <svg class="fold-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m9 18 6-6-6-6" />
+                          </svg>
+                          <span class="fold-title">Hidden</span>
+                          <span class="fold-count">{{ formatCount(hiddenTokens().length) }}</span>
+                        </button>
+                        @if (hiddenOpen()) {
+                          <ul class="hidden-list">
+                            @for (token of hiddenTokens(); track token.key) {
+                              <li class="missing-row">
+                                <div class="row-main">
+                                  <span class="title" [attr.title]="token.title">{{
+                                    token.title
+                                  }}</span>
+                                  <span class="bits">
+                                    <span
+                                      class="bit"
+                                      [attr.aria-label]="seenLabel(token.seen)"
+                                      [attr.title]="seenLabel(token.seen)"
+                                    >
+                                      <ng-container
+                                        *ngTemplateOutlet="
+                                          activityIcon;
+                                          context: { $implicit: 'opened' }
+                                        "
+                                      />
+                                      <span>{{ formatCount(token.seen) }}</span>
+                                    </span>
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  class="restore"
+                                  [attr.aria-label]="'Restore ' + token.title"
+                                  (click)="restoreMissing(token.key)"
+                                >
+                                  Restore
+                                </button>
+                              </li>
+                            }
+                          </ul>
+                        }
+                      </li>
+                    }
+                  </ul>
                 }
-                @if (!sortedRows().length && !hiddenTokens().length) {
-                  <li class="placeholder">
-                    <p class="hint">Nothing recorded yet.</p>
-                  </li>
-                }
-              </ul>
-            </section>
+              </section>
+            }
           }
         </div>
       </section>
@@ -811,6 +872,10 @@ const EMPTY_DAY: DayStats = {
       overflow-y: auto;
     }
 
+    .body > section:last-child {
+      padding-bottom: 1rem;
+    }
+
     .hint {
       margin: 0;
       color: var(--text-muted);
@@ -893,23 +958,22 @@ const EMPTY_DAY: DayStats = {
     }
 
     .lead {
-      display: flex;
-      align-items: stretch;
+      display: grid;
+      grid-auto-columns: minmax(0, 1fr);
+      grid-auto-flow: column;
       gap: 0.45rem;
       margin: 0.7rem 1rem 0;
     }
 
     .hero {
       display: flex;
-      flex: 1;
       flex-direction: column;
       align-items: stretch;
-      justify-content: center;
-      gap: 0.75rem;
-      flex-shrink: 0;
+      justify-content: flex-start;
+      gap: 0.65rem;
       min-width: 0;
       margin: 0.7rem 1rem 0;
-      padding: 1rem 1.05rem 0.95rem;
+      padding: 0.8rem 0.55rem;
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 1rem;
       background: var(--surface-2);
@@ -922,13 +986,12 @@ const EMPTY_DAY: DayStats = {
 
     .streak-card {
       display: flex;
-      flex: 0 0 4.7rem;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       gap: 0.12rem;
       min-width: 0;
-      padding: 0.8rem 0.35rem;
+      padding: 0.8rem 0.55rem;
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 1rem;
       background: var(--surface-2);
@@ -938,13 +1001,19 @@ const EMPTY_DAY: DayStats = {
     .streak-card .well {
       display: grid;
       place-items: center;
-      width: 2.15rem;
-      height: 2.15rem;
+      width: 2.35rem;
+      height: 2.35rem;
       margin-bottom: 0.28rem;
       border-radius: 0.7rem;
       background: rgba(255, 122, 26, 0.16);
       color: #ff7a1a;
       box-shadow: inset 0 0 0 1px rgba(255, 122, 26, 0.45);
+    }
+
+    .streak-card .well .mark,
+    .streak-card .flame {
+      width: 1.45rem;
+      height: 1.45rem;
     }
 
     .streak-card .count {
@@ -967,20 +1036,25 @@ const EMPTY_DAY: DayStats = {
       text-transform: uppercase;
     }
 
+    .added-card {
+      align-items: stretch;
+    }
+
+    .added-card .well,
+    .added-card .count,
+    .added-card .caption {
+      align-self: center;
+    }
+
     .added-card .well {
       background: rgba(8, 10, 18, 0.45);
       color: var(--text-muted);
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
     }
 
-    .added-card .mark {
-      width: 1.05rem;
-      height: 1.05rem;
-    }
-
     .activity app-reveal-icon {
-      width: 1.82rem;
-      height: 0.95rem;
+      width: 2.15rem;
+      height: 1.12rem;
     }
 
     .bit app-reveal-icon {
@@ -988,72 +1062,82 @@ const EMPTY_DAY: DayStats = {
       height: 0.92rem;
     }
 
-    .hero-copy {
+    .hero-copy,
+    .hero-stats {
       min-width: 0;
     }
 
-    .goal-edit {
+    .hero-stats {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
+      gap: 0.12rem;
     }
 
-    .goal-edit-label {
+    .hero-stats .well {
+      display: grid;
+      place-items: center;
+      width: 2.35rem;
+      height: 2.35rem;
+      margin-bottom: 0.28rem;
+      border-radius: 0.7rem;
+      background: rgba(8, 10, 18, 0.45);
       color: var(--text-muted);
-      font-size: 0.62rem;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    .hero-stats .mark {
+      width: 1.45rem;
+      height: 1.45rem;
+    }
+
+    .hero-stats .count {
+      color: var(--text);
+      font-size: 1.55rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .hero-stats .caption {
+      color: var(--text-muted);
+      font-size: 0.6rem;
       font-weight: 700;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.06em;
       line-height: 1.2;
       text-transform: uppercase;
-    }
-
-    .hero .count-stepper button {
-      background: rgba(0, 0, 0, 0.28);
-      color: inherit;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 42%, transparent);
-    }
-
-    .hero .count-stepper button:hover:not(:disabled) {
-      background: rgba(0, 0, 0, 0.42);
-    }
-
-    .hero .count-stepper input {
-      width: 2.2rem;
-      color: inherit;
-    }
-
-    .hero .count-stepper input::placeholder {
-      color: color-mix(in srgb, currentColor 48%, transparent);
     }
 
     .meter {
       display: flex;
       align-items: center;
-      gap: 0.55rem;
+      gap: 0.35rem;
       min-width: 0;
+      color: var(--goal, var(--text));
     }
 
     .meter-track {
       flex: 1;
-      height: 0.45rem;
+      height: 0.42rem;
       min-width: 0;
       overflow: hidden;
       border-radius: 999px;
-      background: rgba(0, 0, 0, 0.32);
+      background: rgba(0, 0, 0, 0.4);
     }
 
     .meter-fill {
       display: block;
       height: 100%;
       border-radius: inherit;
-      background: #ff3366;
+      background: currentColor;
       transition: width 0.2s ease;
     }
 
     .meter-label {
       flex: none;
-      font-size: 0.72rem;
+      color: inherit;
+      font-size: 0.62rem;
       font-weight: 750;
       font-variant-numeric: tabular-nums;
       line-height: 1.2;
@@ -1068,26 +1152,6 @@ const EMPTY_DAY: DayStats = {
       letter-spacing: 0.08em;
       line-height: 1.2;
       text-transform: uppercase;
-    }
-
-    .hero .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-
-    .hero .eyebrow .mark {
-      width: 0.85rem;
-      height: 0.85rem;
-    }
-
-    .hero-value {
-      margin-top: 0.28rem;
-      font-size: 2.7rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.045em;
-      line-height: 0.95;
     }
 
     .block {
@@ -1202,6 +1266,7 @@ const EMPTY_DAY: DayStats = {
     }
 
     .gems li {
+      --goal: var(--exercise-gem);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1258,45 +1323,29 @@ const EMPTY_DAY: DayStats = {
       width: 1.4rem;
       height: 1.4rem;
       border-radius: 0.4rem;
-      background: color-mix(in srgb, var(--exercise-gem) 18%, rgba(6, 8, 16, 0.72));
-      color: var(--exercise-gem);
+      background: color-mix(in srgb, var(--goal, var(--text)) 18%, rgba(6, 8, 16, 0.72));
+      color: var(--goal, var(--text));
       font-size: 0.85rem;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--exercise-gem) 42%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--goal, var(--text)) 42%, transparent);
     }
 
     .card-foot .count-stepper button:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--exercise-gem) 30%, rgba(6, 8, 16, 0.72));
+      background: color-mix(in srgb, var(--goal, var(--text)) 30%, rgba(6, 8, 16, 0.72));
     }
 
     .card-foot .count-stepper input {
       width: 1.7rem;
-      color: var(--exercise-gem);
+      color: var(--goal, var(--text));
       font-size: 0.78rem;
     }
 
     .card-foot .count-stepper input::placeholder {
-      color: color-mix(in srgb, var(--exercise-gem) 50%, transparent);
+      color: color-mix(in srgb, var(--goal, var(--text)) 50%, transparent);
     }
 
     .gems .meter {
       align-self: stretch;
       width: 100%;
-      gap: 0.35rem;
-      color: var(--exercise-gem);
-    }
-
-    .gems .meter-track {
-      height: 0.42rem;
-      background: rgba(0, 0, 0, 0.4);
-    }
-
-    .gems .meter-fill {
-      background: var(--exercise-gem);
-    }
-
-    .gems .meter-label {
-      color: var(--exercise-gem);
-      font-size: 0.62rem;
     }
 
     .gems .stone,
@@ -1316,11 +1365,16 @@ const EMPTY_DAY: DayStats = {
     }
 
     .activity .well {
-      width: 2.15rem;
-      height: 2.15rem;
+      width: 2.35rem;
+      height: 2.35rem;
       background: rgba(8, 10, 18, 0.45);
       color: var(--text-muted);
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    .activity .well .mark {
+      width: 1.45rem;
+      height: 1.45rem;
     }
 
     .stone-icon {
@@ -1391,8 +1445,8 @@ const EMPTY_DAY: DayStats = {
 
     .flame {
       display: block;
-      width: 1.25rem;
-      height: 1.25rem;
+      width: 1.45rem;
+      height: 1.45rem;
       fill: currentColor;
     }
 
@@ -1419,9 +1473,8 @@ const EMPTY_DAY: DayStats = {
 
     .deck {
       display: flex;
-      flex: 1 0 auto;
+      flex: none;
       flex-direction: column;
-      padding-bottom: 1rem;
     }
 
     .elements {
@@ -1429,26 +1482,13 @@ const EMPTY_DAY: DayStats = {
       flex-direction: column;
       align-content: flex-start;
       gap: 0.4rem;
-      flex: 1 0 auto;
+      flex: none;
       margin: 0;
-      padding: 0 0 0.35rem;
-    }
-
-    .placeholder {
-      display: flex;
-      flex: 1 0 auto;
-      align-items: center;
-      justify-content: center;
-      align-self: stretch;
-      min-height: 6rem;
       padding: 0;
-      border: 0;
-      background: none;
     }
 
-    .placeholder .hint {
-      max-width: 16rem;
-      text-align: center;
+    .elements-empty {
+      margin: 0.15rem 0 0;
     }
 
     .row {
@@ -1557,21 +1597,66 @@ const EMPTY_DAY: DayStats = {
       gap: 0.35rem;
     }
 
+    .fold,
     .hidden-toggle {
-      align-self: flex-start;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.4rem;
       margin: 0;
-      padding: 0.35rem 0.15rem;
       border: 0;
       background: none;
-      color: var(--text-muted);
       font: inherit;
-      font-size: 0.78rem;
-      font-weight: 650;
+      font-size: 0.84rem;
+      line-height: 1.2;
       cursor: pointer;
     }
 
-    .hidden-toggle:hover {
+    .fold {
+      padding: 0;
+    }
+
+    .hidden-toggle {
+      align-self: flex-start;
+      padding: 0.35rem 0.15rem 0.35rem 0;
+    }
+
+    .fold-title {
       color: var(--text);
+      font-weight: 600;
+    }
+
+    .fold-count {
+      color: #94a3b8;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .fold:hover .fold-count,
+    .hidden-toggle:hover .fold-count,
+    .fold:hover .fold-chevron,
+    .hidden-toggle:hover .fold-chevron {
+      color: var(--text);
+    }
+
+    .fold-chevron {
+      align-self: center;
+      width: 0.85rem;
+      height: 0.85rem;
+      flex: none;
+      color: #94a3b8;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition:
+        transform 0.18s ease,
+        color 0.18s ease;
+    }
+
+    .fold.open .fold-chevron,
+    .hidden-toggle.open .fold-chevron {
+      transform: rotate(90deg);
     }
 
     .hidden-list {
@@ -1727,9 +1812,7 @@ export class GemStatsModal {
   readonly addMissing = output<string>();
   readonly askMissing = output<string>();
   readonly games = computed(() =>
-    supportLanguageFor(this.language())
-      ? GAMES
-      : GAMES.filter((row) => row.game !== 'translation'),
+    supportLanguageFor(this.language()) ? GAMES : GAMES.filter((row) => row.game !== 'translation'),
   );
   readonly activities = ACTIVITIES;
   readonly loadingActivity = LOADING_ACTIVITY;
@@ -1737,7 +1820,9 @@ export class GemStatsModal {
   readonly goalsOpen = signal(false);
   readonly goals = signal<DailyGoals>(emptyDailyGoals());
   readonly blacklist = signal<string[]>([]);
+  readonly elementsOpen = signal(true);
   readonly hiddenOpen = signal(false);
+  readonly missingOpen = signal(false);
   readonly dayIndex = signal(0);
   readonly elementSort = signal<ElementSort | null>(null);
   readonly sortMenuOpen = signal(false);
@@ -1794,23 +1879,12 @@ export class GemStatsModal {
       seen: seen.get(key) ?? 0,
     }));
   });
-  readonly sortedRows = computed(() => {
+  readonly sortedElements = computed(() => {
     const language = this.language();
     const sort = this.elementSort();
-    const rows: ListedRow[] = [];
-    for (const element of this.day()?.elements ?? []) {
-      rows.push({
-        kind: 'element',
-        id: element.id,
-        title: displayTitle(element.title, language),
-        element,
-      });
-    }
-    for (const token of this.visibleMissing()) {
-      rows.push({ kind: 'missing', id: token.key, title: token.title, token });
-    }
-    rows.sort((left, right) => compareRows(left, right, sort, language));
-    return rows;
+    const elements = [...(this.day()?.elements ?? [])];
+    elements.sort((left, right) => compareElements(left, right, sort, language));
+    return elements;
   });
   readonly gemTotals = computed(() => {
     const totals: GemCounts = { translation: 0, example: 0, definition: 0 };
@@ -1851,7 +1925,9 @@ export class GemStatsModal {
         this.goalsOpen.set(false);
         this.goals.set(readDailyGoals(language));
         this.blacklist.set(readMissingBlacklist(language));
+        this.elementsOpen.set(true);
         this.hiddenOpen.set(false);
+        this.missingOpen.set(false);
         this.job.ensure(language);
       });
     });
@@ -1964,6 +2040,10 @@ export class GemStatsModal {
     return `Exercises ${this.meterText(this.shown().exercises, goal)}`;
   }
 
+  addedMeterLabel(goal: number): string {
+    return `Added ${this.meterText(this.shown().added, goal)}`;
+  }
+
   gemMeterLabel(label: string, gain: number, goal: number): string {
     return `${label} gems gained ${this.meterText(gain, goal)}`;
   }
@@ -2061,46 +2141,36 @@ function metricCount(element: ElementDayStats, sort: ElementSort): number {
   return element[sort.key];
 }
 
-function compareRows(
-  left: ListedRow,
-  right: ListedRow,
+function compareElements(
+  left: ElementDayStats,
+  right: ElementDayStats,
   sort: ElementSort | null,
   language: string,
 ): number {
-  const diff = sort ? rowMetric(right, sort) - rowMetric(left, sort) : compareDefault(left, right);
+  const diff = sort
+    ? metricCount(right, sort) - metricCount(left, sort)
+    : compareElementsDefault(left, right);
   if (diff) return diff;
-  return left.title.localeCompare(right.title, language);
+  return displayTitle(left.title, language).localeCompare(
+    displayTitle(right.title, language),
+    language,
+  );
 }
 
-/** Missing words count in Seen. They have no gems, exercises, reworks, or reveals. */
-function rowMetric(row: ListedRow, sort: ElementSort): number {
-  if (row.kind === 'missing') {
-    return sort.kind === 'activity' && sort.key === 'opened' ? row.token.seen : 0;
-  }
-  return metricCount(row.element, sort);
-}
-
-function compareDefault(left: ListedRow, right: ListedRow): number {
-  const gems = gemScore(right) - gemScore(left);
+function compareElementsDefault(left: ElementDayStats, right: ElementDayStats): number {
+  const gems = gemTotal(right) - gemTotal(left);
   if (gems) return gems;
-  const exercises = exerciseScore(right) - exerciseScore(left);
-  if (exercises) return exercises;
-  return activityScore(right) - activityScore(left);
+  if (right.exercises !== left.exercises) return right.exercises - left.exercises;
+  return activityTotal(right) - activityTotal(left);
 }
 
-function gemScore(row: ListedRow): number {
-  if (row.kind === 'missing') return 0;
-  const gems = row.element.gems;
+function gemTotal(element: ElementDayStats): number {
+  const gems = element.gems;
   return gems.translation + gems.example + gems.definition;
 }
 
-function exerciseScore(row: ListedRow): number {
-  return row.kind === 'element' ? row.element.exercises : 0;
-}
-
-function activityScore(row: ListedRow): number {
-  if (row.kind === 'missing') return row.token.seen;
-  return row.element.opened + row.element.reworked + row.element.revealed;
+function activityTotal(element: ElementDayStats): number {
+  return element.opened + element.reworked + element.revealed;
 }
 
 function formatDay(day: string): string {
