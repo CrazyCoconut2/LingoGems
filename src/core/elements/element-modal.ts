@@ -61,6 +61,7 @@ import {
   MAX_RELATED_PICKS,
   generateDefinitionFromExample,
   generateDefinitions,
+  generateDerivedExample,
   generateElementFromSelection,
   generateEquivalent,
   generateExamples,
@@ -129,6 +130,7 @@ type PreparedElement = {
   definitions: Array<ElementDefinition & { equivalent?: string }>;
   example: string;
   definition: number;
+  guide?: string;
 };
 
 type HighlightSource = {
@@ -882,7 +884,9 @@ function writeExampleSuggestions(
                                         class="linguagem-highlighted"
                                         [style.--score-color]="part.color || null"
                                         [textContent]="part.text"
-                                        (click)="showCollision($event, part.matches, index)"
+                                        (click)="
+                                          showCollision($event, part.matches, index, '', part.text)
+                                        "
                                       ></button>
                                     } @else if (part.matches.length === 1 && !part.current) {
                                       <button
@@ -890,7 +894,13 @@ function writeExampleSuggestions(
                                         class="linguagem-highlighted"
                                         [style.--score-color]="part.color || null"
                                         [textContent]="part.text"
-                                        (click)="visitHighlight(part.matches[0].elementId, index)"
+                                        (click)="
+                                          openFromDefinition(
+                                            part.matches[0].elementId,
+                                            index,
+                                            part.text
+                                          )
+                                        "
                                       ></button>
                                     } @else if (part.current) {
                                       <span
@@ -1191,8 +1201,12 @@ function writeExampleSuggestions(
         </div>
         <footer class="definition-footer">
           <form class="example-slot" (submit)="submitDefinitionExample($event)">
-            <div class="example-slot-field" [class.arrived]="!!heldExample()">
-              @if (heldExample(); as held) {
+            <div class="example-slot-field" [class.arrived]="!!heldExample() || guidedExample()">
+              @if (guidedExample()) {
+                <div class="example-slot-text">
+                  <p>{{ arrivedGuide() }}</p>
+                </div>
+              } @else if (heldExample(); as held) {
                 @let passage = parsePassage(held);
                 <div class="example-slot-text">
                   @if (passage.text) {
@@ -1216,11 +1230,25 @@ function writeExampleSuggestions(
                   (input)="definitionExample.set(inputValue($event))"
                 />
               }
+              @if (definitionExample().trim()) {
+                <button
+                  type="button"
+                  class="example-slot-clear"
+                  aria-label="Clear example"
+                  [disabled]="aiBusy()"
+                  (click)="clearExampleSlot()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              }
               <button
                 type="submit"
                 class="example-slot-submit"
-                aria-label="Add example"
-                [disabled]="aiBusy() || !definitionExample().trim()"
+                [attr.aria-label]="guidedExample() ? 'Create example' : 'Add example'"
+                [disabled]="aiBusy() || (!definitionExample().trim() && !arrivedGuide())"
                 [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1235,8 +1263,13 @@ function writeExampleSuggestions(
               </button>
             </div>
             <p id="example-slot-hint" class="example-slot-hint">
-              This sentence is matched to a definition that already fits, or a new definition is
-              added.
+              @if (arrivedGuide() && !definitionExample().trim()) {
+                Create an example that uses both. Press again to match it to a definition, or add
+                one.
+              } @else {
+                This sentence is matched to a definition that already fits, or a new definition is
+                added.
+              }
             </p>
           </form>
         </footer>
@@ -4502,6 +4535,48 @@ function writeExampleSuggestions(
       font-size: 0.82rem;
     }
 
+    .example-slot-clear {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      align-self: stretch;
+      width: 2.2rem;
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .example-slot-field.arrived .example-slot-clear {
+      align-self: flex-start;
+      width: 2.4rem;
+      height: 2.4rem;
+      border: 1px solid var(--border);
+      border-radius: 0.7rem;
+      background: var(--surface-2);
+    }
+
+    .example-slot-clear:hover:not(:disabled) {
+      color: var(--text);
+    }
+
+    .example-slot-clear:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .example-slot-clear svg {
+      display: block;
+      width: 1rem;
+      height: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .example-slot-submit {
       display: flex;
       align-items: center;
@@ -6434,6 +6509,8 @@ export class ElementModal {
   readonly definitionIndex = input(0);
   /** Example sentence carried in from the element that opened this one. */
   readonly arrivedExample = input('');
+  /** Parent headword and gloss, shown so an example can be written before it is added. */
+  readonly arrivedGuide = input('');
   /** Play uses this card. `playMode` decides which field is typed. */
   readonly playing = input(false);
   /** Exercise for this session. Null while editing. */
@@ -6441,13 +6518,14 @@ export class ElementModal {
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
   readonly deleted = output<void>();
-  readonly visit = output<{ id: string; definition: number; example: string }>();
+  readonly visit = output<{ id: string; definition: number; example: string; guide: string }>();
   readonly back = output<void>();
   readonly addSelection = output<{
     title: string;
     language: string;
     definition: number;
     example: string;
+    guide: string;
     done: (saved: boolean) => void;
   }>();
   readonly addPrepared = output<PreparedElement>();
@@ -6528,6 +6606,7 @@ export class ElementModal {
   /** Definition that opened the collision menu. */
   private collisionDefinition = 0;
   private collisionExample = '';
+  private collisionWord = '';
   readonly passageSelection = signal<PassageSelection | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
@@ -7277,7 +7356,59 @@ export class ElementModal {
 
   submitDefinitionExample(event: Event): void {
     event.preventDefault();
+    if (!this.definitionExample().trim() && this.arrivedGuide()) {
+      void this.createGuidedExample();
+      return;
+    }
     void this.addDefinitionFromExample();
+  }
+
+  guidedExample(): boolean {
+    return !!this.arrivedGuide() && !this.definitionExample().trim();
+  }
+
+  clearExampleSlot(): void {
+    if (this.aiBusy()) return;
+    this.definitionExample.set('');
+    this.heldExample.set('');
+  }
+
+  private async createGuidedExample(): Promise<void> {
+    if (this.aiBusy()) return;
+    const guide = splitExampleGuide(this.arrivedGuide());
+    const element = this.element();
+    const selected = element.title.replace(/\s+/g, ' ').trim();
+    if (!guide || !selected) return;
+    if (!readStoredAiCredentials().keys.length) {
+      this.error.set('Save an API key first.');
+      return;
+    }
+    this.addingDefinitions.set('example');
+    this.asking.set(true);
+    this.error.set('');
+    try {
+      const sentence = await generateDerivedExample({
+        language: element.language,
+        root: guide.root,
+        definition: guide.gloss,
+        selected,
+        translation: this.translationTarget(),
+      });
+      if (this.element().id !== element.id) return;
+      if (!sentence) {
+        this.error.set('Could not write that example.');
+        return;
+      }
+      this.definitionExample.set(sentence);
+      this.heldExample.set(sentence);
+    } catch {
+      if (this.element().id === element.id) this.error.set('Could not write that example.');
+    } finally {
+      if (this.element().id === element.id) {
+        this.asking.set(false);
+        this.addingDefinitions.set(null);
+      }
+    }
   }
 
   addDefinitionManually(): void {
@@ -8698,23 +8829,48 @@ export class ElementModal {
     matches: DefinitionHighlightMatch[],
     definition: number,
     example = '',
+    selected = '',
   ): void {
     event.preventDefault();
     event.stopPropagation();
     this.collisionDefinition = definition;
     this.collisionExample = example.trim();
+    this.collisionWord = selected.replace(/\s+/g, ' ').trim();
     this.collision.set(matches);
   }
 
   visitCollision(id: string): void {
-    this.visitHighlight(id, this.collisionDefinition, this.collisionExample);
+    const example = this.collisionExample;
+    const word = this.collisionWord;
+    const definition = this.collisionDefinition;
+    if (example) {
+      this.visitHighlight(id, definition, example);
+      return;
+    }
+    this.openFromDefinition(id, definition, word);
   }
 
-  visitHighlight(id: string, definition = this.collisionDefinition, example = ''): void {
+  openFromDefinition(id: string, definitionIndex: number, selected: string): void {
+    const gloss = parsePassage(this.element().definitions[definitionIndex]?.text ?? '')
+      .text.replace(/\s+/g, ' ')
+      .trim();
+    const root = this.element().title.replace(/\s+/g, ' ').trim();
+    const word = selected.replace(/\s+/g, ' ').trim();
+    const guide = gloss && root && word ? `${root}: ${gloss}` : '';
+    this.visitHighlight(id, definitionIndex, '', guide);
+  }
+
+  visitHighlight(
+    id: string,
+    definition = this.collisionDefinition,
+    example = '',
+    guide = '',
+  ): void {
     this.collision.set(null);
     this.collisionExample = '';
+    this.collisionWord = '';
     if (!id || id === this.element().id) return;
-    this.visit.emit({ id, definition, example: example.trim() });
+    this.visit.emit({ id, definition, example: example.trim(), guide: guide.trim() });
   }
 
   confirmPassagePick(event: Event, text: string): void {
@@ -8731,15 +8887,19 @@ export class ElementModal {
   private async askSelectionElement(title: string, pick: PassageSelection | null): Promise<void> {
     const element = this.element();
     const definition = pick ? element.definitions[pick.definitionIndex] : undefined;
-    const source =
+    const raw =
       pick?.exampleIndex == null ? definition?.text : definition?.examples[pick.exampleIndex]?.text;
-    const context = parsePassage(source ?? '').text;
-    const example = pick?.exampleIndex == null ? '' : context;
+    const passage = parsePassage(raw ?? '');
+    const fromExample = pick?.exampleIndex != null;
+    const gloss = passage.text.replace(/\s+/g, ' ').trim();
+    const root = element.title.replace(/\s+/g, ' ').trim();
     const definitionIndex = pick?.definitionIndex ?? this.visibleDefinitionIndex();
+    const guide = !fromExample && gloss && root ? `${root}: ${gloss}` : '';
+    const example = fromExample ? passage.text : '';
     this.addingSelection.set(true);
     this.error.set('');
     try {
-      const generated = await this.elementFromSelection(element.language, title, context);
+      const generated = await this.elementFromSelection(element.language, title);
       if (this.element().id !== element.id) return;
       if (generated) {
         this.passageSelection.set(null);
@@ -8747,6 +8907,7 @@ export class ElementModal {
           title: generated.lemma,
           language: element.language,
           example,
+          guide,
           definition: definitionIndex,
           definitions: generated.definitions.map((sense) => ({
             text: sense.text,
@@ -8765,6 +8926,7 @@ export class ElementModal {
         element.language,
         definitionIndex,
         example,
+        guide,
       );
       if (!saved && this.element().id === element.id) {
         this.error.set('Could not add that element.');
@@ -8774,11 +8936,10 @@ export class ElementModal {
     }
   }
 
-  private elementFromSelection(language: string, selected: string, context: string) {
+  private elementFromSelection(language: string, selected: string) {
     return generateElementFromSelection({
       language,
       selected,
-      context,
       translation: this.translationTarget(),
     }).catch(() => null);
   }
@@ -8788,10 +8949,11 @@ export class ElementModal {
     language: string,
     definition: number,
     example: string,
+    guide: string,
   ): Promise<boolean> {
     this.passageSelection.set(null);
     return new Promise((resolve) => {
-      this.addSelection.emit({ title, language, definition, example, done: resolve });
+      this.addSelection.emit({ title, language, definition, example, guide, done: resolve });
     });
   }
 
@@ -10842,6 +11004,15 @@ export class ElementModal {
     this.rounds.set(this.element().id, next);
     this.round.set(next);
   }
+}
+
+function splitExampleGuide(guide: string): { root: string; gloss: string } | null {
+  const split = guide.indexOf(': ');
+  if (split <= 0) return null;
+  const root = guide.slice(0, split).trim();
+  const gloss = guide.slice(split + 2).trim();
+  if (!root || !gloss) return null;
+  return { root, gloss };
 }
 
 function readPassageSelection(): PassageSelection | null {

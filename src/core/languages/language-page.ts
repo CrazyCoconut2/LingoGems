@@ -73,7 +73,7 @@ import {
   type StoredElement,
 } from 'collection';
 
-type ElementTrailStop = { id: string; definition: number; example?: string };
+type ElementTrailStop = { id: string; definition: number; example?: string; guide?: string };
 
 type FilterSection = 'language' | 'color' | 'definitions' | 'examples' | 'forms';
 
@@ -902,6 +902,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           [canGoBack]="canGoBack()"
           [definitionIndex]="openedDefinition()"
           [arrivedExample]="arrivedExample()"
+          [arrivedGuide]="arrivedGuide()"
           [playing]="element.id === playId()"
           [playMode]="element.id === playId() ? playMode() : null"
           (closed)="closeElement()"
@@ -2398,6 +2399,7 @@ export class LanguagePage {
   readonly canGoBack = computed(() => this.trail().length > 1);
   readonly openedDefinition = computed(() => this.trail().at(-1)?.definition ?? 0);
   readonly arrivedExample = computed(() => this.trail().at(-1)?.example?.trim() ?? '');
+  readonly arrivedGuide = computed(() => this.trail().at(-1)?.guide?.trim() ?? '');
   readonly opened = computed(() => {
     const id = this.elementId();
     if (!id) return null;
@@ -2798,15 +2800,21 @@ export class LanguagePage {
     }
   }
 
-  visitElement(visit: { id: string; definition: number; example?: string }): void {
+  visitElement(visit: { id: string; definition: number; example?: string; guide?: string }): void {
     const id = visit.id;
     if (!id || id === this.elementId()) return;
     const example = visit.example?.trim() ?? '';
+    const guide = visit.guide?.replace(/\s+/g, ' ').trim() ?? '';
     this.trail.update((trail) => {
       const next = trail.slice();
       const current = next.at(-1);
       if (current) next[next.length - 1] = { ...current, definition: visit.definition };
-      next.push({ id, definition: 0, ...(example ? { example } : {}) });
+      next.push({
+        id,
+        definition: 0,
+        ...(example ? { example } : {}),
+        ...(guide ? { guide } : {}),
+      });
       return next;
     });
     this.showElement(id);
@@ -2825,6 +2833,7 @@ export class LanguagePage {
     language: string;
     definition: number;
     example?: string;
+    guide?: string;
     done?: (saved: boolean) => void;
   }): Promise<void> {
     const finish = (saved: boolean) => pick.done?.(saved);
@@ -2838,7 +2847,12 @@ export class LanguagePage {
       const created = await addElement(code, name);
       if (code === this.code()) this.elements.set(await readElements(code));
       if (created.id !== this.elementId()) {
-        this.visitElement({ id: created.id, definition: pick.definition, example: pick.example });
+        this.visitElement({
+          id: created.id,
+          definition: pick.definition,
+          example: pick.example,
+          guide: pick.guide,
+        });
       }
       finish(true);
     } catch {
@@ -2852,6 +2866,7 @@ export class LanguagePage {
       language?: string;
       definitions: Array<ElementDefinition & { equivalent?: string }>;
       example?: string;
+      guide?: string;
       definition?: number;
     },
     fromSearch = false,
@@ -2886,6 +2901,7 @@ export class LanguagePage {
       id: created.id,
       definition: prepared.definition ?? 0,
       example,
+      guide: prepared.guide,
     });
   }
 
@@ -3037,7 +3053,6 @@ export class LanguagePage {
       return await generateElementFromSelection({
         language,
         selected,
-        context: '',
         translation: this.translationTarget(),
       });
     } catch {

@@ -97,8 +97,7 @@ function elementFromSelectionSystemPrompt(
     'Do not use English for a gloss unless writeFieldsIn is English.',
     metadataIntro(fields, extra),
     'Rules:',
-    '- selected is written in writeFieldsIn. When it is copied from a definition or an example, that text is in the language of the definition or example, which is writeFieldsIn. It is not written in translateFieldsIn',
-    '- context, when present, is that definition or example, also written in writeFieldsIn',
+    '- selected is written in writeFieldsIn. It is not written in translateFieldsIn',
     '- lemma is the citation form of selected in writeFieldsIn. When selected is already that form, lemma is selected. Do not translate selected into another language and do not choose a different word',
     '- One sense per distinct meaning of that lemma',
     `- Return at most ${MAX_SENSES} senses`,
@@ -405,7 +404,6 @@ export async function generateDefinitionFromExample(
 type GenerateElementFromSelectionInput = {
   language: string;
   selected: string;
-  context: string;
   translation?: string;
 };
 
@@ -418,14 +416,12 @@ function buildElementFromSelectionUserMessage(input: GenerateElementFromSelectio
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   const translateFieldsIn = translationLanguage(language, input.translation);
-  const context = input.context.trim().slice(0, MAX_EXAMPLE_LENGTH);
   return JSON.stringify({
     language,
     writeFieldsIn,
     selectedIn: writeFieldsIn,
     ...(translateFieldsIn ? { translateFieldsIn } : {}),
     selected: input.selected.trim(),
-    ...(context ? { context, contextIn: writeFieldsIn } : {}),
   });
 }
 
@@ -435,9 +431,8 @@ export async function generateElementFromSelection(
 ): Promise<GeneratedElement | null> {
   const selected = request.selected.trim();
   const language = request.language.trim().toLowerCase();
-  const context = request.context.trim().slice(0, MAX_EXAMPLE_LENGTH);
   if (!selected || !language) return null;
-  const prepared = { ...request, selected, language, context };
+  const prepared = { ...request, selected, language };
   const input: CompleteJsonInput = {
     system: elementFromSelectionSystemPrompt(
       readDefinitionMetadataFields(),

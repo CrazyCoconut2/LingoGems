@@ -52,6 +52,7 @@ export {
 export {
   MAX_EXAMPLE_INSTRUCTION,
   MAX_EXAMPLE_LENGTH,
+  generateDerivedExample,
   generateExamples,
   sentenceUsesForm,
 } from './examples';

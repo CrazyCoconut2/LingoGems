@@ -205,6 +205,94 @@ function uniqueTexts(values: readonly string[]): string[] {
   return texts;
 }
 
+const DERIVED_EXAMPLE_MAX_TOKENS = 512;
+
+type GenerateDerivedExampleInput = {
+  language: string;
+  root: string;
+  definition: string;
+  selected: string;
+  translation?: string;
+};
+
+function derivedExampleSystemPrompt(): string {
+  return [
+    'You write one example sentence that restates a dictionary gloss.',
+    'JSON keys stay in English.',
+    'The sentence MUST be in the language named by writeFieldsIn.',
+    'Do not use English for the sentence unless writeFieldsIn is English.',
+    'Rules:',
+    "- root is a headword. definition is that headword's gloss. selected is a word or phrase taken from that gloss. All three are written in writeFieldsIn",
+    '- Return exactly one sentence. It MUST use the root headword and selected, and it MUST restate definition',
+    '- If root is "Marathon", selected is "Lauf", and definition is "Lauf über 42.195 km", the sentence says that a Marathon is a Lauf of over 42.195 km',
+    '- Do not write a dictionary gloss. Do not add citations or bracket tags such as [en:…]',
+    `- Keep the sentence at most ${MAX_EXAMPLE_LENGTH} characters`,
+    '- Spelling MUST be correct',
+    'translateFieldsIn, when present, names the translation language. Then include "translation", a faithful translation of the sentence in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
+    'Return JSON only with this shape:',
+    '{"example":"<sentence in writeFieldsIn>"}',
+    'When translateFieldsIn is present, add "translation":"<sentence in translateFieldsIn>".',
+  ].join('\n');
+}
+
+function parseDerivedExample(
+  parsed: unknown,
+  language: string,
+  translation: string | undefined,
+): string {
+  const source =
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  const sentence = parsePassage(plainText(source?.['example'] ?? source?.['text']))
+    .text.replace(/\s+/g, ' ')
+    .trim();
+  if (!sentence || sentence.length > MAX_EXAMPLE_LENGTH) return '';
+  const into = translationTarget(language, translation);
+  if (!into) return sentence;
+  const translated = parsePassage(plainText(source?.['translation'] ?? source?.['english']))
+    .text.replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_EXAMPLE_LENGTH);
+  return translated ? embedTranslation(sentence, into, translated) : sentence;
+}
+
+/** One sentence that restates a parent gloss with its headword and the selected word. Empty when nothing usable comes back. */
+export async function generateDerivedExample(
+  request: GenerateDerivedExampleInput,
+): Promise<string> {
+  const language = request.language.trim().toLowerCase();
+  const root = request.root.replace(/\s+/g, ' ').trim();
+  const definition = request.definition.replace(/\s+/g, ' ').trim().slice(0, MAX_EXAMPLE_LENGTH);
+  const selected = request.selected.replace(/\s+/g, ' ').trim();
+  if (!language || !root || !definition || !selected) return '';
+  const writeFieldsIn = languageDisplayName(language) || language;
+  const translateFieldsIn = translationLanguage(language, request.translation);
+  const input: CompleteJsonInput = {
+    system: derivedExampleSystemPrompt(),
+    user: JSON.stringify({
+      language,
+      writeFieldsIn,
+      ...(translateFieldsIn ? { translateFieldsIn } : {}),
+      root,
+      definition,
+      selected,
+    }),
+    maxTokens: DERIVED_EXAMPLE_MAX_TOKENS,
+    temperature: 0,
+  };
+  const keys = readStoredAiCredentials().keys;
+  const complete = () =>
+    runWithKeyFallback(keys, (provider, credentials) => completeJson(provider, input, credentials));
+  try {
+    let sentence = parseDerivedExample(await complete(), language, request.translation);
+    if (!sentence) sentence = parseDerivedExample(await complete(), language, request.translation);
+    return sentence;
+  } catch (err) {
+    throw attachAiPrompt(err, input);
+  }
+}
+
 function exampleWords(title: string, words: readonly string[]): string[] {
   const lemma = title.trim().toLowerCase();
   const seen = new Set<string>();
