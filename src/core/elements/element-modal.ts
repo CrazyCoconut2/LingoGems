@@ -89,9 +89,9 @@ const META_VALUE_MAX_LENGTH = 100;
 
 type Editor =
   | { kind: 'definition'; index: number | null }
-  | { kind: 'examples'; index: number }
-  | { kind: 'forms'; index: number }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number | null };
+
+type WorkTab = 'definitions' | 'examples' | 'forms';
 
 type FormEdit = { definitionIndex: number; originalText: string | null };
 
@@ -1215,15 +1215,60 @@ function writeExampleSuggestions(
         @if (editor(); as current) {
           <div class="sheet-backdrop" (click)="closeEditorSheet($event)">
             <section
+              #editorSheet
               class="sheet editor-sheet"
               role="dialog"
               aria-modal="true"
-              [attr.aria-label]="sheetTitle(current)"
+              [attr.aria-label]="
+                current.kind === 'definition' ? workSectionLabel(current) : sheetTitle(current)
+              "
             >
               <div class="sheet-head">
-                <h3>{{ sheetTitle(current) }}</h3>
+                @if (current.kind === 'definition') {
+                  <div
+                    class="lang work-tabs"
+                    role="tablist"
+                    [attr.aria-label]="workSectionLabel(current)"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      [class.on]="workTab() === 'definitions'"
+                      [attr.aria-selected]="workTab() === 'definitions'"
+                      (click)="showWorkTab('definitions')"
+                    >
+                      Definition
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      [class.on]="workTab() === 'examples'"
+                      [attr.aria-selected]="workTab() === 'examples'"
+                      [disabled]="current.index == null"
+                      (click)="showWorkTab('examples')"
+                    >
+                      Examples
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      [class.on]="workTab() === 'forms'"
+                      [attr.aria-selected]="workTab() === 'forms'"
+                      [disabled]="current.index == null"
+                      (click)="showWorkTab('forms')"
+                    >
+                      Forms
+                    </button>
+                  </div>
+                } @else {
+                  <h3>{{ sheetTitle(current) }}</h3>
+                }
                 <span class="sheet-tools">
-                  @if (current.kind === 'definition' || current.kind === 'example') {
+                  @if (
+                    current.kind === 'example' ||
+                    (current.kind === 'definition' &&
+                      (workTab() === 'definitions' || current.index == null))
+                  ) {
                     <ng-container [ngTemplateOutlet]="draftActions" />
                   }
                   @if (current.kind === 'definition' && current.index != null) {
@@ -1733,12 +1778,19 @@ function writeExampleSuggestions(
                 </div>
               </ng-template>
               <div class="sheet-scroll">
-                @if (current.kind === 'definition') {
+                @if (
+                  current.kind === 'definition' &&
+                  (workTab() === 'definitions' || current.index == null)
+                ) {
                   <section class="sheet-part work-section">
                     <ng-container [ngTemplateOutlet]="editorFields" />
                   </section>
                 }
-                @if (current.kind === 'examples') {
+                @if (
+                  current.kind === 'definition' &&
+                  current.index != null &&
+                  workTab() === 'examples'
+                ) {
                   @let workIndex = current.index;
                   @let worked = sheetDefinition(workIndex);
                   <section class="sheet-part work-section">
@@ -1918,7 +1970,11 @@ function writeExampleSuggestions(
                     }
                   </section>
                 }
-                @if (current.kind === 'forms') {
+                @if (
+                  current.kind === 'definition' &&
+                  current.index != null &&
+                  workTab() === 'forms'
+                ) {
                   @let workIndex = current.index;
                   @let worked = sheetDefinition(workIndex);
                   <section class="sheet-part work-section">
@@ -2028,11 +2084,7 @@ function writeExampleSuggestions(
                   <ng-container [ngTemplateOutlet]="editorFields" />
                 }
               </div>
-              @if (
-                current.kind === 'definition' ||
-                current.kind === 'examples' ||
-                current.kind === 'forms'
-              ) {
+              @if (current.kind === 'definition') {
                 <div class="sheet-actions sheet-footer">
                   <button
                     type="button"
@@ -2040,7 +2092,7 @@ function writeExampleSuggestions(
                     [disabled]="workSaveDisabled()"
                     (click)="saveWork()"
                   >
-                    @if (current.kind === 'definition') {
+                    @if (workTab() === 'definitions' || current.index == null) {
                       <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path
                           d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
@@ -5359,6 +5411,31 @@ function writeExampleSuggestions(
       cursor: not-allowed;
     }
 
+    .sheet-head:has(.work-tabs) {
+      flex-wrap: wrap;
+    }
+
+    .lang.work-tabs {
+      display: flex;
+      align-self: stretch;
+      flex: 1 1 16rem;
+      box-sizing: border-box;
+      width: auto;
+      min-width: 0;
+      padding-inline: 0;
+    }
+
+    .sheet-head:has(.work-tabs) .sheet-tools {
+      margin-left: auto;
+    }
+
+    .lang.work-tabs button {
+      flex: 1 1 0;
+      min-width: 0;
+      text-align: center;
+      padding-inline: 0.55rem;
+    }
+
     .work-title {
       display: flex;
       align-items: center;
@@ -5466,6 +5543,8 @@ export class ElementModal {
   readonly relatedPickMax = MAX_RELATED_PICKS;
   readonly parsePassage = parsePassage;
   readonly editor = signal<Editor | null>(null);
+  /** Section shown in the definition work sheet. */
+  readonly workTab = signal<WorkTab>('definitions');
   readonly equivalentDraft = signal('');
   readonly equivalentIdDraft = signal<string | null>(null);
   readonly sheetEquivalents = signal<ElementEquivalent[]>([]);
@@ -5561,6 +5640,7 @@ export class ElementModal {
   private readonly formFeatureField = viewChild<ElementRef<HTMLInputElement>>('formFeatureField');
   private readonly metaKeyField = viewChild<ElementRef<HTMLInputElement>>('metaKeyField');
   private readonly definitionBody = viewChild<ElementRef<HTMLElement>>('definitionBody');
+  private readonly editorSheet = viewChild<ElementRef<HTMLElement>>('editorSheet');
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
@@ -6068,17 +6148,22 @@ export class ElementModal {
 
   sheetTitle(editor: Editor): string {
     if (editor.kind === 'definition') {
-      return editor.index == null ? 'Add a definition' : 'Edit definition';
+      return editor.index == null ? 'Add a definition' : 'Definition';
     }
-    if (editor.kind === 'examples') return 'Examples';
-    if (editor.kind === 'forms') return 'Forms';
     return editor.exampleIndex == null ? 'Add an example' : 'Edit example';
+  }
+
+  workSectionLabel(editor: Editor): string {
+    if (editor.kind !== 'definition' || editor.index == null) return 'Definition';
+    if (this.workTab() === 'examples') return 'Examples';
+    if (this.workTab() === 'forms') return 'Forms';
+    return 'Definition';
   }
 
   workSaveDisabled(): boolean {
     const editor = this.editor();
-    if (!editor) return true;
-    if (editor.kind === 'examples') {
+    if (!editor || editor.kind !== 'definition') return true;
+    if (editor.index != null && this.workTab() === 'examples') {
       const draft = this.exampleDraft();
       return (
         this.busy() ||
@@ -6087,7 +6172,7 @@ export class ElementModal {
         !draft.text.trim()
       );
     }
-    if (editor.kind === 'forms') {
+    if (editor.index != null && this.workTab() === 'forms') {
       const pending = this.pendingForms();
       return (
         this.busy() ||
@@ -6096,7 +6181,6 @@ export class ElementModal {
         !pending.forms.length
       );
     }
-    if (editor.kind !== 'definition') return true;
     return (
       this.busy() ||
       this.asking() ||
@@ -6118,16 +6202,16 @@ export class ElementModal {
 
   saveWork(): void {
     const editor = this.editor();
-    if (!editor || this.workSaveDisabled()) return;
-    if (editor.kind === 'examples') {
+    if (!editor || editor.kind !== 'definition' || this.workSaveDisabled()) return;
+    if (editor.index != null && this.workTab() === 'examples') {
       void this.saveExampleDraft();
       return;
     }
-    if (editor.kind === 'forms') {
+    if (editor.index != null && this.workTab() === 'forms') {
       void this.savePendingForms();
       return;
     }
-    if (editor.kind === 'definition') void this.saveEditor();
+    void this.saveEditor();
   }
 
   /** Saved definition, including edits that have not reached the parent yet. */
@@ -6152,6 +6236,7 @@ export class ElementModal {
     }
     if (editor.kind === 'definition' && editor.index == null) this.skipPrefilledDefinition();
     this.editor.set(null);
+    this.workTab.set('definitions');
     this.definitionEngineer.set(null);
     this.exampleEngineer.set(null);
     this.exampleDraft.set(null);
@@ -6163,6 +6248,13 @@ export class ElementModal {
   closeEditorSheet(event: MouseEvent): void {
     if (event.target !== event.currentTarget) return;
     this.closeEditor();
+  }
+
+  showWorkTab(tab: WorkTab): void {
+    const editor = this.editor();
+    if (tab !== 'definitions' && (editor?.kind !== 'definition' || editor.index == null)) return;
+    this.workTab.set(tab);
+    this.editorSheet()?.nativeElement.querySelector('.sheet-scroll')?.scrollTo({ top: 0 });
   }
 
   aiBusy(): boolean {
@@ -6505,9 +6597,6 @@ export class ElementModal {
     if (editor?.kind === 'definition' && editor.index != null) {
       this.editor.set({ kind: 'definition', index: editor.index + by });
     }
-    if (editor?.kind === 'examples' || editor?.kind === 'forms') {
-      this.editor.set({ ...editor, index: editor.index + by });
-    }
     if (editor?.kind === 'example') {
       this.editor.set({ ...editor, definitionIndex: editor.definitionIndex + by });
     }
@@ -6694,6 +6783,11 @@ export class ElementModal {
   }
 
   openDefinition(index: number | null): void {
+    const current = this.editor();
+    if (index != null && current?.kind === 'definition' && current.index === index) {
+      this.showWorkTab('definitions');
+      return;
+    }
     const definition =
       index == null ? null : (this.sheetDefinition(index) ?? this.element().definitions[index]);
     if (index != null && !definition) return;
@@ -6727,6 +6821,19 @@ export class ElementModal {
     this.beginSheet(definition?.text ?? '');
     if (definition) this.dismissNew(definition.text);
     this.editor.set({ kind: 'definition', index });
+    this.workTab.set('definitions');
+  }
+
+  /** Open the work sheet on Examples or Forms without leaving this definition. */
+  private openWorkTab(index: number, tab: Exclude<WorkTab, 'definitions'>): void {
+    const editor = this.editor();
+    if (editor?.kind === 'definition' && editor.index === index) {
+      this.showWorkTab(tab);
+      return;
+    }
+    this.openDefinition(index);
+    const opened = this.editor();
+    if (opened?.kind === 'definition' && opened.index === index) this.workTab.set(tab);
   }
 
   onFormsClick(event: MouseEvent, index: number): void {
@@ -6741,38 +6848,13 @@ export class ElementModal {
   }
 
   openExamples(index: number): void {
-    const definition = this.sheetDefinition(index) ?? this.element().definitions[index];
-    if (!definition) return;
-    this.formEdit.set(null);
-    this.formFeatureEdit.set(null);
-    this.metaEdit.set(null);
-    this.metaKey.set('');
-    this.metaValue.set('');
-    this.definitionEngineer.set(null);
-    this.exampleError.set('');
-    this.formsError.set('');
-    if (this.exampleDraft()?.definitionIndex !== index) this.exampleDraft.set(null);
-    if (this.pendingForms()?.definitionIndex !== index) this.pendingForms.set(null);
-    this.editor.set({ kind: 'examples', index });
-    this.exampleEngineer.set(null);
+    if (!this.element().definitions[index]) return;
+    this.openWorkTab(index, 'examples');
   }
 
   openForms(index: number): void {
-    if (this.aiBusy()) return;
-    const definition = this.sheetDefinition(index) ?? this.element().definitions[index];
-    if (!definition) return;
-    this.formEdit.set(null);
-    this.formFeatureEdit.set(null);
-    this.metaEdit.set(null);
-    this.metaKey.set('');
-    this.metaValue.set('');
-    this.definitionEngineer.set(null);
-    this.exampleEngineer.set(null);
-    this.exampleError.set('');
-    this.formsError.set('');
-    if (this.exampleDraft()?.definitionIndex !== index) this.exampleDraft.set(null);
-    if (this.pendingForms()?.definitionIndex !== index) this.pendingForms.set(null);
-    this.editor.set({ kind: 'forms', index });
+    if (this.aiBusy() || !this.element().definitions[index]) return;
+    this.openWorkTab(index, 'forms');
   }
 
   openExample(definitionIndex: number, exampleIndex: number | null): void {
