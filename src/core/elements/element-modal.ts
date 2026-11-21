@@ -47,7 +47,6 @@ import {
   type DefinitionHighlightPart,
   type ElementDefinition,
   type ElementEquivalent,
-  type EquivalentLinks,
   type RemovedDefinition,
   type ElementForm,
   type ElementMetadata,
@@ -66,7 +65,6 @@ import {
   generateExamples,
   generateForms,
   generateRelatedWords,
-  mergeDefinitions,
   readStoredAiCredentials,
   suggestMetadata,
   sentenceUsesForm,
@@ -85,8 +83,6 @@ import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
 const EQUIVALENT_MAX = 200;
-const SENSE_PRESS_MS = 500;
-const SENSE_PRESS_SLOP = 10;
 const FORM_MAX_LENGTH = 100;
 const META_KEY_MAX_LENGTH = 40;
 const META_VALUE_MAX_LENGTH = 100;
@@ -195,9 +191,6 @@ type StoredSuggestion = {
   equivalent?: string;
 };
 
-/** One generated definition held until it is kept or dismissed. */
-type PendingDefinition = StoredSuggestion;
-
 const SUGGESTIONS_KEY = 'lingogem.definition-suggestions.v1';
 const NEW_DEFINITIONS_KEY = 'lingogem.definition-new.v1';
 
@@ -261,51 +254,6 @@ function dropExampleKeys(keys: ReadonlySet<string>, index: number): Set<string> 
     next.add(`${nextDefinition}:${key.slice(split + 1)}`);
   }
   return next;
-}
-
-function uniqueByText<T extends { text: string }>(items: readonly T[]): T[] {
-  const seen = new Set<string>();
-  const kept: T[] = [];
-  for (const item of items) {
-    const key = item.text.trim().toLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    kept.push(item);
-  }
-  return kept;
-}
-
-/** One equivalent per language, with the selected wordings joined in list order. */
-function joinedEquivalentLinks(
-  pool: readonly ElementEquivalent[],
-  definitions: readonly ElementDefinition[],
-): { equivalents: ElementEquivalent[]; equivalentIds: EquivalentLinks } {
-  const languages: string[] = [];
-  const seenLanguages = new Set<string>();
-  for (const definition of definitions) {
-    for (const language of Object.keys(definition.equivalentIds)) {
-      if (seenLanguages.has(language)) continue;
-      seenLanguages.add(language);
-      languages.push(language);
-    }
-  }
-  let equivalents = [...pool];
-  let equivalentIds: EquivalentLinks = {};
-  for (const language of languages) {
-    const seen = new Set<string>();
-    const parts: string[] = [];
-    for (const definition of definitions) {
-      const text = equivalentTextFor(equivalents, definition.equivalentIds, language).trim();
-      const key = text.toLowerCase();
-      if (!text || seen.has(key)) continue;
-      seen.add(key);
-      parts.push(text);
-    }
-    const assigned = assignEquivalent(equivalents, parts.join(' · '), language);
-    equivalents = assigned.equivalents;
-    equivalentIds = linkEquivalent(equivalentIds, language, assigned.equivalentId);
-  }
-  return { equivalents, equivalentIds };
 }
 
 function readDefinitionSuggestions(elementId: string): StoredSuggestion[] {
@@ -756,6 +704,19 @@ function writeExampleSuggestions(
             </div>
             <div class="title-end">
               <button
+                type="button"
+                class="icon-btn"
+                aria-label="Add a definition"
+                title="Add a definition"
+                [disabled]="aiBusy()"
+                (click)="addDefinitionManually()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+              </button>
+              <button
                 #closeButton
                 type="button"
                 class="close"
@@ -785,98 +746,16 @@ function writeExampleSuggestions(
           }
           @if (element().definitions.length) {
             @let definitions = shownDefinitions();
-            <div class="sense-list-head">
-              <h3 class="sense-list-title">Definitions</h3>
-              <div class="sense-list-tools">
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Add a definition"
-                  title="Add a definition"
-                  [disabled]="aiBusy()"
-                  (click)="addDefinitionManually()"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 5v14" />
-                    <path d="M5 12h14" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label="Missing definitions"
-                  [disabled]="aiBusy() || !!pendingDefinition()"
-                  [attr.title]="
-                    pendingDefinition()
-                      ? 'Keep or dismiss the suggestion first'
-                      : 'Missing definitions'
-                  "
-                  [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
-                  (click)="addMissingDefinition()"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                    />
-                    <path d="M5 3v4" />
-                    <path d="M3 5h4" />
-                    <path d="M19 17v4" />
-                    <path d="M17 19h4" />
-                  </svg>
-                </button>
-                @if (selectedSenses().size >= 2) {
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Merge definitions"
-                    title="Merge definitions"
-                    [disabled]="aiBusy()"
-                    [attr.aria-busy]="addingDefinitions() === 'merge' ? true : null"
-                    (click)="mergeSelectedDefinitions()"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m8 6 4-4 4 4" />
-                      <path d="M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22" />
-                      <path d="m20 22-5-5" />
-                    </svg>
-                  </button>
-                }
-                @if (selectedSenses().size) {
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Clear selection"
-                    title="Clear selection"
-                    [disabled]="aiBusy()"
-                    (click)="clearSenseSelection()"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
-                    </svg>
-                  </button>
-                }
-              </div>
-            </div>
-            <ol class="definitions" [class.selecting]="selectedSenses().size">
+            <ol class="definitions">
               @for (definition of definitions; track $index) {
                 @let index = $index;
                 <li
                   class="sense"
-                  [class.selected]="senseSelected(index)"
                   [class.open]="senseStage(index) === 'open'"
                   [attr.id]="'sense-' + index"
-                  (pointerdown)="onSensePointerDown($event, index)"
-                  (pointermove)="onSensePointerMove($event)"
-                  (pointerup)="onSensePointerUp()"
-                  (pointercancel)="onSensePointerUp()"
-                  (contextmenu)="onSenseContextMenu($event, index)"
                   (click)="onSenseClick($event, index)"
                 >
-                  <div
-                    class="sense-row"
-                    [class.actionable]="!selectedSenses().size && senseStage(index) !== 'open'"
-                  >
+                  <div class="sense-row" [class.actionable]="senseStage(index) !== 'open'">
                     <span class="sense-index">Definition {{ index + 1 }}</span>
                     <div class="sense-rail">
                       <div class="sense-actions">
@@ -1255,103 +1134,8 @@ function writeExampleSuggestions(
                 </li>
               }
             </ol>
-          } @else if (!pendingDefinition()) {
-            <div class="empty-definitions">
-              <p class="empty">No definitions yet.</p>
-              <button
-                type="button"
-                class="example-cta"
-                [disabled]="aiBusy()"
-                (click)="addDefinitionManually()"
-              >
-                Add a definition
-              </button>
-            </div>
-          }
-          @if (pendingDefinition(); as pending) {
-            <article class="pending-sense" id="pending-sense">
-              <div class="sense-row">
-                <span class="sense-index">Suggested definition</span>
-              </div>
-              @let passage = parsePassage(pending.text);
-              @if (passage.text) {
-                <div class="spoken">
-                  <div class="spoken-copy">
-                    <p class="passage">{{ passage.text }}</p>
-                    @for (translation of shownTranslations(passage); track $index) {
-                      <p class="pending-line">{{ labeledTranslation(translation) }}</p>
-                    }
-                  </div>
-                  <ng-container
-                    [ngTemplateOutlet]="hearButton"
-                    [ngTemplateOutletContext]="{
-                      key: 'pending-definition',
-                      text: pending.text,
-                      label: 'definition',
-                    }"
-                  />
-                </div>
-              }
-              @let meta = entries(pending.metadata);
-              @if ((supportAvailable() && pending.equivalent) || meta.length) {
-                <ul class="sense-meta">
-                  @if (supportAvailable() && pending.equivalent) {
-                    <li class="sense-equivalent">
-                      <ng-container [ngTemplateOutlet]="translationIcon" />
-                      <span>{{ labeledEquivalent(pending.equivalent) }}</span>
-                    </li>
-                  }
-                  @for (entry of meta; track entry.key) {
-                    @let color = metaColor('definitions', entry.key);
-                    <li [class.colored]="color" [style.--meta-color]="color">
-                      <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                      <span class="sense-meta-value">{{ label(entry.value) }}</span>
-                    </li>
-                  }
-                </ul>
-              }
-              @if (pending.example) {
-                @let examplePassage = parsePassage(pending.example);
-                @if (examplePassage.text) {
-                  <div class="pending-example">
-                    <div class="spoken">
-                      <div class="spoken-copy">
-                        <p class="passage">{{ examplePassage.text }}</p>
-                        @for (translation of shownTranslations(examplePassage); track $index) {
-                          <p class="pending-line">{{ labeledTranslation(translation) }}</p>
-                        }
-                      </div>
-                      <ng-container
-                        [ngTemplateOutlet]="hearButton"
-                        [ngTemplateOutletContext]="{
-                          key: 'pending-example',
-                          text: pending.example,
-                          label: 'example',
-                        }"
-                      />
-                    </div>
-                  </div>
-                }
-              }
-              <div class="pending-actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  [disabled]="busy() || asking()"
-                  (click)="dismissPendingDefinition()"
-                >
-                  Dismiss
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  [disabled]="busy() || asking()"
-                  (click)="keepPendingDefinition()"
-                >
-                  Keep
-                </button>
-              </div>
-            </article>
+          } @else {
+            <p class="empty">No definitions yet.</p>
           }
         </div>
         <footer class="definition-footer">
@@ -1497,6 +1281,27 @@ function writeExampleSuggestions(
                         </svg>
                       </button>
                     </span>
+                  }
+                  @if (current.kind === 'definition' && current.index == null) {
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Suggest a definition"
+                      title="Suggest a definition"
+                      [disabled]="aiBusy()"
+                      [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
+                      (click)="prefillDefinitionDraft()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                        />
+                        <path d="M5 3v4" />
+                        <path d="M3 5h4" />
+                        <path d="M19 17v4" />
+                        <path d="M17 19h4" />
+                      </svg>
+                    </button>
                   }
                   @if (current.kind === 'definition' && current.index != null) {
                     <button
@@ -1711,6 +1516,7 @@ function writeExampleSuggestions(
                     [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
                     [attr.aria-label]="current.kind === 'definition' ? 'Definition' : 'Example'"
                     rows="3"
+                    [disabled]="asking()"
                     [value]="textDraft()"
                     (input)="textDraft.set(inputValue($event))"
                   ></textarea>
@@ -3915,12 +3721,6 @@ function writeExampleSuggestions(
       flex: none;
     }
 
-    .empty-definitions {
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-    }
-
     .empty,
     .hint,
     .error {
@@ -3945,42 +3745,6 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-    }
-
-    .sense-list-head {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 0.85rem;
-    }
-
-    .sense-list-title {
-      margin: 0;
-      color: var(--text);
-      font-size: 0.875rem;
-      font-weight: 650;
-      letter-spacing: 0;
-      line-height: 1.2;
-      text-transform: none;
-    }
-
-    .sense-list-tools {
-      display: flex;
-      align-items: center;
-      gap: 0.05rem;
-      margin-left: auto;
-      color: #94a3b8;
-    }
-
-    .sense-list-tools .icon-btn {
-      width: 1.75rem;
-      height: 1.75rem;
-      border-radius: 0.25rem;
-    }
-
-    .sense-list-tools .icon-btn svg {
-      width: 0.9rem;
-      height: 0.9rem;
     }
 
     .sense-index {
@@ -4040,65 +3804,6 @@ function writeExampleSuggestions(
       border-radius: 1rem;
       background: var(--surface);
       -webkit-touch-callout: none;
-    }
-
-    .definitions.selecting .sense {
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .sense.selected {
-      border-color: color-mix(in srgb, var(--accent) 70%, transparent);
-      box-shadow:
-        0 0 16px -2px color-mix(in srgb, var(--accent) 45%, transparent),
-        inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
-    }
-
-    .pending-sense {
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      margin-top: 0.85rem;
-      padding: 0.85rem 1rem;
-      border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--border));
-      border-radius: 1rem;
-      background: linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--accent) 14%, transparent),
-        color-mix(in srgb, var(--accent) 5%, var(--surface))
-      );
-    }
-
-    .pending-sense .passage {
-      margin: 0;
-      color: var(--text);
-      font-size: 0.95rem;
-      line-height: 1.45;
-    }
-
-    .pending-line {
-      margin: 0;
-      color: #94a3b8;
-      font-size: 0.75rem;
-      line-height: 1.4;
-    }
-
-    .pending-example {
-      padding: 0.75rem;
-      border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
-      border-radius: 0.75rem;
-      background: color-mix(in srgb, var(--surface-2) 90%, transparent);
-    }
-
-    .pending-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 0.45rem;
-    }
-
-    .pending-actions .btn {
-      padding: 0.4rem 0.85rem;
-      font-size: 0.8125rem;
     }
 
     .sense-body {
@@ -5802,12 +5507,11 @@ export class ElementModal {
   readonly supportRevealed = signal<ReadonlySet<number>>(new Set());
   /** Example translations open, keyed by definition and example index. */
   readonly revealedExamples = signal<ReadonlySet<string>>(new Set());
-  readonly addingDefinitions = signal<'example' | 'missing' | 'merge' | null>(null);
-  readonly selectedSenses = signal<ReadonlySet<number>>(new Set());
-  /** Generated missing definition, shown in full until it is kept or dismissed. */
-  readonly pendingDefinition = signal<PendingDefinition | null>(null);
+  readonly addingDefinitions = signal<'example' | 'missing' | null>(null);
   /** Dismissed suggestions, so the next one is a different sense. */
-  private skippedDefinitions: PendingDefinition[] = [];
+  private skippedDefinitions: StoredSuggestion[] = [];
+  /** Generated sense filling the new-definition draft, until it is saved or skipped. */
+  private prefilledDefinition: StoredSuggestion | null = null;
   readonly definitionExample = signal('');
   /** Arrived example shown as text until it is placed. */
   readonly heldExample = signal('');
@@ -5849,12 +5553,6 @@ export class ElementModal {
   private trackedElementId = '';
   /** Definitions whose text was unveiled during this open. */
   private viewedDefinitions = new Set<string>();
-  private sensePressTimer: ReturnType<typeof setTimeout> | null = null;
-  private sensePressHeld = false;
-  private sensePressX = 0;
-  private sensePressY = 0;
-  private swallowSenseClick = false;
-  private swallowSenseTimer = 0;
   private engineerDrafts = new Map<string, EngineerDraft>();
   private definitionEngineerDrafts = new Map<string, DefinitionEngineerDraft>();
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
@@ -5908,8 +5606,7 @@ export class ElementModal {
       this.heldExample.set(arrived);
       this.formAttributesView.set(null);
       this.addingDefinitions.set(null);
-      this.clearSenseSelection();
-      this.pendingDefinition.set(null);
+      this.prefilledDefinition = null;
       this.skippedDefinitions = [];
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
@@ -5940,8 +5637,6 @@ export class ElementModal {
       document.removeEventListener('scroll', this.syncPassageSelection, true);
       window.removeEventListener('resize', this.syncPassageSelection);
       document.body.style.overflow = previous;
-      this.clearSensePress();
-      window.clearTimeout(this.swallowSenseTimer);
     });
     afterNextRender(() => this.closeButton()?.nativeElement.focus());
   }
@@ -5993,10 +5688,6 @@ export class ElementModal {
       this.closeDefinitionEngineer();
       return;
     }
-    if (this.selectedSenses().size) {
-      if (!this.aiBusy()) this.clearSenseSelection();
-      return;
-    }
     if (this.canGoBack()) {
       if (!this.busy()) this.back.emit();
       return;
@@ -6011,7 +5702,7 @@ export class ElementModal {
   closeSheet(event: MouseEvent): void {
     if (event.target !== event.currentTarget) return;
     if (this.confirm()) this.confirm.set(null);
-    else this.editor.set(null);
+    else this.closeEditor();
   }
 
   openTitle(): void {
@@ -6276,108 +5967,12 @@ export class ElementModal {
     return this.senseStages().get(index) ?? 'closed';
   }
 
-  senseSelected(index: number): boolean {
-    return this.selectedSenses().has(index);
-  }
-
-  onSensePointerDown(event: PointerEvent, index: number): void {
-    if (this.selectedSenses().size || this.aiBusy()) return;
-    if (event.button !== 0) return;
-    const target = event.target;
-    if (target instanceof Element && target.closest('button, a, input, textarea, select')) return;
-    this.clearSensePress();
-    this.sensePressX = event.clientX;
-    this.sensePressY = event.clientY;
-    this.sensePressTimer = setTimeout(() => {
-      this.sensePressTimer = null;
-      this.sensePressHeld = true;
-      this.beginSenseSelection(index);
-    }, SENSE_PRESS_MS);
-  }
-
-  onSensePointerMove(event: PointerEvent): void {
-    if (this.sensePressTimer == null) return;
-    const dx = event.clientX - this.sensePressX;
-    const dy = event.clientY - this.sensePressY;
-    if (dx * dx + dy * dy > SENSE_PRESS_SLOP * SENSE_PRESS_SLOP) this.clearSensePress();
-  }
-
-  onSensePointerUp(): void {
-    const held = this.sensePressHeld;
-    this.sensePressHeld = false;
-    this.clearSensePress();
-    if (held) this.armSenseClickSwallow();
-  }
-
-  onSenseContextMenu(event: Event, index: number): void {
-    const target = event.target;
-    if (target instanceof Element && target.closest('button, a, input, textarea, select')) return;
-    event.preventDefault();
-    if (this.aiBusy()) return;
-    this.armSenseClickSwallow();
-    if (this.selectedSenses().size) {
-      if (!this.selectedSenses().has(index)) this.toggleSenseSelection(index);
-      return;
-    }
-    this.beginSenseSelection(index);
-  }
-
   onSenseClick(event: Event, index: number): void {
-    if (this.consumeSenseClickSwallow()) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (target.closest('button, a, input, textarea, select')) return;
-    if (this.selectedSenses().size) {
-      if (!this.aiBusy()) this.toggleSenseSelection(index);
-      return;
-    }
     if (!target.closest('.sense-row')) return;
     this.unveilFromRow(event, index);
-  }
-
-  clearSenseSelection(): void {
-    this.clearSensePress();
-    this.sensePressHeld = false;
-    this.selectedSenses.set(new Set());
-  }
-
-  private beginSenseSelection(index: number): void {
-    if (this.aiBusy() || !this.element().definitions[index]) return;
-    this.selectedSenses.update((current) => {
-      const next = new Set(current);
-      next.add(index);
-      return next;
-    });
-  }
-
-  private toggleSenseSelection(index: number): void {
-    const next = new Set(this.selectedSenses());
-    if (next.has(index)) next.delete(index);
-    else if (this.element().definitions[index]) next.add(index);
-    this.selectedSenses.set(next);
-  }
-
-  private armSenseClickSwallow(): void {
-    this.swallowSenseClick = true;
-    window.clearTimeout(this.swallowSenseTimer);
-    this.swallowSenseTimer = window.setTimeout(() => {
-      this.swallowSenseClick = false;
-      this.swallowSenseTimer = 0;
-    }, 700);
-  }
-
-  private consumeSenseClickSwallow(): boolean {
-    if (!this.swallowSenseClick) return false;
-    this.swallowSenseClick = false;
-    window.clearTimeout(this.swallowSenseTimer);
-    this.swallowSenseTimer = 0;
-    return true;
-  }
-
-  private clearSensePress(): void {
-    if (this.sensePressTimer == null) return;
-    clearTimeout(this.sensePressTimer);
-    this.sensePressTimer = null;
   }
 
   /** A click on the definition row takes the next step. The icon buttons do that themselves. */
@@ -6502,12 +6097,19 @@ export class ElementModal {
       );
     }
     if (editor.kind !== 'definition') return true;
-    return this.busy() || this.translating() || this.askingEquivalent() || !this.draftGloss();
+    return (
+      this.busy() ||
+      this.asking() ||
+      this.translating() ||
+      this.askingEquivalent() ||
+      !this.draftGloss()
+    );
   }
 
   workCloseDisabled(): boolean {
     return (
       this.busy() ||
+      this.asking() ||
       this.definitionSheetBusy() ||
       this.askingExamples() !== null ||
       this.askingForms() !== null
@@ -6537,6 +6139,7 @@ export class ElementModal {
     const editor = this.editor();
     if (!editor) return;
     if (
+      this.asking() ||
       this.definitionSheetBusy() ||
       this.askingExamples() !== null ||
       this.askingForms() !== null
@@ -6547,6 +6150,7 @@ export class ElementModal {
       this.openExamples(editor.definitionIndex);
       return;
     }
+    if (editor.kind === 'definition' && editor.index == null) this.skipPrefilledDefinition();
     this.editor.set(null);
     this.definitionEngineer.set(null);
     this.exampleEngineer.set(null);
@@ -6655,106 +6259,20 @@ export class ElementModal {
     this.openDefinition(null);
   }
 
-  async mergeSelectedDefinitions(): Promise<void> {
-    if (this.aiBusy() || this.selectedSenses().size < 2) return;
-    const element = this.currentElement();
-    const indexes = [...this.selectedSenses()]
-      .filter((index) => element.definitions[index])
-      .sort((left, right) => left - right);
-    if (indexes.length < 2) return;
-    const title = element.title.trim();
-    if (!title) return;
-    if (!readStoredAiCredentials().keys.length) {
-      this.error.set('Save an API key first.');
-      return;
-    }
-    const fingerprints = indexes.map((index) => element.definitions[index]?.text ?? '');
-    this.addingDefinitions.set('merge');
-    this.asking.set(true);
-    this.error.set('');
-    try {
-      const sense = await mergeDefinitions({
-        language: element.language,
-        title,
-        translation: this.translationTarget(),
-        existingDefinitions: indexes.map((index) => {
-          const definition = element.definitions[index];
-          return { text: definition?.text ?? '', metadata: definition?.metadata ?? {} };
-        }),
-      });
-      if (!this.alive || this.element().id !== element.id) return;
-      if (!sense) {
-        this.error.set('Could not merge those definitions.');
-        return;
-      }
-      const definitions = this.copyDefinitions();
-      if (indexes.some((index, place) => definitions[index]?.text !== fingerprints[place])) {
-        this.error.set('Could not merge those definitions.');
-        return;
-      }
-      const chosen = indexes
-        .map((index) => definitions[index])
-        .filter((definition): definition is ElementDefinition => !!definition);
-      if (chosen.length < 2) {
-        this.error.set('Could not merge those definitions.');
-        return;
-      }
-      const first = indexes[0] ?? 0;
-      const linked = joinedEquivalentLinks(this.currentElement().equivalents, chosen);
-      const merged: ElementDefinition = {
-        text: sense.text,
-        equivalentIds: linked.equivalentIds,
-        forms: uniqueByText(chosen.flatMap((definition) => definition.forms)),
-        examples: uniqueByText(chosen.flatMap((definition) => definition.examples)),
-        metadata: { ...sense.metadata },
-        log: chosen.flatMap((definition) => definition.log.map((entry) => ({ ...entry }))),
-      };
-      const removed = new Set(indexes);
-      const next = [
-        ...definitions.slice(0, first),
-        merged,
-        ...definitions.filter((_, index) => index > first && !removed.has(index)),
-      ];
-      if (!(await this.persist(next, linked.equivalents))) return;
-      if (!this.alive || this.element().id !== element.id) return;
-      this.closeWorkOnSenses(removed);
-      const dropped = indexes
-        .filter((index) => index !== first)
-        .sort((left, right) => right - left);
-      for (const index of dropped) this.retargetAfterDrop(index);
-      for (const definition of chosen) {
-        const key = senseKey(definition.text);
-        if (!key || next.some((item) => senseKey(item.text) === key)) continue;
-        this.engineerDrafts.delete(key);
-        this.definitionEngineerDrafts.delete(key);
-        this.replaceExampleSuggestions(element.id, key, []);
-      }
-      writeRelatedDrafts(element.id, this.definitionEngineerDrafts);
-      this.clearSenseSelection();
-      this.refreshNewDefinitions(element.id);
-      this.scrollSenseIntoView(first);
-    } catch {
-      if (this.element().id === element.id) this.error.set('Could not merge those definitions.');
-    } finally {
-      if (this.element().id === element.id) {
-        this.asking.set(false);
-        this.addingDefinitions.set(null);
-      }
-    }
-  }
-
-  async addMissingDefinition(): Promise<void> {
-    if (this.aiBusy() || this.pendingDefinition()) return;
+  async prefillDefinitionDraft(): Promise<void> {
+    const editor = this.editor();
+    if (!editor || editor.kind !== 'definition' || editor.index != null || this.aiBusy()) return;
     const element = this.element();
     const title = element.title.trim();
     if (!title) return;
     if (!readStoredAiCredentials().keys.length) {
-      this.error.set('Save an API key first.');
+      this.sheetError.set('Save an API key first.');
       return;
     }
+    this.skipPrefilledDefinition();
     this.addingDefinitions.set('missing');
     this.asking.set(true);
-    this.error.set('');
+    this.sheetError.set('');
     try {
       const senses = await generateDefinitions({
         language: element.language,
@@ -6772,44 +6290,55 @@ export class ElementModal {
         ],
       });
       if (this.element().id !== element.id) return;
+      const open = this.editor();
+      if (open?.kind !== 'definition' || open.index != null) return;
       const sense = senses[0];
       if (!sense) {
-        this.error.set('No further definitions.');
+        this.sheetError.set('No further definitions.');
         return;
       }
-      this.pendingDefinition.set({
-        text: sense.text,
-        metadata: sense.metadata,
-        ...(sense.example ? { example: sense.example } : {}),
-        ...(sense.equivalent ? { equivalent: sense.equivalent } : {}),
-      });
-      this.scrollPendingIntoView();
+      this.applyGeneratedDefinition(sense);
     } catch {
-      if (this.element().id === element.id) this.error.set('Could not add that definition.');
+      if (this.element().id === element.id) this.sheetError.set('Could not add that definition.');
     } finally {
       if (this.element().id === element.id) this.asking.set(false);
       this.addingDefinitions.set(null);
     }
   }
 
-  dismissPendingDefinition(): void {
-    const pending = this.pendingDefinition();
-    if (!pending || this.busy() || this.asking()) return;
-    this.skippedDefinitions.push(pending);
-    this.pendingDefinition.set(null);
+  /** The generated gloss was not kept, so the next suggestion is a different sense. */
+  private skipPrefilledDefinition(): void {
+    const prefilled = this.prefilledDefinition;
+    this.prefilledDefinition = null;
+    if (!prefilled) return;
+    this.skippedDefinitions.push(prefilled);
   }
 
-  async keepPendingDefinition(): Promise<void> {
-    const pending = this.pendingDefinition();
-    if (!pending || this.busy() || this.asking()) return;
-    const element = this.element();
-    const saved = await this.commitGeneratedSenses(element, [pending], 'end');
-    if (this.element().id !== element.id) return;
-    if (!saved) {
-      this.error.set('Could not add that definition.');
-      return;
-    }
-    this.pendingDefinition.set(null);
+  private applyGeneratedDefinition(sense: {
+    text: string;
+    metadata: ElementMetadata;
+    example?: string;
+    equivalent?: string;
+  }): void {
+    this.beginSheet(sense.text);
+    this.sheetMetadata.set({ ...sense.metadata });
+    this.metaEdit.set(null);
+    this.metaKey.set('');
+    this.metaValue.set('');
+    const language = this.translationTarget();
+    const equivalent = sense.equivalent?.trim() ?? '';
+    if (language && equivalent) {
+      const assigned = assignEquivalent(this.sheetEquivalents(), equivalent, language);
+      this.sheetEquivalents.set(assigned.equivalents);
+      this.equivalentIdDraft.set(assigned.equivalentId);
+    } else this.equivalentIdDraft.set(null);
+    this.equivalentDraft.set('');
+    this.prefilledDefinition = {
+      text: sense.text,
+      metadata: { ...sense.metadata },
+      ...(sense.example ? { example: sense.example } : {}),
+      ...(equivalent ? { equivalent } : {}),
+    };
   }
 
   async addDefinitionFromExample(): Promise<void> {
@@ -7006,7 +6535,6 @@ export class ElementModal {
     if (related != null) this.askingRelated.set(related + by);
     const wording = this.askingWording();
     if (wording != null) this.askingWording.set(wording + by);
-    this.selectedSenses.update((current) => shiftIndexSet(current, by));
     const engineer = this.exampleEngineer();
     if (engineer) {
       this.exampleEngineer.set({ ...engineer, definitionIndex: engineer.definitionIndex + by });
@@ -7138,21 +6666,6 @@ export class ElementModal {
     void this.persist(definitions, element.equivalents, { busy: false });
   }
 
-  private scrollPendingIntoView(): void {
-    const elementId = this.element().id;
-    const run = (attempt: number) => {
-      if (!this.alive || this.element().id !== elementId) return;
-      const body = this.definitionBody()?.nativeElement;
-      const sense = body?.querySelector('#pending-sense');
-      if (sense instanceof HTMLElement) {
-        sense.scrollIntoView({ block: 'nearest' });
-        return;
-      }
-      if (attempt < 2) requestAnimationFrame(() => run(attempt + 1));
-    };
-    requestAnimationFrame(() => run(0));
-  }
-
   private scrollSenseIntoView(index: number): void {
     const elementId = this.element().id;
     const run = (attempt: number) => {
@@ -7180,127 +6693,13 @@ export class ElementModal {
     this.revealedExamples.update((current) => dropExampleKeys(current, index));
   }
 
-  /** Close editors that pointed at a sense which was just merged away. */
-  private closeWorkOnSenses(indexes: ReadonlySet<number>): void {
-    const editor = this.editor();
-    const editorIndex =
-      editor?.kind === 'definition' || editor?.kind === 'examples' || editor?.kind === 'forms'
-        ? editor.index
-        : editor?.kind === 'example'
-          ? editor.definitionIndex
-          : null;
-    if (editorIndex != null && indexes.has(editorIndex)) this.editor.set(null);
-    const form = this.formEdit();
-    if (form && indexes.has(form.definitionIndex)) this.formEdit.set(null);
-    const pending = this.confirm();
-    if (pending?.kind === 'definition' && indexes.has(pending.index)) this.confirm.set(null);
-    if (
-      (pending?.kind === 'example' || pending?.kind === 'exercise') &&
-      indexes.has(pending.definitionIndex)
-    ) {
-      this.confirm.set(null);
-    }
-    const asking = this.askingExamples();
-    if (asking != null && indexes.has(asking)) this.askingExamples.set(null);
-    const forms = this.askingForms();
-    if (forms != null && indexes.has(forms)) this.askingForms.set(null);
-    const draft = this.exampleDraft();
-    if (draft && indexes.has(draft.definitionIndex)) this.exampleDraft.set(null);
-    const pendingForms = this.pendingForms();
-    if (pendingForms && indexes.has(pendingForms.definitionIndex)) this.pendingForms.set(null);
-    const related = this.askingRelated();
-    if (related != null && indexes.has(related)) this.askingRelated.set(null);
-    const wording = this.askingWording();
-    if (wording != null && indexes.has(wording)) this.askingWording.set(null);
-    const engineer = this.exampleEngineer();
-    if (engineer && indexes.has(engineer.definitionIndex)) this.exampleEngineer.set(null);
-    const definitionEngineer = this.definitionEngineer();
-    if (definitionEngineer && indexes.has(definitionEngineer.definitionIndex)) {
-      this.definitionEngineer.set(null);
-    }
-    if (indexes.has(this.exerciseLog())) {
-      this.exerciseLog.set(-1);
-      this.exerciseEntry.set(-1);
-    }
-    this.collision.set(null);
-  }
-
-  /** Shift open indexes after one definition is removed. `null` means that index was removed. */
-  private movedDefinitionIndex(value: number, dropped: number): number | null {
-    if (value === dropped) return null;
-    return value > dropped ? value - 1 : value;
-  }
-
-  private retargetAfterDrop(index: number): void {
-    const editor = this.editor();
-    if (editor?.kind === 'definition' && editor.index != null) {
-      const next = this.movedDefinitionIndex(editor.index, index);
-      this.editor.set(next == null ? null : { kind: 'definition', index: next });
-    } else if (editor?.kind === 'examples' || editor?.kind === 'forms') {
-      const next = this.movedDefinitionIndex(editor.index, index);
-      this.editor.set(next == null ? null : { ...editor, index: next });
-    } else if (editor?.kind === 'example') {
-      const next = this.movedDefinitionIndex(editor.definitionIndex, index);
-      this.editor.set(next == null ? null : { ...editor, definitionIndex: next });
-    }
-    const form = this.formEdit();
-    if (form) {
-      const next = this.movedDefinitionIndex(form.definitionIndex, index);
-      this.formEdit.set(next == null ? null : { ...form, definitionIndex: next });
-    }
-    const pending = this.confirm();
-    if (pending?.kind === 'definition') {
-      const next = this.movedDefinitionIndex(pending.index, index);
-      this.confirm.set(next == null ? null : { kind: 'definition', index: next });
-    } else if (pending && (pending.kind === 'example' || pending.kind === 'exercise')) {
-      const next = this.movedDefinitionIndex(pending.definitionIndex, index);
-      this.confirm.set(next == null ? null : { ...pending, definitionIndex: next });
-    }
-    const asking = this.askingExamples();
-    if (asking != null) this.askingExamples.set(this.movedDefinitionIndex(asking, index));
-    const forms = this.askingForms();
-    if (forms != null) this.askingForms.set(this.movedDefinitionIndex(forms, index));
-    const draft = this.exampleDraft();
-    if (draft) {
-      const next = this.movedDefinitionIndex(draft.definitionIndex, index);
-      this.exampleDraft.set(next == null ? null : { ...draft, definitionIndex: next });
-    }
-    const pendingForms = this.pendingForms();
-    if (pendingForms) {
-      const next = this.movedDefinitionIndex(pendingForms.definitionIndex, index);
-      this.pendingForms.set(next == null ? null : { ...pendingForms, definitionIndex: next });
-    }
-    const related = this.askingRelated();
-    if (related != null) this.askingRelated.set(this.movedDefinitionIndex(related, index));
-    const wording = this.askingWording();
-    if (wording != null) this.askingWording.set(this.movedDefinitionIndex(wording, index));
-    const engineer = this.exampleEngineer();
-    if (engineer) {
-      const next = this.movedDefinitionIndex(engineer.definitionIndex, index);
-      this.exampleEngineer.set(next == null ? null : { ...engineer, definitionIndex: next });
-    }
-    const definitionEngineer = this.definitionEngineer();
-    if (definitionEngineer) {
-      const next = this.movedDefinitionIndex(definitionEngineer.definitionIndex, index);
-      this.definitionEngineer.set(
-        next == null ? null : { ...definitionEngineer, definitionIndex: next },
-      );
-    }
-    const log = this.exerciseLog();
-    if (log >= 0) {
-      const next = this.movedDefinitionIndex(log, index);
-      if (next == null) {
-        this.exerciseLog.set(-1);
-        this.exerciseEntry.set(-1);
-      } else this.exerciseLog.set(next);
-    }
-    this.dropSenseState(index);
-  }
-
   openDefinition(index: number | null): void {
     const definition =
       index == null ? null : (this.sheetDefinition(index) ?? this.element().definitions[index]);
     if (index != null && !definition) return;
+    const leaving = this.editor();
+    if (leaving?.kind === 'definition' && leaving.index == null) this.skipPrefilledDefinition();
+    else this.prefilledDefinition = null;
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
@@ -8180,7 +7579,16 @@ export class ElementModal {
   async saveEditor(): Promise<void> {
     const editor = this.editor();
     const primary = this.draftGloss();
-    if (!editor || !primary || this.busy() || this.translating() || this.askingEquivalent()) return;
+    if (
+      !editor ||
+      !primary ||
+      this.busy() ||
+      this.asking() ||
+      this.translating() ||
+      this.askingEquivalent()
+    ) {
+      return;
+    }
     const text = this.phraseToStore();
     const definitions = this.copyDefinitions();
     if (editor.kind === 'definition') {
@@ -8213,11 +7621,20 @@ export class ElementModal {
       const equivalent = linked.equivalentId
         ? (linked.equivalents.find((item) => item.id === linked.equivalentId)?.text ?? '')
         : '';
+      const prefilled = this.prefilledDefinition;
+      const generatedExample =
+        editor.index == null &&
+        prefilled?.example &&
+        definitionGloss(prefilled.text) === definitionGloss(text)
+          ? prefilled.example
+          : '';
       const next: ElementDefinition = {
         text,
         equivalentIds,
         forms: current?.forms ?? [],
-        examples: current?.examples ?? [],
+        examples: generatedExample
+          ? [...(current?.examples ?? []), { text: generatedExample, metadata: {} }]
+          : (current?.examples ?? []),
         metadata: this.metadataToStore(),
         log: this.logWithRework(current, text, equivalent, this.metadataToStore()),
       };
@@ -8225,6 +7642,7 @@ export class ElementModal {
       else unlinked[editor.index] = next;
       const index = editor.index ?? unlinked.length - 1;
       if (await this.persist(unlinked, linked.equivalents)) {
+        this.prefilledDefinition = null;
         if (editor.index == null) this.scrollSenseIntoView(index);
         this.closeEditor();
       }
@@ -8367,6 +7785,8 @@ export class ElementModal {
 
   askDeleteElement(): void {
     if (this.busy()) return;
+    const editor = this.editor();
+    if (editor?.kind === 'definition' && editor.index == null) this.skipPrefilledDefinition();
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -8466,10 +7886,13 @@ export class ElementModal {
       if (wording === pending.index) this.askingWording.set(null);
       else if (wording != null && wording > pending.index) this.askingWording.set(wording - 1);
       this.dropSenseState(pending.index);
-      this.selectedSenses.update((current) => dropIndexSet(current, pending.index));
     }
     this.confirm.set(null);
-    if (pending.kind === 'definition') this.editor.set(null);
+    if (pending.kind === 'definition') {
+      const editor = this.editor();
+      if (editor?.kind === 'definition' && editor.index == null) this.skipPrefilledDefinition();
+      this.editor.set(null);
+    }
     else this.adjustExampleEditor(pending.definitionIndex, pending.exampleIndex);
   }
 

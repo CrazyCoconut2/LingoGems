@@ -46,7 +46,6 @@ export {
   generateDefinitions,
   generateElementFromSelection,
   generateForms,
-  mergeDefinitions,
   type GeneratedDefinition,
 } from './definitions';
 
