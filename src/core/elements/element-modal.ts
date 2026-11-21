@@ -181,11 +181,9 @@ type PendingForms = {
 type ConfirmDelete =
   | { kind: 'element' }
   | { kind: 'definition'; index: number }
-  | { kind: 'definitions' }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number }
   | { kind: 'exercise'; definitionIndex: number; historyIndex: number };
 
-const DELETE_PRESS_MS = 500;
 type StoredSuggestion = {
   text: string;
   metadata: ElementMetadata;
@@ -852,27 +850,6 @@ function writeExampleSuggestions(
                               <path d="M8 17v-3" />
                             </svg>
                           </button>
-                          <button
-                            type="button"
-                            class="icon-btn danger"
-                            [attr.aria-label]="deleteLabel()"
-                            [attr.title]="deleteTitle()"
-                            [disabled]="busy() || aiBusy()"
-                            (pointerdown)="startDeletePress($event)"
-                            (pointermove)="moveDeletePress($event)"
-                            (pointerup)="endDeletePress()"
-                            (pointercancel)="endDeletePress()"
-                            (contextmenu)="$event.preventDefault()"
-                            (click)="onDeleteClick(index)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M3 6h18" />
-                              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                              <path d="M10 11v6" />
-                              <path d="M14 11v6" />
-                            </svg>
-                          </button>
                         }
                       </div>
                     </div>
@@ -1283,6 +1260,24 @@ function writeExampleSuggestions(
                 <span class="sheet-tools">
                   @if (current.kind === 'definition' || current.kind === 'example') {
                     <ng-container [ngTemplateOutlet]="draftActions" />
+                  }
+                  @if (current.kind === 'definition' && current.index != null) {
+                    <button
+                      type="button"
+                      class="icon-btn danger"
+                      aria-label="Delete definition"
+                      title="Delete definition"
+                      [disabled]="busy() || aiBusy()"
+                      (click)="askDeleteDefinition(current.index)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                      </svg>
+                    </button>
                   }
                   <button
                     type="button"
@@ -2871,9 +2866,7 @@ function writeExampleSuggestions(
                     ? 'This element will be removed. All gems accumulated for it and all of its stats will disappear.'
                     : pending.kind === 'definition'
                       ? 'This definition will be removed. The stats and gems gained for it will be lost.'
-                      : pending.kind === 'definitions'
-                        ? 'Every definition will be removed. The stats and gems gained for them will be lost.'
-                        : 'This will be removed.'
+                      : 'This will be removed.'
                 }}
               </p>
               <div class="sheet-actions">
@@ -3847,11 +3840,6 @@ function writeExampleSuggestions(
     .sense-actions .icon-btn svg {
       width: 0.9rem;
       height: 0.9rem;
-    }
-
-    .sense-actions .icon-btn.danger:hover:not(:disabled) {
-      color: #fb7185;
-      background: rgba(244, 63, 94, 0.2);
     }
 
     .sense {
@@ -5620,7 +5608,6 @@ export class ElementModal {
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       this.alive = false;
-      this.endDeletePress();
       stopSpeaking();
     });
     effect(() => {
@@ -5628,8 +5615,6 @@ export class ElementModal {
       if (id === this.trackedElementId) return;
       const definition = this.definitionIndex();
       this.trackedElementId = id;
-      this.endDeletePress();
-      this.deletePressHeld = false;
       this.written = null;
       this.stopSpeech();
       this.editor.set(null);
@@ -7728,7 +7713,6 @@ export class ElementModal {
   confirmTitle(pending: ConfirmDelete): string {
     if (pending.kind === 'element') return 'Delete this element?';
     if (pending.kind === 'definition') return 'Delete this definition?';
-    if (pending.kind === 'definitions') return 'Delete all definitions?';
     if (pending.kind === 'exercise') {
       const definition = this.element().definitions[pending.definitionIndex];
       const entry = definition
@@ -7744,49 +7728,6 @@ export class ElementModal {
     return 'Delete this example?';
   }
 
-  deleteLabel(): string {
-    return this.element().definitions.length ? 'Delete definition' : 'Delete element';
-  }
-
-  deleteTitle(): string {
-    return this.element().definitions.length
-      ? 'Delete definition. Hold to delete all.'
-      : 'Delete element';
-  }
-
-  startDeletePress(event: PointerEvent): void {
-    if (event.button !== 0 || !this.element().definitions.length) return;
-    if (this.busy() || this.aiBusy()) return;
-    this.endDeletePress();
-    this.deletePressX = event.clientX;
-    this.deletePressY = event.clientY;
-    this.deletePressTimer = window.setTimeout(() => {
-      this.deletePressTimer = 0;
-      this.deletePressHeld = true;
-      this.askDeleteAllDefinitions();
-    }, DELETE_PRESS_MS);
-  }
-
-  moveDeletePress(event: PointerEvent): void {
-    if (!this.deletePressTimer) return;
-    const dx = event.clientX - this.deletePressX;
-    const dy = event.clientY - this.deletePressY;
-    if (dx * dx + dy * dy > 100) this.endDeletePress();
-  }
-
-  endDeletePress(): void {
-    window.clearTimeout(this.deletePressTimer);
-    this.deletePressTimer = 0;
-  }
-
-  onDeleteClick(index: number): void {
-    if (this.deletePressHeld) {
-      this.deletePressHeld = false;
-      return;
-    }
-    this.askDeleteDefinition(index);
-  }
-
   askDeleteElement(): void {
     if (this.busy()) return;
     this.editor.set(null);
@@ -7800,12 +7741,6 @@ export class ElementModal {
     if (this.aiBusy() || this.busy()) return;
     if (!this.element().definitions[index]) return;
     this.confirm.set({ kind: 'definition', index });
-  }
-
-  askDeleteAllDefinitions(): void {
-    if (this.aiBusy() || this.busy()) return;
-    if (!this.element().definitions.length) return;
-    this.confirm.set({ kind: 'definitions' });
   }
 
   askDeleteExample(definitionIndex: number, exampleIndex: number): void {
@@ -7829,10 +7764,6 @@ export class ElementModal {
     }
     if (pending.kind === 'exercise') {
       await this.removeExercise(pending.definitionIndex, pending.historyIndex);
-      return;
-    }
-    if (pending.kind === 'definitions') {
-      await this.removeAllDefinitions();
       return;
     }
     const definitions = this.copyDefinitions();
@@ -7902,34 +7833,6 @@ export class ElementModal {
     this.confirm.set(null);
     if (pending.kind === 'definition') this.editor.set(null);
     else this.adjustExampleEditor(pending.definitionIndex, pending.exampleIndex);
-  }
-
-  private async removeAllDefinitions(): Promise<void> {
-    const definitions = this.copyDefinitions();
-    const removed = definitions.map((definition) => senseKey(definition.text)).filter(Boolean);
-    if (!(await this.persist([], this.element().equivalents))) return;
-    for (const key of removed) {
-      this.engineerDrafts.delete(key);
-      this.definitionEngineerDrafts.delete(key);
-      this.replaceExampleSuggestions(this.element().id, key, []);
-    }
-    writeRelatedDrafts(this.element().id, this.definitionEngineerDrafts);
-    this.exampleEngineer.set(null);
-    this.definitionEngineer.set(null);
-    this.askingExamples.set(null);
-    this.askingForms.set(null);
-    this.exampleDraft.set(null);
-    this.pendingForms.set(null);
-    this.askingRelated.set(null);
-    this.askingWording.set(null);
-    this.editor.set(null);
-    this.formEdit.set(null);
-    this.formAttributesView.set(null);
-    this.senseStages.set(new Map());
-    this.supportRevealed.set(new Set());
-    this.revealedExamples.set(new Set());
-    this.definitionBody()?.nativeElement.scrollTo({ top: 0 });
-    this.confirm.set(null);
   }
 
   private adjustExampleEditor(definitionIndex: number, exampleIndex: number): void {
@@ -8169,11 +8072,6 @@ export class ElementModal {
   }
 
   /** First score captures the definition. A later score in the same round keeps that snapshot. */
-
-  private deletePressTimer = 0;
-  private deletePressHeld = false;
-  private deletePressX = 0;
-  private deletePressY = 0;
 
   noteReveal(
     index: number,
