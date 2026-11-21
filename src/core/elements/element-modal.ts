@@ -752,38 +752,41 @@ function writeExampleSuggestions(
           @if (element().definitions.length) {
             @let definitions = shownDefinitions();
             <div class="sense-list-head">
-              <button
-                type="button"
-                class="icon-btn"
-                aria-label="Add a definition"
-                title="Add a definition"
-                [disabled]="aiBusy()"
-                (click)="addDefinitionManually()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 5v14" />
-                  <path d="M5 12h14" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="icon-btn"
-                aria-label="Missing definitions"
-                title="Missing definitions"
-                [disabled]="aiBusy()"
-                [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
-                (click)="addMissingDefinition()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                  />
-                  <path d="M5 3v4" />
-                  <path d="M3 5h4" />
-                  <path d="M19 17v4" />
-                  <path d="M17 19h4" />
-                </svg>
-              </button>
+              <h3 class="sense-list-title">Definitions</h3>
+              <div class="sense-list-tools">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Add a definition"
+                  title="Add a definition"
+                  [disabled]="aiBusy()"
+                  (click)="addDefinitionManually()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14" />
+                    <path d="M5 12h14" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Missing definitions"
+                  title="Missing definitions"
+                  [disabled]="aiBusy()"
+                  [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
+                  (click)="addMissingDefinition()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                    />
+                    <path d="M5 3v4" />
+                    <path d="M3 5h4" />
+                    <path d="M19 17v4" />
+                    <path d="M17 19h4" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <ol class="definitions">
               @for (definition of definitions; track $index) {
@@ -3762,18 +3765,35 @@ function writeExampleSuggestions(
     .sense-list-head {
       display: flex;
       align-items: center;
-      gap: 0.05rem;
+      gap: 0.75rem;
       margin-bottom: 0.85rem;
+    }
+
+    .sense-list-title {
+      margin: 0;
+      color: var(--text);
+      font-size: 0.875rem;
+      font-weight: 650;
+      letter-spacing: 0;
+      line-height: 1.2;
+      text-transform: none;
+    }
+
+    .sense-list-tools {
+      display: flex;
+      align-items: center;
+      gap: 0.05rem;
+      margin-left: auto;
       color: #94a3b8;
     }
 
-    .sense-list-head .icon-btn {
+    .sense-list-tools .icon-btn {
       width: 1.75rem;
       height: 1.75rem;
       border-radius: 0.25rem;
     }
 
-    .sense-list-head .icon-btn svg {
+    .sense-list-tools .icon-btn svg {
       width: 0.9rem;
       height: 0.9rem;
     }
