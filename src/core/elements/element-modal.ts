@@ -793,8 +793,83 @@ function writeExampleSuggestions(
                   [class.open]="senseStage(index) === 'open'"
                   [attr.id]="'sense-' + index"
                 >
-                  <div class="sense-lead">
+                  <div class="sense-row">
                     <span class="sense-index">Definition {{ index + 1 }}</span>
+                    <div class="sense-rail">
+                      <div class="sense-actions">
+                        @if (senseStage(index) === 'closed') {
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Show examples"
+                            title="Show examples"
+                            (click)="unveilExamples(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path
+                                d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                              />
+                              <path
+                                d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                              />
+                            </svg>
+                          </button>
+                        } @else if (senseStage(index) === 'examples') {
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Show definition"
+                            title="Show definition"
+                            (click)="unveilDefinitionText(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path
+                                d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
+                              />
+                              <path d="m8 13 4-7 4 7" />
+                              <path d="M9.1 11h5.7" />
+                            </svg>
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            class="icon-btn"
+                            aria-label="Stats"
+                            title="Stats"
+                            (click)="openExerciseLog(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+                              <path d="M18 17V9" />
+                              <path d="M13 17V5" />
+                              <path d="M8 17v-3" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            class="icon-btn danger"
+                            [attr.aria-label]="deleteLabel()"
+                            [attr.title]="deleteTitle()"
+                            [disabled]="busy() || aiBusy()"
+                            (pointerdown)="startDeletePress($event)"
+                            (pointermove)="moveDeletePress($event)"
+                            (pointerup)="endDeletePress()"
+                            (pointercancel)="endDeletePress()"
+                            (contextmenu)="$event.preventDefault()"
+                            (click)="onDeleteClick(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M3 6h18" />
+                              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                              <path d="M10 11v6" />
+                              <path d="M14 11v6" />
+                            </svg>
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  </div>
                     @if (senseStage(index) !== 'closed') {
                     <div class="sense-body">
                     @if (senseStage(index) === 'open') {
@@ -1097,81 +1172,6 @@ function writeExampleSuggestions(
                   }
                     </div>
                   }
-                  </div>
-                  <div class="sense-rail">
-                    <div class="sense-actions">
-                      @if (senseStage(index) === 'closed') {
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Show examples"
-                          title="Show examples"
-                          (click)="unveilExamples(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                            />
-                            <path
-                              d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                            />
-                          </svg>
-                        </button>
-                      } @else if (senseStage(index) === 'examples') {
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Show definition"
-                          title="Show definition"
-                          (click)="unveilDefinitionText(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
-                            />
-                            <path d="m8 13 4-7 4 7" />
-                            <path d="M9.1 11h5.7" />
-                          </svg>
-                        </button>
-                      } @else {
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Stats"
-                          title="Stats"
-                          (click)="openExerciseLog(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M3 3v16a2 2 0 0 0 2 2h16" />
-                            <path d="M18 17V9" />
-                            <path d="M13 17V5" />
-                            <path d="M8 17v-3" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn danger"
-                          [attr.aria-label]="deleteLabel()"
-                          [attr.title]="deleteTitle()"
-                          [disabled]="busy() || aiBusy()"
-                          (pointerdown)="startDeletePress($event)"
-                          (pointermove)="moveDeletePress($event)"
-                          (pointerup)="endDeletePress()"
-                          (pointercancel)="endDeletePress()"
-                          (contextmenu)="$event.preventDefault()"
-                          (click)="onDeleteClick(index)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M3 6h18" />
-                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                            <path d="M10 11v6" />
-                            <path d="M14 11v6" />
-                          </svg>
-                        </button>
-                      }
-                    </div>
-                  </div>
                 </li>
               }
             </ol>
@@ -3786,12 +3786,11 @@ function writeExampleSuggestions(
       white-space: nowrap;
     }
 
-    .sense-lead {
+    .sense-row {
       display: flex;
-      flex: 1;
-      flex-direction: column;
-      gap: 0.875rem;
-      min-width: 0;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
     }
 
     .sense-rail {
@@ -3829,24 +3828,20 @@ function writeExampleSuggestions(
 
     .sense {
       display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 0.75rem;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.875rem;
       padding: 0.85rem 1rem;
       border: 1px solid var(--border);
       border-radius: 1rem;
       background: var(--surface);
     }
 
-    .sense.open {
-      align-items: flex-start;
-    }
-
     .sense-body {
       display: flex;
-      flex: 1;
       flex-direction: column;
       gap: 0.875rem;
+      width: 100%;
       min-width: 0;
     }
 
