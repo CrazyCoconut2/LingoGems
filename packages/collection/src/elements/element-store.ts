@@ -221,17 +221,6 @@ export function elementModeLabel(mode: ElementMode): string {
   return ELEMENT_MODE_LABELS[mode];
 }
 
-/** What the player does in one exercise. */
-export function elementModeHelp(mode: ElementMode): string {
-  if (mode === 1) {
-    return `Write the equivalent for each definition. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI.`;
-  }
-  if (mode === 2) {
-    return `Write an example for each definition. The AI checks that it uses a valid form of the word and that the other words show that sense, then scores it from 0 to ${TRANSLATION_GEM_MAX}.`;
-  }
-  return `Write each hidden definition and submit it. Then score it from 0 to ${TRANSLATION_GEM_MAX}, or ask the AI. Or give up to see it.`;
-}
-
 export type StoredElement = {
   id: string;
   language: LearnableLanguage;

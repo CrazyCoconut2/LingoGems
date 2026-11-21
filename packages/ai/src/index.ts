@@ -57,16 +57,6 @@ export {
   sentenceUsesForm,
 } from './examples';
 
-export { polishDefinition, type PolishDefinitionTask } from './polish-definition';
-
-export { gradeDefinition } from './grade-definition';
-
-export { gradeExample } from './grade-example';
-
-export { polishExample } from './polish-example';
-
-export { gradeEquivalent } from './grade-equivalent';
-
 export {
   MAX_DEFINITION_INSTRUCTION,
   MAX_RELATED_PICKS,

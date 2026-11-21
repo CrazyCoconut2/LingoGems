@@ -9,7 +9,6 @@ import {
   Component,
   computed,
   DestroyRef,
-  effect,
   HostListener,
   inject,
   isDevMode,
@@ -19,7 +18,6 @@ import { FormsModule } from '@angular/forms';
 import { ElementModal } from '../elements/element-modal';
 import { GemStatsModal } from '../elements/gem-stats-modal';
 import { HighlightColorPicker } from '../elements/highlight-color-picker';
-import { ModeIcon } from '../elements/mode-icon';
 import { RevealIcon } from '../elements/reveal-icon';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { DiscoverModal } from './discover-modal';
@@ -35,15 +33,11 @@ import {
   DEFAULT_ELEMENT_SORT,
   deleteElement,
   displayTitle,
-  equivalentTextFor,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
   elementMatchesColor,
   elementMatchesMetadata,
   elementMatchesPrefix,
-  elementModeHelp,
-  elementModeLabel,
-  parsePassage,
   elementPrefixSearch,
   emptyElementCatalog,
   sanitizeElementColor,
@@ -66,7 +60,6 @@ import {
   type ElementCatalog,
   type ElementDefinition,
   type ElementMetadataVariability,
-  type ElementMode,
   type ElementSearch,
   type ElementSearchPart,
   type ElementSort,
@@ -142,7 +135,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     CdkDrag,
     CdkDragPreview,
     ElementModal,
-    ModeIcon,
     RevealIcon,
     DiscoverModal,
     Settings,
@@ -349,7 +341,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   <span class="bone bone-title"></span>
                   <span class="bone bone-pill"></span>
                 </div>
-                <span class="bone bone-drill"></span>
                 <div class="stat-rail">
                   <span class="bone bone-stat"></span>
                   <span class="bone bone-stat"></span>
@@ -367,7 +358,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 [class.selected]="isSelected(element.id)"
                 [class.colored]="!!cardAccent(element)"
                 [style.--score-color]="cardAccent(element)"
-                (click)="onCardClick(element.id, $event)"
+                (click)="onCardClick(element.id)"
                 (contextmenu)="onCardContextMenu($event, element.id)"
                 (pointerdown)="onCardPointerDown($event, element.id)"
                 (pointermove)="onCardPointerMove($event)"
@@ -401,22 +392,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                     }
                   </span>
                 </button>
-                @if (element.definitions.length) {
-                  <button
-                    type="button"
-                    class="drill"
-                    aria-label="Drill"
-                    title="Drill"
-                    [disabled]="selecting()"
-                    (click)="askDrill(element.id)"
-                  >
-                    <span class="drill-label">Drill</span>
-                    <svg class="drill-arrow" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M5 12h14" />
-                      <path d="m12 5 7 7-7 7" />
-                    </svg>
-                  </button>
-                }
                 <div class="stat-rail">
                   <span
                     class="stat stat-opened"
@@ -840,45 +815,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         </div>
       }
 
-      @if (drillTarget(); as element) {
-        <div class="selection-backdrop" (click)="closeDrill($event)">
-          <section
-            class="selection-sheet drill-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Drill"
-            (click)="$event.stopPropagation()"
-          >
-            <div class="selection-head">
-              <h3>Drill</h3>
-              <button type="button" class="icon-btn" aria-label="Close" (click)="closeDrill()">
-                <svg viewBox="0 0 24 24">
-                  <path d="M18 6 6 18" />
-                  <path d="m6 6 12 12" />
-                </svg>
-              </button>
-            </div>
-            <div class="drill-choices">
-              @for (mode of modes(); track mode) {
-                <button
-                  type="button"
-                  class="drill-choice"
-                  [attr.data-mode]="mode"
-                  [disabled]="!drillReady(element, mode)"
-                  (click)="startDrill(mode)"
-                >
-                  <app-mode-icon [mode]="mode" />
-                  <span class="drill-copy">
-                    <strong>{{ modeLabel(mode) }}</strong>
-                    <span>{{ modeHelp(mode) }}</span>
-                  </span>
-                </button>
-              }
-            </div>
-          </section>
-        </div>
-      }
-
       @if (settingsOpen()) {
         <app-settings (closed)="closeSettings()" (changed)="onCollectionReplaced()" />
       }
@@ -903,8 +839,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           [definitionIndex]="openedDefinition()"
           [arrivedExample]="arrivedExample()"
           [arrivedGuide]="arrivedGuide()"
-          [playing]="element.id === playId()"
-          [playMode]="element.id === playId() ? playMode() : null"
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
           (deleted)="onElementDeleted()"
@@ -1347,79 +1281,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       font-size: 0.88rem;
     }
 
-    .drill-sheet {
-      width: min(26rem, 100%);
-    }
-
-    .drill-choices {
-      display: flex;
-      flex-direction: column;
-      gap: 0.55rem;
-    }
-
-    .drill-choice[data-mode='1'] {
-      --hero-gem: var(--gem-translation);
-    }
-
-    .drill-choice[data-mode='2'] {
-      --hero-gem: var(--gem-example);
-    }
-
-    .drill-choice[data-mode='3'] {
-      --hero-gem: var(--gem-definition);
-    }
-
-    .drill-choice {
-      display: flex;
-      align-items: center;
-      gap: 0.85rem;
-      width: 100%;
-      margin: 0;
-      padding: 0.75rem 0.85rem;
-      border: 1px solid color-mix(in srgb, var(--hero-gem) 48%, transparent);
-      border-radius: 1rem;
-      background: color-mix(in srgb, var(--hero-gem) 12%, transparent);
-      color: var(--text);
-      font: inherit;
-      text-align: left;
-      cursor: pointer;
-    }
-
-    .drill-choice:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--hero-gem) 18%, transparent);
-    }
-
-    .drill-choice:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
-
-    .drill-choice app-mode-icon {
-      flex: none;
-      width: 2.4rem;
-      height: 2.4rem;
-    }
-
-    .drill-copy {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.22rem;
-      min-width: 0;
-    }
-
-    .drill-copy strong {
-      font-size: 0.95rem;
-      font-weight: 700;
-      line-height: 1.2;
-    }
-
-    .drill-copy span {
-      color: var(--text-muted);
-      font-size: 0.78rem;
-      line-height: 1.4;
-    }
-
     .selection-actions {
       display: flex;
       justify-content: flex-end;
@@ -1657,9 +1518,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .element:focus,
-    .element:focus-visible,
-    .drill:focus,
-    .drill:focus-visible {
+    .element:focus-visible {
       outline: none;
     }
 
@@ -1762,59 +1621,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       color: var(--card-accent, #94a3b8);
     }
 
-    .drill {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.28rem;
-      width: 100%;
-      margin-top: 0.7rem;
-      padding: 0.38rem 0.5rem;
-      border: 1px solid color-mix(in srgb, var(--card-accent, #94a3b8) 30%, transparent);
-      border-radius: 0.75rem;
-      background: color-mix(in srgb, var(--card-accent, #94a3b8) 15%, transparent);
-      color: var(--card-accent, #cbd5e1);
-      font: inherit;
-      font-size: 0.75rem;
-      font-weight: 650;
-      line-height: 1;
-      cursor: pointer;
-    }
-
-    .card:not(.colored) .drill {
-      border-color: rgba(255, 255, 255, 0.1);
-      background: rgba(255, 255, 255, 0.04);
-      color: #cbd5e1;
-    }
-
-    .drill:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--card-accent, #94a3b8) 24%, transparent);
-    }
-
-    .drill:disabled {
-      opacity: 0.4;
-      cursor: default;
-    }
-
-    .drill-arrow {
-      display: block;
-      flex: none;
-      width: 0.75rem;
-      height: 0.75rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.5;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .drill-label {
-      color: inherit;
-      font-size: inherit;
-      font-weight: inherit;
-      line-height: 1;
-    }
-
     .card.skeleton {
       border-color: rgba(255, 255, 255, 0.06);
       box-shadow: none;
@@ -1850,13 +1656,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     .skeleton .bone-pill {
       width: 42%;
       height: 0.85rem;
-    }
-
-    .skeleton .bone-drill {
-      width: 100%;
-      height: calc(0.75rem + 0.76rem + 2px);
-      margin-top: 0.7rem;
-      border-radius: 0.75rem;
     }
 
     .skeleton .bone-stat {
@@ -2319,8 +2118,6 @@ export class LanguagePage {
 
   readonly languageOptions = LEARNABLE_LANGUAGES;
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
-  readonly modeLabel = elementModeLabel;
-  readonly modeHelp = elementModeHelp;
   readonly asking = signal(false);
   readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
@@ -2352,9 +2149,6 @@ export class LanguagePage {
   readonly query = signal('');
   readonly search = signal<ElementSearch>({ mode: 'browse', value: '' });
   readonly sort = signal<ElementSort>(DEFAULT_ELEMENT_SORT);
-  readonly modes = computed((): readonly ElementMode[] =>
-    this.supportFor(this.code()) ? [1, 2, 3] : [2, 3],
-  );
   readonly contentSections: readonly ContentSection[] = [
     {
       id: 'definitions',
@@ -2390,9 +2184,6 @@ export class LanguagePage {
   readonly filtersOpen = signal(false);
   readonly settingsOpen = signal(false);
   readonly statsOpen = signal(false);
-  readonly playId = signal('');
-  readonly playMode = signal<ElementMode | null>(null);
-  readonly drillId = signal('');
   readonly expanded = signal<FilterSection | null>('definitions');
   readonly elementId = signal('');
   readonly trail = signal<ElementTrailStop[]>([]);
@@ -2402,11 +2193,6 @@ export class LanguagePage {
   readonly arrivedGuide = computed(() => this.trail().at(-1)?.guide?.trim() ?? '');
   readonly opened = computed(() => {
     const id = this.elementId();
-    if (!id) return null;
-    return this.elements().find((element) => element.id === id) ?? null;
-  });
-  readonly drillTarget = computed(() => {
-    const id = this.drillId();
     if (!id) return null;
     return this.elements().find((element) => element.id === id) ?? null;
   });
@@ -2457,11 +2243,6 @@ export class LanguagePage {
   });
 
   constructor() {
-    effect(() => {
-      if (this.playMode() !== 1 || this.supportFor(this.code())) return;
-      this.playMode.set(null);
-      this.playId.set('');
-    });
     inject(DestroyRef).onDestroy(() => {
       if (this.searchTimer) clearTimeout(this.searchTimer);
       this.clearPressTimer();
@@ -2497,10 +2278,6 @@ export class LanguagePage {
       return;
     }
     if (this.elementId() || this.selectionBusy()) return;
-    if (this.drillId()) {
-      this.drillId.set('');
-      return;
-    }
     if (this.colorOpen()) {
       this.closeColorSheet();
       return;
@@ -2518,11 +2295,6 @@ export class LanguagePage {
 
   openElement(id: string): void {
     if (!id) return;
-    if (this.playId() !== id) {
-      this.playId.set('');
-      this.playMode.set(null);
-    }
-    this.drillId.set('');
     this.trail.set([{ id, definition: 0 }]);
     this.showElement(id);
   }
@@ -2531,51 +2303,11 @@ export class LanguagePage {
     this.openElement(id);
   }
 
-  askDrill(id: string): void {
-    const element = this.elements().find((item) => item.id === id);
-    if (!element || this.selecting() || element.definitions.length === 0) return;
-    this.drillId.set(id);
-  }
-
-  startDrill(mode: ElementMode): void {
-    const element = this.drillTarget();
-    if (!element || !this.drillReady(element, mode)) return;
-    if (mode === 1 && !this.supportFor(element.language)) return;
-    this.playMode.set(mode);
-    this.playId.set(element.id);
-    this.openElement(element.id);
-  }
-
-  closeDrill(event?: MouseEvent): void {
-    if (event && event.target !== event.currentTarget) return;
-    this.drillId.set('');
-  }
-
-  drillReady(element: StoredElement, mode: ElementMode): boolean {
-    if (mode === 1) {
-      const language = this.supportFor(element.language);
-      if (!language) return false;
-      return element.definitions.some(
-        (definition) =>
-          equivalentTextFor(element.equivalents, definition.equivalentIds, language).trim().length >
-          0,
-      );
-    }
-    if (mode === 2) {
-      return element.definitions.some(
-        (definition) => parsePassage(definition.text).text.trim().length > 0,
-      );
-    }
-    return element.definitions.length > 0;
-  }
-
   isSelected(id: string): boolean {
     return this.selectedIds().has(id);
   }
 
-  onCardClick(id: string, event?: Event): void {
-    const target = event?.target instanceof Element ? event.target : null;
-    if (target?.closest('.drill')) return;
+  onCardClick(id: string): void {
     if (Date.now() < this.swallowClickUntil) {
       this.swallowClickUntil = 0;
       return;
@@ -2598,8 +2330,6 @@ export class LanguagePage {
   }
 
   onCardPointerDown(event: PointerEvent, id: string): void {
-    const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('.drill')) return;
     if (this.selecting() || this.selectionBusy()) return;
     if (event.pointerType === 'mouse' || event.button !== 0) return;
     this.clearPressTimer();
@@ -2723,7 +2453,6 @@ export class LanguagePage {
 
   private beginSelection(id: string): void {
     if (this.selectionBusy() || !id) return;
-    this.drillId.set('');
     this.swallowClickUntil = Date.now() + 400;
     this.selecting.set(true);
     this.selectedIds.update((current) => {
@@ -2922,8 +2651,6 @@ export class LanguagePage {
 
   closeElement(): void {
     if (!this.elementId()) return;
-    this.playId.set('');
-    this.playMode.set(null);
     this.trail.set([]);
     this.showElement(null);
   }
@@ -3372,9 +3099,6 @@ export class LanguagePage {
   private async load(language: string): Promise<void> {
     const seq = ++this.loadId;
     const code = language.trim().toLowerCase();
-    this.playId.set('');
-    this.playMode.set(null);
-    this.drillId.set('');
     this.clearSelection();
     this.sortOpen.set(false);
     if (this.discoverOpen()) this.closeDiscover();

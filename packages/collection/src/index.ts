@@ -35,7 +35,6 @@ export {
   pruneEquivalentLinks,
   readEditingDraft,
   formTexts,
-  elementModeHelp,
   elementModeLabel,
   earnsGem,
   elementGemCounts,

@@ -26,7 +26,6 @@ import {
   pruneEquivalentLinks,
   type ParsedPassage,
   readEditingDraft,
-  elementModeHelp,
   elementModeLabel,
   gameEarnedGem,
   type ElementMode,
@@ -37,7 +36,6 @@ import {
   saveElement,
   sensesWithEquivalents,
   sanitizeElementColor,
-  TRANSLATION_GEM_MAX,
   type DefinitionExampleLog,
   type DefinitionFormLog,
   type DefinitionGameLog,
@@ -67,29 +65,13 @@ import {
   generateExamples,
   generateForms,
   generateRelatedWords,
-  gradeDefinition,
-  gradeEquivalent,
-  gradeExample,
-  polishDefinition,
-  polishExample,
   readStoredAiCredentials,
   suggestMetadata,
-  type PolishDefinitionTask,
   sentenceUsesForm,
   translateTexts,
   verbalizeDefinition,
   type RelatedWord,
 } from 'ai';
-import {
-  DEFINITION_MAX,
-  EQUIVALENT_MAX,
-  emptyPlayRound,
-  insertRoundSlots,
-  moveRoundSlot,
-  removeRoundSlot,
-  type EquivalentReward,
-  type PlayRound,
-} from './play-session';
 import { Reveal } from './reveal';
 import { RevealIcon } from './reveal-icon';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
@@ -100,6 +82,7 @@ import { ModeIcon } from './mode-icon';
 import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
+const EQUIVALENT_MAX = 200;
 const FORM_MAX_LENGTH = 100;
 const META_KEY_MAX_LENGTH = 40;
 const META_VALUE_MAX_LENGTH = 100;
@@ -551,7 +534,6 @@ function writeExampleSuggestions(
         class="panel"
         [class.has-color]="!!element().color"
         [style.--swatch]="element().color || null"
-        [attr.data-mode]="shownPlayMode()"
       >
         <ng-template #hearButton let-key="key" let-text="text" let-label="label" let-off="off">
           @if (canHear(text)) {
@@ -798,7 +780,6 @@ function writeExampleSuggestions(
                         class="icon-btn"
                         aria-label="Stats"
                         title="Stats"
-                        [disabled]="definitionInPlay(index)"
                         (click)="openExerciseLog(index)"
                       >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -813,7 +794,7 @@ function writeExampleSuggestions(
                         class="icon-btn danger"
                         [attr.aria-label]="deleteLabel()"
                         [attr.title]="deleteTitle()"
-                        [disabled]="definitionInPlay(index) || busy() || aiBusy()"
+                        [disabled]="busy() || aiBusy()"
                         (pointerdown)="startDeletePress($event)"
                         (pointermove)="moveDeletePress($event)"
                         (pointerup)="endDeletePress()"
@@ -841,7 +822,7 @@ function writeExampleSuggestions(
                           class="inline-pencil"
                           [attr.aria-label]="definitionActionLabel(definition)"
                           [attr.title]="definitionActionLabel(definition)"
-                          [disabled]="definitionInPlay(index) || aiBusy()"
+                          [disabled]="aiBusy()"
                           (click)="openDefinition(index); $event.stopPropagation()"
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -851,81 +832,60 @@ function writeExampleSuggestions(
                       </ng-template>
                       <ng-template #definitionPassage>
                         @if (passage.text) {
-                          @if (definitionConcealed(index)) {
-                            <div class="spoken">
-                              <div class="spoken-copy">
-                                <p class="passage definition-cue-text">
-                                  <span aria-hidden="true">{{ shownDefinition(passage.text) }}</span>
-                                  <ng-container [ngTemplateOutlet]="definitionPencil" />
-                                </p>
-                                <ng-container [ngTemplateOutlet]="passageTranslations" />
-                              </div>
-                              <ng-container
-                                [ngTemplateOutlet]="hearButton"
-                                [ngTemplateOutletContext]="{
-                                  key: 'definition:' + index,
-                                  text: definition.text,
-                                  label: 'definition',
-                                  off: true,
-                                }"
-                              />
-                            </div>
-                          } @else {
-                            <div class="spoken">
-                              <div class="spoken-copy">
-                                <p
-                                  class="passage sense-selectable"
-                                  [attr.data-definition-index]="index"
-                                >
-                                  @for (part of highlightPassage(passage.text); track $index) {
-                                    @if (part.matches.length > 1) {
-                                      <button
-                                        type="button"
-                                        class="linguagem-highlighted"
-                                        [style.--score-color]="part.color || null"
-                                        [textContent]="part.text"
-                                        (click)="
-                                          showCollision($event, part.matches, index, '', part.text)
-                                        "
-                                      ></button>
-                                    } @else if (part.matches.length === 1 && !part.current) {
-                                      <button
-                                        type="button"
-                                        class="linguagem-highlighted"
-                                        [style.--score-color]="part.color || null"
-                                        [textContent]="part.text"
-                                        (click)="
-                                          openFromDefinition(
-                                            part.matches[0].elementId,
-                                            index,
-                                            part.text
-                                          )
-                                        "
-                                      ></button>
-                                    } @else if (part.current) {
-                                      <span
-                                        class="linguagem-highlighted linguagem-highlighted--current"
-                                        [style.--score-color]="part.color || null"
-                                        [textContent]="part.text"
-                                      ></span>
-                                    } @else {
-                                      <span [textContent]="part.text"></span>
-                                    }
+                          <div class="spoken">
+                            <div class="spoken-copy">
+                              <p
+                                class="passage sense-selectable"
+                                [attr.data-definition-index]="index"
+                              >
+                                @for (part of highlightPassage(passage.text); track $index) {
+                                  @if (part.matches.length > 1) {
+                                    <button
+                                      type="button"
+                                      class="linguagem-highlighted"
+                                      [style.--score-color]="part.color || null"
+                                      [textContent]="part.text"
+                                      (click)="
+                                        showCollision($event, part.matches, index, '', part.text)
+                                      "
+                                    ></button>
+                                  } @else if (part.matches.length === 1 && !part.current) {
+                                    <button
+                                      type="button"
+                                      class="linguagem-highlighted"
+                                      [style.--score-color]="part.color || null"
+                                      [textContent]="part.text"
+                                      (click)="
+                                        openFromDefinition(
+                                          part.matches[0].elementId,
+                                          index,
+                                          part.text
+                                        )
+                                      "
+                                    ></button>
+                                  } @else if (part.current) {
+                                    <span
+                                      class="linguagem-highlighted linguagem-highlighted--current"
+                                      [style.--score-color]="part.color || null"
+                                      [textContent]="part.text"
+                                    ></span>
+                                  } @else {
+                                    <span [textContent]="part.text"></span>
                                   }
-                                  <ng-container [ngTemplateOutlet]="definitionPencil" />
-                                </p>
-                                <ng-container [ngTemplateOutlet]="passageTranslations" />
-                              </div>
-                              <ng-container
-                                [ngTemplateOutlet]="hearButton"
-                                [ngTemplateOutletContext]="{
-                                  key: 'definition:' + index,
-                                  text: definition.text,
-                                  label: 'definition',
-                                }"
-                              />
+                                }
+                                <ng-container [ngTemplateOutlet]="definitionPencil" />
+                              </p>
+                              <ng-container [ngTemplateOutlet]="passageTranslations" />
                             </div>
-                          }
+                            <ng-container
+                              [ngTemplateOutlet]="hearButton"
+                              [ngTemplateOutletContext]="{
+                                key: 'definition:' + index,
+                                text: definition.text,
+                                label: 'definition',
+                              }"
+                            />
+                          </div>
                         } @else {
                           <ng-container [ngTemplateOutlet]="definitionPencil" />
                         }
@@ -938,7 +898,6 @@ function writeExampleSuggestions(
                               <li>
                                 <app-reveal
                                   [text]="labeledTranslation(translation)"
-                                  [locked]="definitionInPlay(index)"
                                   [open]="supportRevealed()"
                                   [scope]="index"
                                   (unveiled)="
@@ -957,32 +916,13 @@ function writeExampleSuggestions(
                         <ul class="sense-meta">
                           @if (supportAvailable() && equivalent) {
                             <li class="sense-equivalent">
-                              @if (translationGame(index) && !equivalentSubmitted(index)) {
-                                <span class="guess-answer play-blur" aria-hidden="true">{{
-                                  labeledEquivalent(equivalent)
-                                }}</span>
-                              } @else if (translationGame(index)) {
-                                <button
-                                  type="button"
-                                  class="guess-open"
-                                  aria-label="See your equivalent"
-                                  title="See your equivalent"
-                                  (click)="openEquivalentPrompt(index)"
-                                >
-                                  <span class="guess-answer">{{
-                                    labeledEquivalent(equivalent)
-                                  }}</span>
-                                </button>
-                              } @else {
-                                <ng-container [ngTemplateOutlet]="translationIcon" />
-                                <app-reveal
-                                  [text]="labeledEquivalent(equivalent)"
-                                  [locked]="definitionInPlay(index)"
-                                  [open]="equivalentUnveiled(equivalent)"
-                                  [scope]="index"
-                                  (unveiled)="unveilSupport(index)"
-                                />
-                              }
+                              <ng-container [ngTemplateOutlet]="translationIcon" />
+                              <app-reveal
+                                [text]="labeledEquivalent(equivalent)"
+                                [open]="equivalentUnveiled(equivalent)"
+                                [scope]="index"
+                                (unveiled)="unveilSupport(index)"
+                              />
                             </li>
                           }
                           @for (entry of meta; track entry.key) {
@@ -993,16 +933,6 @@ function writeExampleSuggestions(
                             </li>
                           }
                         </ul>
-                      }
-                      @if (playCue(index); as cue) {
-                        <button
-                          type="button"
-                          class="btn btn-secondary play-cta"
-                          (click)="openPlayCue(index)"
-                        >
-                          {{ cue.label }}
-                          <span class="play-cta-count">{{ cue.left }} left</span>
-                        </button>
                       }
                     </div>
                   </div>
@@ -1016,11 +946,7 @@ function writeExampleSuggestions(
                         ) {
                           @let example = definition.examples[exampleIndex];
                           <li class="saved-example">
-                            <div
-                              class="example-quote"
-                              [class.play-blur]="exampleGame(index)"
-                              [attr.aria-hidden]="exampleGame(index) ? true : null"
-                            >
+                            <div class="example-quote">
                               @let passage = parsePassage(example.text);
                               @if (passage.text) {
                                 <div class="spoken">
@@ -1075,7 +1001,7 @@ function writeExampleSuggestions(
                                         class="inline-pencil"
                                         aria-label="Edit examples"
                                         title="Edit examples"
-                                        [disabled]="definitionInPlay(index) || aiBusy()"
+                                        [disabled]="aiBusy()"
                                         (click)="openExamples(index); $event.stopPropagation()"
                                       >
                                         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1092,7 +1018,6 @@ function writeExampleSuggestions(
                                           <li>
                                             <app-reveal
                                               [text]="labeledTranslation(translation)"
-                                              [locked]="definitionInPlay(index)"
                                               [open]="exampleRevealed(exampleIndex)"
                                               [scope]="exampleIndex"
                                               (unveiled)="
@@ -1143,7 +1068,7 @@ function writeExampleSuggestions(
                       <button
                         type="button"
                         class="example-cta"
-                        [disabled]="definitionInPlay(index) || aiBusy()"
+                        [disabled]="aiBusy()"
                         (click)="addExampleManually(index)"
                       >
                         Add an example
@@ -1173,7 +1098,7 @@ function writeExampleSuggestions(
                           <button
                             type="button"
                             class="form-chip readonly form-cta"
-                            [disabled]="definitionInPlay(index) || aiBusy()"
+                            [disabled]="aiBusy()"
                             (click)="openForms(index)"
                           >
                             Add forms
@@ -2342,780 +2267,6 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (equivalentPromptOpen()) {
-          @let prompt = equivalentPrompt();
-          @if (element().definitions[prompt]; as definition) {
-            @let answer = equivalentText(definition);
-            @if (answer) {
-              <div class="sheet-backdrop" (click)="closeEquivalentPrompt($event)">
-                <section
-                  class="sheet"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="Equivalent"
-                  (click)="$event.stopPropagation()"
-                >
-                  <div class="sheet-head">
-                    <h3>Equivalent</h3>
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Close"
-                      [disabled]="equivalentAwaitingScore(prompt)"
-                      (click)="closeEquivalentPrompt()"
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <path d="M18 6 6 18" />
-                        <path d="m6 6 12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  @if (equivalentSubmitted(prompt)) {
-                    @let passage = parsePassage(definition.text);
-                    @let gloss = passage.text;
-                    @let reward = equivalentRewardAt(prompt);
-                    @let gaveUp = !equivalentDraftAt(prompt).trim();
-                    @if (gloss && !gaveUp) {
-                      <div class="equivalent-gloss">
-                        <p class="field-label">Definition</p>
-                        <p>{{ shownDefinition(gloss) }}</p>
-                        @let translations = shownTranslations(passage);
-                        @if (translations.length) {
-                          <ul class="equivalents">
-                            @for (translation of translations; track $index) {
-                              <li>
-                                <app-reveal
-                                  [text]="labeledTranslation(translation)"
-                                  (unveiled)="
-                                    noteReveal(prompt, passage.text, translation.text, 'definition')
-                                  "
-                                />
-                              </li>
-                            }
-                          </ul>
-                        }
-                      </div>
-                    }
-                    @if (gaveUp) {
-                      <p class="field-label">You gave up</p>
-                      <p class="equivalent-result">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m5 8 6 6" />
-                          <path d="m4 14 6-6 2-3" />
-                          <path d="M2 5h12" />
-                          <path d="M7 2h1" />
-                          <path d="m22 22-5-10-5 10" />
-                          <path d="M14 18h6" />
-                        </svg>
-                        <span>{{ labeledEquivalent(answer) }}</span>
-                      </p>
-                      <div class="sheet-actions">
-                        <button
-                          type="button"
-                          class="btn btn-primary"
-                          [disabled]="busy()"
-                          (click)="closeEquivalentPrompt()"
-                        >
-                          Done
-                        </button>
-                      </div>
-                    } @else {
-                      <div class="compare">
-                        <div class="compare-side">
-                          <p class="field-label">Equivalent</p>
-                          <p class="equivalent-result">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
-                            <span>{{ labeledEquivalent(answer) }}</span>
-                          </p>
-                        </div>
-                        <div class="compare-side yours">
-                          <p class="field-label">You wrote</p>
-                          <p>{{ equivalentDraftAt(prompt) }}</p>
-                        </div>
-                      </div>
-                      <p class="field-label">Score</p>
-                      <div
-                        class="score-pick"
-                        data-game="translation"
-                        role="group"
-                        aria-label="Score"
-                      >
-                        @for (score of scores; track score) {
-                          <button
-                            type="button"
-                            class="score-pick-value"
-                            [class.on]="reward?.score === score"
-                            [attr.aria-pressed]="reward?.score === score"
-                            [attr.aria-label]="'Score ' + score"
-                            [disabled]="aiBusy()"
-                            (click)="awardEquivalent(prompt, score)"
-                          >
-                            {{ score }}
-                          </button>
-                        }
-                        <button
-                          type="button"
-                          class="btn btn-secondary"
-                          [disabled]="aiBusy() || reward?.by === 'ai'"
-                          [attr.aria-busy]="askingEquivalentGrade() === prompt ? true : null"
-                          (click)="judgeEquivalent(prompt)"
-                        >
-                          {{ askingEquivalentGrade() === prompt ? 'Asking…' : 'Ask AI' }}
-                        </button>
-                      </div>
-                      @if (reward; as scored) {
-                        @if (scored.by === 'ai' && scored.explanation) {
-                          <p>{{ scored.explanation }}</p>
-                        }
-                      }
-                      @if (equivalentGradeError()) {
-                        <p class="error">{{ equivalentGradeError() }}</p>
-                      }
-                      <div class="sheet-actions">
-                        <button
-                          type="button"
-                          class="btn btn-primary"
-                          [disabled]="equivalentAwaitingScore(prompt) || busy()"
-                          (click)="closeEquivalentPrompt()"
-                        >
-                          Done
-                        </button>
-                      </div>
-                    }
-                  } @else {
-                    <p class="equivalent-prompt">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m5 8 6 6" />
-                        <path d="m4 14 6-6 2-3" />
-                        <path d="M2 5h12" />
-                        <path d="M7 2h1" />
-                        <path d="m22 22-5-10-5 10" />
-                        <path d="M14 18h6" />
-                      </svg>
-                      <span class="play-blur" aria-hidden="true">{{
-                        labeledEquivalent(answer)
-                      }}</span>
-                    </p>
-                    <label class="field-label" [attr.for]="'play-equivalent-' + prompt">
-                      Write the equivalent
-                    </label>
-                    <input
-                      #equivalentField
-                      [id]="'play-equivalent-' + prompt"
-                      type="text"
-                      autocomplete="off"
-                      spellcheck="false"
-                      [value]="equivalentDraftAt(prompt)"
-                      [attr.maxlength]="equivalentMax"
-                      placeholder="Write the equivalent"
-                      (input)="onEquivalentDraft(prompt, $event)"
-                      (keydown.enter)="submitEquivalent(prompt, $event)"
-                    />
-                    @if (equivalentGradeError()) {
-                      <p class="error">{{ equivalentGradeError() }}</p>
-                    }
-                    <div class="sheet-actions">
-                      <button
-                        type="button"
-                        class="btn btn-primary"
-                        [disabled]="busy() || !equivalentDraftAt(prompt).trim()"
-                        (click)="submitEquivalent(prompt)"
-                      >
-                        Submit
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-secondary"
-                        [disabled]="busy()"
-                        (click)="giveUpEquivalent(prompt)"
-                      >
-                        Give up
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-secondary"
-                        (click)="equivalentPrompt.set(-1)"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  }
-                </section>
-              </div>
-            }
-          }
-        }
-
-        @if (definitionPromptOpen()) {
-          @let prompt = definitionPrompt();
-          @if (element().definitions[prompt]; as definition) {
-            <div class="sheet-backdrop" (click)="closeDefinitionPrompt($event)">
-              <section class="sheet" role="dialog" aria-modal="true" aria-label="Definition">
-                <div class="sheet-head">
-                  <h3>Definition</h3>
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Close"
-                    [disabled]="askingGrade() === prompt || definitionAwaitingScore(prompt)"
-                    (click)="closeDefinitionPrompt()"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
-                    </svg>
-                  </button>
-                </div>
-                @if (definitionSubmitted(prompt)) {
-                  @if (!definitionDraftAt(prompt).trim()) {
-                    <p class="field-label">You gave up</p>
-                    @let gloss = parsePassage(definition.text);
-                    <p class="passage">{{ shownDefinition(gloss.text) }}</p>
-                    @let translations = shownTranslations(gloss);
-                    @if (translations.length) {
-                      <ul class="equivalents">
-                        @for (translation of translations; track $index) {
-                          <li>
-                            <app-reveal
-                              [text]="labeledTranslation(translation)"
-                              (unveiled)="
-                                noteReveal(prompt, gloss.text, translation.text, 'definition')
-                              "
-                            />
-                          </li>
-                        }
-                      </ul>
-                    }
-                    <div class="sheet-actions">
-                      <button
-                        type="button"
-                        class="btn btn-primary"
-                        (click)="definitionPrompt.set(-1)"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  } @else {
-                    @let reward = definitionRewardAt(prompt);
-                    <div class="compare">
-                      <div class="compare-side">
-                        <p class="field-label">Definition</p>
-                        @let gloss = parsePassage(definition.text);
-                        <p class="passage">{{ shownDefinition(gloss.text) }}</p>
-                        @let translations = shownTranslations(gloss);
-                        @if (translations.length) {
-                          <ul class="equivalents">
-                            @for (translation of translations; track $index) {
-                              <li>
-                                <app-reveal
-                                  [text]="labeledTranslation(translation)"
-                                  (unveiled)="
-                                    noteReveal(prompt, gloss.text, translation.text, 'definition')
-                                  "
-                                />
-                              </li>
-                            }
-                          </ul>
-                        }
-                      </div>
-                      <div class="compare-side yours">
-                        <p class="field-label">Your answer</p>
-                        <p>{{ definitionDraftAt(prompt) }}</p>
-                      </div>
-                    </div>
-                    <p class="field-label">Score</p>
-                    <div class="score-pick" data-game="definition" role="group" aria-label="Score">
-                      @for (score of scores; track score) {
-                        <button
-                          type="button"
-                          class="score-pick-value"
-                          [class.on]="reward?.score === score"
-                          [attr.aria-pressed]="reward?.score === score"
-                          [attr.aria-label]="'Score ' + score"
-                          [disabled]="aiBusy()"
-                          (click)="awardDefinition(prompt, score)"
-                        >
-                          {{ score }}
-                        </button>
-                      }
-                      <button
-                        type="button"
-                        class="btn btn-secondary"
-                        [disabled]="aiBusy() || reward?.by === 'ai'"
-                        [attr.aria-busy]="askingGrade() === prompt ? true : null"
-                        (click)="evaluateDefinition(prompt)"
-                      >
-                        {{ askingGrade() === prompt ? 'Asking…' : 'Ask AI' }}
-                      </button>
-                    </div>
-                    @if (reward; as scored) {
-                      @if (scored.by === 'ai' && scored.explanation) {
-                        <p>{{ scored.explanation }}</p>
-                      }
-                    }
-                    @if (error()) {
-                      <p class="error">{{ error() }}</p>
-                    }
-                    <div class="sheet-actions">
-                      <button
-                        type="button"
-                        class="btn btn-primary"
-                        [disabled]="definitionAwaitingScore(prompt) || askingGrade() === prompt"
-                        (click)="closeDefinitionPrompt()"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  }
-                } @else {
-                  <div class="field-heading">
-                    @if (supportAvailable()) {
-                      <div class="lang" role="tablist" aria-label="Definition language">
-                        <button
-                          type="button"
-                          role="tab"
-                          [class.on]="definitionSource() === 'support'"
-                          [attr.aria-selected]="definitionSource() === 'support'"
-                          [disabled]="translating() || askingPolish() !== null"
-                          (click)="workDefinition('support')"
-                        >
-                          {{ translationLanguageName() }}
-                        </button>
-                        <button
-                          type="button"
-                          role="tab"
-                          [class.on]="definitionSource() === 'working'"
-                          [attr.aria-selected]="definitionSource() === 'working'"
-                          [disabled]="translating() || askingPolish() !== null"
-                          (click)="workDefinition('working')"
-                        >
-                          {{ originalLanguageName() }}
-                        </button>
-                      </div>
-                    } @else {
-                      <label class="field-label" [attr.for]="'play-definition-' + prompt">
-                        Definition
-                      </label>
-                    }
-                    <span class="header-actions">
-                      @if (supportAvailable()) {
-                        <span class="generate-bundle translate-split">
-                          <button
-                            type="button"
-                            class="generate-main"
-                            [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
-                            [attr.title]="translating() ? 'Translating…' : 'Translate'"
-                            [attr.aria-busy]="translating() ? true : null"
-                            [disabled]="!canTranslateDefinition(prompt)"
-                            (click)="translateDefinition(prompt)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
-                          </button>
-                        </span>
-                      }
-                      @if (!supportAvailable() || definitionSource() === 'working') {
-                        <button
-                          type="button"
-                          class="icon-btn fix"
-                          aria-label="Correct"
-                          title="Correct"
-                          [attr.aria-busy]="askingPolish() === 'correct' ? true : null"
-                          [disabled]="!canPolishDefinition(prompt)"
-                          (click)="polishWorkingDefinition(prompt, 'correct')"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m6 16 6-12 6 12" />
-                            <path d="M8 12h8" />
-                            <path d="m16 20 2 2 4-4" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn idea"
-                          aria-label="Reformulate"
-                          title="Reformulate"
-                          [attr.aria-busy]="askingPolish() === 'reformulate' ? true : null"
-                          [disabled]="!canPolishDefinition(prompt)"
-                          (click)="polishWorkingDefinition(prompt, 'reformulate')"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M12 20h9" />
-                            <path
-                              d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"
-                            />
-                          </svg>
-                        </button>
-                      }
-                    </span>
-                  </div>
-                  @if (supportAvailable() && definitionSource() === 'support') {
-                    <textarea
-                      #supportField
-                      [id]="'play-definition-support-' + prompt"
-                      rows="2"
-                      [attr.aria-label]="translationLanguageName()"
-                      [value]="definitionSupportDraftAt(prompt)"
-                      [attr.maxlength]="definitionMax"
-                      [disabled]="askingGrade() === prompt || translating()"
-                      placeholder="Write the definition"
-                      (input)="onDefinitionSupportDraft(prompt, $event)"
-                    ></textarea>
-                  } @else {
-                    @if (definitionPolishNote(); as note) {
-                      <div
-                        class="compare-side"
-                        [class.fix]="note.task === 'correct'"
-                        [class.idea]="note.task === 'reformulate'"
-                      >
-                        <div class="field-heading">
-                          <p class="field-label">
-                            {{ note.task === 'correct' ? 'Correction' : 'Reformulation' }}
-                          </p>
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Dismiss"
-                            (click)="definitionPolishNote.set(null)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M18 6 6 18" />
-                              <path d="m6 6 12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                        @if (note.task === 'correct') {
-                          <p class="hint">{{ note.explanation }}</p>
-                        } @else {
-                          <div class="add-choices">
-                            @for (option of note.options; track $index) {
-                              <button
-                                type="button"
-                                class="btn btn-secondary add-choice"
-                                (click)="useDefinitionProposition(prompt, option)"
-                              >
-                                {{ option }}
-                              </button>
-                            }
-                          </div>
-                        }
-                      </div>
-                    }
-                    <textarea
-                      #definitionField
-                      [id]="'play-definition-' + prompt"
-                      rows="2"
-                      [value]="definitionDraftAt(prompt)"
-                      [attr.maxlength]="definitionMax"
-                      [disabled]="
-                        askingGrade() === prompt || translating() || askingPolish() !== null
-                      "
-                      [attr.aria-label]="supportAvailable() ? originalLanguageName() : 'Definition'"
-                      placeholder="Write the definition"
-                      (input)="onDefinitionDraft(prompt, $event)"
-                    ></textarea>
-                  }
-                  @if (error()) {
-                    <p class="error">{{ error() }}</p>
-                  }
-                  <div class="sheet-actions">
-                    <button
-                      type="button"
-                      class="btn btn-primary"
-                      [disabled]="aiBusy() || translating() || !definitionDraftAt(prompt).trim()"
-                      (click)="submitDefinition(prompt)"
-                    >
-                      Submit
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      [disabled]="askingGrade() === prompt"
-                      (click)="giveUpDefinition(prompt)"
-                    >
-                      Give up
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      [disabled]="askingGrade() === prompt"
-                      (click)="definitionPrompt.set(-1)"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                }
-              </section>
-            </div>
-          }
-        }
-
-        @if (examplePromptOpen()) {
-          @let prompt = examplePrompt();
-          @if (element().definitions[prompt]; as definition) {
-            <div class="sheet-backdrop" (click)="closeExamplePrompt($event)">
-              <section class="sheet" role="dialog" aria-modal="true" aria-label="Example">
-                <div class="sheet-head">
-                  <h3>Example</h3>
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Close"
-                    [disabled]="askingExampleGrade() === prompt || exampleAwaitingScore(prompt)"
-                    (click)="closeExamplePrompt()"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
-                    </svg>
-                  </button>
-                </div>
-                @let gloss = parsePassage(definition.text);
-                @if (gloss.text) {
-                  <div class="equivalent-gloss">
-                    <p class="field-label">Definition</p>
-                    <p>{{ shownDefinition(gloss.text) }}</p>
-                    @let translations = shownTranslations(gloss);
-                    @if (translations.length) {
-                      <ul class="equivalents">
-                        @for (translation of translations; track $index) {
-                          <li>
-                            <app-reveal
-                              [text]="labeledTranslation(translation)"
-                              [locked]="!exampleSubmitted(prompt)"
-                              (unveiled)="
-                                noteReveal(prompt, gloss.text, translation.text, 'definition')
-                              "
-                            />
-                          </li>
-                        }
-                      </ul>
-                    }
-                  </div>
-                }
-                @if (exampleSubmitted(prompt)) {
-                  @if (!exampleDraftAt(prompt).trim()) {
-                    <p class="field-label">You gave up</p>
-                    <div class="sheet-actions">
-                      <button type="button" class="btn btn-primary" (click)="examplePrompt.set(-1)">
-                        Done
-                      </button>
-                    </div>
-                  } @else {
-                    <div class="compare-side yours">
-                      <p class="field-label">Your example</p>
-                      <p>{{ exampleDraftAt(prompt) }}</p>
-                    </div>
-                    <p class="field-label">Score</p>
-                    @if (askingExampleGrade() === prompt) {
-                      <p class="hint">Asking…</p>
-                    } @else if (exampleRewardAt(prompt); as reward) {
-                      <p
-                        class="score-readout"
-                        data-game="example"
-                        role="img"
-                        [attr.aria-label]="'Score ' + reward.score + ' out of 5'"
-                      >
-                        {{ reward.score }}<span class="score-max">/5</span>
-                      </p>
-                      @if (reward.explanation) {
-                        <p>{{ reward.explanation }}</p>
-                      }
-                    }
-                    @if (error()) {
-                      <p class="error">{{ error() }}</p>
-                    }
-                    <div class="sheet-actions">
-                      @if (exampleAwaitingScore(prompt) && askingExampleGrade() !== prompt) {
-                        <button
-                          type="button"
-                          class="btn btn-secondary"
-                          [disabled]="aiBusy()"
-                          (click)="evaluateExample(prompt)"
-                        >
-                          Try again
-                        </button>
-                      }
-                      <button
-                        type="button"
-                        class="btn btn-primary"
-                        [disabled]="exampleAwaitingScore(prompt) || askingExampleGrade() === prompt"
-                        (click)="closeExamplePrompt()"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  }
-                } @else {
-                  <div class="field-heading">
-                    @if (supportAvailable()) {
-                      <div class="lang" role="tablist" aria-label="Example language">
-                        <button
-                          type="button"
-                          role="tab"
-                          [class.on]="exampleSource() === 'support'"
-                          [attr.aria-selected]="exampleSource() === 'support'"
-                          [disabled]="translating() || askingPolish() !== null"
-                          (click)="workExample('support')"
-                        >
-                          {{ translationLanguageName() }}
-                        </button>
-                        <button
-                          type="button"
-                          role="tab"
-                          [class.on]="exampleSource() === 'working'"
-                          [attr.aria-selected]="exampleSource() === 'working'"
-                          [disabled]="translating() || askingPolish() !== null"
-                          (click)="workExample('working')"
-                        >
-                          {{ originalLanguageName() }}
-                        </button>
-                      </div>
-                    } @else {
-                      <label class="field-label" [attr.for]="'play-example-' + prompt">
-                        Example
-                      </label>
-                    }
-                    <span class="header-actions">
-                      @if (supportAvailable()) {
-                        <span class="generate-bundle translate-split">
-                          <button
-                            type="button"
-                            class="generate-main"
-                            [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
-                            [attr.title]="translating() ? 'Translating…' : 'Translate'"
-                            [attr.aria-busy]="translating() ? true : null"
-                            [disabled]="!canTranslateExample(prompt)"
-                            (click)="translateExample(prompt)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
-                          </button>
-                        </span>
-                      }
-                      @if (!supportAvailable() || exampleSource() === 'working') {
-                        <button
-                          type="button"
-                          class="icon-btn fix"
-                          aria-label="Correct"
-                          title="Correct"
-                          [attr.aria-busy]="askingPolish() === 'correct' ? true : null"
-                          [disabled]="!canCorrectExample(prompt)"
-                          (click)="correctExample(prompt)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m6 16 6-12 6 12" />
-                            <path d="M8 12h8" />
-                            <path d="m16 20 2 2 4-4" />
-                          </svg>
-                        </button>
-                      }
-                    </span>
-                  </div>
-                  @if (!supportAvailable() || exampleSource() === 'working') {
-                    @if (exampleCorrection(); as correction) {
-                      <div class="compare-side fix">
-                        <div class="field-heading">
-                          <p class="field-label">Correction</p>
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Dismiss"
-                            (click)="exampleCorrection.set(null)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M18 6 6 18" />
-                              <path d="m6 6 12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                        <p class="hint">{{ correction }}</p>
-                      </div>
-                    }
-                  }
-                  @if (supportAvailable() && exampleSource() === 'support') {
-                    <textarea
-                      #exampleSupportField
-                      [id]="'play-example-support-' + prompt"
-                      rows="3"
-                      [attr.aria-label]="translationLanguageName()"
-                      [value]="exampleSupportDraftAt(prompt)"
-                      [attr.maxlength]="exampleLengthMax"
-                      [disabled]="
-                        askingExampleGrade() === prompt || translating() || askingPolish() !== null
-                      "
-                      placeholder="Write an example"
-                      (input)="onExampleSupportDraft(prompt, $event)"
-                    ></textarea>
-                  } @else {
-                    <textarea
-                      #exampleField
-                      [id]="'play-example-' + prompt"
-                      rows="3"
-                      [value]="exampleDraftAt(prompt)"
-                      [attr.maxlength]="exampleLengthMax"
-                      [disabled]="
-                        askingExampleGrade() === prompt || translating() || askingPolish() !== null
-                      "
-                      [attr.aria-label]="supportAvailable() ? originalLanguageName() : 'Example'"
-                      placeholder="Write an example"
-                      (input)="onExampleDraft(prompt, $event)"
-                    ></textarea>
-                  }
-                  @if (error()) {
-                    <p class="error">{{ error() }}</p>
-                  }
-                  <div class="sheet-actions">
-                    <button
-                      type="button"
-                      class="btn btn-primary"
-                      [disabled]="aiBusy() || translating() || !exampleReady(prompt)"
-                      (click)="submitExample(prompt)"
-                    >
-                      Submit
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      [disabled]="askingExampleGrade() === prompt"
-                      (click)="giveUpExample(prompt)"
-                    >
-                      Give up
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-secondary"
-                      [disabled]="askingExampleGrade() === prompt"
-                      (click)="examplePrompt.set(-1)"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                }
-              </section>
-            </div>
-          }
-        }
-
         @if (titleEdit()) {
           <div class="sheet-backdrop" (click)="closeTitle($event)">
             <form
@@ -3178,7 +2329,7 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (!definitionInPlay(exerciseLog()) && statsDefinition(); as definition) {
+        @if (statsDefinition(); as definition) {
           @let index = exerciseLog();
           <div class="sheet-backdrop" (click)="closeExerciseLog($event)">
             <section
@@ -3632,46 +2783,6 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (helpOpen()) {
-          @if (shownPlayMode(); as mode) {
-            <div class="sheet-backdrop" (click)="closeHelp($event)">
-              <section
-                class="sheet"
-                role="dialog"
-                aria-modal="true"
-                aria-label="What to do"
-                (click)="$event.stopPropagation()"
-              >
-                <div class="sheet-head">
-                  <h3>{{ modeLabel(mode) }}</h3>
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Close"
-                    (click)="helpOpen.set(false)"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <p class="hint">{{ modeHelp(mode) }}</p>
-                <div class="sheet-actions">
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    [disabled]="aiBusy()"
-                    (click)="giveUpGame()"
-                  >
-                    Give up
-                  </button>
-                </div>
-              </section>
-            </div>
-          }
-        }
-
         @if (confirm(); as pending) {
           <div class="sheet-backdrop" (click)="closeSheet($event)">
             <section
@@ -3807,85 +2918,6 @@ function writeExampleSuggestions(
       flex: none;
     }
 
-    .header-actions .mode-btn {
-      width: 1.8rem;
-      height: 1.8rem;
-      margin-inline-end: 0.15rem;
-      border: 0;
-      border-radius: 0.4rem;
-    }
-
-    .header-actions .mode-btn app-mode-icon {
-      width: 1.35rem;
-      height: 1.35rem;
-    }
-
-    .panel[data-mode='1'] {
-      --scintilla: var(--gem-translation);
-      --scintilla-rgb: 240, 90, 98;
-      --scintilla-hot: #ffb4b6;
-    }
-
-    .panel[data-mode='2'] {
-      --scintilla: var(--gem-example);
-      --scintilla-rgb: 240, 148, 64;
-      --scintilla-hot: #ffd0a6;
-    }
-
-    .panel[data-mode='3'] {
-      --scintilla: var(--gem-definition);
-      --scintilla-rgb: 72, 200, 80;
-      --scintilla-hot: #b8f5bc;
-    }
-
-    .definition-cue-text {
-      color: var(--text-muted);
-      white-space: pre-wrap;
-      filter: blur(0.55em);
-      pointer-events: none;
-      user-select: none;
-      animation: blur-scintillate 1s linear infinite;
-    }
-
-    @keyframes blur-scintillate {
-      0%,
-      62%,
-      100% {
-        color: var(--scintilla);
-        filter: blur(0.55em);
-      }
-
-      74%,
-      86% {
-        color: #fff;
-        filter: blur(0.55em) drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px var(--scintilla-hot));
-      }
-    }
-
-    @keyframes click-scintillate {
-      0%,
-      62%,
-      100% {
-        color: var(--scintilla);
-        box-shadow: 0 0 10px rgba(var(--scintilla-rgb), 0.28);
-      }
-
-      74%,
-      86% {
-        color: #fff;
-        box-shadow:
-          0 0 2px #fff,
-          0 0 8px var(--scintilla-hot);
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .definition-cue-text,
-      .play-cta {
-        animation: none;
-      }
-    }
-
     .title-main {
       display: flex;
       align-items: center;
@@ -3930,34 +2962,6 @@ function writeExampleSuggestions(
     .element-title:disabled {
       opacity: 0.45;
       cursor: not-allowed;
-    }
-
-    .mode-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex: none;
-      width: 1.8rem;
-      height: 1.8rem;
-      border: 0;
-      padding: 0;
-      border-radius: 0.4rem;
-      background: transparent;
-      cursor: pointer;
-    }
-
-    .mode-btn:hover:not(:disabled) {
-      background: rgba(139, 144, 165, 0.16);
-    }
-
-    .mode-btn:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-
-    .mode-btn app-mode-icon {
-      width: 1.5rem;
-      height: 1.5rem;
     }
 
     .element-edit {
@@ -4363,7 +3367,6 @@ function writeExampleSuggestions(
     .icon-btn svg,
     h3.section-title svg,
     .lookup-chip svg,
-    .equivalent-prompt svg,
     .forms-toggle svg,
     .log-chevron,
     .form-chip svg,
@@ -4863,56 +3866,7 @@ function writeExampleSuggestions(
       flex: none;
     }
 
-    .sense-meta li.sense-equivalent app-reveal,
-    .sense-meta li.sense-equivalent .guess-answer {
-      color: var(--text);
-    }
-
-    .sense-meta li.sense-equivalent:has(.guess-open) {
-      padding: 0;
-      border: 0;
-      background: transparent;
-      height: auto;
-    }
-
-    .guess-open {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      height: 1.85rem;
-      margin: 0;
-      padding: 0 0.5rem;
-      border: 1px solid var(--accent-border);
-      border-radius: 999px;
-      background: var(--accent-soft);
-      color: var(--accent-text);
-      font: inherit;
-      font-size: 0.75rem;
-      font-weight: 600;
-      line-height: 1;
-      cursor: pointer;
-    }
-
-    .guess-open:hover {
-      background: rgba(var(--accent-rgb), 0.16);
-    }
-
-    .equivalent-prompt {
-      display: inline-flex;
-      align-items: center;
-      align-self: flex-start;
-      gap: 0.35rem;
-      color: var(--accent);
-      font-weight: 650;
-    }
-
-    .equivalent-prompt svg {
-      width: 1.05rem;
-      height: 1.05rem;
-      flex: none;
-    }
-
-    .equivalent-prompt .play-blur {
+    .sense-meta li.sense-equivalent app-reveal {
       color: var(--text);
     }
 
@@ -5629,22 +4583,6 @@ function writeExampleSuggestions(
       padding-top: 0;
     }
 
-    .play-cta {
-      align-self: flex-start;
-      gap: 0.55rem;
-      color: var(--scintilla);
-      border-color: rgba(var(--scintilla-rgb), 0.78);
-      background: rgba(var(--scintilla-rgb), 0.14);
-      box-shadow: 0 0 10px rgba(var(--scintilla-rgb), 0.28);
-      animation: click-scintillate 1s linear infinite;
-    }
-
-    .play-cta-count {
-      font-size: 0.75rem;
-      font-weight: 650;
-      opacity: 0.72;
-    }
-
     .editor-sheet > .sheet-footer .btn {
       gap: 0.4rem;
     }
@@ -6108,13 +5046,6 @@ function writeExampleSuggestions(
       background: rgba(255, 92, 122, 0.12);
     }
 
-    .play-blur {
-      color: var(--text-muted);
-      filter: blur(0.55em);
-      pointer-events: none;
-      user-select: none;
-    }
-
     .compare {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -6323,43 +5254,6 @@ function writeExampleSuggestions(
       color: white;
     }
 
-    .score-pick {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.35rem;
-    }
-
-    .score-pick-value {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 2.15rem;
-      height: 2.15rem;
-      padding: 0;
-      border: 1px solid var(--border);
-      border-radius: 0.65rem;
-      background: transparent;
-      color: var(--text);
-      font: inherit;
-      font-size: 0.95rem;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-      cursor: pointer;
-    }
-
-    .score-pick-value.on,
-    .score-pick-value.on:disabled {
-      background: var(--exercise-gem, var(--accent));
-      border-color: var(--exercise-gem, var(--accent));
-      color: white;
-      opacity: 1;
-    }
-
-    .score-pick-value:disabled {
-      cursor: default;
-    }
-
     .score-readout {
       display: inline-flex;
       align-items: center;
@@ -6511,10 +5405,6 @@ export class ElementModal {
   readonly arrivedExample = input('');
   /** Parent headword and gloss, shown so an example can be written before it is added. */
   readonly arrivedGuide = input('');
-  /** Play uses this card. `playMode` decides which field is typed. */
-  readonly playing = input(false);
-  /** Exercise for this session. Null while editing. */
-  readonly playMode = input<ElementMode | null>(null);
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
   readonly deleted = output<void>();
@@ -6530,9 +5420,6 @@ export class ElementModal {
   }>();
   readonly addPrepared = output<PreparedElement>();
 
-  readonly scores = Array.from({ length: TRANSLATION_GEM_MAX + 1 }, (_, score) => score);
-  readonly equivalentMax = EQUIVALENT_MAX;
-  readonly definitionMax = DEFINITION_MAX;
   readonly supportAvailable = computed(() => this.translationTarget() !== '');
 
   /** Stored gloss and example translations, hidden when this language has no support language. */
@@ -6555,29 +5442,12 @@ export class ElementModal {
       ? 'Add an equivalent'
       : 'Edit definition';
   }
-  readonly originalLanguageName = computed(
-    () => languageDisplayName(this.element().language) || this.element().language,
-  );
-  readonly round = signal<PlayRound>(emptyPlayRound());
-  readonly askingGrade = signal<number | null>(null);
-  readonly askingEquivalentGrade = signal<number | null>(null);
-  readonly equivalentGradeError = signal('');
-  readonly equivalentPrompt = signal(-1);
-  readonly definitionPrompt = signal(-1);
-  readonly examplePrompt = signal(-1);
-  readonly askingExampleGrade = signal<number | null>(null);
-  private readonly rounds = new Map<string, PlayRound>();
-  private gradeJob = 0;
-  private equivalentGradeJob = 0;
-  private exampleGradeJob = 0;
-  private concedingGame = false;
   private alive = true;
   readonly formMaxLength = FORM_MAX_LENGTH;
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
   readonly modeLabel = elementModeLabel;
-  readonly modeHelp = elementModeHelp;
   readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
   readonly relatedPickMax = MAX_RELATED_PICKS;
@@ -6649,7 +5519,6 @@ export class ElementModal {
   readonly exampleSuggestions = signal<Record<string, ExampleSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
-  readonly helpOpen = signal(false);
   readonly exerciseStats: readonly { game: DefinitionGameLog['game']; mode: ElementMode }[] = [
     { game: 'translation', mode: 1 },
     { game: 'example', mode: 2 },
@@ -6682,32 +5551,13 @@ export class ElementModal {
   private readonly formField = viewChild<ElementRef<HTMLInputElement>>('formField');
   private readonly formFeatureField = viewChild<ElementRef<HTMLInputElement>>('formFeatureField');
   private readonly metaKeyField = viewChild<ElementRef<HTMLInputElement>>('metaKeyField');
-  private readonly equivalentField = viewChild<ElementRef<HTMLInputElement>>('equivalentField');
-  private readonly definitionField = viewChild<ElementRef<HTMLTextAreaElement>>('definitionField');
-  private readonly supportField = viewChild<ElementRef<HTMLTextAreaElement>>('supportField');
-  private readonly exampleField = viewChild<ElementRef<HTMLTextAreaElement>>('exampleField');
-  private readonly exampleSupportField =
-    viewChild<ElementRef<HTMLTextAreaElement>>('exampleSupportField');
   private readonly definitionBody = viewChild<ElementRef<HTMLElement>>('definitionBody');
-  /** Which definition tab is showing. */
-  readonly definitionSource = signal<'support' | 'working'>('support');
-  readonly definitionPolishNote = signal<
-    { task: 'correct'; explanation: string } | { task: 'reformulate'; options: string[] } | null
-  >(null);
-  /** Which example tab is showing. */
-  readonly exampleSource = signal<'support' | 'working'>('support');
-  readonly exampleCorrection = signal<string | null>(null);
-  readonly askingPolish = signal<PolishDefinitionTask | null>(null);
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       this.alive = false;
       this.endDeletePress();
       stopSpeaking();
-    });
-    effect(() => {
-      if (this.supportAvailable()) return;
-      this.equivalentPrompt.set(-1);
     });
     effect(() => {
       const id = this.element().id;
@@ -6739,13 +5589,9 @@ export class ElementModal {
       this.askingWording.set(null);
       this.exampleEngineer.set(null);
       this.definitionEngineer.set(null);
-      this.equivalentPrompt.set(-1);
-      this.definitionPrompt.set(-1);
-      this.examplePrompt.set(-1);
       this.unveiledEquivalents.set(new Set());
       this.supportRevealed.set(false);
       this.revealedExamples.set(new Set());
-      this.helpOpen.set(false);
       this.exerciseLog.set(-1);
       this.exerciseEntry.set(-1);
       const arrived = this.arrivedExample().trim().slice(0, MAX_EXAMPLE_LENGTH);
@@ -6757,25 +5603,11 @@ export class ElementModal {
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
       this.askingMetadata.set(false);
-      this.askingGrade.set(null);
-      this.askingEquivalentGrade.set(null);
-      this.askingPolish.set(null);
-      this.askingExampleGrade.set(null);
-      this.definitionPolishNote.set(null);
-      this.exampleCorrection.set(null);
-      this.exampleSource.set('support');
-      this.equivalentGradeError.set('');
-      this.loadRound(id);
       this.engineerDrafts.clear();
       this.definitionEngineerDrafts = readRelatedDrafts(id);
       void this.commitStoredExamples(id);
       this.refreshNewDefinitions(id);
       void this.adoptStoredSuggestions(id);
-    });
-    effect(() => {
-      const count = this.element().definitions.length;
-      if (!this.playing()) return;
-      this.seatRound(count);
     });
     effect(() => {
       const id = this.element().id;
@@ -6815,18 +5647,6 @@ export class ElementModal {
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    if (this.equivalentPromptOpen()) {
-      this.closeEquivalentPrompt();
-      return;
-    }
-    if (this.definitionPromptOpen()) {
-      this.closeDefinitionPrompt();
-      return;
-    }
-    if (this.examplePromptOpen()) {
-      this.closeExamplePrompt();
-      return;
-    }
     if (this.titleEdit()) {
       if (!this.busy()) this.cancelTitle();
       return;
@@ -6838,10 +5658,6 @@ export class ElementModal {
     if (this.exerciseLog() >= 0) {
       if (this.exerciseEntry() >= 0) this.exerciseEntry.set(-1);
       else this.exerciseLog.set(-1);
-      return;
-    }
-    if (this.helpOpen()) {
-      this.helpOpen.set(false);
       return;
     }
     if (this.confirm()) {
@@ -7318,39 +6134,28 @@ export class ElementModal {
       this.askingForms() !== null ||
       this.askingExamples() !== null ||
       this.askingRelated() !== null ||
-      this.askingWording() !== null ||
-      this.askingGrade() !== null ||
-      this.askingEquivalentGrade() !== null ||
-      this.askingExampleGrade() !== null ||
-      this.askingPolish() !== null
+      this.askingWording() !== null
     );
   }
 
   generateExample(index: number): void {
-    if (this.exampleGame(index) || this.aiBusy() || !this.element().definitions[index]) return;
+    if (this.aiBusy() || !this.element().definitions[index]) return;
     this.openExampleEngineer(index);
   }
 
   generateForms(index: number): void {
-    if (this.definitionInPlay(index) || this.aiBusy() || !this.sheetDefinition(index)) return;
+    if (this.aiBusy() || !this.sheetDefinition(index)) return;
     void this.askForms(index);
   }
 
   addFormManually(index: number): void {
-    if (this.definitionInPlay(index) || this.aiBusy() || !this.element().definitions[index]) return;
+    if (this.aiBusy() || !this.element().definitions[index]) return;
     this.openForm(index);
   }
 
-  onAddExample(index: number): void {
-    if (this.exampleCue(index)) {
-      this.openExamplePrompt(index);
-      return;
-    }
-    this.addExampleManually(index);
-  }
 
   addExampleManually(index: number): void {
-    if (this.definitionInPlay(index) || this.aiBusy()) return;
+    if (this.aiBusy()) return;
     this.openExample(index, null);
   }
 
@@ -7596,16 +6401,12 @@ export class ElementModal {
       log: [],
     }));
     const existing = this.copyDefinitions();
-    this.seatRound(existing.length);
     const next = placement === 'end' ? [...existing, ...created] : [...created, ...existing];
     if (!(await this.persist(next, attached.equivalents))) return false;
     const glosses = created.map((definition) => definitionGloss(definition.text)).filter(Boolean);
     rememberNewDefinitions(element.id, glosses);
     if (this.element().id === element.id) {
-      if (placement === 'start') {
-        this.noteRoundInsert(0, created.length);
-        this.shiftDefinitionIndexes(created.length);
-      }
+      if (placement === 'start') this.shiftDefinitionIndexes(created.length);
       this.formAttributesView.set(null);
       const index = placement === 'end' ? next.length - 1 : 0;
       this.definitionPanel.set(index);
@@ -7837,7 +6638,6 @@ export class ElementModal {
     const from = this.visibleDefinitionIndex();
     const elementId = this.currentElement().id;
     if (from === to) return;
-    this.seatRound(this.element().definitions.length);
     const definitions = this.copyDefinitions();
     if (to < 0 || to >= definitions.length) return;
     const [moved] = definitions.splice(from, 1);
@@ -7845,7 +6645,6 @@ export class ElementModal {
     definitions.splice(to, 0, moved);
     if (!(await this.persist(definitions, this.currentElement().equivalents))) return;
     if (this.element().id !== elementId) return;
-    this.noteRoundMove(from, to);
     this.definitionPanel.set(to);
   }
 
@@ -7878,7 +6677,6 @@ export class ElementModal {
   }
 
   openDefinition(index: number | null): void {
-    if (index != null && this.definitionInPlay(index)) return;
     const definition =
       index == null ? null : (this.sheetDefinition(index) ?? this.element().definitions[index]);
     if (index != null && !definition) return;
@@ -7912,7 +6710,7 @@ export class ElementModal {
   }
 
   onFormsClick(event: MouseEvent, index: number): void {
-    if (this.definitionInPlay(index) || this.aiBusy()) return;
+    if (this.aiBusy()) return;
     if (this.ignoredSheetClick(event, 'button, a, input, textarea')) return;
     this.openForms(index);
   }
@@ -7923,7 +6721,6 @@ export class ElementModal {
   }
 
   openExamples(index: number): void {
-    if (this.definitionInPlay(index)) return;
     const definition = this.sheetDefinition(index) ?? this.element().definitions[index];
     if (!definition) return;
     this.formEdit.set(null);
@@ -7941,7 +6738,7 @@ export class ElementModal {
   }
 
   openForms(index: number): void {
-    if (this.definitionInPlay(index) || this.aiBusy()) return;
+    if (this.aiBusy()) return;
     const definition = this.sheetDefinition(index) ?? this.element().definitions[index];
     if (!definition) return;
     this.formEdit.set(null);
@@ -7959,7 +6756,6 @@ export class ElementModal {
   }
 
   openExample(definitionIndex: number, exampleIndex: number | null): void {
-    if (this.definitionInPlay(definitionIndex)) return;
     const definition = this.sheetDefinition(definitionIndex);
     if (!definition) return;
     const example = exampleIndex == null ? null : definition.examples[exampleIndex];
@@ -8395,7 +7191,7 @@ export class ElementModal {
   }
 
   openExistingForm(definitionIndex: number, text: string): void {
-    if (this.definitionInPlay(definitionIndex) || this.busy()) return;
+    if (this.busy()) return;
     const form = this.sheetDefinition(definitionIndex)?.forms.find((item) => item.text === text);
     if (!form) return;
     this.openForm(definitionIndex, form);
@@ -8524,288 +7320,6 @@ export class ElementModal {
       },
       others,
     );
-  }
-
-  openHelp(): void {
-    if (this.busy() || !this.inPlay()) return;
-    this.helpOpen.set(true);
-  }
-
-  closeHelp(event: MouseEvent): void {
-    if (event.target !== event.currentTarget) return;
-    this.helpOpen.set(false);
-  }
-
-  /**
-   * Stop this round. Every exercise still waiting scores 0, then the card is shown.
-   * A score already saved in this round stays.
-   */
-  async giveUpGame(): Promise<void> {
-    if (!this.inPlay() || this.aiBusy() || this.concedingGame) return;
-    const mode = this.playMode();
-    if (mode !== 1 && mode !== 2 && mode !== 3) {
-      this.finishGiveUp();
-      return;
-    }
-    const definitions = this.copyDefinitions();
-    const indexes = this.unscoredExerciseIndexes(mode, definitions);
-    if (!indexes.length) {
-      this.finishGiveUp();
-      return;
-    }
-    this.concedingGame = true;
-    const elementId = this.element().id;
-    try {
-      const logged = this.appendGiveUpLogs(mode, definitions, indexes);
-      const saved = await this.persist(logged.definitions, this.element().equivalents);
-      if (!this.alive || this.element().id !== elementId) return;
-      if (!saved) {
-        this.error.set('Could not save this score.');
-        if (mode === 1) this.equivalentGradeError.set('Could not save this score.');
-        this.helpOpen.set(false);
-        return;
-      }
-      this.writeGiveUpRound(mode, indexes, logged.logIndexes);
-      this.finishGiveUp();
-    } finally {
-      this.concedingGame = false;
-    }
-  }
-
-  /** Definitions this game still asks for. */
-  private unscoredExerciseIndexes(mode: ElementMode, definitions: ElementDefinition[]): number[] {
-    const indexes: number[] = [];
-    for (let index = 0; index < definitions.length; index += 1) {
-      const definition = definitions[index];
-      if (!definition || !this.exercisePending(mode, index, definition)) continue;
-      indexes.push(index);
-    }
-    return indexes;
-  }
-
-  private exercisePending(
-    mode: ElementMode,
-    index: number,
-    definition: ElementDefinition,
-  ): boolean {
-    if (!this.inThisRound(index)) return false;
-    if (mode === 1) return !!this.equivalentText(definition) && !this.equivalentRewardAt(index);
-    if (mode === 2) {
-      return parsePassage(definition.text).text.trim().length > 0 && !this.exampleRewardAt(index);
-    }
-    return !this.definitionRewardAt(index);
-  }
-
-  /** A definition is in this exercise when it was on the card as play started. */
-  private inThisRound(index: number): boolean {
-    if (!this.playing()) return false;
-    const included = this.round().included;
-    if (included == null) return true;
-    return included[index] === true;
-  }
-
-  /** Remember who is playing before the definition list changes. */
-  private seatRound(count: number): void {
-    if (!this.playing() || this.round().included != null) return;
-    this.writeRound({
-      ...this.round(),
-      included: Array.from({ length: count }, () => true),
-    });
-  }
-
-  private noteRoundInsert(index: number, count: number): void {
-    if (count <= 0) return;
-    this.retargetPlayIndexes((current) => (current >= index ? current + count : current));
-    if (this.round().included == null) return;
-    this.writeRound(insertRoundSlots(this.round(), index, count));
-  }
-
-  private noteRoundRemove(index: number): void {
-    this.retargetPlayIndexes((current) => {
-      if (current === index) return -1;
-      return current > index ? current - 1 : current;
-    });
-    if (this.round().included == null) return;
-    this.writeRound(removeRoundSlot(this.round(), index));
-  }
-
-  private noteRoundMove(from: number, to: number): void {
-    if (from === to) return;
-    this.retargetPlayIndexes((current) => {
-      if (current === from) return to;
-      if (from < to && current > from && current <= to) return current - 1;
-      if (to < from && current >= to && current < from) return current + 1;
-      return current;
-    });
-    if (this.round().included == null) return;
-    this.writeRound(moveRoundSlot(this.round(), from, to));
-  }
-
-  /** Nothing in this round is left to score. */
-  private clearRoundSlots(): void {
-    const playing = this.playing();
-    this.writeRound({
-      ...emptyPlayRound(),
-      givenUp: playing && this.round().givenUp,
-      included: playing ? [] : null,
-    });
-    this.equivalentPrompt.set(-1);
-    this.definitionPrompt.set(-1);
-    this.examplePrompt.set(-1);
-    this.exerciseLog.set(-1);
-  }
-
-  /** Keep an open sheet on the same definition after the list changes. */
-  private retargetPlayIndexes(map: (current: number) => number): void {
-    this.equivalentPrompt.update(map);
-    this.definitionPrompt.update(map);
-    this.examplePrompt.update(map);
-    this.exerciseLog.update(map);
-  }
-
-  /** Append a 0 for each pending exercise. `logIndexes` lines up with `indexes`. */
-  private appendGiveUpLogs(
-    mode: ElementMode,
-    definitions: ElementDefinition[],
-    indexes: readonly number[],
-  ): { definitions: ElementDefinition[]; logIndexes: number[] } {
-    const game: DefinitionGameLog['game'] =
-      mode === 2 ? 'example' : mode === 3 ? 'definition' : 'translation';
-    const at = Date.now();
-    const next = definitions.slice();
-    const logIndexes: number[] = [];
-    for (const index of indexes) {
-      const definition = next[index];
-      if (!definition) {
-        logIndexes.push(-1);
-        continue;
-      }
-      const log = definition.log.map((item) => ({ ...item }));
-      const stored: DefinitionGameLog = {
-        event: 'game',
-        game,
-        score: 0,
-        by: 'user',
-        at,
-        answer: '',
-      };
-      let logIndex = this.giveUpLogIndex(mode, index);
-      const current = typeof logIndex === 'number' ? log[logIndex] : undefined;
-      const savedGame = this.withSnapshot(definition, current, stored);
-      if (current?.event === 'game' && typeof logIndex === 'number') {
-        log[logIndex] = savedGame;
-      } else {
-        log.push(savedGame);
-        logIndex = log.length - 1;
-      }
-      next[index] = { ...definition, log };
-      logIndexes.push(logIndex);
-    }
-    return { definitions: next, logIndexes };
-  }
-
-  private giveUpLogIndex(mode: ElementMode, index: number): number | null | undefined {
-    const round = this.round();
-    if (mode === 1) return round.equivalentLogIndexes[index];
-    if (mode === 2) return round.exampleLogIndexes?.[index];
-    return round.definitionLogIndexes?.[index];
-  }
-
-  private writeGiveUpRound(
-    mode: ElementMode,
-    indexes: readonly number[],
-    logIndexes: readonly number[],
-  ): void {
-    const round = this.round();
-    if (mode === 1) {
-      const equivalentDrafts = round.equivalentDrafts.slice();
-      const equivalentSubmitted = round.equivalentSubmitted.slice();
-      const equivalentRewards = round.equivalentRewards.slice();
-      const equivalentLogIndexes = round.equivalentLogIndexes.slice();
-      for (let position = 0; position < indexes.length; position += 1) {
-        const index = indexes[position];
-        const logIndex = logIndexes[position];
-        if (index == null || logIndex == null || logIndex < 0) continue;
-        while (equivalentDrafts.length <= index) equivalentDrafts.push('');
-        while (equivalentSubmitted.length <= index) equivalentSubmitted.push(false);
-        while (equivalentRewards.length <= index) equivalentRewards.push(null);
-        while (equivalentLogIndexes.length <= index) equivalentLogIndexes.push(null);
-        equivalentDrafts[index] = '';
-        equivalentSubmitted[index] = true;
-        equivalentRewards[index] = { score: 0, by: 'user', explanation: '' };
-        equivalentLogIndexes[index] = logIndex;
-      }
-      this.writeRound({
-        ...round,
-        equivalentDrafts,
-        equivalentSubmitted,
-        equivalentRewards,
-        equivalentLogIndexes,
-        givenUp: true,
-      });
-      return;
-    }
-    if (mode === 2) {
-      const exampleDrafts = round.exampleDrafts?.slice() ?? [];
-      const exampleSubmitted = round.exampleSubmitted?.slice() ?? [];
-      const exampleRewards = round.exampleRewards?.slice() ?? [];
-      const exampleLogIndexes = round.exampleLogIndexes?.slice() ?? [];
-      for (let position = 0; position < indexes.length; position += 1) {
-        const index = indexes[position];
-        const logIndex = logIndexes[position];
-        if (index == null || logIndex == null || logIndex < 0) continue;
-        while (exampleDrafts.length <= index) exampleDrafts.push('');
-        while (exampleSubmitted.length <= index) exampleSubmitted.push(false);
-        while (exampleRewards.length <= index) exampleRewards.push(null);
-        while (exampleLogIndexes.length <= index) exampleLogIndexes.push(null);
-        exampleDrafts[index] = '';
-        exampleSubmitted[index] = true;
-        exampleRewards[index] = { score: 0, by: 'user', explanation: '' };
-        exampleLogIndexes[index] = logIndex;
-      }
-      this.writeRound({
-        ...round,
-        exampleDrafts,
-        exampleSubmitted,
-        exampleRewards,
-        exampleLogIndexes,
-        givenUp: true,
-      });
-      return;
-    }
-    const definitionDrafts = round.definitionDrafts.slice();
-    const definitionSubmitted = round.definitionSubmitted?.slice() ?? [];
-    const definitionRewards = round.definitionRewards?.slice() ?? [];
-    const definitionLogIndexes = round.definitionLogIndexes?.slice() ?? [];
-    for (let position = 0; position < indexes.length; position += 1) {
-      const index = indexes[position];
-      const logIndex = logIndexes[position];
-      if (index == null || logIndex == null || logIndex < 0) continue;
-      while (definitionDrafts.length <= index) definitionDrafts.push('');
-      while (definitionSubmitted.length <= index) definitionSubmitted.push(false);
-      while (definitionRewards.length <= index) definitionRewards.push(null);
-      while (definitionLogIndexes.length <= index) definitionLogIndexes.push(null);
-      definitionDrafts[index] = '';
-      definitionSubmitted[index] = true;
-      definitionRewards[index] = { score: 0, by: 'user', explanation: '' };
-      definitionLogIndexes[index] = logIndex;
-    }
-    this.writeRound({
-      ...round,
-      definitionDrafts,
-      definitionSubmitted,
-      definitionRewards,
-      definitionLogIndexes,
-      givenUp: true,
-    });
-  }
-
-  private finishGiveUp(): void {
-    this.equivalentPrompt.set(-1);
-    this.definitionPrompt.set(-1);
-    this.examplePrompt.set(-1);
-    this.helpOpen.set(false);
-    if (!this.round().givenUp) this.writeRound({ ...this.round(), givenUp: true });
   }
 
   private editedTitle(): string {
@@ -8967,11 +7481,6 @@ export class ElementModal {
     }
     if (this.addingSelection()) return;
     const pick = readPassageSelection();
-    if (pick?.exampleIndex != null && this.exampleGame(pick.definitionIndex)) {
-      window.getSelection()?.removeAllRanges();
-      this.passageSelection.set(null);
-      return;
-    }
     const current = this.passageSelection();
     if (
       current?.text === pick?.text &&
@@ -9076,10 +7585,8 @@ export class ElementModal {
         metadata: this.metadataToStore(),
         log: this.logWithRework(current, text, equivalent, this.metadataToStore()),
       };
-      if (editor.index == null) {
-        this.seatRound(definitions.length);
-        unlinked.push(next);
-      } else unlinked[editor.index] = next;
+      if (editor.index == null) unlinked.push(next);
+      else unlinked[editor.index] = next;
       const index = editor.index ?? unlinked.length - 1;
       if (await this.persist(unlinked, linked.equivalents)) {
         if (editor.index == null) {
@@ -9195,7 +7702,7 @@ export class ElementModal {
   }
 
   async removeForm(definitionIndex: number, form: string): Promise<void> {
-    if (this.definitionInPlay(definitionIndex) || this.busy()) return;
+    if (this.busy()) return;
     const definitions = this.copyDefinitions();
     const definition = definitions[definitionIndex];
     if (!definition) return;
@@ -9238,8 +7745,7 @@ export class ElementModal {
 
   startDeletePress(event: PointerEvent): void {
     if (event.button !== 0 || !this.element().definitions.length) return;
-    if (this.definitionInPlay(this.visibleDefinitionIndex()) || this.busy() || this.aiBusy())
-      return;
+    if (this.busy() || this.aiBusy()) return;
     this.endDeletePress();
     this.deletePressX = event.clientX;
     this.deletePressY = event.clientY;
@@ -9284,7 +7790,7 @@ export class ElementModal {
   }
 
   askDeleteDefinition(index: number): void {
-    if (this.definitionInPlay(index) || this.aiBusy() || this.busy()) return;
+    if (this.aiBusy() || this.busy()) return;
     if (!this.element().definitions[index]) return;
     this.confirm.set({ kind: 'definition', index });
   }
@@ -9296,7 +7802,7 @@ export class ElementModal {
   }
 
   askDeleteExample(definitionIndex: number, exampleIndex: number): void {
-    if (this.definitionInPlay(definitionIndex) || this.aiBusy() || this.busy()) return;
+    if (this.aiBusy() || this.busy()) return;
     this.confirm.set({ kind: 'example', definitionIndex, exampleIndex });
   }
 
@@ -9322,7 +7828,6 @@ export class ElementModal {
       await this.removeAllDefinitions();
       return;
     }
-    if (pending.kind === 'definition') this.seatRound(this.element().definitions.length);
     const definitions = this.copyDefinitions();
     const archived = pending.kind === 'definition' ? definitions[pending.index] : undefined;
     const removed = archived ? senseKey(archived.text) : '';
@@ -9335,7 +7840,6 @@ export class ElementModal {
     } else definitions[pending.definitionIndex]?.examples.splice(pending.exampleIndex, 1);
     if (!(await this.persist(definitions, this.element().equivalents))) return;
     if (pending.kind === 'definition') {
-      this.noteRoundRemove(pending.index);
       if (removed && !definitions.some((definition) => senseKey(definition.text) === removed)) {
         this.engineerDrafts.delete(removed);
         this.definitionEngineerDrafts.delete(removed);
@@ -9403,7 +7907,6 @@ export class ElementModal {
     const definitions = this.copyDefinitions();
     const removed = definitions.map((definition) => senseKey(definition.text)).filter(Boolean);
     if (!(await this.persist([], this.element().equivalents))) return;
-    this.clearRoundSlots();
     for (const key of removed) {
       this.engineerDrafts.delete(key);
       this.definitionEngineerDrafts.delete(key);
@@ -9456,26 +7959,11 @@ export class ElementModal {
       this.confirm.set(null);
       return;
     }
-    this.adjustExerciseRound(definitionIndex, logIndex);
     this.confirm.set(null);
     this.exerciseEntry.set(-1);
   }
 
   /** Keep the open attempt pointed at the same log entry after one is removed. */
-  private adjustExerciseRound(definitionIndex: number, removedIndex: number): void {
-    const shift = (indexes: Array<number | null>): Array<number | null> => {
-      const next = indexes.slice();
-      const current = next[definitionIndex];
-      if (typeof current !== 'number' || current < removedIndex) return next;
-      next[definitionIndex] = current === removedIndex ? null : current - 1;
-      return next;
-    };
-    this.writeRound({
-      ...this.round(),
-      equivalentLogIndexes: shift(this.round().equivalentLogIndexes),
-      definitionLogIndexes: shift(this.round().definitionLogIndexes ?? []),
-    });
-  }
 
   private async removeElement(): Promise<void> {
     this.busy.set(true);
@@ -9678,17 +8166,6 @@ export class ElementModal {
   }
 
   /** First score captures the definition. A later score in the same round keeps that snapshot. */
-  private withSnapshot(
-    definition: ElementDefinition,
-    current: DefinitionLogEntry | undefined,
-    stored: DefinitionGameLog,
-  ): DefinitionGameLog {
-    const snapshot =
-      current?.event === 'game' && current.snapshot
-        ? current.snapshot
-        : this.snapshotOf(definition);
-    return { ...stored, snapshot };
-  }
 
   /** Ignores the blur that follows Enter or Escape so the position is applied once. */
   private orderSettling = false;
@@ -9853,260 +8330,8 @@ export class ElementModal {
     setTimeout(() => this.draftField()?.nativeElement.focus());
   }
 
-  /**
-   * This card still has an unfinished exercise, or a result sheet is open.
-   * Give up and help use this. A finished definition is not locked.
-   */
-  inPlay(): boolean {
-    if (!this.playing()) return false;
-    if (this.round().givenUp) return false;
-    if (this.equivalentPromptOpen() || this.definitionPromptOpen() || this.examplePromptOpen()) {
-      return true;
-    }
-    if (this.playMode() === 1) return this.supportAvailable() && !this.equivalentGameDone();
-    if (this.playMode() === 2) return !this.exampleGameDone();
-    if (this.playMode() === 3) return !this.definitionGameDone();
-    return false;
-  }
-
-  /** This definition still owes its exercise, or its result sheet is open. */
-  definitionInPlay(index: number): boolean {
-    if (index < 0 || !this.playing() || this.round().givenUp) return false;
-    const mode = this.playMode();
-    if (mode !== 1 && mode !== 2 && mode !== 3) return false;
-    if (
-      this.equivalentPrompt() === index ||
-      this.definitionPrompt() === index ||
-      this.examplePrompt() === index
-    ) {
-      return true;
-    }
-    const definition = this.element().definitions[index];
-    if (!definition) return false;
-    return this.exercisePending(mode, index, definition);
-  }
-
-  equivalentGameDone(): boolean {
-    if (this.playMode() !== 1) return false;
-    const definitions = this.element().definitions;
-    const included = this.round().included;
-    let members = 0;
-    let prompted = 0;
-    for (let index = 0; index < definitions.length; index += 1) {
-      if (included != null && included[index] !== true) continue;
-      const definition = definitions[index];
-      if (!definition) continue;
-      members += 1;
-      if (!this.equivalentText(definition)) continue;
-      prompted += 1;
-      if (!this.equivalentRewardAt(index)) return false;
-    }
-    if (included != null && members === 0) return true;
-    return prompted > 0;
-  }
-
-  /** Every prompted definition has been graded. The result sheet is separate. */
-  definitionGameDone(): boolean {
-    if (this.playMode() !== 3) return false;
-    const definitions = this.element().definitions;
-    const included = this.round().included;
-    let prompted = 0;
-    for (let index = 0; index < definitions.length; index += 1) {
-      if (included != null && included[index] !== true) continue;
-      const definition = definitions[index];
-      if (!definition) continue;
-      prompted += 1;
-      if (!this.definitionRewardAt(index)) return false;
-    }
-    if (included != null && prompted === 0) return true;
-    return prompted > 0;
-  }
-
-  /** Translation play is hidden when this language has no support language. */
-  shownPlayMode(): ElementMode | null {
-    const mode = this.playMode();
-    if (mode === 1 && !this.supportAvailable()) return null;
-    return mode;
-  }
-
-  translationGame(index: number): boolean {
-    return this.supportAvailable() && this.playMode() === 1 && this.definitionInPlay(index);
-  }
-
-  exampleGame(index: number): boolean {
-    return this.playMode() === 2 && this.definitionInPlay(index);
-  }
-
-  /** Every definition with a gloss has been scored. The result sheet is separate. */
-  exampleGameDone(): boolean {
-    if (this.playMode() !== 2) return false;
-    const definitions = this.element().definitions;
-    const included = this.round().included;
-    let members = 0;
-    let prompted = 0;
-    for (let index = 0; index < definitions.length; index += 1) {
-      if (included != null && included[index] !== true) continue;
-      const definition = definitions[index];
-      if (!definition) continue;
-      members += 1;
-      const text = parsePassage(definition.text).text.trim();
-      if (!text) continue;
-      prompted += 1;
-      if (!this.exampleRewardAt(index)) return false;
-    }
-    if (included != null && members === 0) return true;
-    return prompted > 0;
-  }
-
-  /** The button for this definition, with how many exercises this game still has. */
-  playCue(index: number): { label: string; left: number } | null {
-    if (this.definitionConcealed(index)) {
-      return { label: 'Write the definition', left: this.playLeft(3) };
-    }
-    if (this.translationCue(index)) {
-      return { label: 'Write the equivalent', left: this.playLeft(1) };
-    }
-    if (this.exampleCue(index)) return { label: 'Write an example', left: this.playLeft(2) };
-    return null;
-  }
-
-  openPlayCue(index: number): void {
-    if (this.definitionConcealed(index)) {
-      this.openDefinitionPrompt(index);
-      return;
-    }
-    if (this.translationCue(index)) {
-      this.openEquivalentPrompt(index);
-      return;
-    }
-    if (this.exampleCue(index)) this.openExamplePrompt(index);
-  }
-
-  /** Exercises in this game that are not scored yet. */
-  private playLeft(mode: ElementMode): number {
-    return this.unscoredExerciseIndexes(mode, this.element().definitions).length;
-  }
-
-  /** This definition still needs its equivalent written. */
-  translationCue(index: number): boolean {
-    if (!this.translationGame(index) || this.equivalentSubmitted(index)) return false;
-    const definition = this.element().definitions[index];
-    return !!definition && this.equivalentText(definition).trim().length > 0;
-  }
-
-  /** This definition still needs an example. */
-  exampleCue(index: number): boolean {
-    if (!this.exampleGame(index)) return false;
-    if (this.exampleRewardAt(index)) return false;
-    const text = parsePassage(this.element().definitions[index]?.text ?? '').text.trim();
-    return text.length > 0;
-  }
-
-  definitionGame(index: number): boolean {
-    return this.playMode() === 3 && this.definitionInPlay(index);
-  }
-
-  /** A definition is still hidden. */
-  definitionCue(): boolean {
-    if (this.playMode() !== 3 || !this.playing() || this.round().givenUp) return false;
-    return this.element().definitions.some((_, index) => this.definitionConcealed(index));
-  }
-
   dialogLabel(): string {
     return this.shownTitle();
-  }
-
-  equivalentPromptOpen(): boolean {
-    return this.equivalentPrompt() >= 0;
-  }
-
-  openEquivalentPrompt(index: number): void {
-    if (!this.translationGame(index)) return;
-    this.equivalentGradeError.set('');
-    this.equivalentPrompt.set(index);
-    if (!this.equivalentSubmitted(index)) setTimeout(() => this.focusEquivalentField());
-  }
-
-  private focusEquivalentField(): void {
-    const field = this.equivalentField()?.nativeElement;
-    if (field) {
-      field.focus();
-      return;
-    }
-    setTimeout(() => this.equivalentField()?.nativeElement.focus());
-  }
-
-  closeEquivalentPrompt(event?: MouseEvent): void {
-    if (event && event.target !== event.currentTarget) return;
-    if (this.equivalentAwaitingScore()) return;
-    this.equivalentPrompt.set(-1);
-  }
-
-  /** A submitted answer still needs a score before the sheet can close. */
-  equivalentAwaitingScore(index = this.equivalentPrompt()): boolean {
-    if (index < 0 || !this.equivalentSubmitted(index)) return false;
-    return !this.equivalentRewardAt(index);
-  }
-
-  equivalentDraftAt(index: number): string {
-    return this.round().equivalentDrafts[index] ?? '';
-  }
-
-  equivalentSubmitted(index: number): boolean {
-    return this.round().equivalentSubmitted[index] === true;
-  }
-
-  onEquivalentDraft(index: number, event: Event): void {
-    if (this.equivalentSubmitted(index)) return;
-    const value = (event.target as HTMLInputElement).value.slice(0, EQUIVALENT_MAX);
-    const equivalentDrafts = this.round().equivalentDrafts.slice();
-    while (equivalentDrafts.length <= index) equivalentDrafts.push('');
-    equivalentDrafts[index] = value;
-    this.writeRound({ ...this.round(), equivalentDrafts });
-  }
-
-  submitEquivalent(index: number, event?: Event): void {
-    event?.preventDefault();
-    if (
-      !this.translationGame(index) ||
-      this.equivalentSubmitted(index) ||
-      !this.equivalentDraftAt(index).trim()
-    ) {
-      return;
-    }
-    const equivalentSubmitted = this.round().equivalentSubmitted.slice();
-    while (equivalentSubmitted.length <= index) equivalentSubmitted.push(false);
-    equivalentSubmitted[index] = true;
-    this.equivalentGradeError.set('');
-    this.writeRound({ ...this.round(), equivalentSubmitted });
-  }
-
-  /** Concede this equivalent. The answer is shown and the attempt scores 0. */
-  async giveUpEquivalent(index: number): Promise<void> {
-    if (!this.translationGame(index) || this.equivalentSubmitted(index) || this.aiBusy()) return;
-    this.equivalentGradeError.set('');
-    const logIndex = await this.recordEquivalentReward(index, {
-      score: 0,
-      by: 'user',
-      answer: '',
-    });
-    if (!this.alive) return;
-    if (logIndex == null) {
-      this.equivalentGradeError.set('Could not save this score.');
-      return;
-    }
-    const equivalentDrafts = this.round().equivalentDrafts.slice();
-    while (equivalentDrafts.length <= index) equivalentDrafts.push('');
-    equivalentDrafts[index] = '';
-    const equivalentSubmitted = this.round().equivalentSubmitted.slice();
-    while (equivalentSubmitted.length <= index) equivalentSubmitted.push(false);
-    equivalentSubmitted[index] = true;
-    this.writeRound({ ...this.round(), equivalentDrafts, equivalentSubmitted });
-    this.writeEquivalentReward(index, { score: 0, by: 'user', explanation: '' }, logIndex);
-  }
-
-  equivalentRewardAt(index: number): EquivalentReward | null {
-    return this.round().equivalentRewards[index] ?? null;
   }
 
   /** Mean score for one exercise on this definition. Null when it has not been played. */
@@ -10204,7 +8429,7 @@ export class ElementModal {
   }
 
   openExerciseLog(index: number): void {
-    if (this.definitionInPlay(index) || !this.currentElement().definitions[index]) return;
+    if (!this.currentElement().definitions[index]) return;
     this.exerciseEntry.set(-1);
     this.exerciseLog.set(index);
   }
@@ -10213,796 +8438,6 @@ export class ElementModal {
     if (event && event.target !== event.currentTarget) return;
     this.exerciseEntry.set(-1);
     this.exerciseLog.set(-1);
-  }
-
-  private equivalentGaveUp(index: number): boolean {
-    return this.equivalentSubmitted(index) && !this.equivalentDraftAt(index).trim();
-  }
-
-  async awardEquivalent(index: number, score: number): Promise<void> {
-    if (!this.translationGame(index) || this.aiBusy() || !this.equivalentSubmitted(index)) return;
-    if (this.equivalentGaveUp(index) || score < 0 || score > TRANSLATION_GEM_MAX) return;
-    const current = this.equivalentRewardAt(index);
-    if (current?.by === 'user' && current.score === score) return;
-    const answer = this.equivalentDraftAt(index).trim();
-    if (!answer) return;
-    this.equivalentGradeError.set('');
-    const logIndex = await this.recordEquivalentReward(index, { score, by: 'user', answer });
-    if (!this.alive) return;
-    if (logIndex == null) {
-      this.equivalentGradeError.set('Could not save this score.');
-      return;
-    }
-    if (this.equivalentDraftAt(index).trim() !== answer) return;
-    this.writeEquivalentReward(index, { score, by: 'user', explanation: '' }, logIndex);
-  }
-
-  async judgeEquivalent(index: number): Promise<void> {
-    if (this.aiBusy() || !this.equivalentSubmitted(index) || this.equivalentGaveUp(index)) return;
-    if (this.equivalentRewardAt(index)?.by === 'ai') return;
-    const element = this.element();
-    const definition = element.definitions[index];
-    const gloss = parsePassage(definition?.text ?? '').text.trim();
-    const answer = this.equivalentDraftAt(index).trim();
-    if (!definition || !gloss || !answer) return;
-    const job = ++this.equivalentGradeJob;
-    this.askingEquivalentGrade.set(index);
-    this.equivalentGradeError.set('');
-    try {
-      const grade = await gradeEquivalent({
-        language: element.language,
-        lemma: element.title,
-        definition: gloss,
-        answer,
-      });
-      if (!this.alive || job !== this.equivalentGradeJob || this.element().id !== element.id)
-        return;
-      if (this.equivalentDraftAt(index).trim() !== answer) return;
-      const logIndex = await this.recordEquivalentReward(index, {
-        score: grade.score,
-        by: 'ai',
-        answer,
-        explanation: grade.explanation,
-      });
-      if (!this.alive || job !== this.equivalentGradeJob || this.element().id !== element.id)
-        return;
-      if (this.equivalentDraftAt(index).trim() !== answer) return;
-      if (logIndex == null) {
-        this.equivalentGradeError.set('Could not save this score.');
-        return;
-      }
-      this.writeEquivalentReward(
-        index,
-        { score: grade.score, by: 'ai', explanation: grade.explanation },
-        logIndex,
-      );
-    } catch {
-      if (this.alive && job === this.equivalentGradeJob && this.element().id === element.id) {
-        this.equivalentGradeError.set('Could not judge that equivalent.');
-      }
-    } finally {
-      if (this.alive && job === this.equivalentGradeJob) this.askingEquivalentGrade.set(null);
-    }
-  }
-
-  private writeEquivalentReward(index: number, reward: EquivalentReward, logIndex: number): void {
-    const equivalentRewards = this.round().equivalentRewards.slice();
-    while (equivalentRewards.length <= index) equivalentRewards.push(null);
-    equivalentRewards[index] = reward;
-    const equivalentLogIndexes = this.round().equivalentLogIndexes.slice();
-    while (equivalentLogIndexes.length <= index) equivalentLogIndexes.push(null);
-    equivalentLogIndexes[index] = logIndex;
-    this.writeRound({ ...this.round(), equivalentRewards, equivalentLogIndexes });
-  }
-
-  /** Append this attempt, or replace it when the learner changes the score. */
-  private async recordEquivalentReward(
-    index: number,
-    entry: { score: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
-  ): Promise<number | null> {
-    const elementId = this.element().id;
-    const definitions = this.copyDefinitions();
-    const definition = definitions[index];
-    if (!definition) return null;
-    const log = definition.log.map((item) => ({ ...item }));
-    const stored: DefinitionGameLog = {
-      event: 'game',
-      game: 'translation',
-      score: entry.score,
-      by: entry.by,
-      at: Date.now(),
-      answer: entry.answer,
-    };
-    if (entry.explanation) stored.explanation = entry.explanation;
-    let logIndex = this.round().equivalentLogIndexes[index];
-    const current = typeof logIndex === 'number' ? log[logIndex] : undefined;
-    const savedGame = this.withSnapshot(definition, current, stored);
-    if (current?.event === 'game' && typeof logIndex === 'number') {
-      log[logIndex] = savedGame;
-    } else {
-      log.push(savedGame);
-      logIndex = log.length - 1;
-    }
-    definitions[index] = { ...definition, log };
-    const saved = await this.persist(definitions, this.element().equivalents);
-    if (!this.alive || !saved || this.element().id !== elementId) return null;
-    return logIndex;
-  }
-
-  definitionDraftAt(index: number): string {
-    return this.round().definitionDrafts[index] ?? '';
-  }
-
-  definitionConcealed(index: number): boolean {
-    if (!this.definitionGame(index)) return false;
-    if (this.definitionRewardAt(index) && this.definitionPrompt() !== index) return false;
-    return true;
-  }
-
-  definitionPromptOpen(): boolean {
-    return this.definitionPrompt() >= 0;
-  }
-
-  openDefinitionPrompt(index: number): void {
-    if (!this.definitionConcealed(index)) return;
-    this.error.set('');
-    this.definitionSource.set(this.supportAvailable() ? 'support' : 'working');
-    this.definitionPolishNote.set(null);
-    this.definitionPrompt.set(index);
-    setTimeout(() => (this.supportField() ?? this.definitionField())?.nativeElement.focus());
-  }
-
-  workDefinition(source: 'support' | 'working'): void {
-    if (!this.supportAvailable() || this.translating() || this.askingPolish() !== null) return;
-    this.definitionSource.set(source);
-    setTimeout(() =>
-      (source === 'support' ? this.supportField() : this.definitionField())?.nativeElement.focus(),
-    );
-  }
-
-  definitionSupportDraftAt(index: number): string {
-    return this.round().definitionSupportDrafts?.[index] ?? '';
-  }
-
-  canTranslateDefinition(index: number): boolean {
-    if (
-      !this.supportAvailable() ||
-      this.translating() ||
-      this.aiBusy() ||
-      this.askingGrade() === index
-    ) {
-      return false;
-    }
-    const text =
-      this.definitionSource() === 'support'
-        ? this.definitionSupportDraftAt(index)
-        : this.definitionDraftAt(index);
-    return text.trim().length > 0;
-  }
-
-  /** Translate the visible draft into the other language, then show that tab. */
-  async translateDefinition(index: number): Promise<void> {
-    if (!this.canTranslateDefinition(index)) return;
-    const towardWorking = this.definitionSource() === 'support';
-    const sourceText = (
-      towardWorking ? this.definitionSupportDraftAt(index) : this.definitionDraftAt(index)
-    ).trim();
-    const element = this.element();
-    const support = this.translationTarget();
-    const ticket = this.translateTicket;
-    this.translating.set(true);
-    this.error.set('');
-    try {
-      const [translated] = await translateTexts({
-        texts: [sourceText],
-        sourceLang: towardWorking ? support : element.language,
-        targetLang: towardWorking ? element.language : support,
-      });
-      const result = String(translated ?? '')
-        .trim()
-        .slice(0, DEFINITION_MAX);
-      if (!this.alive || ticket !== this.translateTicket || this.element().id !== element.id)
-        return;
-      if (!result) {
-        this.error.set('Could not translate this.');
-        return;
-      }
-      if (towardWorking) {
-        const definitionDrafts = this.round().definitionDrafts.slice();
-        while (definitionDrafts.length <= index) definitionDrafts.push('');
-        definitionDrafts[index] = result;
-        this.writeRound({ ...this.round(), definitionDrafts });
-        this.definitionPolishNote.set(null);
-        this.definitionSource.set('working');
-        setTimeout(() => this.definitionField()?.nativeElement.focus());
-      } else {
-        const definitionSupportDrafts = this.round().definitionSupportDrafts?.slice() ?? [];
-        while (definitionSupportDrafts.length <= index) definitionSupportDrafts.push('');
-        definitionSupportDrafts[index] = result;
-        this.writeRound({ ...this.round(), definitionSupportDrafts });
-        this.definitionSource.set('support');
-        setTimeout(() => this.supportField()?.nativeElement.focus());
-      }
-    } catch {
-      if (this.alive && ticket === this.translateTicket && this.element().id === element.id) {
-        this.error.set('Could not translate this.');
-      }
-    } finally {
-      if (ticket === this.translateTicket) this.translating.set(false);
-    }
-  }
-
-  canPolishDefinition(index: number): boolean {
-    return (
-      this.definitionDraftAt(index).trim().length > 0 &&
-      !this.translating() &&
-      this.askingPolish() === null
-    );
-  }
-
-  /** Correct the working-language draft, or propose three other wordings above it. */
-  async polishWorkingDefinition(index: number, task: PolishDefinitionTask): Promise<void> {
-    if (!this.canPolishDefinition(index) || !this.definitionGame(index)) return;
-    const element = this.element();
-    const text = this.definitionDraftAt(index).trim();
-    this.askingPolish.set(task);
-    this.error.set('');
-    try {
-      const polished = await polishDefinition({ language: element.language, text, task });
-      if (!this.alive || this.element().id !== element.id) return;
-      if (this.definitionDraftAt(index).trim() !== text) return;
-      if (polished.task === 'reformulate') {
-        this.definitionPolishNote.set({
-          task: 'reformulate',
-          options: polished.options.map((option) => option.slice(0, DEFINITION_MAX)),
-        });
-        return;
-      }
-      const definitionDrafts = this.round().definitionDrafts.slice();
-      while (definitionDrafts.length <= index) definitionDrafts.push('');
-      definitionDrafts[index] = polished.text.slice(0, DEFINITION_MAX);
-      this.writeRound({ ...this.round(), definitionDrafts });
-      this.definitionPolishNote.set({ task: 'correct', explanation: polished.explanation });
-    } catch {
-      if (this.alive && this.element().id === element.id) {
-        this.error.set('Could not rewrite this definition.');
-      }
-    } finally {
-      if (this.alive) this.askingPolish.set(null);
-    }
-  }
-
-  /** Put a proposed wording into the working-language field. The list stays. */
-  useDefinitionProposition(index: number, option: string): void {
-    const value = option.slice(0, DEFINITION_MAX);
-    const definitionDrafts = this.round().definitionDrafts.slice();
-    while (definitionDrafts.length <= index) definitionDrafts.push('');
-    definitionDrafts[index] = value;
-    this.writeRound({ ...this.round(), definitionDrafts });
-  }
-
-  onDefinitionSupportDraft(index: number, event: Event): void {
-    const value = (event.target as HTMLTextAreaElement).value.slice(0, DEFINITION_MAX);
-    const definitionSupportDrafts = this.round().definitionSupportDrafts?.slice() ?? [];
-    while (definitionSupportDrafts.length <= index) definitionSupportDrafts.push('');
-    definitionSupportDrafts[index] = value;
-    this.writeRound({ ...this.round(), definitionSupportDrafts });
-  }
-
-  closeDefinitionPrompt(event?: MouseEvent): void {
-    if (event && event.target !== event.currentTarget) return;
-    const index = this.definitionPrompt();
-    if (this.askingGrade() !== null) return;
-    if (index >= 0 && this.definitionAwaitingScore(index)) return;
-    this.definitionPrompt.set(-1);
-  }
-
-  definitionSubmitted(index: number): boolean {
-    return this.round().definitionSubmitted[index] === true;
-  }
-
-  /** A written answer is in, and it has not been scored yet. */
-  definitionAwaitingScore(index: number): boolean {
-    return this.definitionSubmitted(index) && !this.definitionRewardAt(index);
-  }
-
-  definitionRewardAt(index: number): EquivalentReward | null {
-    return this.round().definitionRewards?.[index] ?? null;
-  }
-
-  private definitionGaveUp(index: number): boolean {
-    return this.definitionSubmitted(index) && !this.definitionDraftAt(index).trim();
-  }
-
-  submitDefinition(index: number): void {
-    if (!this.definitionGame(index) || this.aiBusy() || this.definitionSubmitted(index)) return;
-    if (!this.definitionDraftAt(index).trim()) return;
-    const definitionSubmitted = this.round().definitionSubmitted.slice();
-    while (definitionSubmitted.length <= index) definitionSubmitted.push(false);
-    definitionSubmitted[index] = true;
-    this.error.set('');
-    this.writeRound({ ...this.round(), definitionSubmitted });
-  }
-
-  onDefinitionDraft(index: number, event: Event): void {
-    const value = (event.target as HTMLTextAreaElement).value.slice(0, DEFINITION_MAX);
-    const definitionDrafts = this.round().definitionDrafts.slice();
-    while (definitionDrafts.length <= index) definitionDrafts.push('');
-    definitionDrafts[index] = value;
-    this.definitionPolishNote.set(null);
-    this.writeRound({ ...this.round(), definitionDrafts });
-  }
-
-  /** Concede this definition. The gloss is shown and the attempt scores 0. */
-  async giveUpDefinition(index: number): Promise<void> {
-    if (!this.definitionGame(index) || this.aiBusy() || this.definitionSubmitted(index)) return;
-    const definition = this.element().definitions[index];
-    if (!definition) return;
-    this.error.set('');
-    const logIndex = await this.recordDefinitionReward(index, { score: 0, by: 'user', answer: '' });
-    if (!this.alive) return;
-    if (logIndex == null) {
-      this.error.set('Could not save this score.');
-      return;
-    }
-    const definitionDrafts = this.round().definitionDrafts.slice();
-    while (definitionDrafts.length <= index) definitionDrafts.push('');
-    definitionDrafts[index] = '';
-    const definitionSubmitted = this.round().definitionSubmitted?.slice() ?? [];
-    while (definitionSubmitted.length <= index) definitionSubmitted.push(false);
-    definitionSubmitted[index] = true;
-    this.writeRound({
-      ...this.round(),
-      definitionDrafts,
-      definitionSubmitted,
-    });
-    this.writeDefinitionReward(index, { score: 0, by: 'user', explanation: '' }, logIndex);
-  }
-
-  async awardDefinition(index: number, score: number): Promise<void> {
-    if (!this.definitionGame(index) || this.aiBusy() || !this.definitionSubmitted(index)) return;
-    if (this.definitionGaveUp(index) || score < 0 || score > TRANSLATION_GEM_MAX) return;
-    const current = this.definitionRewardAt(index);
-    if (current?.by === 'user' && current.score === score) return;
-    const answer = this.definitionDraftAt(index).trim();
-    if (!answer) return;
-    this.error.set('');
-    const logIndex = await this.recordDefinitionReward(index, { score, by: 'user', answer });
-    if (!this.alive) return;
-    if (logIndex == null) {
-      this.error.set('Could not save this score.');
-      return;
-    }
-    if (this.definitionDraftAt(index).trim() !== answer) return;
-    this.writeDefinitionReward(index, { score, by: 'user', explanation: '' }, logIndex);
-  }
-
-  async evaluateDefinition(index: number): Promise<void> {
-    if (this.aiBusy() || !this.definitionSubmitted(index) || this.definitionGaveUp(index)) return;
-    if (this.definitionRewardAt(index)?.by === 'ai' || !this.definitionDraftAt(index).trim())
-      return;
-    const element = this.element();
-    const definition = element.definitions[index];
-    const gloss = parsePassage(definition?.text ?? '').text.trim();
-    if (!definition || !gloss) return;
-    const answer = this.definitionDraftAt(index).trim();
-    const job = ++this.gradeJob;
-    this.askingGrade.set(index);
-    this.error.set('');
-    try {
-      const grade = await gradeDefinition({
-        language: element.language,
-        lemma: element.title,
-        gloss,
-        answer,
-      });
-      if (!this.alive || job !== this.gradeJob || this.element().id !== element.id) return;
-      if (this.definitionDraftAt(index).trim() !== answer) return;
-      const logIndex = await this.recordDefinitionReward(index, {
-        score: grade.score,
-        by: 'ai',
-        answer,
-        explanation: grade.explanation,
-      });
-      if (!this.alive || job !== this.gradeJob || this.element().id !== element.id) return;
-      if (this.definitionDraftAt(index).trim() !== answer) return;
-      if (logIndex == null) {
-        this.error.set('Could not save this score.');
-        return;
-      }
-      this.writeDefinitionReward(
-        index,
-        { score: grade.score, by: 'ai', explanation: grade.explanation },
-        logIndex,
-      );
-    } catch {
-      if (this.alive && job === this.gradeJob && this.element().id === element.id) {
-        this.error.set('Could not evaluate that definition.');
-      }
-    } finally {
-      if (this.alive && job === this.gradeJob) this.askingGrade.set(null);
-    }
-  }
-
-  private writeDefinitionReward(index: number, reward: EquivalentReward, logIndex: number): void {
-    const definitionRewards = this.round().definitionRewards?.slice() ?? [];
-    while (definitionRewards.length <= index) definitionRewards.push(null);
-    definitionRewards[index] = reward;
-    const definitionLogIndexes = this.round().definitionLogIndexes?.slice() ?? [];
-    while (definitionLogIndexes.length <= index) definitionLogIndexes.push(null);
-    definitionLogIndexes[index] = logIndex;
-    this.writeRound({ ...this.round(), definitionRewards, definitionLogIndexes });
-  }
-
-  /** Append this attempt, or replace it when the learner changes the score. */
-  private async recordDefinitionReward(
-    index: number,
-    entry: { score: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
-  ): Promise<number | null> {
-    const elementId = this.element().id;
-    const definitions = this.copyDefinitions();
-    const definition = definitions[index];
-    if (!definition) return null;
-    const log = definition.log.map((item) => ({ ...item }));
-    const stored: DefinitionGameLog = {
-      event: 'game',
-      game: 'definition',
-      score: entry.score,
-      by: entry.by,
-      at: Date.now(),
-      answer: entry.answer,
-    };
-    if (entry.explanation) stored.explanation = entry.explanation;
-    let logIndex = this.round().definitionLogIndexes?.[index];
-    const current = typeof logIndex === 'number' ? log[logIndex] : undefined;
-    const savedGame = this.withSnapshot(definition, current, stored);
-    if (current?.event === 'game' && typeof logIndex === 'number') {
-      log[logIndex] = savedGame;
-    } else {
-      log.push(savedGame);
-      logIndex = log.length - 1;
-    }
-    definitions[index] = { ...definition, log };
-    const saved = await this.persist(definitions, this.element().equivalents);
-    if (!this.alive || !saved || this.element().id !== elementId) return null;
-    return logIndex;
-  }
-
-  examplePromptOpen(): boolean {
-    return this.examplePrompt() >= 0;
-  }
-
-  openExamplePrompt(index: number): void {
-    if (!this.exampleCue(index)) return;
-    this.error.set('');
-    this.exampleCorrection.set(null);
-    this.exampleSource.set(this.supportAvailable() ? 'support' : 'working');
-    this.examplePrompt.set(index);
-    setTimeout(() => (this.exampleSupportField() ?? this.exampleField())?.nativeElement.focus());
-  }
-
-  closeExamplePrompt(event?: MouseEvent): void {
-    if (event && event.target !== event.currentTarget) return;
-    const index = this.examplePrompt();
-    if (this.askingExampleGrade() !== null) return;
-    if (index >= 0 && this.exampleAwaitingScore(index)) return;
-    this.examplePrompt.set(-1);
-  }
-
-  exampleDraftAt(index: number): string {
-    return this.round().exampleDrafts?.[index] ?? '';
-  }
-
-  exampleSupportDraftAt(index: number): string {
-    return this.round().exampleSupportDrafts?.[index] ?? '';
-  }
-
-  exampleSubmitted(index: number): boolean {
-    return this.round().exampleSubmitted?.[index] === true;
-  }
-
-  exampleRewardAt(index: number): EquivalentReward | null {
-    return this.round().exampleRewards?.[index] ?? null;
-  }
-
-  /** A written example is in, and the AI has not scored it yet. */
-  exampleAwaitingScore(index: number): boolean {
-    return (
-      this.exampleSubmitted(index) &&
-      !!this.exampleDraftAt(index).trim() &&
-      !this.exampleRewardAt(index)
-    );
-  }
-
-  private exampleGaveUp(index: number): boolean {
-    return this.exampleSubmitted(index) && !this.exampleDraftAt(index).trim();
-  }
-
-  workExample(source: 'support' | 'working'): void {
-    if (!this.supportAvailable() || this.translating() || this.askingPolish() !== null) return;
-    this.exampleCorrection.set(null);
-    this.exampleSource.set(source);
-    setTimeout(() =>
-      (source === 'support'
-        ? this.exampleSupportField()
-        : this.exampleField()
-      )?.nativeElement.focus(),
-    );
-  }
-
-  canTranslateExample(index: number): boolean {
-    if (
-      !this.supportAvailable() ||
-      this.translating() ||
-      this.aiBusy() ||
-      this.askingExampleGrade() === index
-    ) {
-      return false;
-    }
-    const text =
-      this.exampleSource() === 'support'
-        ? this.exampleSupportDraftAt(index)
-        : this.exampleDraftAt(index);
-    return text.trim().length > 0;
-  }
-
-  /** Translate the visible draft into the other language, then show that tab. */
-  async translateExample(index: number): Promise<void> {
-    if (!this.canTranslateExample(index)) return;
-    const towardWorking = this.exampleSource() === 'support';
-    const sourceText = (
-      towardWorking ? this.exampleSupportDraftAt(index) : this.exampleDraftAt(index)
-    ).trim();
-    const element = this.element();
-    const support = this.translationTarget();
-    const ticket = this.translateTicket;
-    this.translating.set(true);
-    this.error.set('');
-    try {
-      const [translated] = await translateTexts({
-        texts: [sourceText],
-        sourceLang: towardWorking ? support : element.language,
-        targetLang: towardWorking ? element.language : support,
-      });
-      const result = String(translated ?? '')
-        .trim()
-        .slice(0, this.exampleLengthMax);
-      if (!this.alive || ticket !== this.translateTicket || this.element().id !== element.id)
-        return;
-      if (!result) {
-        this.error.set('Could not translate this.');
-        return;
-      }
-      if (towardWorking) {
-        const exampleDrafts = this.round().exampleDrafts?.slice() ?? [];
-        while (exampleDrafts.length <= index) exampleDrafts.push('');
-        exampleDrafts[index] = result;
-        this.writeRound({ ...this.round(), exampleDrafts });
-        this.exampleCorrection.set(null);
-        this.exampleSource.set('working');
-        setTimeout(() => this.exampleField()?.nativeElement.focus());
-      } else {
-        const exampleSupportDrafts = this.round().exampleSupportDrafts?.slice() ?? [];
-        while (exampleSupportDrafts.length <= index) exampleSupportDrafts.push('');
-        exampleSupportDrafts[index] = result;
-        this.writeRound({ ...this.round(), exampleSupportDrafts });
-        this.exampleCorrection.set(null);
-        this.exampleSource.set('support');
-        setTimeout(() => this.exampleSupportField()?.nativeElement.focus());
-      }
-    } catch {
-      if (this.alive && ticket === this.translateTicket && this.element().id === element.id) {
-        this.error.set('Could not translate this.');
-      }
-    } finally {
-      if (ticket === this.translateTicket) this.translating.set(false);
-    }
-  }
-
-  canCorrectExample(index: number): boolean {
-    if (this.supportAvailable() && this.exampleSource() !== 'working') return false;
-    if (this.translating() || this.askingPolish() !== null || this.askingExampleGrade() === index) {
-      return false;
-    }
-    return this.exampleDraftAt(index).trim().length > 0;
-  }
-
-  /** Fix spelling in the visible draft. Wording and meaning stay as written. */
-  async correctExample(index: number): Promise<void> {
-    if (!this.canCorrectExample(index) || !this.exampleGame(index)) return;
-    const element = this.element();
-    const text = this.exampleDraftAt(index).trim();
-    this.askingPolish.set('correct');
-    this.error.set('');
-    try {
-      const polished = await polishExample({
-        language: element.language,
-        text,
-      });
-      if (!this.alive || this.element().id !== element.id) return;
-      if (this.exampleDraftAt(index).trim() !== text) return;
-      const exampleDrafts = this.round().exampleDrafts?.slice() ?? [];
-      while (exampleDrafts.length <= index) exampleDrafts.push('');
-      exampleDrafts[index] = polished.text.slice(0, this.exampleLengthMax);
-      this.writeRound({ ...this.round(), exampleDrafts });
-      this.exampleCorrection.set(polished.explanation);
-    } catch {
-      if (this.alive && this.element().id === element.id) {
-        this.error.set('Could not correct this example.');
-      }
-    } finally {
-      if (this.alive) this.askingPolish.set(null);
-    }
-  }
-
-  onExampleSupportDraft(index: number, event: Event): void {
-    const value = (event.target as HTMLTextAreaElement).value.slice(0, this.exampleLengthMax);
-    const exampleSupportDrafts = this.round().exampleSupportDrafts?.slice() ?? [];
-    while (exampleSupportDrafts.length <= index) exampleSupportDrafts.push('');
-    exampleSupportDrafts[index] = value;
-    this.exampleCorrection.set(null);
-    this.writeRound({ ...this.round(), exampleSupportDrafts });
-  }
-
-  onExampleDraft(index: number, event: Event): void {
-    const value = (event.target as HTMLTextAreaElement).value.slice(0, this.exampleLengthMax);
-    const exampleDrafts = this.round().exampleDrafts?.slice() ?? [];
-    while (exampleDrafts.length <= index) exampleDrafts.push('');
-    exampleDrafts[index] = value;
-    this.exampleCorrection.set(null);
-    this.writeRound({ ...this.round(), exampleDrafts });
-  }
-
-  /** Submit needs a sentence. The grader decides whether a valid form was used. */
-  exampleReady(index: number): boolean {
-    return this.exampleDraftAt(index).trim().length > 0;
-  }
-
-  submitExample(index: number): void {
-    if (
-      !this.exampleGame(index) ||
-      this.aiBusy() ||
-      this.translating() ||
-      this.exampleSubmitted(index)
-    )
-      return;
-    if (!this.exampleReady(index)) return;
-    const exampleSubmitted = this.round().exampleSubmitted?.slice() ?? [];
-    while (exampleSubmitted.length <= index) exampleSubmitted.push(false);
-    exampleSubmitted[index] = true;
-    this.error.set('');
-    this.writeRound({ ...this.round(), exampleSubmitted });
-    void this.evaluateExample(index);
-  }
-
-  /** Concede this example. The attempt scores 0 and the saved examples stay hidden. */
-  async giveUpExample(index: number): Promise<void> {
-    if (!this.exampleGame(index) || this.aiBusy() || this.exampleSubmitted(index)) return;
-    const text = parsePassage(this.element().definitions[index]?.text ?? '').text.trim();
-    if (!text) return;
-    this.error.set('');
-    const logIndex = await this.recordExampleReward(index, { score: 0, by: 'user', answer: '' });
-    if (!this.alive) return;
-    if (logIndex == null) {
-      this.error.set('Could not save this score.');
-      return;
-    }
-    const exampleDrafts = this.round().exampleDrafts?.slice() ?? [];
-    while (exampleDrafts.length <= index) exampleDrafts.push('');
-    exampleDrafts[index] = '';
-    const exampleSubmitted = this.round().exampleSubmitted?.slice() ?? [];
-    while (exampleSubmitted.length <= index) exampleSubmitted.push(false);
-    exampleSubmitted[index] = true;
-    this.writeRound({ ...this.round(), exampleDrafts, exampleSubmitted });
-    this.writeExampleReward(index, { score: 0, by: 'user', explanation: '' }, logIndex);
-  }
-
-  async evaluateExample(index: number): Promise<void> {
-    if (this.askingExampleGrade() !== null) return;
-    if (!this.exampleSubmitted(index) || this.exampleGaveUp(index)) return;
-    if (this.exampleRewardAt(index) || !this.exampleDraftAt(index).trim()) return;
-    const element = this.element();
-    const definition = element.definitions[index];
-    const gloss = parsePassage(definition?.text ?? '').text.trim();
-    const answer = this.exampleDraftAt(index).trim();
-    if (!definition || !gloss || !answer) return;
-    const job = ++this.exampleGradeJob;
-    this.askingExampleGrade.set(index);
-    this.error.set('');
-    try {
-      const grade = await gradeExample({
-        language: element.language,
-        lemma: element.title,
-        gloss,
-        answer,
-        forms: definition.forms.map((form) => form.text),
-      });
-      if (!this.alive || job !== this.exampleGradeJob || this.element().id !== element.id) return;
-      if (this.exampleDraftAt(index).trim() !== answer) return;
-      const logIndex = await this.recordExampleReward(index, {
-        score: grade.score,
-        by: 'ai',
-        answer,
-        explanation: grade.explanation,
-      });
-      if (!this.alive || job !== this.exampleGradeJob || this.element().id !== element.id) return;
-      if (this.exampleDraftAt(index).trim() !== answer) return;
-      if (logIndex == null) {
-        this.error.set('Could not save this score.');
-        return;
-      }
-      this.writeExampleReward(
-        index,
-        { score: grade.score, by: 'ai', explanation: grade.explanation },
-        logIndex,
-      );
-    } catch {
-      if (this.alive && job === this.exampleGradeJob && this.element().id === element.id) {
-        this.error.set('Could not score that example.');
-      }
-    } finally {
-      if (this.alive && job === this.exampleGradeJob) this.askingExampleGrade.set(null);
-    }
-  }
-
-  private writeExampleReward(index: number, reward: EquivalentReward, logIndex: number): void {
-    const exampleRewards = this.round().exampleRewards?.slice() ?? [];
-    while (exampleRewards.length <= index) exampleRewards.push(null);
-    exampleRewards[index] = reward;
-    const exampleLogIndexes = this.round().exampleLogIndexes?.slice() ?? [];
-    while (exampleLogIndexes.length <= index) exampleLogIndexes.push(null);
-    exampleLogIndexes[index] = logIndex;
-    this.writeRound({ ...this.round(), exampleRewards, exampleLogIndexes });
-  }
-
-  /** Append this attempt, or replace it when the learner tries again. */
-  private async recordExampleReward(
-    index: number,
-    entry: { score: number; by: DefinitionGameLog['by']; answer: string; explanation?: string },
-  ): Promise<number | null> {
-    const elementId = this.element().id;
-    const definitions = this.copyDefinitions();
-    const definition = definitions[index];
-    if (!definition) return null;
-    const log = definition.log.map((item) => ({ ...item }));
-    const stored: DefinitionGameLog = {
-      event: 'game',
-      game: 'example',
-      score: entry.score,
-      by: entry.by,
-      at: Date.now(),
-      answer: entry.answer,
-    };
-    if (entry.explanation) stored.explanation = entry.explanation;
-    let logIndex = this.round().exampleLogIndexes?.[index];
-    const current = typeof logIndex === 'number' ? log[logIndex] : undefined;
-    const savedGame = this.withSnapshot(definition, current, stored);
-    if (current?.event === 'game' && typeof logIndex === 'number') {
-      log[logIndex] = savedGame;
-    } else {
-      log.push(savedGame);
-      logIndex = log.length - 1;
-    }
-    definitions[index] = { ...definition, log };
-    const saved = await this.persist(definitions, this.element().equivalents);
-    if (!this.alive || !saved || this.element().id !== elementId) return null;
-    return logIndex;
-  }
-
-  private loadRound(id: string): void {
-    const existing = this.rounds.get(id);
-    if (existing) {
-      this.round.set(existing);
-      return;
-    }
-    const fresh = emptyPlayRound();
-    this.rounds.set(id, fresh);
-    this.round.set(fresh);
-  }
-
-  private writeRound(next: PlayRound): void {
-    this.rounds.set(this.element().id, next);
-    this.round.set(next);
   }
 }
 
