@@ -89,6 +89,7 @@ function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = fal
 function elementFromSelectionSystemPrompt(
   fields: readonly AiMetadataField[],
   extra = false,
+  contextual = false,
 ): string {
   return joinPrompt([
     'You add one dictionary element from a selected word or phrase.',
@@ -99,8 +100,17 @@ function elementFromSelectionSystemPrompt(
     'Rules:',
     '- selected is written in writeFieldsIn. It is not written in translateFieldsIn',
     '- lemma is the citation form of selected in writeFieldsIn. When selected is already that form, lemma is selected. Do not translate selected into another language and do not choose a different word',
-    '- One sense per distinct meaning of that lemma',
-    `- Return at most ${MAX_SENSES} senses`,
+    ...(contextual
+      ? [
+          '- phraseKind is definition or example. phrase is that definition, or one example sentence, written in writeFieldsIn',
+          '- selected is a word or phrase inside phrase. root, when present, is the headword that phrase defines or exemplifies. Define selected, not root',
+          '- Return exactly one sense: the meaning of the lemma as selected is used in phrase',
+          '- Do not return any other meaning',
+        ]
+      : [
+          '- One sense per distinct meaning of that lemma',
+          `- Return at most ${MAX_SENSES} senses`,
+        ]),
     '- One short dictionary-style gloss per sense',
     NO_SELF_MENTION,
     '- Do not include forms',
@@ -401,10 +411,18 @@ export async function generateDefinitionFromExample(
   }
 }
 
+type SelectionContext = {
+  kind: 'definition' | 'example';
+  phrase: string;
+  root?: string;
+};
+
 type GenerateElementFromSelectionInput = {
   language: string;
   selected: string;
   translation?: string;
+  /** The definition or example the selected word was taken from. */
+  context?: SelectionContext;
 };
 
 type GeneratedElement = {
@@ -416,12 +434,20 @@ function buildElementFromSelectionUserMessage(input: GenerateElementFromSelectio
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
   const translateFieldsIn = translationLanguage(language, input.translation);
+  const context = input.context;
   return JSON.stringify({
     language,
     writeFieldsIn,
     selectedIn: writeFieldsIn,
     ...(translateFieldsIn ? { translateFieldsIn } : {}),
     selected: input.selected.trim(),
+    ...(context
+      ? {
+          phraseKind: context.kind,
+          phrase: context.phrase,
+          ...(context.root ? { root: context.root } : {}),
+        }
+      : {}),
   });
 }
 
@@ -432,11 +458,19 @@ export async function generateElementFromSelection(
   const selected = request.selected.trim();
   const language = request.language.trim().toLowerCase();
   if (!selected || !language) return null;
-  const prepared = { ...request, selected, language };
+  const { context: rawContext, ...rest } = request;
+  const context = selectionContext(rawContext);
+  const prepared: GenerateElementFromSelectionInput = {
+    ...rest,
+    selected,
+    language,
+    ...(context ? { context } : {}),
+  };
   const input: CompleteJsonInput = {
     system: elementFromSelectionSystemPrompt(
       readDefinitionMetadataFields(),
       readDefinitionExtraFields(),
+      !!prepared.context,
     ),
     user: buildElementFromSelectionUserMessage(prepared),
     maxTokens: DEFINITIONS_MAX_TOKENS,
@@ -480,7 +514,15 @@ function parseGeneratedElement(
     translation: input.translation,
   });
   if (!definitions) return null;
-  return { lemma, definitions };
+  return { lemma, definitions: input.context ? definitions.slice(0, 1) : definitions };
+}
+
+function selectionContext(context: SelectionContext | undefined): SelectionContext | undefined {
+  if (!context || (context.kind !== 'definition' && context.kind !== 'example')) return undefined;
+  const phrase = context.phrase.replace(/\s+/g, ' ').trim();
+  if (!phrase) return undefined;
+  const root = context.root?.replace(/\s+/g, ' ').trim() ?? '';
+  return { kind: context.kind, phrase, ...(root ? { root } : {}) };
 }
 
 /** Ask the saved model for one sense this headword does not already have. */

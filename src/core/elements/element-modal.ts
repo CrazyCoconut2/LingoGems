@@ -191,6 +191,9 @@ type StoredSuggestion = {
   equivalent?: string;
 };
 
+/** One generated definition held until it is kept or dismissed. */
+type PendingDefinition = StoredSuggestion;
+
 const SUGGESTIONS_KEY = 'lingogem.definition-suggestions.v1';
 const NEW_DEFINITIONS_KEY = 'lingogem.definition-new.v1';
 
@@ -769,8 +772,12 @@ function writeExampleSuggestions(
                   type="button"
                   class="icon-btn"
                   aria-label="Missing definitions"
-                  title="Missing definitions"
-                  [disabled]="aiBusy()"
+                  [disabled]="aiBusy() || !!pendingDefinition()"
+                  [attr.title]="
+                    pendingDefinition()
+                      ? 'Keep or dismiss the suggestion first'
+                      : 'Missing definitions'
+                  "
                   [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
                   (click)="addMissingDefinition()"
                 >
@@ -1159,7 +1166,7 @@ function writeExampleSuggestions(
                 </li>
               }
             </ol>
-          } @else {
+          } @else if (!pendingDefinition()) {
             <div class="empty-definitions">
               <p class="empty">No definitions yet.</p>
               <button
@@ -1171,6 +1178,91 @@ function writeExampleSuggestions(
                 Add a definition
               </button>
             </div>
+          }
+          @if (pendingDefinition(); as pending) {
+            <article class="pending-sense" id="pending-sense">
+              <div class="sense-row">
+                <span class="sense-index">Suggested definition</span>
+              </div>
+              @let passage = parsePassage(pending.text);
+              @if (passage.text) {
+                <div class="spoken">
+                  <div class="spoken-copy">
+                    <p class="passage">{{ passage.text }}</p>
+                    @for (translation of shownTranslations(passage); track $index) {
+                      <p class="pending-line">{{ labeledTranslation(translation) }}</p>
+                    }
+                  </div>
+                  <ng-container
+                    [ngTemplateOutlet]="hearButton"
+                    [ngTemplateOutletContext]="{
+                      key: 'pending-definition',
+                      text: pending.text,
+                      label: 'definition',
+                    }"
+                  />
+                </div>
+              }
+              @let meta = entries(pending.metadata);
+              @if ((supportAvailable() && pending.equivalent) || meta.length) {
+                <ul class="sense-meta">
+                  @if (supportAvailable() && pending.equivalent) {
+                    <li class="sense-equivalent">
+                      <ng-container [ngTemplateOutlet]="translationIcon" />
+                      <span>{{ labeledEquivalent(pending.equivalent) }}</span>
+                    </li>
+                  }
+                  @for (entry of meta; track entry.key) {
+                    @let color = metaColor('definitions', entry.key);
+                    <li [class.colored]="color" [style.--meta-color]="color">
+                      <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                      <span class="sense-meta-value">{{ label(entry.value) }}</span>
+                    </li>
+                  }
+                </ul>
+              }
+              @if (pending.example) {
+                @let examplePassage = parsePassage(pending.example);
+                @if (examplePassage.text) {
+                  <div class="pending-example">
+                    <div class="spoken">
+                      <div class="spoken-copy">
+                        <p class="passage">{{ examplePassage.text }}</p>
+                        @for (translation of shownTranslations(examplePassage); track $index) {
+                          <p class="pending-line">{{ labeledTranslation(translation) }}</p>
+                        }
+                      </div>
+                      <ng-container
+                        [ngTemplateOutlet]="hearButton"
+                        [ngTemplateOutletContext]="{
+                          key: 'pending-example',
+                          text: pending.example,
+                          label: 'example',
+                        }"
+                      />
+                    </div>
+                  </div>
+                }
+              }
+              <div class="pending-actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  [disabled]="busy() || asking()"
+                  (click)="dismissPendingDefinition()"
+                >
+                  Dismiss
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  [disabled]="busy() || asking()"
+                  (click)="keepPendingDefinition()"
+                >
+                  Keep
+                </button>
+              </div>
+            </article>
           }
         </div>
         <footer class="definition-footer">
@@ -3853,6 +3945,53 @@ function writeExampleSuggestions(
       background: var(--surface);
     }
 
+    .pending-sense {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 0.85rem;
+      padding: 0.85rem 1rem;
+      border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--border));
+      border-radius: 1rem;
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--accent) 14%, transparent),
+        color-mix(in srgb, var(--accent) 5%, var(--surface))
+      );
+    }
+
+    .pending-sense .passage {
+      margin: 0;
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+
+    .pending-line {
+      margin: 0;
+      color: #94a3b8;
+      font-size: 0.75rem;
+      line-height: 1.4;
+    }
+
+    .pending-example {
+      padding: 0.75rem;
+      border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+      border-radius: 0.75rem;
+      background: color-mix(in srgb, var(--surface-2) 90%, transparent);
+    }
+
+    .pending-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.45rem;
+    }
+
+    .pending-actions .btn {
+      padding: 0.4rem 0.85rem;
+      font-size: 0.8125rem;
+    }
+
     .sense-body {
       display: flex;
       flex-direction: column;
@@ -5555,6 +5694,10 @@ export class ElementModal {
   /** Example translations open, keyed by definition and example index. */
   readonly revealedExamples = signal<ReadonlySet<string>>(new Set());
   readonly addingDefinitions = signal<'example' | 'missing' | null>(null);
+  /** Generated missing definition, shown in full until it is kept or dismissed. */
+  readonly pendingDefinition = signal<PendingDefinition | null>(null);
+  /** Dismissed suggestions, so the next one is a different sense. */
+  private skippedDefinitions: PendingDefinition[] = [];
   readonly definitionExample = signal('');
   /** Arrived example shown as text until it is placed. */
   readonly heldExample = signal('');
@@ -5649,6 +5792,8 @@ export class ElementModal {
       this.heldExample.set(arrived);
       this.formAttributesView.set(null);
       this.addingDefinitions.set(null);
+      this.pendingDefinition.set(null);
+      this.skippedDefinitions = [];
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
       this.askingMetadata.set(false);
@@ -6285,7 +6430,7 @@ export class ElementModal {
   }
 
   async addMissingDefinition(): Promise<void> {
-    if (this.aiBusy()) return;
+    if (this.aiBusy() || this.pendingDefinition()) return;
     const element = this.element();
     const title = element.title.trim();
     if (!title) return;
@@ -6301,10 +6446,16 @@ export class ElementModal {
         language: element.language,
         title,
         translation: this.translationTarget(),
-        existingDefinitions: element.definitions.map((definition) => ({
-          text: definition.text,
-          metadata: definition.metadata,
-        })),
+        existingDefinitions: [
+          ...element.definitions.map((definition) => ({
+            text: definition.text,
+            metadata: definition.metadata,
+          })),
+          ...this.skippedDefinitions.map((definition) => ({
+            text: definition.text,
+            metadata: definition.metadata,
+          })),
+        ],
       });
       if (this.element().id !== element.id) return;
       const sense = senses[0];
@@ -6312,15 +6463,39 @@ export class ElementModal {
         this.error.set('No further definitions.');
         return;
       }
-      if (!(await this.commitGeneratedSenses(element, [sense], 'end'))) {
-        if (this.element().id === element.id) this.error.set('Could not add that definition.');
-      }
+      this.pendingDefinition.set({
+        text: sense.text,
+        metadata: sense.metadata,
+        ...(sense.example ? { example: sense.example } : {}),
+        ...(sense.equivalent ? { equivalent: sense.equivalent } : {}),
+      });
+      this.scrollPendingIntoView();
     } catch {
       if (this.element().id === element.id) this.error.set('Could not add that definition.');
     } finally {
       if (this.element().id === element.id) this.asking.set(false);
       this.addingDefinitions.set(null);
     }
+  }
+
+  dismissPendingDefinition(): void {
+    const pending = this.pendingDefinition();
+    if (!pending || this.busy() || this.asking()) return;
+    this.skippedDefinitions.push(pending);
+    this.pendingDefinition.set(null);
+  }
+
+  async keepPendingDefinition(): Promise<void> {
+    const pending = this.pendingDefinition();
+    if (!pending || this.busy() || this.asking()) return;
+    const element = this.element();
+    const saved = await this.commitGeneratedSenses(element, [pending], 'end');
+    if (this.element().id !== element.id) return;
+    if (!saved) {
+      this.error.set('Could not add that definition.');
+      return;
+    }
+    this.pendingDefinition.set(null);
   }
 
   async addDefinitionFromExample(): Promise<void> {
@@ -6646,6 +6821,21 @@ export class ElementModal {
     this.viewedDefinitions.add(key);
     definition.log = [...definition.log, { event: 'view', at: Date.now() }];
     void this.persist(definitions, element.equivalents, { busy: false });
+  }
+
+  private scrollPendingIntoView(): void {
+    const elementId = this.element().id;
+    const run = (attempt: number) => {
+      if (!this.alive || this.element().id !== elementId) return;
+      const body = this.definitionBody()?.nativeElement;
+      const sense = body?.querySelector('#pending-sense');
+      if (sense instanceof HTMLElement) {
+        sense.scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      if (attempt < 2) requestAnimationFrame(() => run(attempt + 1));
+    };
+    requestAnimationFrame(() => run(0));
   }
 
   private scrollSenseIntoView(index: number): void {
@@ -7412,7 +7602,17 @@ export class ElementModal {
     this.addingSelection.set(true);
     this.error.set('');
     try {
-      const generated = await this.elementFromSelection(element.language, title);
+      const generated = await this.elementFromSelection(
+        element.language,
+        title,
+        pick && gloss
+          ? {
+              kind: fromExample ? 'example' : 'definition',
+              phrase: gloss,
+              ...(root ? { root } : {}),
+            }
+          : undefined,
+      );
       if (this.element().id !== element.id) return;
       if (generated) {
         this.passageSelection.set(null);
@@ -7449,11 +7649,16 @@ export class ElementModal {
     }
   }
 
-  private elementFromSelection(language: string, selected: string) {
+  private elementFromSelection(
+    language: string,
+    selected: string,
+    context?: { kind: 'definition' | 'example'; phrase: string; root?: string },
+  ) {
     return generateElementFromSelection({
       language,
       selected,
       translation: this.translationTarget(),
+      ...(context ? { context } : {}),
     }).catch(() => null);
   }
 
