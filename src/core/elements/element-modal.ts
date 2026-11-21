@@ -200,6 +200,64 @@ function definitionGloss(text: string): string {
   return parsePassage(text).text.trim().toLowerCase();
 }
 
+type SenseStage = 'examples' | 'open';
+
+function shiftIndexMap<T>(map: ReadonlyMap<number, T>, by: number): Map<number, T> {
+  const next = new Map<number, T>();
+  for (const [index, value] of map) next.set(index + by, value);
+  return next;
+}
+
+function dropIndexMap<T>(map: ReadonlyMap<number, T>, index: number): Map<number, T> {
+  const next = new Map<number, T>();
+  for (const [key, value] of map) {
+    if (key === index) continue;
+    next.set(key > index ? key - 1 : key, value);
+  }
+  return next;
+}
+
+function shiftIndexSet(keys: ReadonlySet<number>, by: number): Set<number> {
+  const next = new Set<number>();
+  for (const key of keys) next.add(key + by);
+  return next;
+}
+
+function dropIndexSet(keys: ReadonlySet<number>, index: number): Set<number> {
+  const next = new Set<number>();
+  for (const key of keys) {
+    if (key === index) continue;
+    next.add(key > index ? key - 1 : key);
+  }
+  return next;
+}
+
+function exampleRevealKey(definitionIndex: number, exampleIndex: number): string {
+  return `${definitionIndex}:${exampleIndex}`;
+}
+
+function shiftExampleKeys(keys: ReadonlySet<string>, by: number): Set<string> {
+  const next = new Set<string>();
+  for (const key of keys) {
+    const split = key.indexOf(':');
+    const definition = Number(key.slice(0, split));
+    next.add(`${definition + by}:${key.slice(split + 1)}`);
+  }
+  return next;
+}
+
+function dropExampleKeys(keys: ReadonlySet<string>, index: number): Set<string> {
+  const next = new Set<string>();
+  for (const key of keys) {
+    const split = key.indexOf(':');
+    const definition = Number(key.slice(0, split));
+    if (definition === index) continue;
+    const nextDefinition = definition > index ? definition - 1 : definition;
+    next.add(`${nextDefinition}:${key.slice(split + 1)}`);
+  }
+  return next;
+}
+
 function readDefinitionSuggestions(elementId: string): StoredSuggestion[] {
   if (!elementId) return [];
   const stored = readRecord(SUGGESTIONS_KEY);
@@ -693,125 +751,53 @@ function writeExampleSuggestions(
           }
           @if (element().definitions.length) {
             @let definitions = shownDefinitions();
-            @let index = visibleDefinitionIndex();
-            @if (definitions[index]; as definition) {
-              <ol class="definitions">
-                <li class="sense">
-                  <div class="sense-toolbar">
-                    <div class="sense-pager">
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Previous definition"
-                        [disabled]="index === 0"
-                        (click)="showDefinition(index - 1)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m15 18-6-6 6-6" />
-                        </svg>
-                      </button>
-                      <label class="definition-order">
-                        <input
-                          class="order-input"
-                          type="text"
-                          inputmode="numeric"
-                          autocomplete="off"
-                          [style.--digits]="orderDigits(definitions.length)"
-                          [attr.aria-label]="
-                            'Position ' + (index + 1) + ' of ' + definitions.length
-                          "
-                          [disabled]="definitions.length < 2"
-                          [value]="index + 1"
-                          (focus)="focusOrderInput($event)"
-                          (input)="editOrderInput($event)"
-                          (keydown.enter)="commitOrderInput($event, definitions.length)"
-                          (keydown.escape)="cancelOrderInput($event)"
-                          (blur)="commitOrderInput($event, definitions.length)"
-                        />
-                        <span class="order-total">/{{ definitions.length }}</span>
-                      </label>
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Next definition"
-                        [disabled]="index >= definitions.length - 1"
-                        (click)="showDefinition(index + 1)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m9 18 6-6-6-6" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Add a definition"
-                        title="Add a definition"
-                        [disabled]="aiBusy()"
-                        (click)="addDefinitionManually()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M12 5v14" />
-                          <path d="M5 12h14" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Missing definitions"
-                        title="Missing definitions"
-                        [disabled]="aiBusy()"
-                        [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
-                        (click)="addMissingDefinition()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                          />
-                          <path d="M5 3v4" />
-                          <path d="M3 5h4" />
-                          <path d="M19 17v4" />
-                          <path d="M17 19h4" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div class="sense-actions">
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Stats"
-                        title="Stats"
-                        (click)="openExerciseLog(index)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M3 3v16a2 2 0 0 0 2 2h16" />
-                          <path d="M18 17V9" />
-                          <path d="M13 17V5" />
-                          <path d="M8 17v-3" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        class="icon-btn danger"
-                        [attr.aria-label]="deleteLabel()"
-                        [attr.title]="deleteTitle()"
-                        [disabled]="busy() || aiBusy()"
-                        (pointerdown)="startDeletePress($event)"
-                        (pointermove)="moveDeletePress($event)"
-                        (pointerup)="endDeletePress()"
-                        (pointercancel)="endDeletePress()"
-                        (contextmenu)="$event.preventDefault()"
-                        (click)="onDeleteClick()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M3 6h18" />
-                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                          <path d="M10 11v6" />
-                          <path d="M14 11v6" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
+            <div class="sense-list-head">
+              <button
+                type="button"
+                class="icon-btn"
+                aria-label="Add a definition"
+                title="Add a definition"
+                [disabled]="aiBusy()"
+                (click)="addDefinitionManually()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
+                aria-label="Missing definitions"
+                title="Missing definitions"
+                [disabled]="aiBusy()"
+                [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
+                (click)="addMissingDefinition()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                  />
+                  <path d="M5 3v4" />
+                  <path d="M3 5h4" />
+                  <path d="M19 17v4" />
+                  <path d="M17 19h4" />
+                </svg>
+              </button>
+            </div>
+            <ol class="definitions">
+              @for (definition of definitions; track $index) {
+                @let index = $index;
+                <li
+                  class="sense"
+                  [class.open]="senseStage(index) === 'open'"
+                  [attr.id]="'sense-' + index"
+                >
+                  <div class="sense-lead">
+                    <span class="sense-index">Definition {{ index + 1 }}</span>
+                    @if (senseStage(index) !== 'closed') {
+                    <div class="sense-body">
+                    @if (senseStage(index) === 'open') {
                   <div class="sense-main">
                     <div class="sense-copy">
                       @let passage = parsePassage(definition.text);
@@ -898,7 +884,7 @@ function writeExampleSuggestions(
                               <li>
                                 <app-reveal
                                   [text]="labeledTranslation(translation)"
-                                  [open]="supportRevealed()"
+                                  [open]="supportOpen(index)"
                                   [scope]="index"
                                   (unveiled)="
                                     noteReveal(index, passage.text, translation.text, 'definition');
@@ -919,8 +905,8 @@ function writeExampleSuggestions(
                               <ng-container [ngTemplateOutlet]="translationIcon" />
                               <app-reveal
                                 [text]="labeledEquivalent(equivalent)"
-                                [open]="equivalentUnveiled(equivalent)"
-                                [scope]="index"
+                                [open]="supportOpen(index)"
+                                [scope]="'equivalent:' + index"
                                 (unveiled)="unveilSupport(index)"
                               />
                             </li>
@@ -936,7 +922,7 @@ function writeExampleSuggestions(
                       }
                     </div>
                   </div>
-
+                    }
                   <section class="group examples-region">
                     @if (definition.examples.length) {
                       <ul class="examples" aria-label="Examples">
@@ -1012,14 +998,14 @@ function writeExampleSuggestions(
                                       </button>
                                     </p>
                                     @let translations = shownTranslations(passage);
-                                    @if (translations.length) {
+                                    @if (senseStage(index) === 'open' && translations.length) {
                                       <ul class="equivalents">
                                         @for (translation of translations; track $index) {
                                           <li>
                                             <app-reveal
                                               [text]="labeledTranslation(translation)"
-                                              [open]="exampleRevealed(exampleIndex)"
-                                              [scope]="exampleIndex"
+                                              [open]="exampleRevealed(index, exampleIndex)"
+                                              [scope]="index + ':' + exampleIndex"
                                               (unveiled)="
                                                 noteReveal(
                                                   index,
@@ -1027,7 +1013,7 @@ function writeExampleSuggestions(
                                                   translation.text,
                                                   'example'
                                                 );
-                                                unveilExample(exampleIndex)
+                                                unveilExample(index, exampleIndex)
                                               "
                                             />
                                           </li>
@@ -1075,6 +1061,7 @@ function writeExampleSuggestions(
                       </button>
                     }
                   </section>
+                  @if (senseStage(index) === 'open') {
                   <section class="group forms-region" (click)="onFormsClick($event, index)">
                     <ul class="forms" aria-label="Forms">
                       @if (definition.forms.length) {
@@ -1107,9 +1094,87 @@ function writeExampleSuggestions(
                       }
                     </ul>
                   </section>
+                  }
+                    </div>
+                  }
+                  </div>
+                  <div class="sense-rail">
+                    <div class="sense-actions">
+                      @if (senseStage(index) === 'closed') {
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Show examples"
+                          title="Show examples"
+                          (click)="unveilExamples(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                            />
+                            <path
+                              d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                            />
+                          </svg>
+                        </button>
+                      } @else if (senseStage(index) === 'examples') {
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Show definition"
+                          title="Show definition"
+                          (click)="unveilDefinitionText(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
+                            />
+                            <path d="m8 13 4-7 4 7" />
+                            <path d="M9.1 11h5.7" />
+                          </svg>
+                        </button>
+                      } @else {
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Stats"
+                          title="Stats"
+                          (click)="openExerciseLog(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+                            <path d="M18 17V9" />
+                            <path d="M13 17V5" />
+                            <path d="M8 17v-3" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn danger"
+                          [attr.aria-label]="deleteLabel()"
+                          [attr.title]="deleteTitle()"
+                          [disabled]="busy() || aiBusy()"
+                          (pointerdown)="startDeletePress($event)"
+                          (pointermove)="moveDeletePress($event)"
+                          (pointerup)="endDeletePress()"
+                          (pointercancel)="endDeletePress()"
+                          (contextmenu)="$event.preventDefault()"
+                          (click)="onDeleteClick(index)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                            <path d="M10 11v6" />
+                            <path d="M14 11v6" />
+                          </svg>
+                        </button>
+                      }
+                    </div>
+                  </div>
                 </li>
-              </ol>
-            }
+              }
+            </ol>
           } @else {
             <div class="empty-definitions">
               <p class="empty">No definitions yet.</p>
@@ -3694,84 +3759,55 @@ function writeExampleSuggestions(
       gap: 0.85rem;
     }
 
-    .sense-toolbar {
-      display: flex;
-      flex-flow: row nowrap;
-      align-items: center;
-      gap: 0.4rem;
-      min-width: 0;
-      padding-bottom: 0.75rem;
-      border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-    }
-
-    .sense-pager {
+    .sense-list-head {
       display: flex;
       align-items: center;
       gap: 0.05rem;
-      min-width: 0;
+      margin-bottom: 0.85rem;
       color: #94a3b8;
     }
 
-    .sense-pager .icon-btn {
+    .sense-list-head .icon-btn {
       width: 1.75rem;
       height: 1.75rem;
       border-radius: 0.25rem;
     }
 
-    .sense-pager .icon-btn svg {
+    .sense-list-head .icon-btn svg {
       width: 0.9rem;
       height: 0.9rem;
     }
 
-    .definition-order {
-      display: inline-flex;
+    .sense-index {
+      color: var(--text);
+      font-size: 0.875rem;
+      font-weight: 650;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .sense-lead {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: 0.875rem;
+      min-width: 0;
+    }
+
+    .sense-rail {
+      display: flex;
+      flex-direction: row;
       align-items: center;
       flex: none;
-      height: 1.75rem;
-      padding: 0 0.15rem;
-      cursor: text;
-      color: #94a3b8;
-      font-size: 0.8125rem;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
-    .definition-order:has(.order-input:disabled) {
-      cursor: default;
-    }
-
-    .order-input {
-      width: calc(var(--digits, 1) * 1ch + 0.1rem);
-      margin: 0;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
-      appearance: none;
-      background: transparent;
-      color: var(--element-accent);
-      font: inherit;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-      text-align: end;
-      caret-color: var(--element-accent);
-    }
-
-    .order-input:focus {
-      outline: none;
-    }
-
-    .order-input:disabled {
-      cursor: default;
+      margin-left: auto;
     }
 
     .sense-actions {
       display: flex;
+      flex-direction: row;
       align-items: center;
       flex: none;
       gap: 0.05rem;
-      margin-left: auto;
       color: #94a3b8;
     }
 
@@ -3793,12 +3829,25 @@ function writeExampleSuggestions(
 
     .sense {
       display: flex;
-      flex-direction: column;
-      gap: 0.875rem;
-      padding: 1rem;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.85rem 1rem;
       border: 1px solid var(--border);
       border-radius: 1rem;
       background: var(--surface);
+    }
+
+    .sense.open {
+      align-items: flex-start;
+    }
+
+    .sense-body {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: 0.875rem;
+      min-width: 0;
     }
 
     .forms-region {
@@ -5399,7 +5448,7 @@ export class ElementModal {
   /** Presets and custom colors already saved, for the highlight picker. */
   readonly colors = input<readonly string[]>([]);
   readonly canGoBack = input(false);
-  /** Definition to show when this element opens, including a return from Back. */
+  /** Sense to scroll into view when this element opens. It stays collapsed. */
   readonly definitionIndex = input(0);
   /** Example sentence carried in from the element that opened this one. */
   readonly arrivedExample = input('');
@@ -5481,13 +5530,8 @@ export class ElementModal {
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
   readonly shownDefinitions = computed(() => this.element().definitions);
-  /** Index of the definition panel on screen. */
-  readonly definitionPanel = signal(0);
-  readonly visibleDefinitionIndex = computed(() => {
-    const count = this.shownDefinitions().length;
-    if (count === 0) return 0;
-    return Math.min(this.definitionPanel(), count - 1);
-  });
+  /** Per-sense unveil stage. Missing means the sense is still closed. */
+  readonly senseStages = signal<ReadonlyMap<number, SenseStage>>(new Map());
   readonly asking = signal(false);
   readonly addingSelection = signal(false);
   readonly titleEdit = signal(false);
@@ -5495,11 +5539,10 @@ export class ElementModal {
   readonly titleError = signal('');
   /** Color chosen in the element editor. Null clears it. */
   readonly colorDraft = signal<string | null>(null);
-  readonly unveiledEquivalents = signal<ReadonlySet<string>>(new Set());
-  /** Definition translations and the equivalent, opened together. */
-  readonly supportRevealed = signal(false);
-  /** Example indexes whose translations are open. Separate from the definition. */
-  readonly revealedExamples = signal<ReadonlySet<number>>(new Set());
+  /** Definition indexes whose translations and equivalent are open. */
+  readonly supportRevealed = signal<ReadonlySet<number>>(new Set());
+  /** Example translations open, keyed by definition and example index. */
+  readonly revealedExamples = signal<ReadonlySet<string>>(new Set());
   readonly addingDefinitions = signal<'example' | 'missing' | null>(null);
   readonly definitionExample = signal('');
   /** Arrived example shown as text until it is placed. */
@@ -5540,10 +5583,8 @@ export class ElementModal {
   private relatedJob = 0;
   private wordingJob = 0;
   private trackedElementId = '';
-  /** Element and definition last recorded as viewed. */
-  private viewedDefinitionKey = '';
-  /** Element whose on-screen definition was marked viewed for this open. */
-  private viewedElementKey = '';
+  /** Definitions whose text was unveiled during this open. */
+  private viewedDefinitions = new Set<string>();
   private engineerDrafts = new Map<string, EngineerDraft>();
   private definitionEngineerDrafts = new Map<string, DefinitionEngineerDraft>();
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
@@ -5589,16 +5630,16 @@ export class ElementModal {
       this.askingWording.set(null);
       this.exampleEngineer.set(null);
       this.definitionEngineer.set(null);
-      this.unveiledEquivalents.set(new Set());
-      this.supportRevealed.set(false);
+      this.senseStages.set(new Map());
+      this.supportRevealed.set(new Set());
       this.revealedExamples.set(new Set());
+      this.viewedDefinitions.clear();
       this.exerciseLog.set(-1);
       this.exerciseEntry.set(-1);
       const arrived = this.arrivedExample().trim().slice(0, MAX_EXAMPLE_LENGTH);
       this.definitionExample.set(arrived);
       this.heldExample.set(arrived);
       this.formAttributesView.set(null);
-      this.definitionPanel.set(definition > 0 ? definition : 0);
       this.addingDefinitions.set(null);
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
@@ -5608,19 +5649,7 @@ export class ElementModal {
       void this.commitStoredExamples(id);
       this.refreshNewDefinitions(id);
       void this.adoptStoredSuggestions(id);
-    });
-    effect(() => {
-      const id = this.element().id;
-      const count = this.element().definitions.length;
-      queueMicrotask(() => {
-        if (!this.alive || this.element().id !== id) return;
-        if (!count) {
-          this.viewedElementKey = '';
-          this.viewedDefinitionKey = '';
-          return;
-        }
-        this.noteOpenedDefinition(id);
-      });
+      this.scrollSenseIntoView(definition);
     });
     const stopWatchingExamples = watchExampleSuggestions((elementId) => {
       if (elementId !== this.trackedElementId) return;
@@ -5967,40 +5996,58 @@ export class ElementModal {
     );
   }
 
-  equivalentUnveiled(text: string): boolean {
-    return this.unveiledEquivalents().has(text);
+  senseStage(index: number): SenseStage | 'closed' {
+    return this.senseStages().get(index) ?? 'closed';
   }
 
-  /** Open the equivalent and the definition translations together. Only a translation click is logged. */
-  unveilSupport(index: number): void {
-    this.supportRevealed.set(true);
-    const definition = this.shownDefinitions()[index];
-    if (!definition) return;
-    const equivalent = this.equivalentText(definition);
-    if (equivalent) this.unveilEquivalent(equivalent);
-  }
-
-  exampleRevealed(exampleIndex: number): boolean {
-    return this.revealedExamples().has(exampleIndex);
-  }
-
-  /** Open this example's translations without opening the definition. */
-  unveilExample(exampleIndex: number): void {
-    this.revealedExamples.update((current) => {
-      if (current.has(exampleIndex)) return current;
-      const next = new Set(current);
-      next.add(exampleIndex);
+  /** First click on a closed sense. Examples stay without translations. */
+  unveilExamples(index: number): void {
+    if (this.senseStage(index) !== 'closed') return;
+    this.senseStages.update((current) => {
+      const next = new Map(current);
+      next.set(index, 'examples');
       return next;
     });
   }
 
-  unveilEquivalent(text: string): void {
-    const value = text.trim();
-    if (!value) return;
-    this.unveiledEquivalents.update((current) => {
-      if (current.has(value)) return current;
+  /** Second click. The definition text appears, and translations can be unveiled. */
+  unveilDefinitionText(index: number): void {
+    if (this.senseStage(index) !== 'examples') return;
+    this.senseStages.update((current) => {
+      const next = new Map(current);
+      next.set(index, 'open');
+      return next;
+    });
+    this.noteDefinitionView(index);
+  }
+
+  supportOpen(index: number): boolean {
+    return this.supportRevealed().has(index);
+  }
+
+  /** Open this sense's equivalent and definition translations together. Only a translation click is logged. */
+  unveilSupport(index: number): void {
+    if (this.senseStage(index) !== 'open') return;
+    this.supportRevealed.update((current) => {
+      if (current.has(index)) return current;
       const next = new Set(current);
-      next.add(value);
+      next.add(index);
+      return next;
+    });
+  }
+
+  exampleRevealed(definitionIndex: number, exampleIndex: number): boolean {
+    return this.revealedExamples().has(exampleRevealKey(definitionIndex, exampleIndex));
+  }
+
+  /** Open this example's translations without opening another sense. */
+  unveilExample(definitionIndex: number, exampleIndex: number): void {
+    if (this.senseStage(definitionIndex) !== 'open') return;
+    const key = exampleRevealKey(definitionIndex, exampleIndex);
+    this.revealedExamples.update((current) => {
+      if (current.has(key)) return current;
+      const next = new Set(current);
+      next.add(key);
       return next;
     });
   }
@@ -6333,10 +6380,7 @@ export class ElementModal {
     this.appendExample(target, example);
     const index = definitions.indexOf(target);
     if (!(await this.persist(definitions, element.equivalents))) return;
-    if (this.element().id === element.id) {
-      this.definitionPanel.set(index);
-      this.scrollDefinitionPanel();
-    }
+    if (this.element().id === element.id) this.scrollSenseIntoView(index);
     this.definitionExample.set('');
     this.heldExample.set('');
   }
@@ -6409,9 +6453,7 @@ export class ElementModal {
       if (placement === 'start') this.shiftDefinitionIndexes(created.length);
       this.formAttributesView.set(null);
       const index = placement === 'end' ? next.length - 1 : 0;
-      this.definitionPanel.set(index);
-      this.scrollDefinitionPanel();
-      this.noteDefinitionView(index);
+      this.scrollSenseIntoView(index);
       this.newGlosses.set(new Set(readNewDefinitions(element.id)));
     }
     return true;
@@ -6470,7 +6512,7 @@ export class ElementModal {
         definitionIndex: definitionEngineer.definitionIndex + by,
       });
     }
-    this.definitionPanel.set(this.definitionPanel() + by);
+    this.shiftSenseState(by);
   }
 
   async askForms(index: number): Promise<void> {
@@ -6576,89 +6618,7 @@ export class ElementModal {
     this.formAttributesView.set(null);
   }
 
-  showDefinition(index: number): void {
-    const count = this.shownDefinitions().length;
-    if (index < 0 || index >= count || index === this.visibleDefinitionIndex()) return;
-    this.unveiledEquivalents.set(new Set());
-    this.supportRevealed.set(false);
-    this.revealedExamples.set(new Set());
-    this.formAttributesView.set(null);
-    this.definitionPanel.set(index);
-    this.scrollDefinitionPanel();
-    this.noteDefinitionView(index);
-  }
-
-  orderDigits(count: number): number {
-    return Math.max(1, String(count).length);
-  }
-
-  focusOrderInput(event: FocusEvent): void {
-    const input = event.target;
-    if (!(input instanceof HTMLInputElement) || input.disabled) return;
-    requestAnimationFrame(() => input.select());
-  }
-
-  editOrderInput(event: Event): void {
-    const input = event.target;
-    if (!(input instanceof HTMLInputElement)) return;
-    const digits = input.value.replace(/\D/g, '');
-    if (input.value !== digits) input.value = digits;
-  }
-
-  commitOrderInput(event: Event, count: number): void {
-    if (this.orderSettling) return;
-    const input = event.target;
-    if (!(input instanceof HTMLInputElement)) return;
-    const current = this.visibleDefinitionIndex() + 1;
-    const typed = Number(input.value);
-    const next = Number.isInteger(typed) && typed >= 1 && typed <= count ? typed : current;
-    input.value = String(next);
-    if (event instanceof KeyboardEvent) {
-      event.preventDefault();
-      this.orderSettling = true;
-      input.blur();
-      this.orderSettling = false;
-    }
-    if (next !== current && count > 1) void this.moveDefinition(next - 1);
-  }
-
-  cancelOrderInput(event: Event): void {
-    const input = event.target;
-    if (!(input instanceof HTMLInputElement)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    input.value = String(this.visibleDefinitionIndex() + 1);
-    this.orderSettling = true;
-    input.blur();
-    this.orderSettling = false;
-  }
-
-  /** Move the definition on screen to another slot. Order is the array position. */
-  private async moveDefinition(to: number): Promise<void> {
-    const from = this.visibleDefinitionIndex();
-    const elementId = this.currentElement().id;
-    if (from === to) return;
-    const definitions = this.copyDefinitions();
-    if (to < 0 || to >= definitions.length) return;
-    const [moved] = definitions.splice(from, 1);
-    if (!moved) return;
-    definitions.splice(to, 0, moved);
-    if (!(await this.persist(definitions, this.currentElement().equivalents))) return;
-    if (this.element().id !== elementId) return;
-    this.definitionPanel.set(to);
-  }
-
-  /** Record a view for the definition on screen when this element is opened. */
-  private noteOpenedDefinition(id: string): void {
-    if (this.viewedElementKey === id) return;
-    const element = this.currentElement();
-    const index = this.visibleDefinitionIndex();
-    if (element.id !== id || !element.definitions[index]) return;
-    this.viewedElementKey = id;
-    this.noteDefinitionView(index);
-  }
-
-  /** Record that this definition is on screen. `at` is the UTC instant. */
+  /** Record that this definition's text was unveiled. `at` is the UTC instant. */
   private noteDefinitionView(index: number): void {
     const element = this.currentElement();
     const definitions = this.copyDefinitions();
@@ -6666,14 +6626,37 @@ export class ElementModal {
     if (!definition) return;
     const gloss = definitionGloss(definition.text);
     const key = `${element.id}:${gloss || index}`;
-    if (key === this.viewedDefinitionKey) return;
-    this.viewedDefinitionKey = key;
+    if (this.viewedDefinitions.has(key)) return;
+    this.viewedDefinitions.add(key);
     definition.log = [...definition.log, { event: 'view', at: Date.now() }];
     void this.persist(definitions, element.equivalents, { busy: false });
   }
 
-  private scrollDefinitionPanel(): void {
-    this.definitionBody()?.nativeElement.scrollTo({ top: 0 });
+  private scrollSenseIntoView(index: number): void {
+    const elementId = this.element().id;
+    const run = (attempt: number) => {
+      if (!this.alive || this.element().id !== elementId) return;
+      const body = this.definitionBody()?.nativeElement;
+      const sense = body?.querySelector(`#sense-${index}`);
+      if (sense instanceof HTMLElement) {
+        sense.scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      if (attempt < 2) requestAnimationFrame(() => run(attempt + 1));
+    };
+    requestAnimationFrame(() => run(0));
+  }
+
+  private shiftSenseState(by: number): void {
+    this.senseStages.update((current) => shiftIndexMap(current, by));
+    this.supportRevealed.update((current) => shiftIndexSet(current, by));
+    this.revealedExamples.update((current) => shiftExampleKeys(current, by));
+  }
+
+  private dropSenseState(index: number): void {
+    this.senseStages.update((current) => dropIndexMap(current, index));
+    this.supportRevealed.update((current) => dropIndexSet(current, index));
+    this.revealedExamples.update((current) => dropExampleKeys(current, index));
   }
 
   openDefinition(index: number | null): void {
@@ -7407,7 +7390,7 @@ export class ElementModal {
     const fromExample = pick?.exampleIndex != null;
     const gloss = passage.text.replace(/\s+/g, ' ').trim();
     const root = element.title.replace(/\s+/g, ' ').trim();
-    const definitionIndex = pick?.definitionIndex ?? this.visibleDefinitionIndex();
+    const definitionIndex = pick?.definitionIndex ?? 0;
     const guide = !fromExample && gloss && root ? `${root}: ${gloss}` : '';
     const example = fromExample ? passage.text : '';
     this.addingSelection.set(true);
@@ -7589,10 +7572,7 @@ export class ElementModal {
       else unlinked[editor.index] = next;
       const index = editor.index ?? unlinked.length - 1;
       if (await this.persist(unlinked, linked.equivalents)) {
-        if (editor.index == null) {
-          this.definitionPanel.set(index);
-          this.scrollDefinitionPanel();
-        }
+        if (editor.index == null) this.scrollSenseIntoView(index);
         this.closeEditor();
       }
       return;
@@ -7768,16 +7748,12 @@ export class ElementModal {
     this.deletePressTimer = 0;
   }
 
-  onDeleteClick(): void {
+  onDeleteClick(index: number): void {
     if (this.deletePressHeld) {
       this.deletePressHeld = false;
       return;
     }
-    if (!this.element().definitions.length) {
-      this.askDeleteElement();
-      return;
-    }
-    this.askDeleteDefinition(this.visibleDefinitionIndex());
+    this.askDeleteDefinition(index);
   }
 
   askDeleteElement(): void {
@@ -7890,13 +7866,7 @@ export class ElementModal {
       const wording = this.askingWording();
       if (wording === pending.index) this.askingWording.set(null);
       else if (wording != null && wording > pending.index) this.askingWording.set(wording - 1);
-      const panel = this.definitionPanel();
-      const removedVisible = panel === pending.index || panel >= definitions.length;
-      if (panel > pending.index) this.definitionPanel.set(panel - 1);
-      else if (panel >= definitions.length) {
-        this.definitionPanel.set(Math.max(0, definitions.length - 1));
-      }
-      if (removedVisible) this.scrollDefinitionPanel();
+      this.dropSenseState(pending.index);
     }
     this.confirm.set(null);
     if (pending.kind === 'definition') this.editor.set(null);
@@ -7924,8 +7894,10 @@ export class ElementModal {
     this.editor.set(null);
     this.formEdit.set(null);
     this.formAttributesView.set(null);
-    this.definitionPanel.set(0);
-    this.scrollDefinitionPanel();
+    this.senseStages.set(new Map());
+    this.supportRevealed.set(new Set());
+    this.revealedExamples.set(new Set());
+    this.definitionBody()?.nativeElement.scrollTo({ top: 0 });
     this.confirm.set(null);
   }
 
@@ -8167,8 +8139,6 @@ export class ElementModal {
 
   /** First score captures the definition. A later score in the same round keeps that snapshot. */
 
-  /** Ignores the blur that follows Enter or Escape so the position is applied once. */
-  private orderSettling = false;
   private deletePressTimer = 0;
   private deletePressHeld = false;
   private deletePressX = 0;
