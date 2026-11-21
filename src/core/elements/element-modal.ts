@@ -796,7 +796,11 @@ function writeExampleSuggestions(
                   [class.open]="senseStage(index) === 'open'"
                   [attr.id]="'sense-' + index"
                 >
-                  <div class="sense-row">
+                  <div
+                    class="sense-row"
+                    [class.actionable]="senseStage(index) !== 'open'"
+                    (click)="unveilFromRow($event, index)"
+                  >
                     <span class="sense-index">Definition {{ index + 1 }}</span>
                     <div class="sense-rail">
                       <div class="sense-actions">
@@ -3813,6 +3817,10 @@ function writeExampleSuggestions(
       width: 100%;
     }
 
+    .sense-row.actionable {
+      cursor: pointer;
+    }
+
     .sense-rail {
       display: flex;
       flex-direction: row;
@@ -6013,6 +6021,14 @@ export class ElementModal {
 
   senseStage(index: number): SenseStage | 'closed' {
     return this.senseStages().get(index) ?? 'closed';
+  }
+
+  /** A click on the definition row takes the next step. The icon buttons do that themselves. */
+  unveilFromRow(event: Event, index: number): void {
+    const target = event.target;
+    if (target instanceof Element && target.closest('button, a')) return;
+    if (this.senseStage(index) === 'closed') this.unveilExamples(index);
+    else this.unveilDefinitionText(index);
   }
 
   /** First click on a closed sense. Examples stay without translations. */
