@@ -18,12 +18,6 @@ npm run deploy
 TODO
 - Feature to reorganize the colors.
 - We need a clear option to give up an exercise for a definition.
-- Translations are always blurred. If you unblur too much
-  that's usually a sign to rework the definition or other shit
-  cause you don't want to systematically unblur. So we need to
-  keep track of when the user unblurs.
-    -> For that we need a number of unblurs before signaling to 
-       the user that he needs to probably rework the definition.
 - FORMS: Forms prioritized for example generation.
   If you choose one, it checks its metadata and recommends some to prioritize among the other forms when you want to create an example for another thing. Upon what the user writes.
 

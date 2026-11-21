@@ -47,6 +47,7 @@ import {
   type DefinitionHighlightPart,
   type ElementDefinition,
   type ElementEquivalent,
+  type EquivalentLinks,
   type RemovedDefinition,
   type ElementForm,
   type ElementMetadata,
@@ -65,6 +66,7 @@ import {
   generateExamples,
   generateForms,
   generateRelatedWords,
+  mergeDefinitions,
   readStoredAiCredentials,
   suggestMetadata,
   sentenceUsesForm,
@@ -83,6 +85,8 @@ import { translatePhrase } from '../translate/translate';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
 const EQUIVALENT_MAX = 200;
+const SENSE_PRESS_MS = 500;
+const SENSE_PRESS_SLOP = 10;
 const FORM_MAX_LENGTH = 100;
 const META_KEY_MAX_LENGTH = 40;
 const META_VALUE_MAX_LENGTH = 100;
@@ -257,6 +261,51 @@ function dropExampleKeys(keys: ReadonlySet<string>, index: number): Set<string> 
     next.add(`${nextDefinition}:${key.slice(split + 1)}`);
   }
   return next;
+}
+
+function uniqueByText<T extends { text: string }>(items: readonly T[]): T[] {
+  const seen = new Set<string>();
+  const kept: T[] = [];
+  for (const item of items) {
+    const key = item.text.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    kept.push(item);
+  }
+  return kept;
+}
+
+/** One equivalent per language, with the selected wordings joined in list order. */
+function joinedEquivalentLinks(
+  pool: readonly ElementEquivalent[],
+  definitions: readonly ElementDefinition[],
+): { equivalents: ElementEquivalent[]; equivalentIds: EquivalentLinks } {
+  const languages: string[] = [];
+  const seenLanguages = new Set<string>();
+  for (const definition of definitions) {
+    for (const language of Object.keys(definition.equivalentIds)) {
+      if (seenLanguages.has(language)) continue;
+      seenLanguages.add(language);
+      languages.push(language);
+    }
+  }
+  let equivalents = [...pool];
+  let equivalentIds: EquivalentLinks = {};
+  for (const language of languages) {
+    const seen = new Set<string>();
+    const parts: string[] = [];
+    for (const definition of definitions) {
+      const text = equivalentTextFor(equivalents, definition.equivalentIds, language).trim();
+      const key = text.toLowerCase();
+      if (!text || seen.has(key)) continue;
+      seen.add(key);
+      parts.push(text);
+    }
+    const assigned = assignEquivalent(equivalents, parts.join(' · '), language);
+    equivalents = assigned.equivalents;
+    equivalentIds = linkEquivalent(equivalentIds, language, assigned.equivalentId);
+  }
+  return { equivalents, equivalentIds };
 }
 
 function readDefinitionSuggestions(elementId: string): StoredSuggestion[] {
@@ -707,22 +756,6 @@ function writeExampleSuggestions(
             </div>
             <div class="title-end">
               <button
-                type="button"
-                class="icon-btn danger"
-                aria-label="Delete element"
-                title="Delete element"
-                [disabled]="busy()"
-                (click)="askDeleteElement()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 6h18" />
-                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                  <path d="M10 11v6" />
-                  <path d="M14 11v6" />
-                </svg>
-              </button>
-              <button
                 #closeButton
                 type="button"
                 class="close"
@@ -791,20 +824,58 @@ function writeExampleSuggestions(
                     <path d="M17 19h4" />
                   </svg>
                 </button>
+                @if (selectedSenses().size >= 2) {
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Merge definitions"
+                    title="Merge definitions"
+                    [disabled]="aiBusy()"
+                    [attr.aria-busy]="addingDefinitions() === 'merge' ? true : null"
+                    (click)="mergeSelectedDefinitions()"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m8 6 4-4 4 4" />
+                      <path d="M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22" />
+                      <path d="m20 22-5-5" />
+                    </svg>
+                  </button>
+                }
+                @if (selectedSenses().size) {
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Clear selection"
+                    title="Clear selection"
+                    [disabled]="aiBusy()"
+                    (click)="clearSenseSelection()"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
+                }
               </div>
             </div>
-            <ol class="definitions">
+            <ol class="definitions" [class.selecting]="selectedSenses().size">
               @for (definition of definitions; track $index) {
                 @let index = $index;
                 <li
                   class="sense"
+                  [class.selected]="senseSelected(index)"
                   [class.open]="senseStage(index) === 'open'"
                   [attr.id]="'sense-' + index"
+                  (pointerdown)="onSensePointerDown($event, index)"
+                  (pointermove)="onSensePointerMove($event)"
+                  (pointerup)="onSensePointerUp()"
+                  (pointercancel)="onSensePointerUp()"
+                  (contextmenu)="onSenseContextMenu($event, index)"
+                  (click)="onSenseClick($event, index)"
                 >
                   <div
                     class="sense-row"
-                    [class.actionable]="senseStage(index) !== 'open'"
-                    (click)="unveilFromRow($event, index)"
+                    [class.actionable]="!selectedSenses().size && senseStage(index) !== 'open'"
                   >
                     <span class="sense-index">Definition {{ index + 1 }}</span>
                     <div class="sense-rail">
@@ -861,152 +932,34 @@ function writeExampleSuggestions(
                       </div>
                     </div>
                   </div>
-                    @if (senseStage(index) !== 'closed') {
+                  @if (senseStage(index) !== 'closed') {
                     <div class="sense-body">
-                    @if (senseStage(index) === 'open') {
-                  <div class="sense-main">
-                    <div class="sense-copy">
-                      @let passage = parsePassage(definition.text);
-                      <ng-container [ngTemplateOutlet]="definitionPassage" />
-                      <ng-template #definitionPencil>
-                        <button
-                          type="button"
-                          class="inline-pencil"
-                          [attr.aria-label]="definitionActionLabel(definition)"
-                          [attr.title]="definitionActionLabel(definition)"
-                          [disabled]="aiBusy()"
-                          (click)="openDefinition(index); $event.stopPropagation()"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                          </svg>
-                        </button>
-                      </ng-template>
-                      <ng-template #definitionPassage>
-                        @if (passage.text) {
-                          <div class="spoken">
-                            <div class="spoken-copy">
-                              <p
-                                class="passage sense-selectable"
-                                [attr.data-definition-index]="index"
+                      @if (senseStage(index) === 'open') {
+                        <div class="sense-main">
+                          <div class="sense-copy">
+                            @let passage = parsePassage(definition.text);
+                            <ng-container [ngTemplateOutlet]="definitionPassage" />
+                            <ng-template #definitionPencil>
+                              <button
+                                type="button"
+                                class="inline-pencil"
+                                [attr.aria-label]="definitionActionLabel(definition)"
+                                [attr.title]="definitionActionLabel(definition)"
+                                [disabled]="aiBusy()"
+                                (click)="openDefinition(index); $event.stopPropagation()"
                               >
-                                @for (part of highlightPassage(passage.text); track $index) {
-                                  @if (part.matches.length > 1) {
-                                    <button
-                                      type="button"
-                                      class="linguagem-highlighted"
-                                      [style.--score-color]="part.color || null"
-                                      [textContent]="part.text"
-                                      (click)="
-                                        showCollision($event, part.matches, index, '', part.text)
-                                      "
-                                    ></button>
-                                  } @else if (part.matches.length === 1 && !part.current) {
-                                    <button
-                                      type="button"
-                                      class="linguagem-highlighted"
-                                      [style.--score-color]="part.color || null"
-                                      [textContent]="part.text"
-                                      (click)="
-                                        openFromDefinition(
-                                          part.matches[0].elementId,
-                                          index,
-                                          part.text
-                                        )
-                                      "
-                                    ></button>
-                                  } @else if (part.current) {
-                                    <span
-                                      class="linguagem-highlighted linguagem-highlighted--current"
-                                      [style.--score-color]="part.color || null"
-                                      [textContent]="part.text"
-                                    ></span>
-                                  } @else {
-                                    <span [textContent]="part.text"></span>
-                                  }
-                                }
-                                <ng-container [ngTemplateOutlet]="definitionPencil" />
-                              </p>
-                              <ng-container [ngTemplateOutlet]="passageTranslations" />
-                            </div>
-                            <ng-container
-                              [ngTemplateOutlet]="hearButton"
-                              [ngTemplateOutletContext]="{
-                                key: 'definition:' + index,
-                                text: definition.text,
-                                label: 'definition',
-                              }"
-                            />
-                          </div>
-                        } @else {
-                          <ng-container [ngTemplateOutlet]="definitionPencil" />
-                        }
-                      </ng-template>
-                      <ng-template #passageTranslations>
-                        @let translations = shownTranslations(passage);
-                        @if (translations.length) {
-                          <ul class="equivalents">
-                            @for (translation of translations; track $index) {
-                              <li>
-                                <app-reveal
-                                  [text]="labeledTranslation(translation)"
-                                  [open]="supportOpen(index)"
-                                  [scope]="index"
-                                  (unveiled)="
-                                    noteReveal(index, passage.text, translation.text, 'definition');
-                                    unveilSupport(index)
-                                  "
-                                />
-                              </li>
-                            }
-                          </ul>
-                        }
-                      </ng-template>
-                      @let equivalent = equivalentText(definition);
-                      @let meta = entries(definition.metadata);
-                      @if ((supportAvailable() && equivalent) || meta.length) {
-                        <ul class="sense-meta">
-                          @if (supportAvailable() && equivalent) {
-                            <li class="sense-equivalent">
-                              <ng-container [ngTemplateOutlet]="translationIcon" />
-                              <app-reveal
-                                [text]="labeledEquivalent(equivalent)"
-                                [open]="supportOpen(index)"
-                                [scope]="'equivalent:' + index"
-                                (unveiled)="unveilSupport(index)"
-                              />
-                            </li>
-                          }
-                          @for (entry of meta; track entry.key) {
-                            @let color = metaColor('definitions', entry.key);
-                            <li [class.colored]="color" [style.--meta-color]="color">
-                              <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                              <span class="sense-meta-value">{{ label(entry.value) }}</span>
-                            </li>
-                          }
-                        </ul>
-                      }
-                    </div>
-                  </div>
-                    }
-                  <section class="group examples-region">
-                    @if (definition.examples.length) {
-                      <ul class="examples" aria-label="Examples">
-                        @for (
-                          exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
-                          track exampleIndex
-                        ) {
-                          @let example = definition.examples[exampleIndex];
-                          <li class="saved-example">
-                            <div class="example-quote">
-                              @let passage = parsePassage(example.text);
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                </svg>
+                              </button>
+                            </ng-template>
+                            <ng-template #definitionPassage>
                               @if (passage.text) {
                                 <div class="spoken">
                                   <div class="spoken-copy">
                                     <p
                                       class="passage sense-selectable"
                                       [attr.data-definition-index]="index"
-                                      [attr.data-example-index]="exampleIndex"
                                     >
                                       @for (part of highlightPassage(passage.text); track $index) {
                                         @if (part.matches.length > 1) {
@@ -1020,7 +973,8 @@ function writeExampleSuggestions(
                                                 $event,
                                                 part.matches,
                                                 index,
-                                                example.text
+                                                '',
+                                                part.text
                                               )
                                             "
                                           ></button>
@@ -1031,10 +985,10 @@ function writeExampleSuggestions(
                                             [style.--score-color]="part.color || null"
                                             [textContent]="part.text"
                                             (click)="
-                                              visitHighlight(
+                                              openFromDefinition(
                                                 part.matches[0].elementId,
                                                 index,
-                                                example.text
+                                                part.text
                                               )
                                             "
                                           ></button>
@@ -1048,119 +1002,254 @@ function writeExampleSuggestions(
                                           <span [textContent]="part.text"></span>
                                         }
                                       }
-                                      <button
-                                        type="button"
-                                        class="inline-pencil"
-                                        aria-label="Edit examples"
-                                        title="Edit examples"
-                                        [disabled]="aiBusy()"
-                                        (click)="openExamples(index); $event.stopPropagation()"
-                                      >
-                                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                                          <path
-                                            d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
-                                          />
-                                        </svg>
-                                      </button>
+                                      <ng-container [ngTemplateOutlet]="definitionPencil" />
                                     </p>
-                                    @let translations = shownTranslations(passage);
-                                    @if (senseStage(index) === 'open' && translations.length) {
-                                      <ul class="equivalents">
-                                        @for (translation of translations; track $index) {
-                                          <li>
-                                            <app-reveal
-                                              [text]="labeledTranslation(translation)"
-                                              [open]="exampleRevealed(index, exampleIndex)"
-                                              [scope]="index + ':' + exampleIndex"
-                                              (unveiled)="
-                                                noteReveal(
-                                                  index,
-                                                  passage.text,
-                                                  translation.text,
-                                                  'example'
-                                                );
-                                                unveilExample(index, exampleIndex)
-                                              "
-                                            />
-                                          </li>
-                                        }
-                                      </ul>
-                                    }
+                                    <ng-container [ngTemplateOutlet]="passageTranslations" />
                                   </div>
                                   <ng-container
                                     [ngTemplateOutlet]="hearButton"
                                     [ngTemplateOutletContext]="{
-                                      key: 'example:' + index + ':' + exampleIndex,
-                                      text: example.text,
-                                      label: 'example',
+                                      key: 'definition:' + index,
+                                      text: definition.text,
+                                      label: 'definition',
                                     }"
                                   />
                                 </div>
+                              } @else {
+                                <ng-container [ngTemplateOutlet]="definitionPencil" />
                               }
-                              @if (entries(example.metadata); as meta) {
-                                @if (meta.length) {
-                                  <ul class="pills">
-                                    @for (entry of meta; track entry.key) {
-                                      @let color = metaColor('examples', entry.key);
-                                      <li [class.colored]="color" [style.--meta-color]="color">
-                                        <span>
-                                          <span class="sense-meta-key">{{ entry.key }}</span>
-                                          <span class="sense-meta-value">{{ entry.value }}</span>
-                                        </span>
-                                      </li>
-                                    }
-                                  </ul>
+                            </ng-template>
+                            <ng-template #passageTranslations>
+                              @let translations = shownTranslations(passage);
+                              @if (translations.length) {
+                                <ul class="equivalents">
+                                  @for (translation of translations; track $index) {
+                                    <li>
+                                      <app-reveal
+                                        [text]="labeledTranslation(translation)"
+                                        [open]="supportOpen(index)"
+                                        [scope]="index"
+                                        (unveiled)="
+                                          noteReveal(
+                                            index,
+                                            passage.text,
+                                            translation.text,
+                                            'definition'
+                                          );
+                                          unveilSupport(index)
+                                        "
+                                      />
+                                    </li>
+                                  }
+                                </ul>
+                              }
+                            </ng-template>
+                            @let equivalent = equivalentText(definition);
+                            @let meta = entries(definition.metadata);
+                            @if ((supportAvailable() && equivalent) || meta.length) {
+                              <ul class="sense-meta">
+                                @if (supportAvailable() && equivalent) {
+                                  <li class="sense-equivalent">
+                                    <ng-container [ngTemplateOutlet]="translationIcon" />
+                                    <app-reveal
+                                      [text]="labeledEquivalent(equivalent)"
+                                      [open]="supportOpen(index)"
+                                      [scope]="'equivalent:' + index"
+                                      (unveiled)="unveilSupport(index)"
+                                    />
+                                  </li>
                                 }
-                              }
-                            </div>
-                          </li>
-                        }
-                      </ul>
-                    } @else {
-                      <button
-                        type="button"
-                        class="example-cta"
-                        [disabled]="aiBusy()"
-                        (click)="addExampleManually(index)"
-                      >
-                        Add an example
-                      </button>
-                    }
-                  </section>
-                  @if (senseStage(index) === 'open') {
-                  <section class="group forms-region" (click)="onFormsClick($event, index)">
-                    <ul class="forms" aria-label="Forms">
-                      @if (definition.forms.length) {
-                        @for (form of definition.forms; track form.text) {
-                          @let chip = formChipColor(form);
-                          <li>
-                            <button
-                              type="button"
-                              class="form-chip readonly"
-                              [class.tinted]="!!chip"
-                              [style.--form-color]="chip"
-                              [attr.aria-label]="'Attributes for ' + form.text"
-                              (click)="showFormAttributes(form)"
-                            >
-                              {{ form.text }}
-                            </button>
-                          </li>
-                        }
-                      } @else {
-                        <li>
+                                @for (entry of meta; track entry.key) {
+                                  @let color = metaColor('definitions', entry.key);
+                                  <li [class.colored]="color" [style.--meta-color]="color">
+                                    <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                                    <span class="sense-meta-value">{{ label(entry.value) }}</span>
+                                  </li>
+                                }
+                              </ul>
+                            }
+                          </div>
+                        </div>
+                      }
+                      <section class="group examples-region">
+                        @if (definition.examples.length) {
+                          <ul class="examples" aria-label="Examples">
+                            @for (
+                              exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
+                              track exampleIndex
+                            ) {
+                              @let example = definition.examples[exampleIndex];
+                              <li class="saved-example">
+                                <div class="example-quote">
+                                  @let passage = parsePassage(example.text);
+                                  @if (passage.text) {
+                                    <div class="spoken">
+                                      <div class="spoken-copy">
+                                        <p
+                                          class="passage sense-selectable"
+                                          [attr.data-definition-index]="index"
+                                          [attr.data-example-index]="exampleIndex"
+                                        >
+                                          @for (
+                                            part of highlightPassage(passage.text);
+                                            track $index
+                                          ) {
+                                            @if (part.matches.length > 1) {
+                                              <button
+                                                type="button"
+                                                class="linguagem-highlighted"
+                                                [style.--score-color]="part.color || null"
+                                                [textContent]="part.text"
+                                                (click)="
+                                                  showCollision(
+                                                    $event,
+                                                    part.matches,
+                                                    index,
+                                                    example.text
+                                                  )
+                                                "
+                                              ></button>
+                                            } @else if (
+                                              part.matches.length === 1 && !part.current
+                                            ) {
+                                              <button
+                                                type="button"
+                                                class="linguagem-highlighted"
+                                                [style.--score-color]="part.color || null"
+                                                [textContent]="part.text"
+                                                (click)="
+                                                  visitHighlight(
+                                                    part.matches[0].elementId,
+                                                    index,
+                                                    example.text
+                                                  )
+                                                "
+                                              ></button>
+                                            } @else if (part.current) {
+                                              <span
+                                                class="linguagem-highlighted linguagem-highlighted--current"
+                                                [style.--score-color]="part.color || null"
+                                                [textContent]="part.text"
+                                              ></span>
+                                            } @else {
+                                              <span [textContent]="part.text"></span>
+                                            }
+                                          }
+                                          <button
+                                            type="button"
+                                            class="inline-pencil"
+                                            aria-label="Edit examples"
+                                            title="Edit examples"
+                                            [disabled]="aiBusy()"
+                                            (click)="openExamples(index); $event.stopPropagation()"
+                                          >
+                                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                              <path
+                                                d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
+                                              />
+                                            </svg>
+                                          </button>
+                                        </p>
+                                        @let translations = shownTranslations(passage);
+                                        @if (senseStage(index) === 'open' && translations.length) {
+                                          <ul class="equivalents">
+                                            @for (translation of translations; track $index) {
+                                              <li>
+                                                <app-reveal
+                                                  [text]="labeledTranslation(translation)"
+                                                  [open]="exampleRevealed(index, exampleIndex)"
+                                                  [scope]="index + ':' + exampleIndex"
+                                                  (unveiled)="
+                                                    noteReveal(
+                                                      index,
+                                                      passage.text,
+                                                      translation.text,
+                                                      'example'
+                                                    );
+                                                    unveilExample(index, exampleIndex)
+                                                  "
+                                                />
+                                              </li>
+                                            }
+                                          </ul>
+                                        }
+                                      </div>
+                                      <ng-container
+                                        [ngTemplateOutlet]="hearButton"
+                                        [ngTemplateOutletContext]="{
+                                          key: 'example:' + index + ':' + exampleIndex,
+                                          text: example.text,
+                                          label: 'example',
+                                        }"
+                                      />
+                                    </div>
+                                  }
+                                  @if (entries(example.metadata); as meta) {
+                                    @if (meta.length) {
+                                      <ul class="pills">
+                                        @for (entry of meta; track entry.key) {
+                                          @let color = metaColor('examples', entry.key);
+                                          <li [class.colored]="color" [style.--meta-color]="color">
+                                            <span>
+                                              <span class="sense-meta-key">{{ entry.key }}</span>
+                                              <span class="sense-meta-value">{{
+                                                entry.value
+                                              }}</span>
+                                            </span>
+                                          </li>
+                                        }
+                                      </ul>
+                                    }
+                                  }
+                                </div>
+                              </li>
+                            }
+                          </ul>
+                        } @else {
                           <button
                             type="button"
-                            class="form-chip readonly form-cta"
+                            class="example-cta"
                             [disabled]="aiBusy()"
-                            (click)="openForms(index)"
+                            (click)="addExampleManually(index)"
                           >
-                            Add forms
+                            Add an example
                           </button>
-                        </li>
+                        }
+                      </section>
+                      @if (senseStage(index) === 'open') {
+                        <section class="group forms-region" (click)="onFormsClick($event, index)">
+                          <ul class="forms" aria-label="Forms">
+                            @if (definition.forms.length) {
+                              @for (form of definition.forms; track form.text) {
+                                @let chip = formChipColor(form);
+                                <li>
+                                  <button
+                                    type="button"
+                                    class="form-chip readonly"
+                                    [class.tinted]="!!chip"
+                                    [style.--form-color]="chip"
+                                    [attr.aria-label]="'Attributes for ' + form.text"
+                                    (click)="showFormAttributes(form)"
+                                  >
+                                    {{ form.text }}
+                                  </button>
+                                </li>
+                              }
+                            } @else {
+                              <li>
+                                <button
+                                  type="button"
+                                  class="form-chip readonly form-cta"
+                                  [disabled]="aiBusy()"
+                                  (click)="openForms(index)"
+                                >
+                                  Add forms
+                                </button>
+                              </li>
+                            }
+                          </ul>
+                        </section>
                       }
-                    </ul>
-                  </section>
-                  }
                     </div>
                   }
                 </li>
@@ -1388,73 +1477,73 @@ function writeExampleSuggestions(
               <ng-template #draftActions>
                 <span class="header-actions work-title-actions">
                   @if (supportAvailable()) {
-                      <span class="generate-bundle translate-split">
-                        <button
-                          type="button"
-                          class="generate-main"
-                          [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
-                          [attr.title]="translating() ? 'Translating…' : 'Translate'"
-                          [attr.aria-busy]="translating() ? true : null"
-                          [disabled]="!canTranslate()"
-                          (click)="translateDraft()"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m5 8 6 6" />
-                            <path d="m4 14 6-6 2-3" />
-                            <path d="M2 5h12" />
-                            <path d="M7 2h1" />
-                            <path d="m22 22-5-10-5 10" />
-                            <path d="M14 18h6" />
-                          </svg>
-                        </button>
-                      </span>
-                    }
-                    @if (current.kind === 'definition' && current.index != null) {
+                    <span class="generate-bundle translate-split">
                       <button
                         type="button"
-                        class="icon-btn"
-                        aria-label="Engineer definition"
-                        title="Engineer definition"
-                        [class.active]="definitionEngineerOpen()"
-                        [attr.aria-pressed]="definitionEngineerOpen()"
-                        [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
-                        [disabled]="aiBusy() && !definitionEngineerOpen()"
-                        (click)="toggleDefinitionEngineer()"
+                        class="generate-main"
+                        [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
+                        [attr.title]="translating() ? 'Translating…' : 'Translate'"
+                        [attr.aria-busy]="translating() ? true : null"
+                        [disabled]="!canTranslate()"
+                        (click)="translateDraft()"
                       >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                          />
-                          <path d="M5 3v4" />
-                          <path d="M3 5h4" />
-                          <path d="M19 17v4" />
-                          <path d="M17 19h4" />
+                          <path d="m5 8 6 6" />
+                          <path d="m4 14 6-6 2-3" />
+                          <path d="M2 5h12" />
+                          <path d="M7 2h1" />
+                          <path d="m22 22-5-10-5 10" />
+                          <path d="M14 18h6" />
                         </svg>
                       </button>
-                    }
-                    @if (current.kind === 'example' && current.exampleIndex == null) {
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Engineer example"
-                        title="Engineer example"
-                        [class.active]="exampleEngineerOpen()"
-                        [attr.aria-pressed]="exampleEngineerOpen()"
-                        [attr.aria-busy]="askingExamples() !== null ? true : null"
-                        [disabled]="aiBusy() && !exampleEngineerOpen()"
-                        (click)="toggleExampleEngineer()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                          />
-                          <path d="M5 3v4" />
-                          <path d="M3 5h4" />
-                          <path d="M19 17v4" />
-                          <path d="M17 19h4" />
-                        </svg>
-                      </button>
-                    }
+                    </span>
+                  }
+                  @if (current.kind === 'definition' && current.index != null) {
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Engineer definition"
+                      title="Engineer definition"
+                      [class.active]="definitionEngineerOpen()"
+                      [attr.aria-pressed]="definitionEngineerOpen()"
+                      [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
+                      [disabled]="aiBusy() && !definitionEngineerOpen()"
+                      (click)="toggleDefinitionEngineer()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                        />
+                        <path d="M5 3v4" />
+                        <path d="M3 5h4" />
+                        <path d="M19 17v4" />
+                        <path d="M17 19h4" />
+                      </svg>
+                    </button>
+                  }
+                  @if (current.kind === 'example' && current.exampleIndex == null) {
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Engineer example"
+                      title="Engineer example"
+                      [class.active]="exampleEngineerOpen()"
+                      [attr.aria-pressed]="exampleEngineerOpen()"
+                      [attr.aria-busy]="askingExamples() !== null ? true : null"
+                      [disabled]="aiBusy() && !exampleEngineerOpen()"
+                      (click)="toggleExampleEngineer()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                        />
+                        <path d="M5 3v4" />
+                        <path d="M3 5h4" />
+                        <path d="M19 17v4" />
+                        <path d="M17 19h4" />
+                      </svg>
+                    </button>
+                  }
                 </span>
               </ng-template>
               <ng-template #editorFields>
@@ -1538,83 +1627,83 @@ function writeExampleSuggestions(
                   }
                   @if (exampleEngineerOpen()) {
                     @if (exampleEngineer(); as engineer) {
-                    <div class="definition-ai">
-                      <label class="field-label" for="example-note">Note</label>
-                      <textarea
-                        id="example-note"
-                        rows="3"
-                        [value]="engineer.instruction"
-                        [attr.maxlength]="exampleInstructionMax"
-                        [disabled]="askingExamples() !== null"
-                        placeholder="A walk to the market"
-                        aria-label="Note"
-                        (input)="onEngineerInstruction($event)"
-                      ></textarea>
-                      @if (definitionForms(engineer.definitionIndex); as forms) {
-                        @if (forms.length) {
-                          <button
-                            type="button"
-                            class="forms-toggle"
-                            [attr.aria-expanded]="engineer.formsOpen"
-                            [disabled]="askingExamples() !== null"
-                            (click)="toggleEngineerForms()"
-                          >
-                            <span>Forms</span>
-                            <span class="forms-toggle-side">
-                              @if (!engineer.formsOpen && engineer.forms.length) {
-                                <span>{{ engineer.forms.join(', ') }}</span>
-                              }
-                              <svg
-                                viewBox="0 0 24 24"
-                                aria-hidden="true"
-                                [class.open]="engineer.formsOpen"
-                              >
-                                <path d="m6 9 6 6 6-6" />
-                              </svg>
-                            </span>
-                          </button>
-                          @if (engineer.formsOpen) {
-                            <div class="engineer-forms">
-                              <p class="hint">
-                                Select forms to require. More than one picks a form at random.
-                              </p>
-                              <ul class="equivalent-choices">
-                                @for (form of forms; track form) {
-                                  <li>
-                                    <button
-                                      type="button"
-                                      [class.selected]="engineerFormChosen(form)"
-                                      [attr.aria-pressed]="engineerFormChosen(form)"
-                                      [disabled]="askingExamples() !== null"
-                                      (click)="toggleEngineerForm(form)"
-                                    >
-                                      <ng-container [ngTemplateOutlet]="formIcon" />
-                                      {{ form }}
-                                    </button>
-                                  </li>
+                      <div class="definition-ai">
+                        <label class="field-label" for="example-note">Note</label>
+                        <textarea
+                          id="example-note"
+                          rows="3"
+                          [value]="engineer.instruction"
+                          [attr.maxlength]="exampleInstructionMax"
+                          [disabled]="askingExamples() !== null"
+                          placeholder="A walk to the market"
+                          aria-label="Note"
+                          (input)="onEngineerInstruction($event)"
+                        ></textarea>
+                        @if (definitionForms(engineer.definitionIndex); as forms) {
+                          @if (forms.length) {
+                            <button
+                              type="button"
+                              class="forms-toggle"
+                              [attr.aria-expanded]="engineer.formsOpen"
+                              [disabled]="askingExamples() !== null"
+                              (click)="toggleEngineerForms()"
+                            >
+                              <span>Forms</span>
+                              <span class="forms-toggle-side">
+                                @if (!engineer.formsOpen && engineer.forms.length) {
+                                  <span>{{ engineer.forms.join(', ') }}</span>
                                 }
-                              </ul>
-                            </div>
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  aria-hidden="true"
+                                  [class.open]="engineer.formsOpen"
+                                >
+                                  <path d="m6 9 6 6 6-6" />
+                                </svg>
+                              </span>
+                            </button>
+                            @if (engineer.formsOpen) {
+                              <div class="engineer-forms">
+                                <p class="hint">
+                                  Select forms to require. More than one picks a form at random.
+                                </p>
+                                <ul class="equivalent-choices">
+                                  @for (form of forms; track form) {
+                                    <li>
+                                      <button
+                                        type="button"
+                                        [class.selected]="engineerFormChosen(form)"
+                                        [attr.aria-pressed]="engineerFormChosen(form)"
+                                        [disabled]="askingExamples() !== null"
+                                        (click)="toggleEngineerForm(form)"
+                                      >
+                                        <ng-container [ngTemplateOutlet]="formIcon" />
+                                        {{ form }}
+                                      </button>
+                                    </li>
+                                  }
+                                </ul>
+                              </div>
+                            }
                           }
                         }
-                      }
-                      @if (exampleError()) {
-                        <p class="error">{{ exampleError() }}</p>
-                      }
-                      <div class="sheet-actions example-actions">
-                        <div class="generate-bundle">
-                          <button
-                            type="button"
-                            class="generate-main"
-                            [disabled]="askingExamples() !== null"
-                            [attr.aria-busy]="askingExamples() !== null ? true : null"
-                            (click)="generateEngineeredExample()"
-                          >
-                            Generate
-                          </button>
+                        @if (exampleError()) {
+                          <p class="error">{{ exampleError() }}</p>
+                        }
+                        <div class="sheet-actions example-actions">
+                          <div class="generate-bundle">
+                            <button
+                              type="button"
+                              class="generate-main"
+                              [disabled]="askingExamples() !== null"
+                              [attr.aria-busy]="askingExamples() !== null ? true : null"
+                              (click)="generateEngineeredExample()"
+                            >
+                              Generate
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     }
                   }
                   <textarea
@@ -1844,252 +1933,140 @@ function writeExampleSuggestions(
                   </section>
                 }
                 @if (current.kind === 'examples') {
-                    @let workIndex = current.index;
-                    @let worked = sheetDefinition(workIndex);
-                    <section class="sheet-part work-section">
-                      <div class="section-heading work-title">
-                        <span class="section-title work-title-text">Examples</span>
-                        <button
-                          type="button"
-                          class="icon-btn work-title-actions"
-                          aria-label="Add an example"
-                          title="Add an example"
-                          [disabled]="aiBusy()"
-                          (click)="addExampleManually(workIndex)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M5 12h14" />
-                            <path d="M12 5v14" />
-                          </svg>
-                        </button>
-                      </div>
-                      @if (worked && worked.examples.length) {
-                        <ul class="examples">
-                          @for (
-                            exampleIndex of exampleIndexesNewestFirst(worked.examples.length);
-                            track exampleIndex
-                          ) {
-                            @let example = worked.examples[exampleIndex];
-                            <li class="saved-example">
-                              <div class="example-quote">
-                                @let passage = parsePassage(example.text);
-                                @if (passage.text) {
-                                  <div class="spoken">
-                                    <div class="spoken-copy">
-                                      <p
-                                        class="passage sense-selectable"
-                                        [attr.data-definition-index]="workIndex"
-                                        [attr.data-example-index]="exampleIndex"
-                                      >
-                                        @for (
-                                          part of highlightPassage(passage.text);
-                                          track $index
-                                        ) {
-                                          @if (part.matches.length > 1) {
-                                            <button
-                                              type="button"
-                                              class="linguagem-highlighted"
-                                              [style.--score-color]="part.color || null"
-                                              [textContent]="part.text"
-                                              (click)="
-                                                showCollision(
-                                                  $event,
-                                                  part.matches,
-                                                  workIndex,
-                                                  example.text
-                                                )
-                                              "
-                                            ></button>
-                                          } @else if (part.matches.length === 1 && !part.current) {
-                                            <button
-                                              type="button"
-                                              class="linguagem-highlighted"
-                                              [style.--score-color]="part.color || null"
-                                              [textContent]="part.text"
-                                              (click)="
-                                                visitHighlight(
-                                                  part.matches[0].elementId,
-                                                  workIndex,
-                                                  example.text
-                                                )
-                                              "
-                                            ></button>
-                                          } @else if (part.current) {
-                                            <span
-                                              class="linguagem-highlighted linguagem-highlighted--current"
-                                              [style.--score-color]="part.color || null"
-                                              [textContent]="part.text"
-                                            ></span>
-                                          } @else {
-                                            <span [textContent]="part.text"></span>
-                                          }
+                  @let workIndex = current.index;
+                  @let worked = sheetDefinition(workIndex);
+                  <section class="sheet-part work-section">
+                    <div class="section-heading work-title">
+                      <span class="section-title work-title-text">Examples</span>
+                      <button
+                        type="button"
+                        class="icon-btn work-title-actions"
+                        aria-label="Add an example"
+                        title="Add an example"
+                        [disabled]="aiBusy()"
+                        (click)="addExampleManually(workIndex)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M5 12h14" />
+                          <path d="M12 5v14" />
+                        </svg>
+                      </button>
+                    </div>
+                    @if (worked && worked.examples.length) {
+                      <ul class="examples">
+                        @for (
+                          exampleIndex of exampleIndexesNewestFirst(worked.examples.length);
+                          track exampleIndex
+                        ) {
+                          @let example = worked.examples[exampleIndex];
+                          <li class="saved-example">
+                            <div class="example-quote">
+                              @let passage = parsePassage(example.text);
+                              @if (passage.text) {
+                                <div class="spoken">
+                                  <div class="spoken-copy">
+                                    <p
+                                      class="passage sense-selectable"
+                                      [attr.data-definition-index]="workIndex"
+                                      [attr.data-example-index]="exampleIndex"
+                                    >
+                                      @for (part of highlightPassage(passage.text); track $index) {
+                                        @if (part.matches.length > 1) {
+                                          <button
+                                            type="button"
+                                            class="linguagem-highlighted"
+                                            [style.--score-color]="part.color || null"
+                                            [textContent]="part.text"
+                                            (click)="
+                                              showCollision(
+                                                $event,
+                                                part.matches,
+                                                workIndex,
+                                                example.text
+                                              )
+                                            "
+                                          ></button>
+                                        } @else if (part.matches.length === 1 && !part.current) {
+                                          <button
+                                            type="button"
+                                            class="linguagem-highlighted"
+                                            [style.--score-color]="part.color || null"
+                                            [textContent]="part.text"
+                                            (click)="
+                                              visitHighlight(
+                                                part.matches[0].elementId,
+                                                workIndex,
+                                                example.text
+                                              )
+                                            "
+                                          ></button>
+                                        } @else if (part.current) {
+                                          <span
+                                            class="linguagem-highlighted linguagem-highlighted--current"
+                                            [style.--score-color]="part.color || null"
+                                            [textContent]="part.text"
+                                          ></span>
+                                        } @else {
+                                          <span [textContent]="part.text"></span>
                                         }
-                                      </p>
-                                      @let translations = shownTranslations(passage);
-                                      @if (translations.length) {
-                                        <ul class="equivalents">
-                                          @for (translation of translations; track $index) {
-                                            <li>
-                                              <app-reveal
-                                                [text]="labeledTranslation(translation)"
-                                                (unveiled)="
-                                                  noteReveal(
-                                                    workIndex,
-                                                    passage.text,
-                                                    translation.text,
-                                                    'example'
-                                                  )
-                                                "
-                                              />
-                                            </li>
-                                          }
-                                        </ul>
                                       }
-                                    </div>
-                                    <ng-container
-                                      [ngTemplateOutlet]="hearButton"
-                                      [ngTemplateOutletContext]="{
-                                        key: 'example:' + workIndex + ':' + exampleIndex,
-                                        text: example.text,
-                                        label: 'example',
-                                      }"
-                                    />
+                                    </p>
+                                    @let translations = shownTranslations(passage);
+                                    @if (translations.length) {
+                                      <ul class="equivalents">
+                                        @for (translation of translations; track $index) {
+                                          <li>
+                                            <app-reveal
+                                              [text]="labeledTranslation(translation)"
+                                              (unveiled)="
+                                                noteReveal(
+                                                  workIndex,
+                                                  passage.text,
+                                                  translation.text,
+                                                  'example'
+                                                )
+                                              "
+                                            />
+                                          </li>
+                                        }
+                                      </ul>
+                                    }
                                   </div>
+                                  <ng-container
+                                    [ngTemplateOutlet]="hearButton"
+                                    [ngTemplateOutletContext]="{
+                                      key: 'example:' + workIndex + ':' + exampleIndex,
+                                      text: example.text,
+                                      label: 'example',
+                                    }"
+                                  />
+                                </div>
+                              }
+                              @if (entries(example.metadata); as meta) {
+                                @if (meta.length) {
+                                  <ul class="pills">
+                                    @for (entry of meta; track entry.key) {
+                                      @let color = metaColor('examples', entry.key);
+                                      <li [class.colored]="color" [style.--meta-color]="color">
+                                        <span>
+                                          <span class="sense-meta-key">{{ entry.key }}</span>
+                                          <span class="sense-meta-value">{{ entry.value }}</span>
+                                        </span>
+                                      </li>
+                                    }
+                                  </ul>
                                 }
-                                @if (entries(example.metadata); as meta) {
-                                  @if (meta.length) {
-                                    <ul class="pills">
-                                      @for (entry of meta; track entry.key) {
-                                        @let color = metaColor('examples', entry.key);
-                                        <li [class.colored]="color" [style.--meta-color]="color">
-                                          <span>
-                                            <span class="sense-meta-key">{{ entry.key }}</span>
-                                            <span class="sense-meta-value">{{ entry.value }}</span>
-                                          </span>
-                                        </li>
-                                      }
-                                    </ul>
-                                  }
-                                }
-                              </div>
-                              <div class="item-actions">
-                                <span class="item-actions-main">
-                                    <button
-                                      type="button"
-                                      class="icon-btn"
-                                      aria-label="Edit example"
-                                      title="Edit example"
-                                      [disabled]="aiBusy()"
-                                      (click)="openExample(workIndex, exampleIndex)"
-                                    >
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <path
-                                          d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
-                                        />
-                                      </svg>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      class="icon-btn danger"
-                                      aria-label="Delete example"
-                                      title="Delete example"
-                                      [disabled]="aiBusy()"
-                                      (click)="askDeleteExample(workIndex, exampleIndex)"
-                                    >
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <path d="M3 6h18" />
-                                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                        <path d="M10 11v6" />
-                                        <path d="M14 11v6" />
-                                      </svg>
-                                    </button>
-                                  </span>
-                              </div>
-                            </li>
-                          }
-                        </ul>
-                      }
-                      @if (exampleDraftFor(workIndex); as draft) {
-                        <div class="example-quote">
-                          @let passage = parsePassage(draft.text);
-                          @if (passage.text) {
-                            <p class="passage">{{ passage.text }}</p>
-                            @let translations = shownTranslations(passage);
-                            @if (translations.length) {
-                              <ul class="equivalents">
-                                @for (translation of translations; track $index) {
-                                  <li>{{ labeledTranslation(translation) }}</li>
-                                }
-                              </ul>
-                            }
-                          }
-                        </div>
-                      }
-                    </section>
-                  }
-                @if (current.kind === 'forms') {
-                    @let workIndex = current.index;
-                    @let worked = sheetDefinition(workIndex);
-                    <section class="sheet-part work-section">
-                      <div class="section-heading work-title">
-                        <span class="section-title work-title-text">Forms</span>
-                        <div class="header-actions work-title-actions">
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Generate forms"
-                            title="Generate forms"
-                            [disabled]="aiBusy()"
-                            [attr.aria-busy]="askingForms() === workIndex ? true : null"
-                            (click)="generateForms(workIndex)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path
-                                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                              />
-                              <path d="M5 3v4" />
-                              <path d="M3 5h4" />
-                              <path d="M19 17v4" />
-                              <path d="M17 19h4" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            class="icon-btn"
-                            aria-label="Add a form"
-                            title="Add a form"
-                            [disabled]="aiBusy()"
-                            (click)="addFormManually(workIndex)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M5 12h14" />
-                              <path d="M12 5v14" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                      @if (worked && worked.forms.length) {
-                        <ul class="forms">
-                          @for (form of worked.forms; track form.text) {
-                            <li>
-                              <div class="form-chip">
+                              }
+                            </div>
+                            <div class="item-actions">
+                              <span class="item-actions-main">
                                 <button
                                   type="button"
-                                  [disabled]="busy()"
-                                  [attr.aria-label]="'Attributes for ' + form.text"
-                                  (click)="showFormAttributes(form)"
-                                >
-                                  <ng-container [ngTemplateOutlet]="formIcon" />
-                                  {{ form.text }}
-                                </button>
-                                <button
-                                  type="button"
-                                  class="form-edit"
-                                  [disabled]="busy()"
-                                  [attr.aria-label]="'Edit form ' + form.text"
-                                  title="Edit form"
-                                  (click)="openExistingForm(workIndex, form.text)"
+                                  class="icon-btn"
+                                  aria-label="Edit example"
+                                  title="Edit example"
+                                  [disabled]="aiBusy()"
+                                  (click)="openExample(workIndex, exampleIndex)"
                                 >
                                   <svg viewBox="0 0 24 24" aria-hidden="true">
                                     <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
@@ -2097,42 +2074,149 @@ function writeExampleSuggestions(
                                 </button>
                                 <button
                                   type="button"
-                                  class="tag-remove"
-                                  [disabled]="busy()"
-                                  [attr.aria-label]="'Remove form ' + form.text"
-                                  (click)="removeForm(workIndex, form.text)"
+                                  class="icon-btn danger"
+                                  aria-label="Delete example"
+                                  title="Delete example"
+                                  [disabled]="aiBusy()"
+                                  (click)="askDeleteExample(workIndex, exampleIndex)"
                                 >
-                                  ×
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 6h18" />
+                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                    <path d="M10 11v6" />
+                                    <path d="M14 11v6" />
+                                  </svg>
                                 </button>
-                              </div>
+                              </span>
+                            </div>
+                          </li>
+                        }
+                      </ul>
+                    }
+                    @if (exampleDraftFor(workIndex); as draft) {
+                      <div class="example-quote">
+                        @let passage = parsePassage(draft.text);
+                        @if (passage.text) {
+                          <p class="passage">{{ passage.text }}</p>
+                          @let translations = shownTranslations(passage);
+                          @if (translations.length) {
+                            <ul class="equivalents">
+                              @for (translation of translations; track $index) {
+                                <li>{{ labeledTranslation(translation) }}</li>
+                              }
+                            </ul>
+                          }
+                        }
+                      </div>
+                    }
+                  </section>
+                }
+                @if (current.kind === 'forms') {
+                  @let workIndex = current.index;
+                  @let worked = sheetDefinition(workIndex);
+                  <section class="sheet-part work-section">
+                    <div class="section-heading work-title">
+                      <span class="section-title work-title-text">Forms</span>
+                      <div class="header-actions work-title-actions">
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Generate forms"
+                          title="Generate forms"
+                          [disabled]="aiBusy()"
+                          [attr.aria-busy]="askingForms() === workIndex ? true : null"
+                          (click)="generateForms(workIndex)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                            />
+                            <path d="M5 3v4" />
+                            <path d="M3 5h4" />
+                            <path d="M19 17v4" />
+                            <path d="M17 19h4" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Add a form"
+                          title="Add a form"
+                          [disabled]="aiBusy()"
+                          (click)="addFormManually(workIndex)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12h14" />
+                            <path d="M12 5v14" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    @if (worked && worked.forms.length) {
+                      <ul class="forms">
+                        @for (form of worked.forms; track form.text) {
+                          <li>
+                            <div class="form-chip">
+                              <button
+                                type="button"
+                                [disabled]="busy()"
+                                [attr.aria-label]="'Attributes for ' + form.text"
+                                (click)="showFormAttributes(form)"
+                              >
+                                <ng-container [ngTemplateOutlet]="formIcon" />
+                                {{ form.text }}
+                              </button>
+                              <button
+                                type="button"
+                                class="form-edit"
+                                [disabled]="busy()"
+                                [attr.aria-label]="'Edit form ' + form.text"
+                                title="Edit form"
+                                (click)="openExistingForm(workIndex, form.text)"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                class="tag-remove"
+                                [disabled]="busy()"
+                                [attr.aria-label]="'Remove form ' + form.text"
+                                (click)="removeForm(workIndex, form.text)"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </li>
+                        }
+                      </ul>
+                    }
+                    @if (pendingFormsFor(workIndex); as pending) {
+                      @if (pending.length) {
+                        <p class="field-label">New forms</p>
+                        <ul class="forms">
+                          @for (form of pending; track form.text) {
+                            <li>
+                              <button
+                                type="button"
+                                class="form-chip readonly"
+                                [attr.aria-label]="'Attributes for ' + form.text"
+                                (click)="showFormAttributes(form)"
+                              >
+                                <ng-container [ngTemplateOutlet]="formIcon" />
+                                {{ form.text }}
+                              </button>
                             </li>
                           }
                         </ul>
                       }
-                      @if (pendingFormsFor(workIndex); as pending) {
-                        @if (pending.length) {
-                          <p class="field-label">New forms</p>
-                          <ul class="forms">
-                            @for (form of pending; track form.text) {
-                              <li>
-                                <button
-                                  type="button"
-                                  class="form-chip readonly"
-                                  [attr.aria-label]="'Attributes for ' + form.text"
-                                  (click)="showFormAttributes(form)"
-                                >
-                                  <ng-container [ngTemplateOutlet]="formIcon" />
-                                  {{ form.text }}
-                                </button>
-                              </li>
-                            }
-                          </ul>
-                        }
-                      }
-                      @if (formsError()) {
-                        <p class="error">{{ formsError() }}</p>
-                      }
-                    </section>
+                    }
+                    @if (formsError()) {
+                      <p class="error">{{ formsError() }}</p>
+                    }
+                  </section>
                 }
                 @if (current.kind === 'example') {
                   <ng-container [ngTemplateOutlet]="editorFields" />
@@ -2474,6 +2558,14 @@ function writeExampleSuggestions(
               <div class="sheet-actions">
                 <button
                   type="button"
+                  class="btn btn-danger"
+                  [disabled]="busy()"
+                  (click)="askDeleteElement()"
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
                   class="btn btn-secondary"
                   [disabled]="busy()"
                   (click)="cancelTitle()"
@@ -2620,44 +2712,44 @@ function writeExampleSuggestions(
                       } @else {
                         <div class="log-item">
                           <div class="log-row">
-                          <button
-                            type="button"
-                            class="log-open"
-                            [attr.aria-expanded]="exerciseEntry() === $index"
-                            [attr.aria-label]="historyAria(definition, entry)"
-                            (click)="toggleExerciseEntry($index)"
-                          >
-                            <span class="log-copy">
-                              <span class="log-game">{{ historyTitle(entry) }}</span>
-                              <span class="hint">{{ exerciseWhen(entry.at) }}</span>
-                            </span>
-                            <span class="log-side">
-                              @if (entry.event === 'game') {
-                                <span
-                                  class="score-readout"
-                                  [attr.data-game]="entry.game"
+                            <button
+                              type="button"
+                              class="log-open"
+                              [attr.aria-expanded]="exerciseEntry() === $index"
+                              [attr.aria-label]="historyAria(definition, entry)"
+                              (click)="toggleExerciseEntry($index)"
+                            >
+                              <span class="log-copy">
+                                <span class="log-game">{{ historyTitle(entry) }}</span>
+                                <span class="hint">{{ exerciseWhen(entry.at) }}</span>
+                              </span>
+                              <span class="log-side">
+                                @if (entry.event === 'game') {
+                                  <span
+                                    class="score-readout"
+                                    [attr.data-game]="entry.game"
+                                    aria-hidden="true"
+                                  >
+                                    @if (earnedGameGem(definition, entry)) {
+                                      <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
+                                    }
+                                    {{ entry.score }}<span class="score-max">/5</span>
+                                  </span>
+                                }
+                                <svg
+                                  class="log-chevron"
+                                  viewBox="0 0 24 24"
                                   aria-hidden="true"
+                                  [class.open]="exerciseEntry() === $index"
                                 >
-                                  @if (earnedGameGem(definition, entry)) {
-                                    <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
-                                  }
-                                  {{ entry.score }}<span class="score-max">/5</span>
-                                </span>
-                              }
-                              <svg
-                                class="log-chevron"
-                                viewBox="0 0 24 24"
-                                aria-hidden="true"
-                                [class.open]="exerciseEntry() === $index"
-                              >
-                                <path d="m6 9 6 6 6-6" />
-                              </svg>
-                            </span>
-                          </button>
-                          <ng-container
-                            [ngTemplateOutlet]="historyDelete"
-                            [ngTemplateOutletContext]="{ historyIndex: $index }"
-                          />
+                                  <path d="m6 9 6 6 6-6" />
+                                </svg>
+                              </span>
+                            </button>
+                            <ng-container
+                              [ngTemplateOutlet]="historyDelete"
+                              [ngTemplateOutletContext]="{ historyIndex: $index }"
+                            />
                           </div>
                           @if (exerciseEntry() === $index) {
                             <div class="log-detail">
@@ -3127,6 +3219,10 @@ function writeExampleSuggestions(
 
     .element-edit app-highlight-color-picker {
       margin-top: 0.2rem;
+    }
+
+    .element-edit .sheet-actions .btn-danger {
+      margin-right: auto;
     }
 
     .equivalents {
@@ -3943,6 +4039,19 @@ function writeExampleSuggestions(
       border: 1px solid var(--border);
       border-radius: 1rem;
       background: var(--surface);
+      -webkit-touch-callout: none;
+    }
+
+    .definitions.selecting .sense {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .sense.selected {
+      border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+      box-shadow:
+        0 0 16px -2px color-mix(in srgb, var(--accent) 45%, transparent),
+        inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
     }
 
     .pending-sense {
@@ -5693,7 +5802,8 @@ export class ElementModal {
   readonly supportRevealed = signal<ReadonlySet<number>>(new Set());
   /** Example translations open, keyed by definition and example index. */
   readonly revealedExamples = signal<ReadonlySet<string>>(new Set());
-  readonly addingDefinitions = signal<'example' | 'missing' | null>(null);
+  readonly addingDefinitions = signal<'example' | 'missing' | 'merge' | null>(null);
+  readonly selectedSenses = signal<ReadonlySet<number>>(new Set());
   /** Generated missing definition, shown in full until it is kept or dismissed. */
   readonly pendingDefinition = signal<PendingDefinition | null>(null);
   /** Dismissed suggestions, so the next one is a different sense. */
@@ -5739,6 +5849,12 @@ export class ElementModal {
   private trackedElementId = '';
   /** Definitions whose text was unveiled during this open. */
   private viewedDefinitions = new Set<string>();
+  private sensePressTimer: ReturnType<typeof setTimeout> | null = null;
+  private sensePressHeld = false;
+  private sensePressX = 0;
+  private sensePressY = 0;
+  private swallowSenseClick = false;
+  private swallowSenseTimer = 0;
   private engineerDrafts = new Map<string, EngineerDraft>();
   private definitionEngineerDrafts = new Map<string, DefinitionEngineerDraft>();
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
@@ -5792,6 +5908,7 @@ export class ElementModal {
       this.heldExample.set(arrived);
       this.formAttributesView.set(null);
       this.addingDefinitions.set(null);
+      this.clearSenseSelection();
       this.pendingDefinition.set(null);
       this.skippedDefinitions = [];
       this.equivalentTicket += 1;
@@ -5823,27 +5940,29 @@ export class ElementModal {
       document.removeEventListener('scroll', this.syncPassageSelection, true);
       window.removeEventListener('resize', this.syncPassageSelection);
       document.body.style.overflow = previous;
+      this.clearSensePress();
+      window.clearTimeout(this.swallowSenseTimer);
     });
     afterNextRender(() => this.closeButton()?.nativeElement.focus());
   }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    if (this.titleEdit()) {
-      if (!this.busy()) this.cancelTitle();
-      return;
-    }
     if (this.confirm()?.kind === 'exercise') {
       if (!this.busy()) this.confirm.set(null);
+      return;
+    }
+    if (this.confirm()) {
+      this.confirm.set(null);
+      return;
+    }
+    if (this.titleEdit()) {
+      if (!this.busy()) this.cancelTitle();
       return;
     }
     if (this.exerciseLog() >= 0) {
       if (this.exerciseEntry() >= 0) this.exerciseEntry.set(-1);
       else this.exerciseLog.set(-1);
-      return;
-    }
-    if (this.confirm()) {
-      this.confirm.set(null);
       return;
     }
     if (this.formAttributesView()) {
@@ -5872,6 +5991,10 @@ export class ElementModal {
     }
     if (this.definitionEngineer()) {
       this.closeDefinitionEngineer();
+      return;
+    }
+    if (this.selectedSenses().size) {
+      if (!this.aiBusy()) this.clearSenseSelection();
       return;
     }
     if (this.canGoBack()) {
@@ -6153,6 +6276,110 @@ export class ElementModal {
     return this.senseStages().get(index) ?? 'closed';
   }
 
+  senseSelected(index: number): boolean {
+    return this.selectedSenses().has(index);
+  }
+
+  onSensePointerDown(event: PointerEvent, index: number): void {
+    if (this.selectedSenses().size || this.aiBusy()) return;
+    if (event.button !== 0) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest('button, a, input, textarea, select')) return;
+    this.clearSensePress();
+    this.sensePressX = event.clientX;
+    this.sensePressY = event.clientY;
+    this.sensePressTimer = setTimeout(() => {
+      this.sensePressTimer = null;
+      this.sensePressHeld = true;
+      this.beginSenseSelection(index);
+    }, SENSE_PRESS_MS);
+  }
+
+  onSensePointerMove(event: PointerEvent): void {
+    if (this.sensePressTimer == null) return;
+    const dx = event.clientX - this.sensePressX;
+    const dy = event.clientY - this.sensePressY;
+    if (dx * dx + dy * dy > SENSE_PRESS_SLOP * SENSE_PRESS_SLOP) this.clearSensePress();
+  }
+
+  onSensePointerUp(): void {
+    const held = this.sensePressHeld;
+    this.sensePressHeld = false;
+    this.clearSensePress();
+    if (held) this.armSenseClickSwallow();
+  }
+
+  onSenseContextMenu(event: Event, index: number): void {
+    const target = event.target;
+    if (target instanceof Element && target.closest('button, a, input, textarea, select')) return;
+    event.preventDefault();
+    if (this.aiBusy()) return;
+    this.armSenseClickSwallow();
+    if (this.selectedSenses().size) {
+      if (!this.selectedSenses().has(index)) this.toggleSenseSelection(index);
+      return;
+    }
+    this.beginSenseSelection(index);
+  }
+
+  onSenseClick(event: Event, index: number): void {
+    if (this.consumeSenseClickSwallow()) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('button, a, input, textarea, select')) return;
+    if (this.selectedSenses().size) {
+      if (!this.aiBusy()) this.toggleSenseSelection(index);
+      return;
+    }
+    if (!target.closest('.sense-row')) return;
+    this.unveilFromRow(event, index);
+  }
+
+  clearSenseSelection(): void {
+    this.clearSensePress();
+    this.sensePressHeld = false;
+    this.selectedSenses.set(new Set());
+  }
+
+  private beginSenseSelection(index: number): void {
+    if (this.aiBusy() || !this.element().definitions[index]) return;
+    this.selectedSenses.update((current) => {
+      const next = new Set(current);
+      next.add(index);
+      return next;
+    });
+  }
+
+  private toggleSenseSelection(index: number): void {
+    const next = new Set(this.selectedSenses());
+    if (next.has(index)) next.delete(index);
+    else if (this.element().definitions[index]) next.add(index);
+    this.selectedSenses.set(next);
+  }
+
+  private armSenseClickSwallow(): void {
+    this.swallowSenseClick = true;
+    window.clearTimeout(this.swallowSenseTimer);
+    this.swallowSenseTimer = window.setTimeout(() => {
+      this.swallowSenseClick = false;
+      this.swallowSenseTimer = 0;
+    }, 700);
+  }
+
+  private consumeSenseClickSwallow(): boolean {
+    if (!this.swallowSenseClick) return false;
+    this.swallowSenseClick = false;
+    window.clearTimeout(this.swallowSenseTimer);
+    this.swallowSenseTimer = 0;
+    return true;
+  }
+
+  private clearSensePress(): void {
+    if (this.sensePressTimer == null) return;
+    clearTimeout(this.sensePressTimer);
+    this.sensePressTimer = null;
+  }
+
   /** A click on the definition row takes the next step. The icon buttons do that themselves. */
   unveilFromRow(event: Event, index: number): void {
     const target = event.target;
@@ -6361,7 +6588,6 @@ export class ElementModal {
     this.openForm(index);
   }
 
-
   addExampleManually(index: number): void {
     if (this.aiBusy()) return;
     this.openExample(index, null);
@@ -6427,6 +6653,94 @@ export class ElementModal {
   addDefinitionManually(): void {
     if (this.asking()) return;
     this.openDefinition(null);
+  }
+
+  async mergeSelectedDefinitions(): Promise<void> {
+    if (this.aiBusy() || this.selectedSenses().size < 2) return;
+    const element = this.currentElement();
+    const indexes = [...this.selectedSenses()]
+      .filter((index) => element.definitions[index])
+      .sort((left, right) => left - right);
+    if (indexes.length < 2) return;
+    const title = element.title.trim();
+    if (!title) return;
+    if (!readStoredAiCredentials().keys.length) {
+      this.error.set('Save an API key first.');
+      return;
+    }
+    const fingerprints = indexes.map((index) => element.definitions[index]?.text ?? '');
+    this.addingDefinitions.set('merge');
+    this.asking.set(true);
+    this.error.set('');
+    try {
+      const sense = await mergeDefinitions({
+        language: element.language,
+        title,
+        translation: this.translationTarget(),
+        existingDefinitions: indexes.map((index) => {
+          const definition = element.definitions[index];
+          return { text: definition?.text ?? '', metadata: definition?.metadata ?? {} };
+        }),
+      });
+      if (!this.alive || this.element().id !== element.id) return;
+      if (!sense) {
+        this.error.set('Could not merge those definitions.');
+        return;
+      }
+      const definitions = this.copyDefinitions();
+      if (indexes.some((index, place) => definitions[index]?.text !== fingerprints[place])) {
+        this.error.set('Could not merge those definitions.');
+        return;
+      }
+      const chosen = indexes
+        .map((index) => definitions[index])
+        .filter((definition): definition is ElementDefinition => !!definition);
+      if (chosen.length < 2) {
+        this.error.set('Could not merge those definitions.');
+        return;
+      }
+      const first = indexes[0] ?? 0;
+      const linked = joinedEquivalentLinks(this.currentElement().equivalents, chosen);
+      const merged: ElementDefinition = {
+        text: sense.text,
+        equivalentIds: linked.equivalentIds,
+        forms: uniqueByText(chosen.flatMap((definition) => definition.forms)),
+        examples: uniqueByText(chosen.flatMap((definition) => definition.examples)),
+        metadata: { ...sense.metadata },
+        log: chosen.flatMap((definition) => definition.log.map((entry) => ({ ...entry }))),
+      };
+      const removed = new Set(indexes);
+      const next = [
+        ...definitions.slice(0, first),
+        merged,
+        ...definitions.filter((_, index) => index > first && !removed.has(index)),
+      ];
+      if (!(await this.persist(next, linked.equivalents))) return;
+      if (!this.alive || this.element().id !== element.id) return;
+      this.closeWorkOnSenses(removed);
+      const dropped = indexes
+        .filter((index) => index !== first)
+        .sort((left, right) => right - left);
+      for (const index of dropped) this.retargetAfterDrop(index);
+      for (const definition of chosen) {
+        const key = senseKey(definition.text);
+        if (!key || next.some((item) => senseKey(item.text) === key)) continue;
+        this.engineerDrafts.delete(key);
+        this.definitionEngineerDrafts.delete(key);
+        this.replaceExampleSuggestions(element.id, key, []);
+      }
+      writeRelatedDrafts(element.id, this.definitionEngineerDrafts);
+      this.clearSenseSelection();
+      this.refreshNewDefinitions(element.id);
+      this.scrollSenseIntoView(first);
+    } catch {
+      if (this.element().id === element.id) this.error.set('Could not merge those definitions.');
+    } finally {
+      if (this.element().id === element.id) {
+        this.asking.set(false);
+        this.addingDefinitions.set(null);
+      }
+    }
   }
 
   async addMissingDefinition(): Promise<void> {
@@ -6692,6 +7006,7 @@ export class ElementModal {
     if (related != null) this.askingRelated.set(related + by);
     const wording = this.askingWording();
     if (wording != null) this.askingWording.set(wording + by);
+    this.selectedSenses.update((current) => shiftIndexSet(current, by));
     const engineer = this.exampleEngineer();
     if (engineer) {
       this.exampleEngineer.set({ ...engineer, definitionIndex: engineer.definitionIndex + by });
@@ -6863,6 +7178,123 @@ export class ElementModal {
     this.senseStages.update((current) => dropIndexMap(current, index));
     this.supportRevealed.update((current) => dropIndexSet(current, index));
     this.revealedExamples.update((current) => dropExampleKeys(current, index));
+  }
+
+  /** Close editors that pointed at a sense which was just merged away. */
+  private closeWorkOnSenses(indexes: ReadonlySet<number>): void {
+    const editor = this.editor();
+    const editorIndex =
+      editor?.kind === 'definition' || editor?.kind === 'examples' || editor?.kind === 'forms'
+        ? editor.index
+        : editor?.kind === 'example'
+          ? editor.definitionIndex
+          : null;
+    if (editorIndex != null && indexes.has(editorIndex)) this.editor.set(null);
+    const form = this.formEdit();
+    if (form && indexes.has(form.definitionIndex)) this.formEdit.set(null);
+    const pending = this.confirm();
+    if (pending?.kind === 'definition' && indexes.has(pending.index)) this.confirm.set(null);
+    if (
+      (pending?.kind === 'example' || pending?.kind === 'exercise') &&
+      indexes.has(pending.definitionIndex)
+    ) {
+      this.confirm.set(null);
+    }
+    const asking = this.askingExamples();
+    if (asking != null && indexes.has(asking)) this.askingExamples.set(null);
+    const forms = this.askingForms();
+    if (forms != null && indexes.has(forms)) this.askingForms.set(null);
+    const draft = this.exampleDraft();
+    if (draft && indexes.has(draft.definitionIndex)) this.exampleDraft.set(null);
+    const pendingForms = this.pendingForms();
+    if (pendingForms && indexes.has(pendingForms.definitionIndex)) this.pendingForms.set(null);
+    const related = this.askingRelated();
+    if (related != null && indexes.has(related)) this.askingRelated.set(null);
+    const wording = this.askingWording();
+    if (wording != null && indexes.has(wording)) this.askingWording.set(null);
+    const engineer = this.exampleEngineer();
+    if (engineer && indexes.has(engineer.definitionIndex)) this.exampleEngineer.set(null);
+    const definitionEngineer = this.definitionEngineer();
+    if (definitionEngineer && indexes.has(definitionEngineer.definitionIndex)) {
+      this.definitionEngineer.set(null);
+    }
+    if (indexes.has(this.exerciseLog())) {
+      this.exerciseLog.set(-1);
+      this.exerciseEntry.set(-1);
+    }
+    this.collision.set(null);
+  }
+
+  /** Shift open indexes after one definition is removed. `null` means that index was removed. */
+  private movedDefinitionIndex(value: number, dropped: number): number | null {
+    if (value === dropped) return null;
+    return value > dropped ? value - 1 : value;
+  }
+
+  private retargetAfterDrop(index: number): void {
+    const editor = this.editor();
+    if (editor?.kind === 'definition' && editor.index != null) {
+      const next = this.movedDefinitionIndex(editor.index, index);
+      this.editor.set(next == null ? null : { kind: 'definition', index: next });
+    } else if (editor?.kind === 'examples' || editor?.kind === 'forms') {
+      const next = this.movedDefinitionIndex(editor.index, index);
+      this.editor.set(next == null ? null : { ...editor, index: next });
+    } else if (editor?.kind === 'example') {
+      const next = this.movedDefinitionIndex(editor.definitionIndex, index);
+      this.editor.set(next == null ? null : { ...editor, definitionIndex: next });
+    }
+    const form = this.formEdit();
+    if (form) {
+      const next = this.movedDefinitionIndex(form.definitionIndex, index);
+      this.formEdit.set(next == null ? null : { ...form, definitionIndex: next });
+    }
+    const pending = this.confirm();
+    if (pending?.kind === 'definition') {
+      const next = this.movedDefinitionIndex(pending.index, index);
+      this.confirm.set(next == null ? null : { kind: 'definition', index: next });
+    } else if (pending && (pending.kind === 'example' || pending.kind === 'exercise')) {
+      const next = this.movedDefinitionIndex(pending.definitionIndex, index);
+      this.confirm.set(next == null ? null : { ...pending, definitionIndex: next });
+    }
+    const asking = this.askingExamples();
+    if (asking != null) this.askingExamples.set(this.movedDefinitionIndex(asking, index));
+    const forms = this.askingForms();
+    if (forms != null) this.askingForms.set(this.movedDefinitionIndex(forms, index));
+    const draft = this.exampleDraft();
+    if (draft) {
+      const next = this.movedDefinitionIndex(draft.definitionIndex, index);
+      this.exampleDraft.set(next == null ? null : { ...draft, definitionIndex: next });
+    }
+    const pendingForms = this.pendingForms();
+    if (pendingForms) {
+      const next = this.movedDefinitionIndex(pendingForms.definitionIndex, index);
+      this.pendingForms.set(next == null ? null : { ...pendingForms, definitionIndex: next });
+    }
+    const related = this.askingRelated();
+    if (related != null) this.askingRelated.set(this.movedDefinitionIndex(related, index));
+    const wording = this.askingWording();
+    if (wording != null) this.askingWording.set(this.movedDefinitionIndex(wording, index));
+    const engineer = this.exampleEngineer();
+    if (engineer) {
+      const next = this.movedDefinitionIndex(engineer.definitionIndex, index);
+      this.exampleEngineer.set(next == null ? null : { ...engineer, definitionIndex: next });
+    }
+    const definitionEngineer = this.definitionEngineer();
+    if (definitionEngineer) {
+      const next = this.movedDefinitionIndex(definitionEngineer.definitionIndex, index);
+      this.definitionEngineer.set(
+        next == null ? null : { ...definitionEngineer, definitionIndex: next },
+      );
+    }
+    const log = this.exerciseLog();
+    if (log >= 0) {
+      const next = this.movedDefinitionIndex(log, index);
+      if (next == null) {
+        this.exerciseLog.set(-1);
+        this.exerciseEntry.set(-1);
+      } else this.exerciseLog.set(next);
+    }
+    this.dropSenseState(index);
   }
 
   openDefinition(index: number | null): void {
@@ -8034,6 +8466,7 @@ export class ElementModal {
       if (wording === pending.index) this.askingWording.set(null);
       else if (wording != null && wording > pending.index) this.askingWording.set(wording - 1);
       this.dropSenseState(pending.index);
+      this.selectedSenses.update((current) => dropIndexSet(current, pending.index));
     }
     this.confirm.set(null);
     if (pending.kind === 'definition') this.editor.set(null);
