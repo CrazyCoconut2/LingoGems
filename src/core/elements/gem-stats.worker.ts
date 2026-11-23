@@ -1,5 +1,6 @@
 import {
   ELEMENTS_STORE,
+  DEFINITION_SCORE_MAX,
   TRANSLATION_GEM_MAX,
   compileFormMatcher,
   displayTitle,
@@ -277,10 +278,7 @@ function compareElements(left: ElementDayStats, right: ElementDayStats, language
   const exercises = right.exercises - left.exercises;
   if (exercises) return exercises;
   const activity =
-    right.opened +
-      right.reworked +
-      right.revealed -
-      (left.opened + left.reworked + left.revealed);
+    right.opened + right.reworked + right.revealed - (left.opened + left.reworked + left.revealed);
   if (activity) return activity;
   return left.title.localeCompare(right.title, language);
 }
@@ -312,9 +310,10 @@ function awardGems(
   }
 }
 
-function gameScore(entry: { score?: unknown; gems?: unknown }): number | null {
+function gameScore(entry: { game?: unknown; score?: unknown; gems?: unknown }): number | null {
   const score = Math.round(Number(entry.score ?? entry.gems));
-  if (!Number.isInteger(score) || score < 0 || score > TRANSLATION_GEM_MAX) return null;
+  const max = entry.game === 'definition' ? DEFINITION_SCORE_MAX : TRANSLATION_GEM_MAX;
+  if (!Number.isInteger(score) || score < 0 || score > max) return null;
   return score;
 }
 

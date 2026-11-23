@@ -1,13 +1,36 @@
 import { Component, effect, input, output, signal } from '@angular/core';
-import { requestDefinitionTranslation, requestPhraseTranslation } from './translation-cache';
+import {
+  readPhraseTranslation,
+  requestDefinitionTranslation,
+  requestPhraseTranslation,
+} from './translation-cache';
 
-/** A translate icon for one sentence. The result stays visible until this view is left. */
+/** A stored translation sits blurred under the phrase. The icon asks for one when none is stored. */
 @Component({
   selector: 'app-phrase-translation',
   template: `
-    @if (!shown()) {
+    @if (stored(); as text) {
+      @if (revealed()) {
+        <span class="translation shown">
+          {{ text }}
+          @if (shownEquivalent(); as gloss) {
+            <span class="equivalent">{{ gloss }}</span>
+          }
+        </span>
+      } @else {
+        <button
+          type="button"
+          class="translation"
+          aria-label="Show translation"
+          (click)="reveal($event)"
+        >
+          <span aria-hidden="true">{{ text }}</span>
+        </button>
+      }
+    } @else {
       <button
         type="button"
+        class="ask"
         [attr.aria-label]="busy() ? 'Translating…' : 'Translate'"
         [attr.title]="
           failed() ? 'Could not translate this.' : busy() ? 'Translating…' : 'Translate'
@@ -26,21 +49,17 @@ import { requestDefinitionTranslation, requestPhraseTranslation } from './transl
         </svg>
       </button>
     }
-    @if (shown()) {
-      <span class="translation">
-        {{ shown() }}
-        @if (shownEquivalent(); as gloss) {
-          <span class="equivalent">{{ gloss }}</span>
-        }
-      </span>
-    }
   `,
   styles: `
     :host {
       display: inline;
     }
 
-    button {
+    :host:has(.translation) {
+      display: block;
+    }
+
+    button.ask {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -65,23 +84,38 @@ import { requestDefinitionTranslation, requestPhraseTranslation } from './transl
       stroke-linejoin: round;
     }
 
-    button:hover:not(:disabled) {
+    button.ask:hover:not(:disabled) {
       color: var(--text);
     }
 
-    button:disabled {
+    button.ask:disabled {
       cursor: progress;
       opacity: 0.45;
     }
 
     .translation {
       display: block;
-      margin-top: 0.2rem;
+      width: 100%;
+      margin: 0.2rem 0 0;
+      padding: 0;
+      border: 0;
+      background: none;
       color: var(--text-muted);
+      font: inherit;
       font-size: 0.75rem;
       font-style: italic;
       font-weight: 400;
       line-height: 1.4;
+      text-align: left;
+      filter: blur(0.55em);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .translation.shown {
+      filter: none;
+      cursor: text;
+      user-select: text;
     }
 
     .equivalent {
@@ -112,18 +146,30 @@ export class PhraseTranslation {
   readonly translated = output<string>();
   /** Equivalent returned for a definition that did not already have one. */
   readonly equivalentFound = output<string>();
-  readonly shown = signal('');
+  readonly stored = signal('');
+  readonly revealed = signal(false);
   readonly busy = signal(false);
   readonly failed = signal(false);
   private readonly foundEquivalent = signal('');
 
   constructor() {
     effect(() => {
-      this.phrase();
-      this.shown.set('');
+      const phrase = this.phrase().trim();
+      const seeded = this.seeded().trim();
+      const cached =
+        readPhraseTranslation(this.sourceLang(), this.targetLang(), phrase)?.text.trim() ?? '';
+      this.stored.set(cached || seeded);
+      this.revealed.set(false);
       this.foundEquivalent.set('');
       this.failed.set(false);
     });
+  }
+
+  reveal(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.stored()) return;
+    this.revealed.set(true);
   }
 
   shownEquivalent(): string {
@@ -133,7 +179,7 @@ export class PhraseTranslation {
   async translate(event: Event): Promise<void> {
     event.preventDefault();
     event.stopPropagation();
-    if (this.busy() || this.shown()) return;
+    if (this.busy() || this.stored()) return;
     const phrase = this.phrase().trim();
     const sourceLang = this.sourceLang().trim();
     const targetLang = this.targetLang().trim();
@@ -146,7 +192,8 @@ export class PhraseTranslation {
         ? await this.translateDefinition(sourceLang, targetLang, phrase, lemma)
         : await requestPhraseTranslation(sourceLang, targetLang, phrase, this.seeded());
       if (this.phrase().trim() !== phrase) return;
-      this.shown.set(text);
+      this.stored.set(text);
+      this.revealed.set(true);
       this.translated.emit(text);
     } catch {
       if (this.phrase().trim() === phrase) this.failed.set(true);

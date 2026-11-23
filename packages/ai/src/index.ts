@@ -64,3 +64,13 @@ export {
   verbalizeDefinition,
   type RelatedWord,
 } from './definition-engineer';
+
+export {
+  correctRecallAnswer,
+  evaluateRecallAnswer,
+  type RecallCorrection,
+  type RecallEvaluation,
+  type RecallExtra,
+  type RecallMistake,
+  type RecallSense,
+} from './recall';

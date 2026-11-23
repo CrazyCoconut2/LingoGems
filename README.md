@@ -24,7 +24,8 @@ TODO
         present, so if an element exists but one of its forms in an example is not there. How should it act? And I think we're done.
 - Phantom elements and querying the whole data to get examples and
   definitions where the element is.
-
+- The amount of time we translated stuff or opened a translation
+  is also a useful metric. I think we should see it decrease through the days.
 - The metric for the amount of times you saw the element being translated is important to show too.
 
 TODO Later:

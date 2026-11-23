@@ -42,12 +42,21 @@ export type ElementForm = {
   metadata: ElementMetadata;
 };
 
-/** Highest score one answer can receive. */
+/** Highest score a translation or example answer can receive. */
 export const TRANSLATION_GEM_MAX = 5;
+
+/** A definition recall is scored out of 10, plus 1 when the answer adds a sense. */
+export const DEFINITION_COVERAGE_MAX = 10;
+export const DEFINITION_SCORE_MAX = 11;
 
 export type DefinitionLogBy = 'user' | 'ai';
 
 export type DefinitionGame = 'translation' | 'example' | 'definition';
+
+/** Highest stored score for one game. */
+export function gameScoreCeiling(game: DefinitionGame): number {
+  return game === 'definition' ? DEFINITION_SCORE_MAX : TRANSLATION_GEM_MAX;
+}
 
 /** The definition passage, equivalent wording, and metadata at one moment. */
 export type DefinitionSnapshot = {
@@ -60,12 +69,14 @@ export type DefinitionSnapshot = {
 export type DefinitionGameLog = {
   event: 'game';
   game: DefinitionGame;
-  /** Score from 0 to {@link TRANSLATION_GEM_MAX}. Older records stored this as `gems`. */
+  /** Score from 0 to {@link gameScoreCeiling}. Older records stored this as `gems`. */
   score: number;
   by: DefinitionLogBy;
   at: number;
   answer: string;
   explanation?: string;
+  /** The answer named a sense that was not stored, so the score includes one extra point. */
+  extra?: true;
   /** Definition when this attempt was first scored. */
   snapshot?: DefinitionSnapshot;
 };
@@ -146,10 +157,7 @@ export function earnsGem(priorSum: number, priorCount: number, score: number): b
 }
 
 /** Whether this stored attempt earned its game's gem. Earlier attempts come first in time. */
-export function gameEarnedGem(
-  log: readonly ElementLogEntry[],
-  entry: DefinitionGameLog,
-): boolean {
+export function gameEarnedGem(log: readonly ElementLogEntry[], entry: DefinitionGameLog): boolean {
   let priorSum = 0;
   let priorCount = 0;
   for (const attempt of orderedGameAttempts(log, entry.game)) {
@@ -161,9 +169,7 @@ export function gameEarnedGem(
 }
 
 /** Gems earned from this element's log. */
-export function elementGemCounts(element: {
-  log?: readonly ElementLogEntry[];
-}): ElementGemCounts {
+export function elementGemCounts(element: { log?: readonly ElementLogEntry[] }): ElementGemCounts {
   const counts: ElementGemCounts = { translation: 0, example: 0, definition: 0 };
   const log = element.log ?? [];
   for (const game of GEM_GAMES) {
@@ -888,6 +894,7 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     at?: unknown;
     answer?: unknown;
     explanation?: unknown;
+    extra?: unknown;
     example?: unknown;
     forms?: unknown;
     before?: unknown;
@@ -955,7 +962,7 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     return null;
   }
   const score = Math.round(Number(source.score ?? source.gems));
-  if (!Number.isInteger(score) || score < 0 || score > TRANSLATION_GEM_MAX) return null;
+  if (!Number.isInteger(score) || score < 0 || score > gameScoreCeiling(source.game)) return null;
   if (source.by !== 'user' && source.by !== 'ai') return null;
   if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
   const answer = typeof source.answer === 'string' ? source.answer : '';
@@ -970,6 +977,7 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     answer,
   };
   if (explanation) entry.explanation = explanation;
+  if (source.extra === true && source.game === 'definition' && score > 0) entry.extra = true;
   const snapshot = normalizeSnapshot(source.snapshot);
   if (snapshot) entry.snapshot = snapshot;
   return entry;
