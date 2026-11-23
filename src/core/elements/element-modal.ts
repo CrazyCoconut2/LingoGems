@@ -709,6 +709,7 @@ function writeExampleSuggestions(
                         <div class="sense-main">
                           <div class="sense-copy">
                             @let passage = parsePassage(definition.text);
+                            @let equivalent = equivalentText(definition);
                             <ng-container [ngTemplateOutlet]="definitionPassage" />
                             <ng-template #definitionPencil>
                               <button
@@ -780,6 +781,7 @@ function writeExampleSuggestions(
                                           [sourceLang]="element().language"
                                           [targetLang]="translationTarget()"
                                           [seeded]="seededTranslation(passage)"
+                                          [equivalent]="labeledEquivalent(equivalent)"
                                           (translated)="
                                             noteReveal(index, passage.text, $event, 'definition')
                                           "
@@ -800,11 +802,12 @@ function writeExampleSuggestions(
                                 <ng-container [ngTemplateOutlet]="definitionPencil" />
                               }
                             </ng-template>
-                            @let equivalent = equivalentText(definition);
                             @let meta = entries(definition.metadata);
-                            @if ((supportAvailable() && equivalent) || meta.length) {
+                            @if (
+                              (supportAvailable() && equivalent && !passage.text) || meta.length
+                            ) {
                               <ul class="sense-meta">
-                                @if (supportAvailable() && equivalent) {
+                                @if (supportAvailable() && equivalent && !passage.text) {
                                   <li class="sense-equivalent">
                                     <ng-container [ngTemplateOutlet]="translationIcon" />
                                     <app-show-text

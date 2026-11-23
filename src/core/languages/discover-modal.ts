@@ -246,6 +246,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                                       [sourceLang]="language()"
                                       [targetLang]="supportLanguage()"
                                       [seeded]="seededTranslation(passage)"
+                                      [equivalent]="sense.equivalent ?? ''"
                                     />
                                   }
                                 </p>
@@ -268,9 +269,11 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                                 </div>
                               }
                               @let meta = senseMeta(sense);
-                              @if (sense.equivalent || meta.length) {
+                              @let equivalentPill =
+                                sense.equivalent && (!passage.text || !supportLanguage());
+                              @if (equivalentPill || meta.length) {
                                 <ul class="sense-meta">
-                                  @if (sense.equivalent) {
+                                  @if (equivalentPill) {
                                     <li class="sense-equivalent">
                                       <svg viewBox="0 0 24 24" aria-hidden="true">
                                         <path d="m5 8 6 6" />

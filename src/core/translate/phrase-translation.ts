@@ -27,7 +27,12 @@ import { requestPhraseTranslation } from './translation-cache';
       </button>
     }
     @if (shown()) {
-      <span class="translation">{{ shown() }}</span>
+      <span class="translation">
+        {{ shown() }}
+        @if (equivalent().trim(); as gloss) {
+          <span class="equivalent">{{ gloss }}</span>
+        }
+      </span>
     }
   `,
   styles: `
@@ -78,6 +83,20 @@ import { requestPhraseTranslation } from './translation-cache';
       font-weight: 400;
       line-height: 1.4;
     }
+
+    .equivalent {
+      margin-left: 0.4em;
+      color: var(--text);
+      font-style: normal;
+      font-weight: 600;
+    }
+
+    .equivalent::before {
+      content: '·';
+      margin-right: 0.4em;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
   `,
 })
 export class PhraseTranslation {
@@ -86,6 +105,8 @@ export class PhraseTranslation {
   readonly targetLang = input.required<string>();
   /** Translation already embedded on this passage. Used only when the cache has no text. */
   readonly seeded = input('');
+  /** Support-language gloss shown after the unveiled translation. */
+  readonly equivalent = input('');
   readonly translated = output<string>();
   readonly shown = signal('');
   readonly busy = signal(false);
