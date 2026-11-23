@@ -39,7 +39,8 @@ export {
   type DiscoveredElement,
 } from './discover-elements';
 
-export { generateEquivalent, translateTexts } from './translate';
+export { generateEquivalent, translateDefinition, translateTexts } from './translate';
+export type { DefinitionTranslation } from './translate';
 
 export {
   generateDefinitionFromExample,

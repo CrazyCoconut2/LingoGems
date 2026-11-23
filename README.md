@@ -20,6 +20,10 @@ TODO
 - We need a clear option to give up an exercise for a definition.
 - FORMS: Forms prioritized for example generation.
   If you choose one, it checks its metadata and recommends some to prioritize among the other forms when you want to create an example for another thing. Upon what the user writes.
+- TODO: We just have to know what happens if a form is not 
+        present, so if an element exists but one of its forms in an example is not there. How should it act? And I think we're done.
+- phantom elements and querying the whole data to get examples and
+  definitions where w
 
 TODO Later:
 - Edit or delete metadata for all the elements : Example, modify

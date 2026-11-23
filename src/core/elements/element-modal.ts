@@ -21,7 +21,6 @@ import {
   equivalentTextFor,
   linkEquivalent,
   parsePassage,
-  pruneEquivalentLinks,
   type ParsedPassage,
   elementModeLabel,
   gameEarnedGem,
@@ -57,14 +56,12 @@ import {
   generateDefinitionFromExample,
   generateDerivedExample,
   generateElementFromSelection,
-  generateEquivalent,
   generateExamples,
   generateForms,
   generateRelatedWords,
   readStoredAiCredentials,
   suggestMetadata,
   sentenceUsesForm,
-  translateTexts,
   verbalizeDefinition,
   type RelatedWord,
 } from 'ai';
@@ -76,7 +73,11 @@ import { HighlightColorPicker } from './highlight-color-picker';
 import { GemIcon } from './gem-icon';
 import { ModeIcon } from './mode-icon';
 import { PhraseTranslation } from '../translate/phrase-translation';
-import { requestPhraseTranslation } from '../translate/translation-cache';
+import {
+  readPhraseTranslation,
+  requestDefinitionTranslation,
+  requestPhraseTranslation,
+} from '../translate/translation-cache';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
 const EQUIVALENT_MAX = 200;
@@ -207,7 +208,6 @@ function dropIndexMap<T>(map: ReadonlyMap<number, T>, index: number): Map<number
   }
   return next;
 }
-
 
 function readNewDefinitions(elementId: string): string[] {
   if (!elementId) return [];
@@ -715,8 +715,8 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 class="inline-pencil"
-                                [attr.aria-label]="definitionActionLabel(definition)"
-                                [attr.title]="definitionActionLabel(definition)"
+                                aria-label="Edit definition"
+                                title="Edit definition"
                                 [disabled]="aiBusy()"
                                 (click)="openDefinition(index); $event.stopPropagation()"
                               >
@@ -782,9 +782,11 @@ function writeExampleSuggestions(
                                           [targetLang]="translationTarget()"
                                           [seeded]="seededTranslation(passage)"
                                           [equivalent]="labeledEquivalent(equivalent)"
+                                          [lemma]="element().title"
                                           (translated)="
                                             noteReveal(index, passage.text, $event, 'definition')
                                           "
+                                          (equivalentFound)="noteEquivalent(index, $event)"
                                         />
                                       }
                                     </p>
@@ -936,7 +938,9 @@ function writeExampleSuggestions(
                                           @let color = metaColor('examples', entry.key);
                                           <li [class.colored]="color" [style.--meta-color]="color">
                                             <span>
-                                              <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                                              <span class="sense-meta-key">{{
+                                                label(entry.key)
+                                              }}</span>
                                               <span class="sense-meta-value">{{
                                                 label(entry.value)
                                               }}</span>
@@ -1399,89 +1403,16 @@ function writeExampleSuggestions(
                     (input)="textDraft.set(inputValue($event))"
                   ></textarea>
                   @if (draftTranslationText(); as translation) {
-                    <p class="draft-translation">{{ translation }}</p>
+                    <p class="draft-translation">
+                      {{ translation }}
+                      @if (current.kind === 'definition' && sheetEquivalent(); as gloss) {
+                        <span class="equivalent">{{ gloss }}</span>
+                      }
+                    </p>
                   }
                 </div>
                 @if (sheetError()) {
                   <p class="error">{{ sheetError() }}</p>
-                }
-                @if (current.kind === 'definition' && supportAvailable()) {
-                  <div class="equivalent-block">
-                    <div class="field-heading">
-                      <label class="field-label" for="definition-equivalent">Equivalent</label>
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        [attr.aria-label]="
-                          askingEquivalent() ? 'Finding an equivalent…' : 'Ask AI for an equivalent'
-                        "
-                        [attr.title]="
-                          askingEquivalent() ? 'Finding an equivalent…' : 'Ask AI for an equivalent'
-                        "
-                        [attr.aria-busy]="askingEquivalent() ? true : null"
-                        [disabled]="!canAskEquivalent()"
-                        (click)="askEquivalent()"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                          />
-                          <path d="M5 3v4" />
-                          <path d="M3 5h4" />
-                          <path d="M19 17v4" />
-                          <path d="M17 19h4" />
-                        </svg>
-                      </button>
-                    </div>
-                    <ul class="equivalent-choices equivalent-pills">
-                      @for (item of editorEquivalents(); track item.id) {
-                        <li [class.selected]="equivalentSelected(item.id)">
-                          <button
-                            type="button"
-                            [attr.aria-pressed]="equivalentSelected(item.id)"
-                            [disabled]="busy()"
-                            [attr.aria-label]="labeledEquivalent(item.text)"
-                            (click)="chooseEquivalent(item.id)"
-                          >
-                            {{ labeledEquivalent(item.text) }}
-                          </button>
-                          <button
-                            type="button"
-                            class="tag-remove"
-                            [disabled]="busy()"
-                            [attr.aria-label]="'Remove equivalent ' + labeledEquivalent(item.text)"
-                            (click)="removeEquivalent(item.id)"
-                          >
-                            ×
-                          </button>
-                        </li>
-                      }
-                      <li class="entry-pill">
-                        <input
-                          id="definition-equivalent"
-                          class="equivalent-entry"
-                          [value]="equivalentDraft()"
-                          (input)="equivalentDraft.set(inputValue($event))"
-                          [style.width]="equivalentEntryWidth()"
-                          autocomplete="off"
-                          placeholder="New equivalent"
-                          aria-label="New equivalent"
-                          (keydown.enter)="confirmEquivalent()"
-                        />
-                        <button
-                          type="button"
-                          class="entry-confirm"
-                          aria-label="Add equivalent"
-                          [disabled]="busy() || !equivalentDraft().trim()"
-                          (click)="confirmEquivalent()"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M20 6 9 17l-5-5" />
-                          </svg>
-                        </button>
-                      </li>
-                    </ul>
-                  </div>
                 }
                 <div class="meta">
                   <div class="field-heading">
@@ -1756,7 +1687,9 @@ function writeExampleSuggestions(
                                     <li [class.colored]="color" [style.--meta-color]="color">
                                       <span>
                                         <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                                        <span class="sense-meta-value">{{ label(entry.value) }}</span>
+                                        <span class="sense-meta-value">{{
+                                          label(entry.value)
+                                        }}</span>
                                       </span>
                                     </li>
                                   }
@@ -1925,11 +1858,7 @@ function writeExampleSuggestions(
                     type="button"
                     class="btn btn-primary"
                     [disabled]="
-                      busy() ||
-                      translating() ||
-                      askingEquivalent() ||
-                      askingExamples() !== null ||
-                      !draftGloss()
+                      busy() || translating() || askingExamples() !== null || !draftGloss()
                     "
                     (click)="saveEditor()"
                   >
@@ -2456,7 +2385,9 @@ function writeExampleSuggestions(
                                     @for (item of entries(metadata ?? {}); track item.key) {
                                       <li>
                                         <span class="sense-meta-key">{{ label(item.key) }}</span>
-                                        <span class="sense-meta-value">{{ label(item.value) }}</span>
+                                        <span class="sense-meta-value">{{
+                                          label(item.value)
+                                        }}</span>
                                       </li>
                                     }
                                   </ul>
@@ -2930,72 +2861,6 @@ function writeExampleSuggestions(
       cursor: not-allowed;
     }
 
-    .equivalent-pills > li:not(:has(.equivalent-entry)) {
-      display: inline-flex;
-      align-items: center;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: var(--surface-2);
-      color: var(--text);
-      font-size: 0.8125rem;
-    }
-
-    .equivalent-pills > li.selected {
-      color: var(--accent-text);
-      border-color: rgba(var(--accent-rgb), 0.45);
-      background: rgba(var(--accent-rgb), 0.12);
-    }
-
-    .equivalent-pills > li:not(:has(.equivalent-entry)) > button:first-child {
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      color: inherit;
-      padding: 0.28rem 0.2rem 0.28rem 0.7rem;
-    }
-
-    .equivalent-pills > li:not(:has(.equivalent-entry)) > button.tag-remove {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      align-self: stretch;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      padding: 0.12rem 0.55rem 0 0;
-      line-height: 1;
-    }
-
-    .equivalent-choices li.entry-pill {
-      display: inline-flex;
-      align-items: center;
-      flex: none;
-      max-width: 100%;
-      border: 1px dashed var(--border);
-      border-radius: 999px;
-      background: transparent;
-    }
-
-    .equivalent-choices li.entry-pill:focus-within {
-      border-style: solid;
-      border-color: rgba(var(--accent-rgb), 0.55);
-    }
-
-    .equivalent-choices .equivalent-entry {
-      width: auto;
-      max-width: 100%;
-      padding: 0.28rem 0.15rem 0.28rem 0.7rem;
-      border: 0;
-      border-radius: 999px;
-      background: transparent;
-      font-size: 0.8125rem;
-      line-height: 1.2;
-    }
-
-    .equivalent-choices .equivalent-entry:focus {
-      outline: none;
-    }
-
     .entry-confirm {
       display: grid;
       place-items: center;
@@ -3032,12 +2897,6 @@ function writeExampleSuggestions(
       color: var(--text-muted);
       opacity: 0.4;
       cursor: not-allowed;
-    }
-
-    .equivalent-block {
-      display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
     }
 
     h2,
@@ -3747,6 +3606,22 @@ function writeExampleSuggestions(
       margin: 0.35rem 0 0;
       color: var(--text-muted);
       font-size: 0.85rem;
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    .draft-translation .equivalent {
+      margin-left: 0.4em;
+      color: var(--text);
+      font-style: normal;
+      font-weight: 600;
+    }
+
+    .draft-translation .equivalent::before {
+      content: '·';
+      margin-right: 0.4em;
+      color: var(--text-muted);
+      font-weight: 400;
     }
 
     .pills li.colored {
@@ -5362,11 +5237,6 @@ export class ElementModal {
     return text.trim();
   }
 
-  definitionActionLabel(definition: ElementDefinition): string {
-    return this.supportAvailable() && !this.equivalentText(definition)
-      ? 'Add an equivalent'
-      : 'Edit definition';
-  }
   private alive = true;
   readonly formMaxLength = FORM_MAX_LENGTH;
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
@@ -5380,14 +5250,10 @@ export class ElementModal {
   readonly editor = signal<Editor | null>(null);
   /** Section shown in the definition work sheet. */
   readonly workTab = signal<WorkTab>('definitions');
-  readonly equivalentDraft = signal('');
-  readonly equivalentIdDraft = signal<string | null>(null);
-  readonly sheetEquivalents = signal<ElementEquivalent[]>([]);
   readonly textDraft = signal('');
   /** Translation shown for the current draft phrase. Hidden once that phrase changes. */
   readonly draftTranslation = signal<{ phrase: string; text: string } | null>(null);
   readonly translating = signal(false);
-  readonly askingEquivalent = signal(false);
   readonly askingMetadata = signal(false);
   readonly sheetError = signal('');
   readonly formEdit = signal<FormEdit | null>(null);
@@ -5459,7 +5325,6 @@ export class ElementModal {
   private saveChain: Promise<void> = Promise.resolve();
   private busySaves = 0;
   private translateTicket = 0;
-  private equivalentTicket = 0;
   private exampleJob = 0;
   private relatedJob = 0;
   private wordingJob = 0;
@@ -5519,8 +5384,6 @@ export class ElementModal {
       this.heldExample.set(arrived);
       this.formAttributesView.set(null);
       this.addingDefinitions.set(null);
-      this.equivalentTicket += 1;
-      this.askingEquivalent.set(false);
       this.askingMetadata.set(false);
       this.engineerDrafts.clear();
       this.definitionEngineerDrafts = readRelatedDrafts(id);
@@ -5687,52 +5550,6 @@ export class ElementModal {
     return displayTitle(text, this.element().language);
   }
 
-  editorEquivalents(): ElementEquivalent[] {
-    const language = this.translationTarget();
-    if (!language) return [];
-    return this.sheetEquivalents().filter((item) => item.language === language);
-  }
-
-  removeEquivalent(id: string): void {
-    if (this.busy() || this.askingEquivalent()) return;
-    const current = this.sheetEquivalents().find((item) => item.id === id);
-    if (!current) return;
-    this.sheetEquivalents.update((list) => list.filter((item) => item.id !== id));
-    if (this.equivalentIdDraft() === id) this.equivalentIdDraft.set(null);
-    if (this.equivalentDraft().trim() === current.text) this.equivalentDraft.set('');
-  }
-
-  equivalentEntryWidth(): string {
-    const length = Math.max((this.equivalentDraft() || 'New equivalent').length, 1);
-    return `calc(${length}ch + 1.5rem)`;
-  }
-
-  equivalentSelected(id: string): boolean {
-    const typed = this.equivalentDraft().trim();
-    const language = this.translationTarget();
-    if (typed) {
-      return this.sheetEquivalents().some(
-        (item) => item.id === id && item.language === language && item.text === typed,
-      );
-    }
-    return this.equivalentIdDraft() === id;
-  }
-
-  confirmEquivalent(): void {
-    const typed = this.equivalentDraft().trim();
-    if (!typed || this.busy() || this.askingEquivalent()) return;
-    const linked = assignEquivalent(this.sheetEquivalents(), typed, this.translationTarget());
-    this.sheetEquivalents.set(linked.equivalents);
-    this.equivalentIdDraft.set(linked.equivalentId);
-    this.equivalentDraft.set('');
-  }
-
-  chooseEquivalent(id: string): void {
-    const selected = this.equivalentSelected(id);
-    this.equivalentDraft.set('');
-    this.equivalentIdDraft.set(selected ? null : id);
-  }
-
   examplePlaceholder(): string {
     const language = languageDisplayName(this.element().language);
     return language ? `Enter your own example in ${language}…` : 'Enter your own example…';
@@ -5747,55 +5564,18 @@ export class ElementModal {
     return supportLanguageFor(this.element().language);
   }
 
-  canAskEquivalent(): boolean {
-    return (
-      this.supportAvailable() &&
-      this.draftGloss().length > 0 &&
-      !this.translating() &&
-      !this.askingEquivalent() &&
-      !this.aiBusy()
+  /** Equivalent linked to the definition open in this sheet. */
+  sheetEquivalent(): string {
+    const editor = this.editor();
+    if (!editor || editor.kind !== 'definition') return '';
+    const element = this.currentElement();
+    const definition = element.definitions[editor.index];
+    if (!definition) return '';
+    return equivalentTextFor(
+      element.equivalents,
+      definition.equivalentIds,
+      this.translationTarget(),
     );
-  }
-
-  async askEquivalent(): Promise<void> {
-    if (!this.canAskEquivalent()) return;
-    const element = this.element();
-    const definition = this.draftGloss();
-    const english = this.draftTranslationText();
-    const ticket = ++this.equivalentTicket;
-    this.askingEquivalent.set(true);
-    this.sheetError.set('');
-    try {
-      const translation = await generateEquivalent({
-        lemma: element.title,
-        sourceLang: element.language,
-        definition,
-        english,
-        targetLang: this.translationTarget(),
-      });
-      if (ticket !== this.equivalentTicket) return;
-      if (!translation) {
-        this.sheetError.set('Could not find an equivalent.');
-        return;
-      }
-      const language = this.translationTarget();
-      const folded = translation.toLocaleLowerCase();
-      const match = this.sheetEquivalents().find(
-        (item) => item.language === language && item.text.toLocaleLowerCase() === folded,
-      );
-      if (match) {
-        this.equivalentDraft.set('');
-        this.equivalentIdDraft.set(match.id);
-      } else {
-        this.equivalentDraft.set(translation);
-        this.equivalentIdDraft.set(null);
-      }
-    } catch {
-      if (ticket !== this.equivalentTicket) return;
-      this.sheetError.set('Could not find an equivalent.');
-    } finally {
-      if (ticket === this.equivalentTicket) this.askingEquivalent.set(false);
-    }
   }
 
   canAskMetadata(): boolean {
@@ -5805,8 +5585,7 @@ export class ElementModal {
       this.draftGloss().length > 0 &&
       !this.askingMetadata() &&
       !this.aiBusy() &&
-      !this.translating() &&
-      !this.askingEquivalent()
+      !this.translating()
     );
   }
 
@@ -5975,13 +5754,7 @@ export class ElementModal {
         !pending.forms.length
       );
     }
-    return (
-      this.busy() ||
-      this.asking() ||
-      this.translating() ||
-      this.askingEquivalent() ||
-      !this.draftGloss()
-    );
+    return this.busy() || this.asking() || this.translating() || !this.draftGloss();
   }
 
   workCloseDisabled(): boolean {
@@ -6506,22 +6279,11 @@ export class ElementModal {
     if (this.exampleDraft()?.definitionIndex !== index) this.exampleDraft.set(null);
     if (this.pendingForms()?.definitionIndex !== index) this.pendingForms.set(null);
     this.sheetMetadata.set({ ...definition.metadata });
-    const language = this.translationTarget();
-    const equivalentId = language ? (definition.equivalentIds[language] ?? null) : null;
-    const known =
-      equivalentId &&
-      this.element().equivalents.some(
-        (item) => item.id === equivalentId && item.language === language,
-      )
-        ? equivalentId
-        : null;
-    this.equivalentIdDraft.set(known);
-    this.equivalentDraft.set('');
-    this.sheetEquivalents.set(this.element().equivalents.map((item) => ({ ...item })));
     this.beginSheet(definition.text);
     this.dismissNew(definition.text);
     this.editor.set({ kind: 'definition', index });
     this.workTab.set('definitions');
+    this.showStoredDraftTranslation();
   }
 
   /** Open the work sheet on Examples or Forms without leaving this definition. */
@@ -7109,7 +6871,8 @@ export class ElementModal {
       return next;
     });
     const field = this.exampleDraftField();
-    if (field) this.exampleDraftField.set({ ...field, definitionIndex: field.definitionIndex + by });
+    if (field)
+      this.exampleDraftField.set({ ...field, definitionIndex: field.definitionIndex + by });
   }
 
   private dropDefinitionExampleEdits(index: number): void {
@@ -7511,11 +7274,7 @@ export class ElementModal {
 
   canTranslate(): boolean {
     return (
-      this.supportAvailable() &&
-      this.draftGloss().length > 0 &&
-      !this.translating() &&
-      !this.askingEquivalent() &&
-      !this.busy()
+      this.supportAvailable() && this.draftGloss().length > 0 && !this.translating() && !this.busy()
     );
   }
 
@@ -7523,16 +7282,21 @@ export class ElementModal {
     if (!this.canTranslate()) return;
     const text = this.draftGloss();
     const source = this.element().language;
+    const target = this.translationTarget();
     const ticket = this.translateTicket;
+    const editor = this.editor();
     this.translating.set(true);
     this.sheetError.set('');
     try {
-      const translated = await requestPhraseTranslation(
-        source,
-        this.translationTarget(),
-        text,
-        this.embeddedDraftTranslation(text),
-      );
+      const translated =
+        editor?.kind === 'definition'
+          ? await this.translateDefinitionDraft(editor.index, source, target, text)
+          : await requestPhraseTranslation(
+              source,
+              target,
+              text,
+              this.embeddedDraftTranslation(text),
+            );
       if (ticket !== this.translateTicket) return;
       this.draftTranslation.set({ phrase: text, text: translated });
     } catch {
@@ -7541,6 +7305,26 @@ export class ElementModal {
     } finally {
       if (ticket === this.translateTicket) this.translating.set(false);
     }
+  }
+
+  private async translateDefinitionDraft(
+    index: number,
+    source: string,
+    target: string,
+    text: string,
+  ): Promise<string> {
+    const result = await requestDefinitionTranslation(
+      source,
+      target,
+      text,
+      this.element().title,
+      this.embeddedDraftTranslation(text),
+      this.sheetEquivalent(),
+    );
+    if (result.equivalent.trim() && !this.sheetEquivalent()) {
+      await this.storeMissingEquivalent(index, result.equivalent);
+    }
+    return result.translation;
   }
 
   /** Write the definition draft. `close` leaves the sheet; otherwise the sheet stays on the saved sense. */
@@ -7553,52 +7337,30 @@ export class ElementModal {
       !primary ||
       this.busy() ||
       this.asking() ||
-      this.translating() ||
-      this.askingEquivalent()
+      this.translating()
     ) {
       return null;
     }
     const text = this.phraseToStore();
+    const element = this.currentElement();
     const definitions = this.copyDefinitions();
     const current = definitions[editor.index];
     if (!current) return null;
-    const language = this.translationTarget();
-    const typed = language ? this.equivalentDraft().trim() : '';
-    const selectedId = language ? this.equivalentIdDraft() : null;
-    const linked = typed
-      ? assignEquivalent(this.sheetEquivalents(), typed, language)
-      : {
-          equivalents: this.sheetEquivalents(),
-          equivalentId:
-            selectedId &&
-            this.sheetEquivalents().some(
-              (item) => item.id === selectedId && item.language === language,
-            )
-              ? selectedId
-              : null,
-        };
-    const kept = new Set(linked.equivalents.map((item) => item.id));
-    const unlinked = definitions.map((definition) => ({
-      ...definition,
-      equivalentIds: pruneEquivalentLinks(definition.equivalentIds, kept),
-    }));
-    const previous = pruneEquivalentLinks(current.equivalentIds, kept);
-    const equivalentIds = language
-      ? linkEquivalent(previous, language, linked.equivalentId)
-      : previous;
-    const equivalent = linked.equivalentId
-      ? (linked.equivalents.find((item) => item.id === linked.equivalentId)?.text ?? '')
-      : '';
+    const equivalent = equivalentTextFor(
+      element.equivalents,
+      current.equivalentIds,
+      this.translationTarget(),
+    );
     const next: ElementDefinition = {
       text,
-      equivalentIds,
+      equivalentIds: current.equivalentIds,
       forms: current.forms,
       examples: current.examples,
       metadata: this.metadataToStore(),
       log: this.logWithRework(current, text, equivalent, this.metadataToStore()),
     };
-    unlinked[editor.index] = next;
-    if (!(await this.persist(unlinked, linked.equivalents))) return null;
+    definitions[editor.index] = next;
+    if (!(await this.persist(definitions, element.equivalents))) return null;
     const still = this.editor();
     const sameSheet = still?.kind === 'definition' && still.index === editor.index;
     if (!sameSheet) return null;
@@ -7614,13 +7376,7 @@ export class ElementModal {
       return;
     }
     const primary = this.draftGloss();
-    if (
-      !primary ||
-      this.busy() ||
-      this.asking() ||
-      this.translating() ||
-      this.askingEquivalent()
-    ) {
+    if (!primary || this.busy() || this.asking() || this.translating()) {
       return;
     }
     const text = this.phraseToStore();
@@ -8107,6 +7863,29 @@ export class ElementModal {
     );
   }
 
+  /** Link an equivalent found with a definition translation. An existing link stays. */
+  noteEquivalent(index: number, equivalent: string): void {
+    void this.storeMissingEquivalent(index, equivalent);
+  }
+
+  private async storeMissingEquivalent(index: number, text: string): Promise<void> {
+    const wording = text.trim().slice(0, EQUIVALENT_MAX);
+    const language = this.translationTarget();
+    if (!wording || !language) return;
+    const element = this.currentElement();
+    const definition = element.definitions[index];
+    if (!definition) return;
+    if (equivalentTextFor(element.equivalents, definition.equivalentIds, language)) return;
+    const linked = assignEquivalent(element.equivalents, wording, language);
+    if (!linked.equivalentId) return;
+    const definitions = this.copyDefinitions();
+    const current = definitions[index];
+    if (!current) return;
+    if (equivalentTextFor(element.equivalents, current.equivalentIds, language)) return;
+    current.equivalentIds = linkEquivalent(current.equivalentIds, language, linked.equivalentId);
+    await this.persist(definitions, linked.equivalents, { busy: false });
+  }
+
   /** First score captures the definition. A later score in the same round keeps that snapshot. */
 
   noteReveal(
@@ -8211,8 +7990,6 @@ export class ElementModal {
 
   private beginSheet(text: string): void {
     this.translateTicket += 1;
-    this.equivalentTicket += 1;
-    this.askingEquivalent.set(false);
     this.askingMetadata.set(false);
     this.draftTranslation.set(null);
     this.textDraft.set(plainPassage(text));
@@ -8224,18 +8001,34 @@ export class ElementModal {
     return plainPassage(this.textDraft());
   }
 
+  /** Show a translation this definition already has, with its equivalent beside it. */
+  private showStoredDraftTranslation(): void {
+    const phrase = this.draftGloss();
+    const text = this.storedDraftTranslation(phrase);
+    this.draftTranslation.set(text ? { phrase, text } : null);
+  }
+
+  private storedDraftTranslation(phrase: string): string {
+    const embedded = this.embeddedDraftTranslation(phrase);
+    if (embedded) return embedded;
+    return (
+      readPhraseTranslation(this.element().language, this.translationTarget(), phrase)?.text ?? ''
+    );
+  }
+
   /** An old marker for this exact draft, so the first click can skip the model. */
   private embeddedDraftTranslation(phrase: string): string {
     const editor = this.editor();
     const target = this.translationTarget();
     if (!editor || !target || !phrase) return '';
+    const element = this.currentElement();
     const raw =
       editor.kind === 'definition'
-        ? (this.element().definitions[editor.index]?.text ?? '')
+        ? (element.definitions[editor.index]?.text ?? '')
         : editor.exampleIndex == null
           ? ''
-          : (this.element().definitions[editor.definitionIndex]?.examples[editor.exampleIndex]
-              ?.text ?? '');
+          : (element.definitions[editor.definitionIndex]?.examples[editor.exampleIndex]?.text ??
+            '');
     const passage = parsePassage(raw);
     if (passage.text.trim() !== phrase) return '';
     return passage.translations.find((item) => item.language === target)?.text ?? '';

@@ -1,5 +1,5 @@
 import { Component, effect, input, output, signal } from '@angular/core';
-import { requestPhraseTranslation } from './translation-cache';
+import { requestDefinitionTranslation, requestPhraseTranslation } from './translation-cache';
 
 /** A translate icon for one sentence. The result stays visible until this view is left. */
 @Component({
@@ -29,7 +29,7 @@ import { requestPhraseTranslation } from './translation-cache';
     @if (shown()) {
       <span class="translation">
         {{ shown() }}
-        @if (equivalent().trim(); as gloss) {
+        @if (shownEquivalent(); as gloss) {
           <span class="equivalent">{{ gloss }}</span>
         }
       </span>
@@ -107,17 +107,27 @@ export class PhraseTranslation {
   readonly seeded = input('');
   /** Support-language gloss shown after the unveiled translation. */
   readonly equivalent = input('');
+  /** Headword. When set, this definition click also asks for the sense equivalent. */
+  readonly lemma = input('');
   readonly translated = output<string>();
+  /** Equivalent returned for a definition that did not already have one. */
+  readonly equivalentFound = output<string>();
   readonly shown = signal('');
   readonly busy = signal(false);
   readonly failed = signal(false);
+  private readonly foundEquivalent = signal('');
 
   constructor() {
     effect(() => {
       this.phrase();
       this.shown.set('');
+      this.foundEquivalent.set('');
       this.failed.set(false);
     });
+  }
+
+  shownEquivalent(): string {
+    return this.equivalent().trim() || this.foundEquivalent().trim();
   }
 
   async translate(event: Event): Promise<void> {
@@ -131,7 +141,10 @@ export class PhraseTranslation {
     this.busy.set(true);
     this.failed.set(false);
     try {
-      const text = await requestPhraseTranslation(sourceLang, targetLang, phrase, this.seeded());
+      const lemma = this.lemma().trim();
+      const text = lemma
+        ? await this.translateDefinition(sourceLang, targetLang, phrase, lemma)
+        : await requestPhraseTranslation(sourceLang, targetLang, phrase, this.seeded());
       if (this.phrase().trim() !== phrase) return;
       this.shown.set(text);
       this.translated.emit(text);
@@ -140,5 +153,27 @@ export class PhraseTranslation {
     } finally {
       if (this.phrase().trim() === phrase) this.busy.set(false);
     }
+  }
+
+  private async translateDefinition(
+    sourceLang: string,
+    targetLang: string,
+    phrase: string,
+    lemma: string,
+  ): Promise<string> {
+    const result = await requestDefinitionTranslation(
+      sourceLang,
+      targetLang,
+      phrase,
+      lemma,
+      this.seeded(),
+      this.equivalent(),
+    );
+    const equivalent = result.equivalent.trim();
+    if (equivalent) this.foundEquivalent.set(equivalent);
+    if (equivalent && equivalent !== this.equivalent().trim()) {
+      this.equivalentFound.emit(equivalent);
+    }
+    return result.translation;
   }
 }

@@ -32,10 +32,7 @@ function buildTranslateUserMessage(input: GenerateTranslatePromptInput): string 
 }
 
 /** Exact 1:1 translations, or null when the model dropped or added items. */
-function parseGeneratedTranslations(
-  parsed: unknown,
-  expectedCount: number,
-): string[] | null {
+function parseGeneratedTranslations(parsed: unknown, expectedCount: number): string[] | null {
   if (!Number.isInteger(expectedCount) || expectedCount <= 0) return [];
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
@@ -118,6 +115,96 @@ export async function generateEquivalent(request: GenerateEquivalentInput): Prom
 function capitalizePhrase(value: string): string {
   const text = value.replace(/]/g, '').trim();
   return text.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase('en'));
+}
+
+const DEFINITION_TRANSLATION_SYSTEM_PROMPT = `You translate one dictionary definition and give the headword's equivalent for that sense.
+JSON keys stay in English.
+translation is the definition sentence in targetLang. Keep meaning literal and faithful. Preserve punctuation. Do not add commentary, quotes, or extra markup.
+equivalent is the headword's equivalent in targetLang for this sense only: a word or short phrase a dictionary would list as the translation of the lemma.
+Use the definition to choose the sense. Do not translate the definition sentence itself, and do not copy translation.
+When sourceLang is present, treat it as the source language; otherwise detect it.
+Capitalize the first letter of equivalent.
+Spelling in targetLang MUST be correct. No orthographic errors, no invented spellings.
+JSON only: {"translation":"<definition in targetLang>","equivalent":"<headword equivalent>"}`;
+
+const DEFINITION_TRANSLATION_MAX_TOKENS = 1024;
+
+export type DefinitionTranslation = {
+  translation: string;
+  equivalent: string;
+};
+
+type TranslateDefinitionInput = {
+  lemma: string;
+  definition: string;
+  sourceLang: string;
+  targetLang: string;
+};
+
+function buildDefinitionTranslationUserMessage(input: TranslateDefinitionInput): string {
+  const sourceRaw = String(input.sourceLang || '').trim();
+  const sourceLang = sourceRaw ? languageDisplayName(sourceRaw) || sourceRaw : '';
+  const targetRaw = String(input.targetLang || '').trim();
+  const targetLang = targetRaw ? languageDisplayName(targetRaw) || targetRaw : '';
+  return JSON.stringify({
+    lemma: String(input.lemma || '').trim(),
+    ...(sourceLang ? { sourceLang } : {}),
+    targetLang,
+    definition: String(input.definition || '').trim(),
+  });
+}
+
+/** Both strings, or null when the reply is not an object. Empty fields stay empty. */
+function parseDefinitionTranslation(parsed: unknown): DefinitionTranslation | null {
+  const source =
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  if (!source) return null;
+  return {
+    translation: String(source['translation'] ?? '').trim(),
+    equivalent: capitalizePhrase(String(source['equivalent'] ?? '')),
+  };
+}
+
+function mergeDefinitionTranslation(
+  current: DefinitionTranslation | null,
+  next: DefinitionTranslation | null,
+): DefinitionTranslation | null {
+  if (!current) return next;
+  if (!next) return current;
+  return {
+    translation: current.translation || next.translation,
+    equivalent: current.equivalent || next.equivalent,
+  };
+}
+
+/** Translate the definition sentence and name the headword's equivalent for that sense. */
+export async function translateDefinition(
+  request: TranslateDefinitionInput,
+): Promise<DefinitionTranslation> {
+  const lemma = String(request.lemma || '').trim();
+  const definition = String(request.definition || '').trim();
+  if (!lemma || !definition) return { translation: '', equivalent: '' };
+  const input: CompleteJsonInput = {
+    system: DEFINITION_TRANSLATION_SYSTEM_PROMPT,
+    user: buildDefinitionTranslationUserMessage({ ...request, lemma, definition }),
+    maxTokens: DEFINITION_TRANSLATION_MAX_TOKENS,
+    temperature: 0,
+  };
+  const keys = readStoredAiCredentials().keys;
+  const complete = () =>
+    runWithKeyFallback(keys, (provider, credentials) => completeJson(provider, input, credentials));
+  try {
+    let result = parseDefinitionTranslation(await complete());
+    if (!result?.translation || !result.equivalent) {
+      result = mergeDefinitionTranslation(result, parseDefinitionTranslation(await complete()));
+    }
+    if (!result?.translation) aiError(AI_ERROR.RESPONSE_INVALID);
+    return result;
+  } catch (err) {
+    throw attachAiPrompt(err, input);
+  }
 }
 
 /** Translate with the saved keys. Each request goes straight to that key's model provider. */

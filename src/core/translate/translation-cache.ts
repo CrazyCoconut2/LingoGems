@@ -1,4 +1,4 @@
-import { translatePhrase } from './translate';
+import { translateDefinitionPhrase, translatePhrase } from './translate';
 
 const STORAGE_KEY = 'lingogem.phrase-translations';
 
@@ -10,7 +10,10 @@ export type PhraseTranslation = {
 type PhraseBucket = Record<string, PhraseTranslation>;
 type TranslationStore = Record<string, PhraseBucket>;
 
+const EQUIVALENT_MAX = 200;
+
 const pending = new Map<string, Promise<string>>();
+const definitionPending = new Map<string, Promise<{ translation: string; equivalent: string }>>();
 
 function pairKey(sourceLang: string, targetLang: string): string {
   const source = sourceLang.trim().toLowerCase();
@@ -150,6 +153,61 @@ export async function requestPhraseTranslation(
     return recordPhraseTranslation(sourceLang, targetLang, phrase, text);
   } finally {
     if (pending.get(key) === job) pending.delete(key);
+  }
+}
+
+export type DefinitionTranslationResult = {
+  translation: string;
+  equivalent: string;
+};
+
+/**
+ * The translation and headword equivalent for one definition.
+ * A phrase that already has both is not queried.
+ * An existing translation or equivalent is kept; the model fills only what is missing.
+ * A new translation is stored the same way as a phrase translation. A failed query writes nothing.
+ */
+export async function requestDefinitionTranslation(
+  sourceLang: string,
+  targetLang: string,
+  phrase: string,
+  lemma: string,
+  seeded = '',
+  equivalent = '',
+): Promise<DefinitionTranslationResult> {
+  const key = requestKey(sourceLang, targetLang, phrase);
+  if (!key || key.startsWith('\0') || key.endsWith('\0')) throw new Error('translate_failed');
+  const knownTranslation = (
+    readPhraseTranslation(sourceLang, targetLang, phrase)?.text || seeded.trim()
+  ).trim();
+  const knownEquivalent = equivalent.trim().slice(0, EQUIVALENT_MAX);
+  if (knownTranslation && knownEquivalent) {
+    return {
+      translation: recordPhraseTranslation(sourceLang, targetLang, phrase, knownTranslation),
+      equivalent: knownEquivalent,
+    };
+  }
+
+  const running = definitionPending.get(key);
+  const job = running ?? translateDefinitionPhrase(lemma, phrase, sourceLang, targetLang);
+  if (!running) definitionPending.set(key, job);
+  try {
+    const generated = await job;
+    const translation = knownTranslation || generated.translation.trim();
+    const nextEquivalent = (knownEquivalent || generated.equivalent.trim()).slice(
+      0,
+      EQUIVALENT_MAX,
+    );
+    if (!translation) throw new Error('translate_failed');
+    return {
+      translation: recordPhraseTranslation(sourceLang, targetLang, phrase, translation),
+      equivalent: nextEquivalent,
+    };
+  } catch (err) {
+    if (!knownTranslation) throw err;
+    return { translation: knownTranslation, equivalent: knownEquivalent };
+  } finally {
+    if (!running && definitionPending.get(key) === job) definitionPending.delete(key);
   }
 }
 
