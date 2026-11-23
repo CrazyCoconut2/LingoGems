@@ -1,23 +1,10 @@
-import {
-  embedTranslation,
-  isValidForm,
-  languageDisplayName,
-  parsePassage,
-  type ElementMetadata,
-} from 'collection';
+import { isValidForm, languageDisplayName, parsePassage, type ElementMetadata } from 'collection';
 import { completeJson, runWithKeyFallback } from './complete';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import { readStoredAiCredentials } from './storage';
-import { translationLanguage, translationTarget } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
-const DEFINITION_RELATIONS = [
-  'synonym',
-  'antonym',
-  'hypernym',
-  'hyponym',
-  'related',
-] as const;
+const DEFINITION_RELATIONS = ['synonym', 'antonym', 'hypernym', 'hyponym', 'related'] as const;
 
 type DefinitionRelation = (typeof DEFINITION_RELATIONS)[number];
 
@@ -65,10 +52,8 @@ Rules:
 - Do not add citations or bracket tags such as [en:…]
 - Keep the phrase at most ${MAX_DEFINITION_WORDING} characters
 - Spelling MUST be correct
-translateFieldsIn, when present, names the translation language. Then the phrase MUST include "translation", a verbatim translation of the phrase. Translate the phrase text itself, in the same order and with the same wording. Do not paraphrase, shorten, or replace it with a different phrase. Capitalize the first letter. When translateFieldsIn is absent, omit "translation".
 Return JSON only with this shape:
-{"phrases":[${PHRASE_SHAPE}]}
-When translateFieldsIn is present, add "translation":"<verbatim translation of the phrase>" on the phrase.`;
+{"phrases":[${PHRASE_SHAPE}]}`;
 
 export type RelatedWord = {
   text: string;
@@ -117,14 +102,12 @@ function buildRelatedWordsUserMessage(input: GenerateRelatedWordsInput): string 
 function buildDefinitionPhraseUserMessage(input: GenerateDefinitionPhraseInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, input.translation);
   const instruction = (input.definitionInstruction ?? '')
     .trim()
     .slice(0, MAX_DEFINITION_INSTRUCTION);
   return JSON.stringify({
     language,
     writeFieldsIn,
-    ...(translateFieldsIn ? { translateFieldsIn } : {}),
     lemma: input.title.trim(),
     ...(input.gloss.trim() ? { gloss: input.gloss.trim() } : {}),
     ...(input.words.length
@@ -160,31 +143,16 @@ function parseGeneratedRelatedWords(
 }
 
 /** Usable phrase, or null when the reply has no phrases array. */
-function parseGeneratedDefinitionPhrase(
-  parsed: unknown,
-  input: GenerateDefinitionPhraseInput,
-): GeneratedDefinitionPhrase[] | null {
+function parseGeneratedDefinitionPhrase(parsed: unknown): GeneratedDefinitionPhrase[] | null {
   const source = record(parsed);
   const list = source ? source['phrases'] : null;
   if (!Array.isArray(list)) return null;
-  const language = input.language.trim().toLowerCase();
   for (const item of list) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
     const phrase = item as Record<string, unknown>;
     const sentence = parsePassage(plainText(phrase['text'])).text.replace(/\s+/g, ' ').trim();
     if (!sentence || sentence.length > MAX_DEFINITION_WORDING) continue;
-    const into = translationTarget(language, input.translation);
-    const translated = into
-      ? parsePassage(plainText(phrase['translation'] ?? phrase['english'])).text.slice(
-          0,
-          MAX_DEFINITION_WORDING,
-        )
-      : '';
-    return [
-      {
-        text: translated ? embedTranslation(sentence, into, translated) : sentence,
-      },
-    ];
+    return [{ text: sentence }];
   }
   return [];
 }
@@ -238,8 +206,8 @@ export async function verbalizeDefinition(
   const complete = () =>
     runWithKeyFallback(keys, (provider, credentials) => completeJson(provider, input, credentials));
   try {
-    let phrases = parseGeneratedDefinitionPhrase(await complete(), ready);
-    if (!phrases) phrases = parseGeneratedDefinitionPhrase(await complete(), ready);
+    let phrases = parseGeneratedDefinitionPhrase(await complete());
+    if (!phrases) phrases = parseGeneratedDefinitionPhrase(await complete());
     if (!phrases) aiError(AI_ERROR.RESPONSE_INVALID);
     return phrases;
   } catch (err) {

@@ -1,5 +1,4 @@
 import {
-  embedTranslation,
   isValidForm,
   languageDisplayName,
   parsePassage,
@@ -28,19 +27,12 @@ import { generateEquivalent } from './translate';
 import type { CompleteJsonInput } from './types';
 
 const MAX_SENSES = 8;
-const META_VALUE_MAX_LENGTH = 100;
 const FORM_MAX_LENGTH = 100;
 const DEFINITIONS_MAX_TOKENS = 4096;
 const FORMS_MAX_TOKENS = 8192;
 const MAX_FORMS = 80;
 
 const NO_SELF_MENTION = '- A gloss MUST NOT contain the lemma or any inflected form of the lemma';
-
-export const VERBATIM_SENSE_TRANSLATION =
-  'translateFieldsIn, when present, names the translation language. Then each sense MUST include "translation", a verbatim translation of that sense\'s gloss. Translate the gloss text itself, in the same order and with the same wording. Do not paraphrase, shorten, or replace it with a different gloss. Capitalize the first letter. When translateFieldsIn is absent, omit "translation".';
-
-export const VERBATIM_SENSE_TRANSLATION_FIELD =
-  'When translateFieldsIn is present, add "translation":"<verbatim translation of the gloss>" on each sense.';
 
 export const SENSE_EQUIVALENT =
   'translateFieldsIn, when present, names the translation language. Then each sense MUST include "equivalent", the headword\'s equivalent in that language for this sense only: a word or short phrase a dictionary would list as the translation of the lemma. Use the gloss to choose the sense. Do not translate the gloss itself, and do not copy the gloss translation. Capitalize the first letter. When translateFieldsIn is absent, omit "equivalent".';
@@ -49,12 +41,6 @@ export const SENSE_EQUIVALENT_FIELD =
   'When translateFieldsIn is present, add "equivalent":"<headword equivalent in translateFieldsIn>" on each sense.';
 
 export const SENSE_EXAMPLE = `Each sense MUST include "example", one sentence in the language named by writeFieldsIn. The sentence MUST include the lemma naturally and match that sense's gloss. Do not invent another sense. Write the sentence so the meaning of the lemma is obvious from the rest of the sentence. A learner who knows the other words should be able to tell what the lemma means immediately. Do not add citations. Keep the sentence at most ${MAX_EXAMPLE_LENGTH} characters. Spelling MUST be correct.`;
-
-export const SENSE_EXAMPLE_TRANSLATION =
-  'translateFieldsIn, when present, names the translation language. Then each sense MUST include "exampleTranslation", a faithful translation of that sense\'s example sentence, with its first letter capitalized. Do not translate the gloss into exampleTranslation, and do not copy the gloss translation. When translateFieldsIn is absent, omit "exampleTranslation".';
-
-export const SENSE_EXAMPLE_FIELD =
-  'When translateFieldsIn is present, add "exampleTranslation":"<faithful translation of the example>" on each sense.';
 
 const EQUIVALENT_MAX_LENGTH = 200;
 
@@ -90,13 +76,9 @@ function elementFromSelectionSystemPrompt(
     '- Spelling MUST be correct in the lemma, every gloss, every example, and every translation',
     SENSE_EXAMPLE,
     ...metadataRuleLines('definition', fields, extra),
-    VERBATIM_SENSE_TRANSLATION,
-    SENSE_EXAMPLE_TRANSLATION,
     SENSE_EQUIVALENT,
     'Return JSON only with this shape:',
     `{"lemma":"<root lemma>","senses":[${definitionSenseShape(fields, extra, true)}]}`,
-    VERBATIM_SENSE_TRANSLATION_FIELD,
-    SENSE_EXAMPLE_FIELD,
     SENSE_EQUIVALENT_FIELD,
   ]);
 }
@@ -119,14 +101,12 @@ function definitionFromExampleSystemPrompt(
     NO_SELF_MENTION,
     '- Do not include the example, other examples, forms, or citations',
     '- Do not add bracket tags such as [en:…]',
-    '- Spelling MUST be correct in the gloss and its translation',
+    '- Spelling MUST be correct in the gloss',
     ...metadataRuleLines('definition', fields, extra),
-    'translateFieldsIn, when present, names the translation language. A new sense MUST include "translation", a verbatim translation of that sense\'s gloss. Translate the gloss text itself, in the same order and with the same wording. Do not paraphrase, shorten, or replace it with a different gloss. Capitalize the first letter. A match does not include a translation. When translateFieldsIn is absent, omit "translation".',
     SENSE_EQUIVALENT,
     'A match does not include an equivalent.',
     'A new sense uses this shape:',
     `{"senses":[${definitionSenseShape(fields, extra)}]}`,
-    'When translateFieldsIn is present, add "translation":"<verbatim translation of the gloss>" on the new sense.',
     SENSE_EQUIVALENT_FIELD,
   ]);
 }
@@ -179,7 +159,7 @@ export type GeneratedDefinition = {
   metadata: ElementMetadata;
   /** Headword equivalent in the support language, when one was requested. */
   equivalent?: string;
-  /** Example sentence, with its translation embedded when one was requested. */
+  /** Example sentence for this sense, when one was requested. */
   example?: string;
 };
 
@@ -203,8 +183,8 @@ export function parseGeneratedDefinitions(
   if (!Array.isArray(list)) return null;
   const language = input.language.trim().toLowerCase();
   const taken = new Set(
-    describedDefinitions(language, input.existingDefinitions, input.translation ?? '').map(
-      (definition) => definition.gloss.toLowerCase(),
+    describedDefinitions(input.existingDefinitions).map((definition) =>
+      definition.gloss.toLowerCase(),
     ),
   );
   const definitions: GeneratedDefinition[] = [];
@@ -215,21 +195,10 @@ export function parseGeneratedDefinitions(
     const gloss = glossText(sense['gloss'] ?? sense['glosses']);
     if (!gloss || taken.has(gloss.toLowerCase())) continue;
     taken.add(gloss.toLowerCase());
-    const english = takenTranslation(
-      language,
-      sense['translation'] ?? sense['english'],
-      input.translation ?? '',
-    );
     const equivalent = takenEquivalent(language, sense['equivalent'], input.translation ?? '');
-    const example = takenExample(
-      language,
-      sense['example'],
-      sense['exampleTranslation'],
-      input.translation ?? '',
-    );
-    const into = translationTarget(language, input.translation);
+    const example = takenExample(sense['example']);
     definitions.push({
-      text: english && into ? embedTranslation(gloss, into, english) : gloss,
+      text: gloss,
       metadata: pickMetadata(
         sense['metadata'],
         metadataFieldKeys(readDefinitionMetadataFields()),
@@ -284,11 +253,7 @@ function buildDefinitionFromExampleUserMessage(input: GenerateDefinitionFromExam
     ...(translateFieldsIn ? { translateFieldsIn } : {}),
     lemma: input.title.trim(),
     example: input.example.trim().slice(0, MAX_EXAMPLE_LENGTH),
-    existingDefinitions: describedDefinitions(
-      language,
-      input.existingDefinitions,
-      input.translation ?? '',
-    ),
+    existingDefinitions: describedDefinitions(input.existingDefinitions),
   });
 }
 
@@ -312,11 +277,7 @@ function parseExamplePlacement(
       ? (parsed as Record<string, unknown>)
       : null;
   if (!source) return null;
-  const existing = describedDefinitions(
-    input.language,
-    input.existingDefinitions,
-    input.translation ?? '',
-  );
+  const existing = describedDefinitions(input.existingDefinitions);
   const matched = matchingGloss(glossText(source['match']), existing);
   if (matched) return { kind: 'existing', gloss: matched };
   const senses = parseGeneratedDefinitions(parsed, input);
@@ -481,26 +442,15 @@ function selectionContext(context: SelectionContext | undefined): SelectionConte
 }
 
 function describedDefinitions(
-  language: string,
   definitions: ReadonlyArray<{ text: string; metadata: ElementMetadata }>,
-  translation: string,
-): Array<{ gloss: string; translation?: string; metadata?: ElementMetadata }> {
-  const described: Array<{
-    gloss: string;
-    translation?: string;
-    metadata?: ElementMetadata;
-  }> = [];
+): Array<{ gloss: string; metadata?: ElementMetadata }> {
+  const described: Array<{ gloss: string; metadata?: ElementMetadata }> = [];
   const seen = new Set<string>();
   for (const definition of definitions) {
-    const passage = parsePassage(definition.text ?? '');
-    const gloss = passage.text.trim();
+    const gloss = parsePassage(definition.text ?? '').text.trim();
     const key = gloss.toLowerCase();
     if (!gloss || seen.has(key)) continue;
     seen.add(key);
-    const into = translationTarget(language, translation);
-    const english = into
-      ? passage.translations.find((item) => item.language === into)?.text.trim()
-      : '';
     const metadata = pickMetadata(
       definition.metadata,
       metadataFieldKeys(readDefinitionMetadataFields()),
@@ -508,7 +458,6 @@ function describedDefinitions(
     );
     described.push({
       gloss,
-      ...(english ? { translation: english } : {}),
       ...(Object.keys(metadata).length ? { metadata } : {}),
     });
   }
@@ -524,11 +473,6 @@ function plainText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function takenTranslation(language: string, raw: unknown, translation: string): string {
-  if (!translationLanguage(language, translation)) return '';
-  return plainText(raw).slice(0, META_VALUE_MAX_LENGTH);
-}
-
 function takenEquivalent(language: string, raw: unknown, translation: string): string {
   if (!translationLanguage(language, translation)) return '';
   const text = plainText(raw).replace(/]/g, '').replace(/\s+/g, ' ').trim();
@@ -536,22 +480,11 @@ function takenEquivalent(language: string, raw: unknown, translation: string): s
   return capitalized.slice(0, EQUIVALENT_MAX_LENGTH);
 }
 
-/** The example sentence, or empty when it is missing or too long. A translation is embedded when one was requested. */
-function takenExample(
-  language: string,
-  raw: unknown,
-  translationRaw: unknown,
-  translation: string,
-): string {
-  const parsed = parsePassage(plainText(raw));
-  const sentence = parsed.text.replace(/\s+/g, ' ').trim();
+/** The example sentence, or empty when it is missing or too long. */
+function takenExample(raw: unknown): string {
+  const sentence = parsePassage(plainText(raw)).text.replace(/\s+/g, ' ').trim();
   if (!sentence || sentence.length > MAX_EXAMPLE_LENGTH) return '';
-  const into = translationTarget(language, translation);
-  if (!into) return sentence;
-  const fromField = parsePassage(plainText(translationRaw)).text.replace(/\s+/g, ' ').trim();
-  const embedded = parsed.translations.find((item) => item.language === into)?.text ?? '';
-  const translated = (fromField || embedded).slice(0, MAX_EXAMPLE_LENGTH);
-  return translated ? embedTranslation(sentence, into, translated) : sentence;
+  return sentence;
 }
 
 function buildFormsUserMessage(input: GenerateFormsInput): string {

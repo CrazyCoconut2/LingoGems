@@ -31,6 +31,7 @@ import {
   type DiscoveredElement,
 } from 'ai';
 import { readFieldColor } from '../elements/metadata-colors';
+import { PhraseTranslation } from '../translate/phrase-translation';
 import { supportLanguageFor } from './translation-language';
 import {
   readDiscoverSearches,
@@ -67,6 +68,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
 
 @Component({
   selector: 'app-discover-modal',
+  imports: [PhraseTranslation],
   template: `
     <div
       class="backdrop"
@@ -236,28 +238,32 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                             <li>
                               @let passage = sensePassage(sense);
                               @if (passage.text) {
-                                <p class="sense-text">{{ passage.text }}</p>
-                              }
-                              @let translations = shownTranslations(passage);
-                              @if (translations.length) {
-                                <ul class="sense-translations">
-                                  @for (translation of translations; track $index) {
-                                    <li>{{ translation.text }}</li>
+                                <p class="sense-text">
+                                  {{ passage.text }}
+                                  @if (supportLanguage()) {
+                                    <app-phrase-translation
+                                      [phrase]="passage.text"
+                                      [sourceLang]="language()"
+                                      [targetLang]="supportLanguage()"
+                                      [seeded]="seededTranslation(passage)"
+                                    />
                                   }
-                                </ul>
+                                </p>
                               }
                               @if (examplePassage(sense); as example) {
                                 <div class="sense-example">
                                   @if (example.text) {
-                                    <p class="sense-example-text">{{ example.text }}</p>
-                                  }
-                                  @let exampleTranslations = shownTranslations(example);
-                                  @if (exampleTranslations.length) {
-                                    <ul class="sense-translations">
-                                      @for (translation of exampleTranslations; track $index) {
-                                        <li>{{ translation.text }}</li>
+                                    <p class="sense-example-text">
+                                      {{ example.text }}
+                                      @if (supportLanguage()) {
+                                        <app-phrase-translation
+                                          [phrase]="example.text"
+                                          [sourceLang]="language()"
+                                          [targetLang]="supportLanguage()"
+                                          [seeded]="seededTranslation(example)"
+                                        />
                                       }
-                                    </ul>
+                                    </p>
                                   }
                                 </div>
                               }
@@ -1561,7 +1567,7 @@ export class DiscoverModal implements OnInit {
     if (!raw) return null;
     const passage = parsePassage(raw);
     const text = displayTitle(passage.text, this.language());
-    if (!text && !this.shownTranslations(passage).length) return null;
+    if (!text) return null;
     return { ...passage, text };
   }
 
@@ -1602,13 +1608,18 @@ export class DiscoverModal implements OnInit {
     return languageDisplayName(code);
   }
 
-  private translationTarget(): string {
+  supportLanguage(): string {
     return supportLanguageFor(this.language());
+  }
+
+  /** A translation already stored on this passage, used only when the cache has none. */
+  seededTranslation(passage: ParsedPassage): string {
+    return this.shownTranslations(passage)[0]?.text ?? '';
   }
 
   /** Sense translations for the current support language, or none. */
   shownTranslations(passage: ParsedPassage): ParsedPassage['translations'] {
-    const target = this.translationTarget();
+    const target = this.supportLanguage();
     if (!target) return [];
     return passage.translations.filter((item) => item.language === target);
   }
@@ -1690,7 +1701,7 @@ export class DiscoverModal implements OnInit {
     try {
       const found = await discoverElements({
         language,
-        translation: this.translationTarget(),
+        translation: this.supportLanguage(),
         instruction: query.instruction,
         metadata: {
           definition: query.definition,

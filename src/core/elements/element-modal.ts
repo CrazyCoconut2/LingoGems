@@ -18,14 +18,11 @@ import {
   assignEquivalent,
   deleteElement,
   displayTitle,
-  embedTranslation,
   equivalentTextFor,
   linkEquivalent,
   parsePassage,
-  passageForEditing,
   pruneEquivalentLinks,
   type ParsedPassage,
-  readEditingDraft,
   elementModeLabel,
   gameEarnedGem,
   type ElementMode,
@@ -71,14 +68,15 @@ import {
   verbalizeDefinition,
   type RelatedWord,
 } from 'ai';
-import { Reveal } from './reveal';
 import { RevealIcon } from './reveal-icon';
+import { ShowText } from './show-text';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { supportLanguageFor } from '../languages/translation-language';
 import { HighlightColorPicker } from './highlight-color-picker';
 import { GemIcon } from './gem-icon';
 import { ModeIcon } from './mode-icon';
-import { translatePhrase } from '../translate/translate';
+import { PhraseTranslation } from '../translate/phrase-translation';
+import { requestPhraseTranslation } from '../translate/translation-cache';
 import { canSpeak, speakText, stopSpeaking } from './speech';
 
 const EQUIVALENT_MAX = 200;
@@ -197,6 +195,10 @@ function shiftIndexMap<T>(map: ReadonlyMap<number, T>, by: number): Map<number, 
   return next;
 }
 
+function plainPassage(value: string): string {
+  return parsePassage(value).text.trim();
+}
+
 function dropIndexMap<T>(map: ReadonlyMap<number, T>, index: number): Map<number, T> {
   const next = new Map<number, T>();
   for (const [key, value] of map) {
@@ -206,46 +208,6 @@ function dropIndexMap<T>(map: ReadonlyMap<number, T>, index: number): Map<number
   return next;
 }
 
-function shiftIndexSet(keys: ReadonlySet<number>, by: number): Set<number> {
-  const next = new Set<number>();
-  for (const key of keys) next.add(key + by);
-  return next;
-}
-
-function dropIndexSet(keys: ReadonlySet<number>, index: number): Set<number> {
-  const next = new Set<number>();
-  for (const key of keys) {
-    if (key === index) continue;
-    next.add(key > index ? key - 1 : key);
-  }
-  return next;
-}
-
-function exampleRevealKey(definitionIndex: number, exampleIndex: number): string {
-  return `${definitionIndex}:${exampleIndex}`;
-}
-
-function shiftExampleKeys(keys: ReadonlySet<string>, by: number): Set<string> {
-  const next = new Set<string>();
-  for (const key of keys) {
-    const split = key.indexOf(':');
-    const definition = Number(key.slice(0, split));
-    next.add(`${definition + by}:${key.slice(split + 1)}`);
-  }
-  return next;
-}
-
-function dropExampleKeys(keys: ReadonlySet<string>, index: number): Set<string> {
-  const next = new Set<string>();
-  for (const key of keys) {
-    const split = key.indexOf(':');
-    const definition = Number(key.slice(0, split));
-    if (definition === index) continue;
-    const nextDefinition = definition > index ? definition - 1 : definition;
-    next.add(`${nextDefinition}:${key.slice(split + 1)}`);
-  }
-  return next;
-}
 
 function readNewDefinitions(elementId: string): string[] {
   if (!elementId) return [];
@@ -513,8 +475,9 @@ function writeExampleSuggestions(
   selector: 'app-element-modal',
   imports: [
     NgTemplateOutlet,
-    Reveal,
+    PhraseTranslation,
     RevealIcon,
+    ShowText,
     ModeIcon,
     GemIcon,
     HighlightColorPicker,
@@ -811,8 +774,18 @@ function writeExampleSuggestions(
                                         }
                                       }
                                       <ng-container [ngTemplateOutlet]="definitionPencil" />
+                                      @if (supportAvailable() && passage.text) {
+                                        <app-phrase-translation
+                                          [phrase]="passage.text"
+                                          [sourceLang]="element().language"
+                                          [targetLang]="translationTarget()"
+                                          [seeded]="seededTranslation(passage)"
+                                          (translated)="
+                                            noteReveal(index, passage.text, $event, 'definition')
+                                          "
+                                        />
+                                      }
                                     </p>
-                                    <ng-container [ngTemplateOutlet]="passageTranslations" />
                                   </div>
                                   <ng-container
                                     [ngTemplateOutlet]="hearButton"
@@ -827,31 +800,6 @@ function writeExampleSuggestions(
                                 <ng-container [ngTemplateOutlet]="definitionPencil" />
                               }
                             </ng-template>
-                            <ng-template #passageTranslations>
-                              @let translations = shownTranslations(passage);
-                              @if (translations.length) {
-                                <ul class="equivalents">
-                                  @for (translation of translations; track $index) {
-                                    <li>
-                                      <app-reveal
-                                        [text]="labeledTranslation(translation)"
-                                        [open]="supportOpen(index)"
-                                        [scope]="index"
-                                        (unveiled)="
-                                          noteReveal(
-                                            index,
-                                            passage.text,
-                                            translation.text,
-                                            'definition'
-                                          );
-                                          unveilSupport(index)
-                                        "
-                                      />
-                                    </li>
-                                  }
-                                </ul>
-                              }
-                            </ng-template>
                             @let equivalent = equivalentText(definition);
                             @let meta = entries(definition.metadata);
                             @if ((supportAvailable() && equivalent) || meta.length) {
@@ -859,11 +807,9 @@ function writeExampleSuggestions(
                                 @if (supportAvailable() && equivalent) {
                                   <li class="sense-equivalent">
                                     <ng-container [ngTemplateOutlet]="translationIcon" />
-                                    <app-reveal
+                                    <app-show-text
                                       [text]="labeledEquivalent(equivalent)"
-                                      [open]="supportOpen(index)"
-                                      [scope]="'equivalent:' + index"
-                                      (unveiled)="unveilSupport(index)"
+                                      label="Show equivalent"
                                     />
                                   </li>
                                 }
@@ -957,30 +903,18 @@ function writeExampleSuggestions(
                                               />
                                             </svg>
                                           </button>
+                                          @if (supportAvailable() && passage.text) {
+                                            <app-phrase-translation
+                                              [phrase]="passage.text"
+                                              [sourceLang]="element().language"
+                                              [targetLang]="translationTarget()"
+                                              [seeded]="seededTranslation(passage)"
+                                              (translated)="
+                                                noteReveal(index, passage.text, $event, 'example')
+                                              "
+                                            />
+                                          }
                                         </p>
-                                        @let translations = shownTranslations(passage);
-                                        @if (senseStage(index) === 'open' && translations.length) {
-                                          <ul class="equivalents">
-                                            @for (translation of translations; track $index) {
-                                              <li>
-                                                <app-reveal
-                                                  [text]="labeledTranslation(translation)"
-                                                  [open]="exampleRevealed(index, exampleIndex)"
-                                                  [scope]="index + ':' + exampleIndex"
-                                                  (unveiled)="
-                                                    noteReveal(
-                                                      index,
-                                                      passage.text,
-                                                      translation.text,
-                                                      'example'
-                                                    );
-                                                    unveilExample(index, exampleIndex)
-                                                  "
-                                                />
-                                              </li>
-                                            }
-                                          </ul>
-                                        }
                                       </div>
                                       <ng-container
                                         [ngTemplateOutlet]="hearButton"
@@ -999,9 +933,9 @@ function writeExampleSuggestions(
                                           @let color = metaColor('examples', entry.key);
                                           <li [class.colored]="color" [style.--meta-color]="color">
                                             <span>
-                                              <span class="sense-meta-key">{{ entry.key }}</span>
+                                              <span class="sense-meta-key">{{ label(entry.key) }}</span>
                                               <span class="sense-meta-value">{{
-                                                entry.value
+                                                label(entry.value)
                                               }}</span>
                                             </span>
                                           </li>
@@ -1078,11 +1012,16 @@ function writeExampleSuggestions(
                 @let passage = parsePassage(held);
                 <div class="example-slot-text">
                   @if (passage.text) {
-                    <p>{{ passage.text }}</p>
-                  }
-                  @for (translation of shownTranslations(passage); track $index) {
-                    <p class="example-slot-gloss">
-                      <app-reveal [text]="labeledTranslation(translation)" [locked]="true" />
+                    <p>
+                      {{ passage.text }}
+                      @if (supportAvailable()) {
+                        <app-phrase-translation
+                          [phrase]="passage.text"
+                          [sourceLang]="element().language"
+                          [targetLang]="translationTarget()"
+                          [seeded]="seededTranslation(passage)"
+                        />
+                      }
                     </p>
                   }
                 </div>
@@ -1192,46 +1131,28 @@ function writeExampleSuggestions(
                 } @else {
                   <h3>{{ sheetTitle(current) }}</h3>
                 }
-                <span class="sheet-tools">
-                  @if (
-                    current.kind === 'example' ||
-                    (current.kind === 'definition' && workTab() === 'definitions')
-                  ) {
+                @if (
+                  current.kind === 'example' ||
+                  (current.kind === 'definition' && workTab() === 'definitions')
+                ) {
+                  <span class="sheet-tools">
                     <ng-container [ngTemplateOutlet]="draftActions" />
-                  }
-                  @if (current.kind === 'definition') {
-                    <button
-                      type="button"
-                      class="icon-btn danger"
-                      aria-label="Delete definition"
-                      title="Delete definition"
-                      [disabled]="busy() || aiBusy()"
-                      (click)="askDeleteDefinition(current.index)"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M3 6h18" />
-                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                        <path d="M10 11v6" />
-                        <path d="M14 11v6" />
-                      </svg>
-                    </button>
-                  }
-                  @if (current.kind !== 'definition') {
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Close"
-                      [disabled]="workCloseDisabled()"
-                      (click)="closeEditor()"
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <path d="M18 6 6 18" />
-                        <path d="m6 6 12 12" />
-                      </svg>
-                    </button>
-                  }
-                </span>
+                    @if (current.kind === 'example') {
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Close"
+                        [disabled]="workCloseDisabled()"
+                        (click)="closeEditor()"
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <path d="M18 6 6 18" />
+                          <path d="m6 6 12 12" />
+                        </svg>
+                      </button>
+                    }
+                  </span>
+                }
               </div>
               <ng-template #draftActions>
                 <span class="header-actions work-title-actions">
@@ -1474,6 +1395,9 @@ function writeExampleSuggestions(
                     [value]="textDraft()"
                     (input)="textDraft.set(inputValue($event))"
                   ></textarea>
+                  @if (draftTranslationText(); as translation) {
+                    <p class="draft-translation">{{ translation }}</p>
+                  }
                 </div>
                 @if (sheetError()) {
                   <p class="error">{{ sheetError() }}</p>
@@ -1633,8 +1557,8 @@ function writeExampleSuggestions(
                             [attr.aria-label]="'Edit metadata ' + entry.key"
                             (click)="openMetadata(entry.key)"
                           >
-                            <span class="sense-meta-key">{{ entry.key }}</span>
-                            <span class="sense-meta-value">{{ entry.value }}</span>
+                            <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                            <span class="sense-meta-value">{{ label(entry.value) }}</span>
                           </button>
                           <button
                             type="button"
@@ -1828,8 +1752,8 @@ function writeExampleSuggestions(
                                     @let color = metaColor('examples', entry.key);
                                     <li [class.colored]="color" [style.--meta-color]="color">
                                       <span>
-                                        <span class="sense-meta-key">{{ entry.key }}</span>
-                                        <span class="sense-meta-value">{{ entry.value }}</span>
+                                        <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                                        <span class="sense-meta-value">{{ label(entry.value) }}</span>
                                       </span>
                                     </li>
                                   }
@@ -1957,6 +1881,16 @@ function writeExampleSuggestions(
               </div>
               @if (current.kind === 'definition') {
                 <div class="sheet-actions sheet-footer">
+                  @if (workTab() === 'definitions') {
+                    <button
+                      type="button"
+                      class="btn btn-danger"
+                      [disabled]="busy() || aiBusy()"
+                      (click)="askDeleteDefinition(current.index)"
+                    >
+                      Delete
+                    </button>
+                  }
                   <button
                     type="button"
                     class="btn btn-primary"
@@ -2124,8 +2058,8 @@ function writeExampleSuggestions(
                           [attr.aria-label]="'Edit metadata ' + entry.key"
                           (click)="openFormFeature(entry.key)"
                         >
-                          <span class="sense-meta-key">{{ entry.key }}</span>
-                          <span class="sense-meta-value">{{ entry.value }}</span>
+                          <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                          <span class="sense-meta-value">{{ label(entry.value) }}</span>
                         </button>
                         <button
                           type="button"
@@ -2518,8 +2452,8 @@ function writeExampleSuggestions(
                                     }
                                     @for (item of entries(metadata ?? {}); track item.key) {
                                       <li>
-                                        <span class="sense-meta-key">{{ item.key }}</span>
-                                        <span class="sense-meta-value">{{ item.value }}</span>
+                                        <span class="sense-meta-key">{{ label(item.key) }}</span>
+                                        <span class="sense-meta-value">{{ label(item.value) }}</span>
                                       </li>
                                     }
                                   </ul>
@@ -3768,7 +3702,7 @@ function writeExampleSuggestions(
       white-space: nowrap;
     }
 
-    .sense-meta li app-reveal {
+    .sense-meta li app-show-text {
       line-height: 1;
     }
 
@@ -3802,8 +3736,14 @@ function writeExampleSuggestions(
       flex: none;
     }
 
-    .sense-meta li.sense-equivalent app-reveal {
+    .sense-meta li.sense-equivalent app-show-text {
       color: var(--text);
+    }
+
+    .draft-translation {
+      margin: 0.35rem 0 0;
+      color: var(--text-muted);
+      font-size: 0.85rem;
     }
 
     .pills li.colored {
@@ -4545,6 +4485,10 @@ function writeExampleSuggestions(
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .editor-sheet > .sheet-footer .btn-danger {
+      margin-right: auto;
     }
 
     .editor-sheet > .sheet-footer {
@@ -5406,6 +5350,11 @@ export class ElementModal {
     return translation.text.trim();
   }
 
+  /** A translation already stored on this passage, used only when the cache has none. */
+  seededTranslation(passage: ParsedPassage): string {
+    return this.shownTranslations(passage)[0]?.text ?? '';
+  }
+
   labeledEquivalent(text: string): string {
     return text.trim();
   }
@@ -5432,6 +5381,8 @@ export class ElementModal {
   readonly equivalentIdDraft = signal<string | null>(null);
   readonly sheetEquivalents = signal<ElementEquivalent[]>([]);
   readonly textDraft = signal('');
+  /** Translation shown for the current draft phrase. Hidden once that phrase changes. */
+  readonly draftTranslation = signal<{ phrase: string; text: string } | null>(null);
   readonly translating = signal(false);
   readonly askingEquivalent = signal(false);
   readonly askingMetadata = signal(false);
@@ -5465,10 +5416,6 @@ export class ElementModal {
   readonly titleError = signal('');
   /** Color chosen in the element editor. Null clears it. */
   readonly colorDraft = signal<string | null>(null);
-  /** Definition indexes whose translations and equivalent are open. */
-  readonly supportRevealed = signal<ReadonlySet<number>>(new Set());
-  /** Example translations open, keyed by definition and example index. */
-  readonly revealedExamples = signal<ReadonlySet<string>>(new Set());
   readonly addingDefinitions = signal<'example' | null>(null);
   readonly definitionExample = signal('');
   /** Arrived example shown as text until it is placed. */
@@ -5504,7 +5451,6 @@ export class ElementModal {
   readonly error = signal('');
   readonly speaking = signal<string | null>(null);
 
-  private editingTranslations = new Map<string, string>();
   /** Latest element written from this card, including a save that has not finished. */
   private written: StoredElement | null = null;
   private saveChain: Promise<void> = Promise.resolve();
@@ -5561,8 +5507,7 @@ export class ElementModal {
       this.exampleEngineer.set(null);
       this.definitionEngineer.set(null);
       this.senseStages.set(new Map());
-      this.supportRevealed.set(new Set());
-      this.revealedExamples.set(new Set());
+      this.draftTranslation.set(null);
       this.viewedDefinitions.clear();
       this.exerciseLog.set(-1);
       this.exerciseEntry.set(-1);
@@ -5795,7 +5740,7 @@ export class ElementModal {
     return code ? languageDisplayName(code) : '';
   }
 
-  private translationTarget(): string {
+  translationTarget(): string {
     return supportLanguageFor(this.element().language);
   }
 
@@ -5812,10 +5757,8 @@ export class ElementModal {
   async askEquivalent(): Promise<void> {
     if (!this.canAskEquivalent()) return;
     const element = this.element();
-    const parsed = parsePassage(this.textDraft());
-    const definition = parsed.text.trim();
-    const english =
-      parsed.translations.find((item) => item.language === this.translationTarget())?.text ?? '';
+    const definition = this.draftGloss();
+    const english = this.draftTranslationText();
     const ticket = ++this.equivalentTicket;
     this.askingEquivalent.set(true);
     this.sheetError.set('');
@@ -5969,37 +5912,6 @@ export class ElementModal {
       return next;
     });
     this.noteDefinitionView(index);
-  }
-
-  supportOpen(index: number): boolean {
-    return this.supportRevealed().has(index);
-  }
-
-  /** Open this sense's equivalent and definition translations together. Only a translation click is logged. */
-  unveilSupport(index: number): void {
-    if (this.senseStage(index) !== 'open') return;
-    this.supportRevealed.update((current) => {
-      if (current.has(index)) return current;
-      const next = new Set(current);
-      next.add(index);
-      return next;
-    });
-  }
-
-  exampleRevealed(definitionIndex: number, exampleIndex: number): boolean {
-    return this.revealedExamples().has(exampleRevealKey(definitionIndex, exampleIndex));
-  }
-
-  /** Open this example's translations without opening another sense. */
-  unveilExample(definitionIndex: number, exampleIndex: number): void {
-    if (this.senseStage(definitionIndex) !== 'open') return;
-    const key = exampleRevealKey(definitionIndex, exampleIndex);
-    this.revealedExamples.update((current) => {
-      if (current.has(key)) return current;
-      const next = new Set(current);
-      next.add(key);
-      return next;
-    });
   }
 
   entries(metadata: ElementMetadata): Array<{ key: string; value: string }> {
@@ -6565,14 +6477,10 @@ export class ElementModal {
 
   private shiftSenseState(by: number): void {
     this.senseStages.update((current) => shiftIndexMap(current, by));
-    this.supportRevealed.update((current) => shiftIndexSet(current, by));
-    this.revealedExamples.update((current) => shiftExampleKeys(current, by));
   }
 
   private dropSenseState(index: number): void {
     this.senseStages.update((current) => dropIndexMap(current, index));
-    this.supportRevealed.update((current) => dropIndexSet(current, index));
-    this.revealedExamples.update((current) => dropExampleKeys(current, index));
   }
 
   openDefinition(index: number): void {
@@ -6794,24 +6702,7 @@ export class ElementModal {
   }
 
   private appendedEngineerPassage(extra: ReturnType<typeof parsePassage>): string {
-    const current = readEditingDraft(this.textDraft());
-    this.captureEditingDraft(this.textDraft(), this.translationTarget());
-    const target = this.translationTarget();
-    const addition = extra.translations.find((item) => item.language === target)?.text ?? '';
-    if (target) {
-      const next = addition ? joinPhrase(current.translation, addition) : current.translation;
-      if (next) this.editingTranslations.set(target, next);
-      else this.editingTranslations.delete(target);
-    }
-    for (const item of extra.translations) {
-      if (!item.language || item.language === target || !item.text) continue;
-      const existing = this.editingTranslations.get(item.language) ?? '';
-      this.editingTranslations.set(
-        item.language,
-        existing ? joinPhrase(existing, item.text) : item.text,
-      );
-    }
-    return this.storedFromTranslations(joinPhrase(current.text, extra.text));
+    return joinPhrase(plainPassage(this.textDraft()), extra.text);
   }
 
   relatedWordChosen(word: RelatedWord): boolean {
@@ -6915,9 +6806,7 @@ export class ElementModal {
       }
       if (!showing) return;
       if (sense && senseKey(this.element().definitions[index]?.text ?? '') !== sense) return;
-      const stored = this.appendedEngineerPassage(extra);
-      this.seedEditingTranslations(stored);
-      this.textDraft.set(passageForEditing(stored, this.translationTarget()));
+      this.textDraft.set(this.appendedEngineerPassage(extra));
     } catch {
       if (this.element().id === element.id) this.sheetError.set('Could not forge a definition.');
     } finally {
@@ -7025,8 +6914,7 @@ export class ElementModal {
         editor.exampleIndex == null
       ) {
         this.sheetMetadata.set({ ...sentence.metadata });
-        this.seedEditingTranslations(sentence.text);
-        this.textDraft.set(passageForEditing(sentence.text, this.translationTarget()));
+        this.textDraft.set(plainPassage(sentence.text));
         return;
       }
       this.exampleDraftField.set(null);
@@ -7089,7 +6977,7 @@ export class ElementModal {
     const edited = this.exampleEdits().get(this.exampleEditKey(definitionIndex, exampleIndex));
     if (edited != null) return edited;
     const example = this.sheetDefinition(definitionIndex)?.examples[exampleIndex];
-    return passageForEditing(example?.text ?? '', this.translationTarget());
+    return plainPassage(example?.text ?? '');
   }
 
   onExampleField(definitionIndex: number, exampleIndex: number, event: Event): void {
@@ -7102,7 +6990,7 @@ export class ElementModal {
   }
 
   exampleSpeakText(definitionIndex: number, exampleIndex: number): string {
-    return readEditingDraft(this.exampleFieldValue(definitionIndex, exampleIndex)).text;
+    return plainPassage(this.exampleFieldValue(definitionIndex, exampleIndex));
   }
 
   exampleDraftFieldValue(index: number): string {
@@ -7110,7 +6998,7 @@ export class ElementModal {
     if (!draft) return '';
     const field = this.exampleDraftField();
     if (field?.definitionIndex === index) return field.text;
-    return passageForEditing(draft.text, this.translationTarget());
+    return plainPassage(draft.text);
   }
 
   onExampleDraftField(index: number, event: Event): void {
@@ -7125,14 +7013,12 @@ export class ElementModal {
     const definitions = this.copyDefinitions();
     const definition = definitions[index];
     if (!definition) return;
-    const language = this.translationTarget();
     const seen = new Set<string>();
     for (let exampleIndex = 0; exampleIndex < definition.examples.length; exampleIndex += 1) {
       const example = definition.examples[exampleIndex];
-      const baseline = passageForEditing(example.text, language);
+      const baseline = plainPassage(example.text);
       const draft = this.exampleEdits().get(this.exampleEditKey(index, exampleIndex)) ?? baseline;
-      const nextText =
-        draft === baseline ? example.text : this.exampleTextToStore(draft, example.text);
+      const nextText = this.exampleTextToStore(draft);
       if (!parsePassage(nextText).text.trim()) {
         this.exampleError.set('An example needs text.');
         return;
@@ -7147,8 +7033,8 @@ export class ElementModal {
     }
     const created: string[] = [];
     for (const row of this.exampleAdditions().get(index) ?? []) {
-      if (!readEditingDraft(row).text.trim()) continue;
-      const text = this.exampleTextToStore(row, '');
+      if (!plainPassage(row)) continue;
+      const text = this.exampleTextToStore(row);
       const key = senseKey(text);
       if (!key || seen.has(key)) {
         this.exampleError.set('That example is already there.');
@@ -7162,7 +7048,7 @@ export class ElementModal {
     if (pending) {
       const field = this.exampleDraftField();
       const edited = field?.definitionIndex === index;
-      const text = edited ? this.exampleTextToStore(field.text, pending.text) : pending.text;
+      const text = this.exampleTextToStore(edited ? field.text : pending.text);
       if (!parsePassage(text).text.trim()) {
         this.exampleError.set('An example needs text.');
         return;
@@ -7185,14 +7071,12 @@ export class ElementModal {
   private examplesDirty(index: number): boolean {
     const definition = this.sheetDefinition(index);
     if (!definition) return false;
-    const language = this.translationTarget();
     for (let exampleIndex = 0; exampleIndex < definition.examples.length; exampleIndex += 1) {
-      const baseline = passageForEditing(definition.examples[exampleIndex].text, language);
+      const baseline = plainPassage(definition.examples[exampleIndex].text);
       const draft = this.exampleEdits().get(this.exampleEditKey(index, exampleIndex));
-      if (draft != null && draft !== baseline && readEditingDraft(draft).text.trim()) return true;
+      if (draft != null && draft !== baseline && plainPassage(draft)) return true;
     }
-    if ((this.exampleAdditions().get(index) ?? []).some((row) => readEditingDraft(row).text.trim()))
-      return true;
+    if ((this.exampleAdditions().get(index) ?? []).some((row) => plainPassage(row))) return true;
     return !!parsePassage(this.exampleDraftFor(index)?.text ?? '').text.trim();
   }
 
@@ -7200,19 +7084,9 @@ export class ElementModal {
     return `${definitionIndex}:${exampleIndex}`;
   }
 
-  /** Store an example box without touching the definition draft's translations. */
-  private exampleTextToStore(draft: string, original: string): string {
-    const edited = readEditingDraft(draft);
-    const gloss = edited.text.trim();
-    if (!gloss) return '';
-    const language = this.translationTarget();
-    let text = gloss;
-    for (const item of parsePassage(original).translations) {
-      if (item.language === language) continue;
-      text = embedTranslation(text, item.language, item.text);
-    }
-    if (language && edited.translation) text = embedTranslation(text, language, edited.translation);
-    return text;
+  /** The example sentence, without a translation marker. */
+  private exampleTextToStore(draft: string): string {
+    return plainPassage(draft);
   }
 
   private shiftExampleEditDefinitions(by: number): void {
@@ -7622,7 +7496,14 @@ export class ElementModal {
   };
 
   draftGloss(): string {
-    return readEditingDraft(this.textDraft()).text.trim();
+    return plainPassage(this.textDraft());
+  }
+
+  /** The translation for the draft, while the draft is still that phrase. */
+  draftTranslationText(): string {
+    const shown = this.draftTranslation();
+    if (!shown || shown.phrase !== this.draftGloss()) return '';
+    return shown.text;
   }
 
   canTranslate(): boolean {
@@ -7643,9 +7524,14 @@ export class ElementModal {
     this.translating.set(true);
     this.sheetError.set('');
     try {
-      const translated = await translatePhrase(text, source, this.translationTarget());
+      const translated = await requestPhraseTranslation(
+        source,
+        this.translationTarget(),
+        text,
+        this.embeddedDraftTranslation(text),
+      );
       if (ticket !== this.translateTicket) return;
-      this.writeTranslation(this.translationTarget(), translated);
+      this.draftTranslation.set({ phrase: text, text: translated });
     } catch {
       if (ticket !== this.translateTicket) return;
       this.sheetError.set('Could not translate this.');
@@ -8325,51 +8211,31 @@ export class ElementModal {
     this.equivalentTicket += 1;
     this.askingEquivalent.set(false);
     this.askingMetadata.set(false);
-    this.seedEditingTranslations(text);
-    this.textDraft.set(passageForEditing(text, this.translationTarget()));
+    this.draftTranslation.set(null);
+    this.textDraft.set(plainPassage(text));
     this.sheetError.set('');
     this.translating.set(false);
   }
 
   private phraseToStore(): string {
-    return this.editingPassage(this.textDraft());
+    return plainPassage(this.textDraft());
   }
 
-  private writeTranslation(language: string, text: string): void {
-    const gloss = readEditingDraft(this.textDraft()).text;
-    this.captureEditingDraft(this.textDraft(), language);
-    const stored = embedTranslation(this.storedFromTranslations(gloss), language, text);
-    this.seedEditingTranslations(stored);
-    this.textDraft.set(passageForEditing(stored, language));
-  }
-
-  private seedEditingTranslations(value: string): void {
-    this.editingTranslations = new Map(
-      parsePassage(value).translations.map((item) => [item.language, item.text]),
-    );
-  }
-
-  private captureEditingDraft(draft: string, language: string): string {
-    const edited = readEditingDraft(draft);
-    if (language) {
-      if (edited.translation) this.editingTranslations.set(language, edited.translation);
-      else this.editingTranslations.delete(language);
-    }
-    return edited.text;
-  }
-
-  private storedFromTranslations(gloss: string): string {
-    let text = gloss;
-    for (const [language, body] of [...this.editingTranslations.entries()].sort(([left], [right]) =>
-      left.localeCompare(right),
-    )) {
-      if (body) text = embedTranslation(text, language, body);
-    }
-    return text;
-  }
-
-  private editingPassage(draft: string): string {
-    return this.storedFromTranslations(this.captureEditingDraft(draft, this.translationTarget()));
+  /** An old marker for this exact draft, so the first click can skip the model. */
+  private embeddedDraftTranslation(phrase: string): string {
+    const editor = this.editor();
+    const target = this.translationTarget();
+    if (!editor || !target || !phrase) return '';
+    const raw =
+      editor.kind === 'definition'
+        ? (this.element().definitions[editor.index]?.text ?? '')
+        : editor.exampleIndex == null
+          ? ''
+          : (this.element().definitions[editor.definitionIndex]?.examples[editor.exampleIndex]
+              ?.text ?? '');
+    const passage = parsePassage(raw);
+    if (passage.text.trim() !== phrase) return '';
+    return passage.translations.find((item) => item.language === target)?.text ?? '';
   }
 
   private focusDraft(): void {

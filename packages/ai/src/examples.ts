@@ -1,9 +1,4 @@
-import {
-  embedTranslation,
-  languageDisplayName,
-  parsePassage,
-  type ElementMetadata,
-} from 'collection';
+import { languageDisplayName, parsePassage, type ElementMetadata } from 'collection';
 import { completeJson, runWithKeyFallback } from './complete';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import {
@@ -17,7 +12,6 @@ import {
   type AiMetadataField,
 } from './metadata-fields';
 import { readStoredAiCredentials } from './storage';
-import { translationLanguage, translationTarget } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
 export const MAX_EXAMPLE_LENGTH = 500;
@@ -50,10 +44,8 @@ function examplesSystemPrompt(fields: readonly AiMetadataField[], extra = false)
     `- Keep the sentence at most ${MAX_EXAMPLE_LENGTH} characters`,
     '- Spelling MUST be correct',
     ...metadataRuleLines('example', fields, extra),
-    'translateFieldsIn, when present, names the translation language. Then the example MUST include "translation", a faithful translation of the sentence in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
     'Return JSON only with this shape:',
     `{"examples":[${exampleSentenceShape(fields, extra)}]}`,
-    'When translateFieldsIn is present, add "translation":"<sentence in translateFieldsIn>" on the example.',
   );
   return lines.join('\n');
 }
@@ -76,7 +68,6 @@ type GeneratedExample = { text: string; metadata: ElementMetadata };
 function buildExamplesUserMessage(input: GenerateExamplesInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, input.translation);
   const title = input.title.trim();
   const requiredForm = input.requiredForm?.trim() ?? '';
   const forms = requiredForm ? [] : uniqueTexts(input.forms);
@@ -86,7 +77,6 @@ function buildExamplesUserMessage(input: GenerateExamplesInput): string {
   return JSON.stringify({
     language,
     writeFieldsIn,
-    ...(translateFieldsIn ? { translateFieldsIn } : {}),
     lemma: title,
     gloss: input.gloss.trim(),
     ...(Object.keys(metadata).length ? { metadata } : {}),
@@ -120,7 +110,6 @@ function parseGeneratedExamples(
       : null;
   const list = source ? source['examples'] : null;
   if (!Array.isArray(list)) return null;
-  const language = input.language.trim().toLowerCase();
   const taken = new Set(uniqueTexts(input.existingExamples).map((text) => text.toLowerCase()));
   for (const item of list) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
@@ -128,16 +117,9 @@ function parseGeneratedExamples(
     const sentence = parsePassage(plainText(example['text'])).text.replace(/\s+/g, ' ').trim();
     const key = sentence.toLowerCase();
     if (!sentence || sentence.length > MAX_EXAMPLE_LENGTH || taken.has(key)) continue;
-    const into = translationTarget(language, input.translation);
-    const translated = into
-      ? parsePassage(plainText(example['translation'] ?? example['english'])).text.slice(
-          0,
-          MAX_EXAMPLE_LENGTH,
-        )
-      : '';
     return [
       {
-        text: translated && into ? embedTranslation(sentence, into, translated) : sentence,
+        text: sentence,
         metadata: pickMetadata(
           example['metadata'],
           metadataFieldKeys(readExampleMetadataFields()),
@@ -228,18 +210,12 @@ function derivedExampleSystemPrompt(): string {
     '- Do not write a dictionary gloss. Do not add citations or bracket tags such as [en:…]',
     `- Keep the sentence at most ${MAX_EXAMPLE_LENGTH} characters`,
     '- Spelling MUST be correct',
-    'translateFieldsIn, when present, names the translation language. Then include "translation", a faithful translation of the sentence in that language, with its first letter capitalized. When translateFieldsIn is absent, omit "translation".',
     'Return JSON only with this shape:',
     '{"example":"<sentence in writeFieldsIn>"}',
-    'When translateFieldsIn is present, add "translation":"<sentence in translateFieldsIn>".',
   ].join('\n');
 }
 
-function parseDerivedExample(
-  parsed: unknown,
-  language: string,
-  translation: string | undefined,
-): string {
+function parseDerivedExample(parsed: unknown): string {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
@@ -248,13 +224,7 @@ function parseDerivedExample(
     .text.replace(/\s+/g, ' ')
     .trim();
   if (!sentence || sentence.length > MAX_EXAMPLE_LENGTH) return '';
-  const into = translationTarget(language, translation);
-  if (!into) return sentence;
-  const translated = parsePassage(plainText(source?.['translation'] ?? source?.['english']))
-    .text.replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, MAX_EXAMPLE_LENGTH);
-  return translated ? embedTranslation(sentence, into, translated) : sentence;
+  return sentence;
 }
 
 /** One sentence that restates a parent gloss with its headword and the selected word. Empty when nothing usable comes back. */
@@ -267,13 +237,11 @@ export async function generateDerivedExample(
   const selected = request.selected.replace(/\s+/g, ' ').trim();
   if (!language || !root || !definition || !selected) return '';
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, request.translation);
   const input: CompleteJsonInput = {
     system: derivedExampleSystemPrompt(),
     user: JSON.stringify({
       language,
       writeFieldsIn,
-      ...(translateFieldsIn ? { translateFieldsIn } : {}),
       root,
       definition,
       selected,
@@ -285,8 +253,8 @@ export async function generateDerivedExample(
   const complete = () =>
     runWithKeyFallback(keys, (provider, credentials) => completeJson(provider, input, credentials));
   try {
-    let sentence = parseDerivedExample(await complete(), language, request.translation);
-    if (!sentence) sentence = parseDerivedExample(await complete(), language, request.translation);
+    let sentence = parseDerivedExample(await complete());
+    if (!sentence) sentence = parseDerivedExample(await complete());
     return sentence;
   } catch (err) {
     throw attachAiPrompt(err, input);

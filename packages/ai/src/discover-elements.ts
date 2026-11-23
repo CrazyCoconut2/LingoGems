@@ -11,10 +11,6 @@ import {
   SENSE_EQUIVALENT,
   SENSE_EQUIVALENT_FIELD,
   SENSE_EXAMPLE,
-  SENSE_EXAMPLE_FIELD,
-  SENSE_EXAMPLE_TRANSLATION,
-  VERBATIM_SENSE_TRANSLATION,
-  VERBATIM_SENSE_TRANSLATION_FIELD,
   type GeneratedDefinition,
 } from './definitions';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
@@ -175,13 +171,9 @@ function discoverSystemPrompt(): string {
     '- Return at most count elements',
     '- Omit a title you cannot define',
     ...metadataRuleLines('definition', fields, extra),
-    VERBATIM_SENSE_TRANSLATION,
-    SENSE_EXAMPLE_TRANSLATION,
     SENSE_EQUIVALENT,
     'Return JSON only with this shape:',
     `{"elements":[{"title":"<citation form>","senses":[${sense}]}]}`,
-    VERBATIM_SENSE_TRANSLATION_FIELD,
-    SENSE_EXAMPLE_FIELD,
     SENSE_EQUIVALENT_FIELD,
   ]
     .filter((line) => line !== '')
