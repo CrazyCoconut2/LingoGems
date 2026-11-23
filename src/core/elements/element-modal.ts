@@ -1138,26 +1138,21 @@ function writeExampleSuggestions(
                 } @else {
                   <h3>{{ sheetTitle(current) }}</h3>
                 }
-                @if (
-                  current.kind === 'example' ||
-                  (current.kind === 'definition' && workTab() === 'definitions')
-                ) {
+                @if (current.kind === 'example') {
                   <span class="sheet-tools">
                     <ng-container [ngTemplateOutlet]="draftActions" />
-                    @if (current.kind === 'example') {
-                      <button
-                        type="button"
-                        class="icon-btn"
-                        aria-label="Close"
-                        [disabled]="workCloseDisabled()"
-                        (click)="closeEditor()"
-                      >
-                        <svg viewBox="0 0 24 24">
-                          <path d="M18 6 6 18" />
-                          <path d="m6 6 12 12" />
-                        </svg>
-                      </button>
-                    }
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Close"
+                      [disabled]="workCloseDisabled()"
+                      (click)="closeEditor()"
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                      </svg>
+                    </button>
                   </span>
                 }
               </div>
@@ -1241,6 +1236,12 @@ function writeExampleSuggestions(
                     exampleEngineerOpen()
                   "
                 >
+                  @if (current.kind === 'definition') {
+                    <div class="field-heading">
+                      <span class="field-label">Definition</span>
+                      <ng-container [ngTemplateOutlet]="draftActions" />
+                    </div>
+                  }
                   @if (current.kind === 'definition' && definitionEngineer(); as engineer) {
                     <div class="definition-ai">
                       <div class="instruct-field">
@@ -1393,23 +1394,25 @@ function writeExampleSuggestions(
                       </div>
                     }
                   }
-                  <textarea
-                    #draftField
-                    [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
-                    [attr.aria-label]="current.kind === 'definition' ? 'Definition' : 'Example'"
-                    rows="3"
-                    [disabled]="asking()"
-                    [value]="textDraft()"
-                    (input)="textDraft.set(inputValue($event))"
-                  ></textarea>
-                  @if (draftTranslationText(); as translation) {
-                    <p class="draft-translation">
-                      {{ translation }}
-                      @if (current.kind === 'definition' && sheetEquivalent(); as gloss) {
-                        <span class="equivalent">{{ gloss }}</span>
-                      }
-                    </p>
-                  }
+                  <div class="draft-field" [class.square]="current.kind === 'definition'">
+                    <textarea
+                      #draftField
+                      [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
+                      [attr.aria-label]="current.kind === 'definition' ? 'Definition' : 'Example'"
+                      rows="3"
+                      [disabled]="asking()"
+                      [value]="textDraft()"
+                      (input)="textDraft.set(inputValue($event))"
+                    ></textarea>
+                    @if (draftTranslationText(); as translation) {
+                      <p class="draft-translation">
+                        {{ translation }}
+                        @if (current.kind === 'definition' && sheetEquivalent(); as gloss) {
+                          <span class="equivalent">{{ gloss }}</span>
+                        }
+                      </p>
+                    }
+                  </div>
                 </div>
                 @if (sheetError()) {
                   <p class="error">{{ sheetError() }}</p>
@@ -3602,12 +3605,33 @@ function writeExampleSuggestions(
       color: var(--text);
     }
 
+    .draft-field.square {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 0;
+      background: var(--surface-2);
+    }
+
+    .draft-field.square textarea {
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+
     .draft-translation {
       margin: 0.35rem 0 0;
       color: var(--text-muted);
       font-size: 0.85rem;
       font-style: italic;
       line-height: 1.4;
+    }
+
+    .draft-field.square .draft-translation {
+      margin: 0;
+      padding: 0.55rem 0.75rem 0.7rem;
+      border-top: 1px solid var(--border);
     }
 
     .draft-translation .equivalent {
@@ -7265,16 +7289,22 @@ export class ElementModal {
     return plainPassage(this.textDraft());
   }
 
-  /** The translation for the draft, while the draft is still that phrase. */
+  /** The translation for the exact wording in the field. A different wording has none. */
   draftTranslationText(): string {
+    const phrase = this.draftGloss();
+    if (!phrase || !this.supportAvailable()) return '';
     const shown = this.draftTranslation();
-    if (!shown || shown.phrase !== this.draftGloss()) return '';
-    return shown.text;
+    if (shown?.phrase === phrase && shown.text.trim()) return shown.text.trim();
+    return this.storedDraftTranslation(phrase);
   }
 
   canTranslate(): boolean {
     return (
-      this.supportAvailable() && this.draftGloss().length > 0 && !this.translating() && !this.busy()
+      this.supportAvailable() &&
+      this.draftGloss().length > 0 &&
+      !this.draftTranslationText() &&
+      !this.translating() &&
+      !this.busy()
     );
   }
 
