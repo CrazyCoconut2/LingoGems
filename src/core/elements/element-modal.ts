@@ -1244,7 +1244,7 @@ function writeExampleSuggestions(
                       role="tab"
                       [class.on]="workTab() === 'examples'"
                       [attr.aria-selected]="workTab() === 'examples'"
-                      [disabled]="current.index == null"
+                      [disabled]="!canOpenWorkSection()"
                       (click)="showWorkTab('examples')"
                     >
                       Examples
@@ -1254,7 +1254,7 @@ function writeExampleSuggestions(
                       role="tab"
                       [class.on]="workTab() === 'forms'"
                       [attr.aria-selected]="workTab() === 'forms'"
-                      [disabled]="current.index == null"
+                      [disabled]="!canOpenWorkSection()"
                       (click)="showWorkTab('forms')"
                     >
                       Forms
@@ -1289,18 +1289,20 @@ function writeExampleSuggestions(
                       </svg>
                     </button>
                   }
-                  <button
-                    type="button"
-                    class="icon-btn"
-                    aria-label="Close"
-                    [disabled]="workCloseDisabled()"
-                    (click)="closeEditor()"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
-                    </svg>
-                  </button>
+                  @if (current.kind !== 'definition') {
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Close"
+                      [disabled]="workCloseDisabled()"
+                      (click)="closeEditor()"
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                      </svg>
+                    </button>
+                  }
                 </span>
               </div>
               <ng-template #draftActions>
@@ -1810,163 +1812,136 @@ function writeExampleSuggestions(
                         </svg>
                       </button>
                     </div>
-                    @if (worked && worked.examples.length) {
+                    @if (
+                      worked &&
+                      (worked.examples.length ||
+                        exampleAdditionIndexes(workIndex).length ||
+                        exampleDraftFor(workIndex))
+                    ) {
                       <ul class="examples">
+                        @for (
+                          additionIndex of exampleAdditionIndexes(workIndex);
+                          track additionIndex
+                        ) {
+                          <li class="saved-example">
+                            <div class="example-input-row">
+                              <textarea
+                                class="example-addition"
+                                rows="2"
+                                [value]="exampleAdditionValue(workIndex, additionIndex)"
+                                [disabled]="aiBusy()"
+                                placeholder="Add an example"
+                                [attr.aria-label]="'New example ' + (additionIndex + 1)"
+                                (input)="onExampleAddition(workIndex, additionIndex, $event)"
+                              ></textarea>
+                              <button
+                                type="button"
+                                class="icon-btn danger"
+                                aria-label="Remove example"
+                                title="Remove example"
+                                [disabled]="aiBusy()"
+                                (click)="removeExampleAddition(workIndex, additionIndex)"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M3 6h18" />
+                                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                  <path d="M10 11v6" />
+                                  <path d="M14 11v6" />
+                                </svg>
+                              </button>
+                            </div>
+                          </li>
+                        }
+                        @if (exampleDraftFor(workIndex); as draft) {
+                          <li class="saved-example">
+                            <div class="example-input-row">
+                              <textarea
+                                rows="2"
+                                [value]="exampleDraftFieldValue(workIndex)"
+                                [disabled]="aiBusy()"
+                                aria-label="New example"
+                                (input)="onExampleDraftField(workIndex, $event)"
+                              ></textarea>
+                              <button
+                                type="button"
+                                class="icon-btn danger"
+                                aria-label="Remove example"
+                                title="Remove example"
+                                [disabled]="aiBusy()"
+                                (click)="discardExampleDraft()"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M3 6h18" />
+                                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                  <path d="M10 11v6" />
+                                  <path d="M14 11v6" />
+                                </svg>
+                              </button>
+                            </div>
+                          </li>
+                        }
                         @for (
                           exampleIndex of exampleIndexesNewestFirst(worked.examples.length);
                           track exampleIndex
                         ) {
                           @let example = worked.examples[exampleIndex];
                           <li class="saved-example">
-                            <div class="example-quote">
-                              @let passage = parsePassage(example.text);
-                              @if (passage.text) {
-                                <div class="spoken">
-                                  <div class="spoken-copy">
-                                    <p
-                                      class="passage sense-selectable"
-                                      [attr.data-definition-index]="workIndex"
-                                      [attr.data-example-index]="exampleIndex"
-                                    >
-                                      @for (part of highlightPassage(passage.text); track $index) {
-                                        @if (part.matches.length > 1) {
-                                          <button
-                                            type="button"
-                                            class="linguagem-highlighted"
-                                            [style.--score-color]="part.color || null"
-                                            [textContent]="part.text"
-                                            (click)="
-                                              showCollision(
-                                                $event,
-                                                part.matches,
-                                                workIndex,
-                                                example.text
-                                              )
-                                            "
-                                          ></button>
-                                        } @else if (part.matches.length === 1 && !part.current) {
-                                          <button
-                                            type="button"
-                                            class="linguagem-highlighted"
-                                            [style.--score-color]="part.color || null"
-                                            [textContent]="part.text"
-                                            (click)="
-                                              visitHighlight(
-                                                part.matches[0].elementId,
-                                                workIndex,
-                                                example.text
-                                              )
-                                            "
-                                          ></button>
-                                        } @else if (part.current) {
-                                          <span
-                                            class="linguagem-highlighted linguagem-highlighted--current"
-                                            [style.--score-color]="part.color || null"
-                                            [textContent]="part.text"
-                                          ></span>
-                                        } @else {
-                                          <span [textContent]="part.text"></span>
-                                        }
-                                      }
-                                    </p>
-                                    @let translations = shownTranslations(passage);
-                                    @if (translations.length) {
-                                      <ul class="equivalents">
-                                        @for (translation of translations; track $index) {
-                                          <li>
-                                            <app-reveal
-                                              [text]="labeledTranslation(translation)"
-                                              (unveiled)="
-                                                noteReveal(
-                                                  workIndex,
-                                                  passage.text,
-                                                  translation.text,
-                                                  'example'
-                                                )
-                                              "
-                                            />
-                                          </li>
-                                        }
-                                      </ul>
-                                    }
-                                  </div>
-                                  <ng-container
-                                    [ngTemplateOutlet]="hearButton"
-                                    [ngTemplateOutletContext]="{
-                                      key: 'example:' + workIndex + ':' + exampleIndex,
-                                      text: example.text,
-                                      label: 'example',
-                                    }"
-                                  />
-                                </div>
-                              }
-                              @if (entries(example.metadata); as meta) {
-                                @if (meta.length) {
-                                  <ul class="pills">
-                                    @for (entry of meta; track entry.key) {
-                                      @let color = metaColor('examples', entry.key);
-                                      <li [class.colored]="color" [style.--meta-color]="color">
-                                        <span>
-                                          <span class="sense-meta-key">{{ entry.key }}</span>
-                                          <span class="sense-meta-value">{{ entry.value }}</span>
-                                        </span>
-                                      </li>
-                                    }
-                                  </ul>
-                                }
-                              }
+                            <div class="example-input-row">
+                              <textarea
+                                rows="2"
+                                [value]="exampleFieldValue(workIndex, exampleIndex)"
+                                [disabled]="aiBusy()"
+                                aria-label="Example"
+                                (input)="onExampleField(workIndex, exampleIndex, $event)"
+                              ></textarea>
+                              <ng-container
+                                [ngTemplateOutlet]="hearButton"
+                                [ngTemplateOutletContext]="{
+                                  key: 'example:' + workIndex + ':' + exampleIndex,
+                                  text: exampleSpeakText(workIndex, exampleIndex),
+                                  label: 'example',
+                                }"
+                              />
+                              <button
+                                type="button"
+                                class="icon-btn danger"
+                                aria-label="Delete example"
+                                title="Delete example"
+                                [disabled]="aiBusy()"
+                                (click)="askDeleteExample(workIndex, exampleIndex)"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M3 6h18" />
+                                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                  <path d="M10 11v6" />
+                                  <path d="M14 11v6" />
+                                </svg>
+                              </button>
                             </div>
-                            <div class="item-actions">
-                              <span class="item-actions-main">
-                                <button
-                                  type="button"
-                                  class="icon-btn"
-                                  aria-label="Edit example"
-                                  title="Edit example"
-                                  [disabled]="aiBusy()"
-                                  (click)="openExample(workIndex, exampleIndex)"
-                                >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                                  </svg>
-                                </button>
-                                <button
-                                  type="button"
-                                  class="icon-btn danger"
-                                  aria-label="Delete example"
-                                  title="Delete example"
-                                  [disabled]="aiBusy()"
-                                  (click)="askDeleteExample(workIndex, exampleIndex)"
-                                >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M3 6h18" />
-                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                    <path d="M10 11v6" />
-                                    <path d="M14 11v6" />
-                                  </svg>
-                                </button>
-                              </span>
-                            </div>
+                            @if (entries(example.metadata); as meta) {
+                              @if (meta.length) {
+                                <ul class="pills">
+                                  @for (entry of meta; track entry.key) {
+                                    @let color = metaColor('examples', entry.key);
+                                    <li [class.colored]="color" [style.--meta-color]="color">
+                                      <span>
+                                        <span class="sense-meta-key">{{ entry.key }}</span>
+                                        <span class="sense-meta-value">{{ entry.value }}</span>
+                                      </span>
+                                    </li>
+                                  }
+                                </ul>
+                              }
+                            }
                           </li>
                         }
                       </ul>
                     }
-                    @if (exampleDraftFor(workIndex); as draft) {
-                      <div class="example-quote">
-                        @let passage = parsePassage(draft.text);
-                        @if (passage.text) {
-                          <p class="passage">{{ passage.text }}</p>
-                          @let translations = shownTranslations(passage);
-                          @if (translations.length) {
-                            <ul class="equivalents">
-                              @for (translation of translations; track $index) {
-                                <li>{{ labeledTranslation(translation) }}</li>
-                              }
-                            </ul>
-                          }
-                        }
-                      </div>
+                    @if (exampleError()) {
+                      <p class="error">{{ exampleError() }}</p>
                     }
                   </section>
                 }
@@ -4170,6 +4145,18 @@ function writeExampleSuggestions(
       gap: 0.35rem;
     }
 
+    .example-input-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.35rem;
+    }
+
+    .example-input-row textarea {
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 2.6rem;
+    }
+
     .example-quote {
       position: relative;
       display: flex;
@@ -5599,6 +5586,12 @@ export class ElementModal {
   readonly formAttributesView = signal<ElementForm | null>(null);
   /** Generated example waiting to be saved. */
   readonly exampleDraft = signal<ExampleDraft | null>(null);
+  /** Editing text for the generated example, when it differs from the stored sentence. */
+  readonly exampleDraftField = signal<{ definitionIndex: number; text: string } | null>(null);
+  /** Unsaved text for examples already on a definition, keyed by definition and example index. */
+  readonly exampleEdits = signal<ReadonlyMap<string, string>>(new Map());
+  /** Blank example rows added in the sheet, newest first. */
+  readonly exampleAdditions = signal<ReadonlyMap<number, string[]>>(new Map());
   /** Generated forms waiting to be saved. */
   readonly pendingForms = signal<PendingForms | null>(null);
   readonly exampleError = signal('');
@@ -6164,13 +6157,7 @@ export class ElementModal {
     const editor = this.editor();
     if (!editor || editor.kind !== 'definition') return true;
     if (editor.index != null && this.workTab() === 'examples') {
-      const draft = this.exampleDraft();
-      return (
-        this.busy() ||
-        this.askingExamples() !== null ||
-        draft?.definitionIndex !== editor.index ||
-        !draft.text.trim()
-      );
+      return this.busy() || this.askingExamples() !== null || !this.examplesDirty(editor.index);
     }
     if (editor.index != null && this.workTab() === 'forms') {
       const pending = this.pendingForms();
@@ -6204,7 +6191,7 @@ export class ElementModal {
     const editor = this.editor();
     if (!editor || editor.kind !== 'definition' || this.workSaveDisabled()) return;
     if (editor.index != null && this.workTab() === 'examples') {
-      void this.saveExampleDraft();
+      void this.saveExampleEdits();
       return;
     }
     if (editor.index != null && this.workTab() === 'forms') {
@@ -6240,6 +6227,9 @@ export class ElementModal {
     this.definitionEngineer.set(null);
     this.exampleEngineer.set(null);
     this.exampleDraft.set(null);
+    this.exampleDraftField.set(null);
+    this.exampleEdits.set(new Map());
+    this.exampleAdditions.set(new Map());
     this.pendingForms.set(null);
     this.exampleError.set('');
     this.formsError.set('');
@@ -6250,11 +6240,47 @@ export class ElementModal {
     this.closeEditor();
   }
 
+  /** Examples and forms open once this definition has text, including one that is not saved yet. */
+  canOpenWorkSection(): boolean {
+    const editor = this.editor();
+    if (editor?.kind !== 'definition') return false;
+    if (editor.index != null) return true;
+    return !!this.draftGloss() && !this.definitionCommitBlocked();
+  }
+
   showWorkTab(tab: WorkTab): void {
     const editor = this.editor();
-    if (tab !== 'definitions' && (editor?.kind !== 'definition' || editor.index == null)) return;
+    if (!editor || editor.kind !== 'definition') return;
+    if (tab !== 'definitions' && editor.index == null) {
+      if (!this.canOpenWorkSection()) return;
+      void this.openNewDefinitionSection(tab);
+      return;
+    }
     this.workTab.set(tab);
+    this.scrollWorkSheet();
+  }
+
+  private scrollWorkSheet(): void {
     this.editorSheet()?.nativeElement.querySelector('.sheet-scroll')?.scrollTo({ top: 0 });
+  }
+
+  /** Save the new definition, then open Examples or Forms on it. */
+  private async openNewDefinitionSection(tab: Exclude<WorkTab, 'definitions'>): Promise<void> {
+    const index = await this.commitDefinition(false);
+    const editor = this.editor();
+    if (index == null || editor?.kind !== 'definition' || editor.index !== index) return;
+    this.workTab.set(tab);
+    this.scrollWorkSheet();
+  }
+
+  private definitionCommitBlocked(): boolean {
+    return (
+      this.busy() ||
+      this.asking() ||
+      this.translating() ||
+      this.askingEquivalent() ||
+      this.definitionSheetBusy()
+    );
   }
 
   aiBusy(): boolean {
@@ -6285,8 +6311,18 @@ export class ElementModal {
   }
 
   addExampleManually(index: number): void {
-    if (this.aiBusy()) return;
-    this.openExample(index, null);
+    if (this.aiBusy() || !this.element().definitions[index]) return;
+    this.exampleAdditions.update((current) => {
+      const next = new Map(current);
+      next.set(index, ['', ...(next.get(index) ?? [])]);
+      return next;
+    });
+    this.exampleError.set('');
+    setTimeout(() => {
+      this.editorSheet()
+        ?.nativeElement.querySelector<HTMLTextAreaElement>('.example-addition')
+        ?.focus();
+    });
   }
 
   submitDefinitionExample(event: Event): void {
@@ -6613,6 +6649,7 @@ export class ElementModal {
     if (forms != null) this.askingForms.set(forms + by);
     const draft = this.exampleDraft();
     if (draft) this.exampleDraft.set({ ...draft, definitionIndex: draft.definitionIndex + by });
+    this.shiftExampleEditDefinitions(by);
     const pendingForms = this.pendingForms();
     if (pendingForms) {
       this.pendingForms.set({
@@ -7244,6 +7281,7 @@ export class ElementModal {
         this.textDraft.set(passageForEditing(sentence.text, this.translationTarget()));
         return;
       }
+      this.exampleDraftField.set(null);
       this.exampleDraft.set({
         definitionIndex: index,
         text: sentence.text,
@@ -7267,28 +7305,238 @@ export class ElementModal {
     return pending?.definitionIndex === index ? pending.forms : [];
   }
 
-  async saveExampleDraft(): Promise<void> {
-    const draft = this.exampleDraft();
-    if (!draft || this.busy()) return;
+  exampleAdditionIndexes(index: number): number[] {
+    return (this.exampleAdditions().get(index) ?? []).map((_, additionIndex) => additionIndex);
+  }
+
+  exampleAdditionValue(definitionIndex: number, additionIndex: number): string {
+    return this.exampleAdditions().get(definitionIndex)?.[additionIndex] ?? '';
+  }
+
+  onExampleAddition(definitionIndex: number, additionIndex: number, event: Event): void {
+    const value = this.inputValue(event);
+    this.exampleAdditions.update((current) => {
+      const rows = [...(current.get(definitionIndex) ?? [])];
+      if (additionIndex >= rows.length) return current;
+      rows[additionIndex] = value;
+      const next = new Map(current);
+      next.set(definitionIndex, rows);
+      return next;
+    });
+  }
+
+  removeExampleAddition(definitionIndex: number, additionIndex: number): void {
+    if (this.aiBusy()) return;
+    this.exampleAdditions.update((current) => {
+      const rows = [...(current.get(definitionIndex) ?? [])];
+      rows.splice(additionIndex, 1);
+      const next = new Map(current);
+      if (rows.length) next.set(definitionIndex, rows);
+      else next.delete(definitionIndex);
+      return next;
+    });
+  }
+
+  exampleFieldValue(definitionIndex: number, exampleIndex: number): string {
+    const edited = this.exampleEdits().get(this.exampleEditKey(definitionIndex, exampleIndex));
+    if (edited != null) return edited;
+    const example = this.sheetDefinition(definitionIndex)?.examples[exampleIndex];
+    return passageForEditing(example?.text ?? '', this.translationTarget());
+  }
+
+  onExampleField(definitionIndex: number, exampleIndex: number, event: Event): void {
+    const value = this.inputValue(event);
+    this.exampleEdits.update((current) => {
+      const next = new Map(current);
+      next.set(this.exampleEditKey(definitionIndex, exampleIndex), value);
+      return next;
+    });
+  }
+
+  exampleSpeakText(definitionIndex: number, exampleIndex: number): string {
+    return readEditingDraft(this.exampleFieldValue(definitionIndex, exampleIndex)).text;
+  }
+
+  exampleDraftFieldValue(index: number): string {
+    const draft = this.exampleDraftFor(index);
+    if (!draft) return '';
+    const field = this.exampleDraftField();
+    if (field?.definitionIndex === index) return field.text;
+    return passageForEditing(draft.text, this.translationTarget());
+  }
+
+  onExampleDraftField(index: number, event: Event): void {
+    this.exampleDraftField.set({ definitionIndex: index, text: this.inputValue(event) });
+  }
+
+  async saveExampleEdits(): Promise<void> {
+    const editor = this.editor();
+    if (!editor || editor.kind !== 'definition' || editor.index == null || this.busy()) return;
+    const index = editor.index;
+    if (!this.examplesDirty(index)) return;
     const definitions = this.copyDefinitions();
-    const target = definitions[draft.definitionIndex];
-    if (!target) return;
-    const key = senseKey(draft.text);
-    if (!key || target.examples.some((example) => senseKey(example.text) === key)) {
-      this.exampleError.set('That example is already there.');
-      return;
+    const definition = definitions[index];
+    if (!definition) return;
+    const language = this.translationTarget();
+    const seen = new Set<string>();
+    for (let exampleIndex = 0; exampleIndex < definition.examples.length; exampleIndex += 1) {
+      const example = definition.examples[exampleIndex];
+      const baseline = passageForEditing(example.text, language);
+      const draft = this.exampleEdits().get(this.exampleEditKey(index, exampleIndex)) ?? baseline;
+      const nextText =
+        draft === baseline ? example.text : this.exampleTextToStore(draft, example.text);
+      if (!parsePassage(nextText).text.trim()) {
+        this.exampleError.set('An example needs text.');
+        return;
+      }
+      const key = senseKey(nextText);
+      if (!key || seen.has(key)) {
+        this.exampleError.set('That example is already there.');
+        return;
+      }
+      seen.add(key);
+      example.text = nextText;
     }
-    target.examples.push({ text: draft.text, metadata: { ...draft.metadata } });
-    this.appendExample(target, draft.text);
+    const created: string[] = [];
+    for (const row of this.exampleAdditions().get(index) ?? []) {
+      if (!readEditingDraft(row).text.trim()) continue;
+      const text = this.exampleTextToStore(row, '');
+      const key = senseKey(text);
+      if (!key || seen.has(key)) {
+        this.exampleError.set('That example is already there.');
+        return;
+      }
+      seen.add(key);
+      definition.examples.push({ text, metadata: {} });
+      created.push(text);
+    }
+    const pending = this.exampleDraftFor(index);
+    if (pending) {
+      const field = this.exampleDraftField();
+      const edited = field?.definitionIndex === index;
+      const text = edited ? this.exampleTextToStore(field.text, pending.text) : pending.text;
+      if (!parsePassage(text).text.trim()) {
+        this.exampleError.set('An example needs text.');
+        return;
+      }
+      const key = senseKey(text);
+      if (!key || seen.has(key)) {
+        this.exampleError.set('That example is already there.');
+        return;
+      }
+      seen.add(key);
+      definition.examples.push({ text, metadata: { ...pending.metadata } });
+      created.push(text);
+    }
+    for (const text of created) this.appendExample(definition, text);
     this.exampleError.set('');
     if (!(await this.persist(definitions, this.currentElement().equivalents))) return;
-    if (senseKey(this.exampleDraft()?.text ?? '') === key) this.exampleDraft.set(null);
     this.closeEditor();
+  }
+
+  private examplesDirty(index: number): boolean {
+    const definition = this.sheetDefinition(index);
+    if (!definition) return false;
+    const language = this.translationTarget();
+    for (let exampleIndex = 0; exampleIndex < definition.examples.length; exampleIndex += 1) {
+      const baseline = passageForEditing(definition.examples[exampleIndex].text, language);
+      const draft = this.exampleEdits().get(this.exampleEditKey(index, exampleIndex));
+      if (draft != null && draft !== baseline && readEditingDraft(draft).text.trim()) return true;
+    }
+    if ((this.exampleAdditions().get(index) ?? []).some((row) => readEditingDraft(row).text.trim()))
+      return true;
+    return !!parsePassage(this.exampleDraftFor(index)?.text ?? '').text.trim();
+  }
+
+  private exampleEditKey(definitionIndex: number, exampleIndex: number): string {
+    return `${definitionIndex}:${exampleIndex}`;
+  }
+
+  /** Store an example box without touching the definition draft's translations. */
+  private exampleTextToStore(draft: string, original: string): string {
+    const edited = readEditingDraft(draft);
+    const gloss = edited.text.trim();
+    if (!gloss) return '';
+    const language = this.translationTarget();
+    let text = gloss;
+    for (const item of parsePassage(original).translations) {
+      if (item.language === language) continue;
+      text = embedTranslation(text, item.language, item.text);
+    }
+    if (language && edited.translation) text = embedTranslation(text, language, edited.translation);
+    return text;
+  }
+
+  private shiftExampleEditDefinitions(by: number): void {
+    if (!by) return;
+    this.exampleEdits.update((current) => {
+      const next = new Map<string, string>();
+      for (const [key, value] of current) {
+        const split = key.indexOf(':');
+        const definitionIndex = Number(key.slice(0, split)) + by;
+        next.set(`${definitionIndex}:${key.slice(split + 1)}`, value);
+      }
+      return next;
+    });
+    this.exampleAdditions.update((current) => {
+      const next = new Map<number, string[]>();
+      for (const [index, rows] of current) next.set(index + by, rows);
+      return next;
+    });
+    const field = this.exampleDraftField();
+    if (field) this.exampleDraftField.set({ ...field, definitionIndex: field.definitionIndex + by });
+  }
+
+  private dropDefinitionExampleEdits(index: number): void {
+    this.exampleEdits.update((current) => {
+      const next = new Map<string, string>();
+      for (const [key, value] of current) {
+        const split = key.indexOf(':');
+        const definitionIndex = Number(key.slice(0, split));
+        if (definitionIndex === index) continue;
+        const shifted = definitionIndex > index ? definitionIndex - 1 : definitionIndex;
+        next.set(`${shifted}:${key.slice(split + 1)}`, value);
+      }
+      return next;
+    });
+    this.exampleAdditions.update((current) => {
+      const next = new Map<number, string[]>();
+      for (const [definitionIndex, rows] of current) {
+        if (definitionIndex === index) continue;
+        next.set(definitionIndex > index ? definitionIndex - 1 : definitionIndex, rows);
+      }
+      return next;
+    });
+    const field = this.exampleDraftField();
+    if (field?.definitionIndex === index) this.exampleDraftField.set(null);
+    else if (field && field.definitionIndex > index) {
+      this.exampleDraftField.set({ ...field, definitionIndex: field.definitionIndex - 1 });
+    }
+  }
+
+  private dropExampleEdit(definitionIndex: number, exampleIndex: number): void {
+    this.exampleEdits.update((current) => {
+      const next = new Map<string, string>();
+      for (const [key, value] of current) {
+        const split = key.indexOf(':');
+        const definition = Number(key.slice(0, split));
+        const example = Number(key.slice(split + 1));
+        if (definition !== definitionIndex) {
+          next.set(key, value);
+          continue;
+        }
+        if (example === exampleIndex) continue;
+        const shifted = example > exampleIndex ? example - 1 : example;
+        next.set(`${definition}:${shifted}`, value);
+      }
+      return next;
+    });
   }
 
   discardExampleDraft(): void {
     if (this.askingExamples() !== null) return;
     this.exampleDraft.set(null);
+    this.exampleDraftField.set(null);
     this.exampleError.set('');
   }
 
@@ -7658,11 +7906,95 @@ export class ElementModal {
     }
   }
 
-  async saveEditor(): Promise<void> {
+  /** Write the definition draft. `close` leaves the sheet; otherwise the sheet stays on the saved sense. */
+  private async commitDefinition(close: boolean): Promise<number | null> {
     const editor = this.editor();
     const primary = this.draftGloss();
     if (
       !editor ||
+      editor.kind !== 'definition' ||
+      !primary ||
+      this.busy() ||
+      this.asking() ||
+      this.translating() ||
+      this.askingEquivalent()
+    ) {
+      return null;
+    }
+    const text = this.phraseToStore();
+    const definitions = this.copyDefinitions();
+    const current = editor.index == null ? null : definitions[editor.index];
+    if (editor.index != null && !current) return null;
+    const language = this.translationTarget();
+    const typed = language ? this.equivalentDraft().trim() : '';
+    const selectedId = language ? this.equivalentIdDraft() : null;
+    const linked = typed
+      ? assignEquivalent(this.sheetEquivalents(), typed, language)
+      : {
+          equivalents: this.sheetEquivalents(),
+          equivalentId:
+            selectedId &&
+            this.sheetEquivalents().some(
+              (item) => item.id === selectedId && item.language === language,
+            )
+              ? selectedId
+              : null,
+        };
+    const kept = new Set(linked.equivalents.map((item) => item.id));
+    const unlinked = definitions.map((definition) => ({
+      ...definition,
+      equivalentIds: pruneEquivalentLinks(definition.equivalentIds, kept),
+    }));
+    const previous = pruneEquivalentLinks(current?.equivalentIds ?? {}, kept);
+    const equivalentIds = language
+      ? linkEquivalent(previous, language, linked.equivalentId)
+      : previous;
+    const equivalent = linked.equivalentId
+      ? (linked.equivalents.find((item) => item.id === linked.equivalentId)?.text ?? '')
+      : '';
+    const prefilled = this.prefilledDefinition;
+    const generatedExample =
+      editor.index == null &&
+      prefilled?.example &&
+      definitionGloss(prefilled.text) === definitionGloss(text)
+        ? prefilled.example
+        : '';
+    const next: ElementDefinition = {
+      text,
+      equivalentIds,
+      forms: current?.forms ?? [],
+      examples: generatedExample
+        ? [...(current?.examples ?? []), { text: generatedExample, metadata: {} }]
+        : (current?.examples ?? []),
+      metadata: this.metadataToStore(),
+      log: this.logWithRework(current, text, equivalent, this.metadataToStore()),
+    };
+    if (editor.index == null) unlinked.push(next);
+    else unlinked[editor.index] = next;
+    const index = editor.index ?? unlinked.length - 1;
+    if (!(await this.persist(unlinked, linked.equivalents))) return null;
+    this.prefilledDefinition = null;
+    const still = this.editor();
+    const sameSheet = still?.kind === 'definition' && still.index === editor.index;
+    if (!sameSheet) return null;
+    if (editor.index == null) this.scrollSenseIntoView(index);
+    if (close) {
+      this.closeEditor();
+      return index;
+    }
+    if (editor.index == null) this.editor.set({ kind: 'definition', index });
+    return index;
+  }
+
+  async saveEditor(): Promise<void> {
+    const editor = this.editor();
+    if (!editor) return;
+    if (editor.kind === 'definition') {
+      await this.commitDefinition(true);
+      return;
+    }
+    const primary = this.draftGloss();
+    if (
       !primary ||
       this.busy() ||
       this.asking() ||
@@ -7673,63 +8005,6 @@ export class ElementModal {
     }
     const text = this.phraseToStore();
     const definitions = this.copyDefinitions();
-    if (editor.kind === 'definition') {
-      const current = editor.index == null ? null : definitions[editor.index];
-      if (editor.index != null && !current) return;
-      const language = this.translationTarget();
-      const typed = language ? this.equivalentDraft().trim() : '';
-      const selectedId = language ? this.equivalentIdDraft() : null;
-      const linked = typed
-        ? assignEquivalent(this.sheetEquivalents(), typed, language)
-        : {
-            equivalents: this.sheetEquivalents(),
-            equivalentId:
-              selectedId &&
-              this.sheetEquivalents().some(
-                (item) => item.id === selectedId && item.language === language,
-              )
-                ? selectedId
-                : null,
-          };
-      const kept = new Set(linked.equivalents.map((item) => item.id));
-      const unlinked = definitions.map((definition) => ({
-        ...definition,
-        equivalentIds: pruneEquivalentLinks(definition.equivalentIds, kept),
-      }));
-      const previous = pruneEquivalentLinks(current?.equivalentIds ?? {}, kept);
-      const equivalentIds = language
-        ? linkEquivalent(previous, language, linked.equivalentId)
-        : previous;
-      const equivalent = linked.equivalentId
-        ? (linked.equivalents.find((item) => item.id === linked.equivalentId)?.text ?? '')
-        : '';
-      const prefilled = this.prefilledDefinition;
-      const generatedExample =
-        editor.index == null &&
-        prefilled?.example &&
-        definitionGloss(prefilled.text) === definitionGloss(text)
-          ? prefilled.example
-          : '';
-      const next: ElementDefinition = {
-        text,
-        equivalentIds,
-        forms: current?.forms ?? [],
-        examples: generatedExample
-          ? [...(current?.examples ?? []), { text: generatedExample, metadata: {} }]
-          : (current?.examples ?? []),
-        metadata: this.metadataToStore(),
-        log: this.logWithRework(current, text, equivalent, this.metadataToStore()),
-      };
-      if (editor.index == null) unlinked.push(next);
-      else unlinked[editor.index] = next;
-      const index = editor.index ?? unlinked.length - 1;
-      if (await this.persist(unlinked, linked.equivalents)) {
-        this.prefilledDefinition = null;
-        if (editor.index == null) this.scrollSenseIntoView(index);
-        this.closeEditor();
-      }
-      return;
-    }
     if (editor.kind !== 'example') return;
     const definition = definitions[editor.definitionIndex];
     if (!definition) return;
@@ -7968,14 +8243,17 @@ export class ElementModal {
       if (wording === pending.index) this.askingWording.set(null);
       else if (wording != null && wording > pending.index) this.askingWording.set(wording - 1);
       this.dropSenseState(pending.index);
+      this.dropDefinitionExampleEdits(pending.index);
     }
     this.confirm.set(null);
     if (pending.kind === 'definition') {
       const editor = this.editor();
       if (editor?.kind === 'definition' && editor.index == null) this.skipPrefilledDefinition();
       this.editor.set(null);
+    } else {
+      this.adjustExampleEditor(pending.definitionIndex, pending.exampleIndex);
+      this.dropExampleEdit(pending.definitionIndex, pending.exampleIndex);
     }
-    else this.adjustExampleEditor(pending.definitionIndex, pending.exampleIndex);
   }
 
   private adjustExampleEditor(definitionIndex: number, exampleIndex: number): void {
