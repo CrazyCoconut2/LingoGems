@@ -45,7 +45,6 @@ import {
   isValidForm,
   LEARNABLE_LANGUAGES,
   languageDisplayName,
-  loggedDefinitions,
   mergeMetadataVariability,
   metadataFilterSize,
   parseMetadataFilter,
@@ -2669,17 +2668,15 @@ export class LanguagePage {
     let reworked = 0;
     let revealed = 0;
     let exercises = 0;
-    for (const item of loggedDefinitions(element)) {
-      for (const entry of item.log) {
-        if (entry.event === 'view') opened += 1;
-        else if (entry.event === 'rework') reworked += 1;
-        else if (entry.event === 'reveal') revealed += 1;
-        else if (
-          entry.event === 'game' &&
-          (entry.game === 'translation' || entry.game === 'example' || entry.game === 'definition')
-        ) {
-          exercises += 1;
-        }
+    for (const entry of element.log) {
+      if (entry.event === 'view') opened += 1;
+      else if (entry.event === 'rework') reworked += 1;
+      else if (entry.event === 'reveal') revealed += 1;
+      else if (
+        entry.event === 'game' &&
+        (entry.game === 'translation' || entry.game === 'example' || entry.game === 'definition')
+      ) {
+        exercises += 1;
       }
     }
     return { opened, reworked, revealed, exercises };
@@ -2741,7 +2738,6 @@ export class LanguagePage {
             forms: searchForms(generated.lemma, selected),
             examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
             metadata: { ...sense.metadata },
-            log: [],
           })),
         },
         true,
@@ -3021,7 +3017,6 @@ export class LanguagePage {
             forms: searchForms(generated.lemma, selected),
             examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
             metadata: { ...sense.metadata },
-            log: [],
           })),
         },
         true,

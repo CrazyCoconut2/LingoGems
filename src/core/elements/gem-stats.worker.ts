@@ -106,6 +106,7 @@ function tally(
       createdAt?: unknown;
       definitions?: unknown;
       removedDefinitions?: unknown;
+      log?: unknown;
     };
     if (source.deletedAt != null) continue;
     if (
@@ -134,46 +135,40 @@ function tally(
       }
     }
 
-    const definitions = [
-      ...(Array.isArray(source.definitions) ? source.definitions : []),
-      ...(Array.isArray(source.removedDefinitions) ? source.removedDefinitions : []),
-    ];
-    for (const definition of definitions) {
-      if (!isRecord(definition) || !Array.isArray(definition.log)) continue;
-      const attempts: GameAttempt[] = [];
-      for (let index = 0; index < definition.log.length; index += 1) {
-        const entry = definition.log[index];
-        if (!isRecord(entry)) continue;
-        const day = bucket(days, entry.at);
-        if (!day) continue;
-        if (entry.event === 'view') {
-          day.opened += 1;
-          elementOf(day, id, title).opened += 1;
-          continue;
-        }
-        if (entry.event === 'rework') {
-          day.reworked += 1;
-          elementOf(day, id, title).reworked += 1;
-          continue;
-        }
-        if (entry.event === 'reveal') {
-          day.revealed += 1;
-          elementOf(day, id, title).revealed += 1;
-          const phrase = (entry as { phrase?: unknown }).phrase;
-          if (typeof phrase === 'string' && phrase.trim()) phrases.push(phrase);
-          continue;
-        }
-        if (entry.event === 'game' && isGame(entry.game)) {
-          day.exercises += 1;
-          elementOf(day, id, title).exercises += 1;
-          const score = gameScore(entry);
-          if (score != null && typeof entry.at === 'number') {
-            attempts.push({ game: entry.game, score, at: entry.at, index });
-          }
+    const entries = activityEntries(source);
+    const attempts: GameAttempt[] = [];
+    for (let index = 0; index < entries.length; index += 1) {
+      const entry = entries[index];
+      if (!isRecord(entry)) continue;
+      const day = bucket(days, entry.at);
+      if (!day) continue;
+      if (entry.event === 'view') {
+        day.opened += 1;
+        elementOf(day, id, title).opened += 1;
+        continue;
+      }
+      if (entry.event === 'rework') {
+        day.reworked += 1;
+        elementOf(day, id, title).reworked += 1;
+        continue;
+      }
+      if (entry.event === 'reveal') {
+        day.revealed += 1;
+        elementOf(day, id, title).revealed += 1;
+        const phrase = (entry as { phrase?: unknown }).phrase;
+        if (typeof phrase === 'string' && phrase.trim()) phrases.push(phrase);
+        continue;
+      }
+      if (entry.event === 'game' && isGame(entry.game)) {
+        day.exercises += 1;
+        elementOf(day, id, title).exercises += 1;
+        const score = gameScore(entry);
+        if (score != null && typeof entry.at === 'number') {
+          attempts.push({ game: entry.game, score, at: entry.at, index });
         }
       }
-      awardGems(days, id, title, attempts);
     }
+    awardGems(days, id, title, attempts);
   }
 
   const result: DayStats[] = [];
@@ -195,6 +190,33 @@ function tally(
   }
   result.sort((left, right) => (left.day < right.day ? 1 : left.day > right.day ? -1 : 0));
   return { days: result, missing: missingTokens(phrases, coverage, code) };
+}
+
+/** Element log, plus activity an older build stored on definitions. */
+function activityEntries(source: {
+  log?: unknown;
+  definitions?: unknown;
+  removedDefinitions?: unknown;
+}): unknown[] {
+  const log = Array.isArray(source.log) ? [...source.log] : [];
+  const lifted: unknown[] = [];
+  for (const bucket of [source.definitions, source.removedDefinitions]) {
+    if (!Array.isArray(bucket)) continue;
+    for (const definition of bucket) {
+      if (!isRecord(definition) || !Array.isArray(definition.log)) continue;
+      lifted.push(...definition.log);
+    }
+  }
+  if (!lifted.length) return log;
+  return [...log, ...lifted]
+    .map((entry, index) => ({ entry, index, at: entryAt(entry) }))
+    .sort((left, right) => left.at - right.at || left.index - right.index)
+    .map((item) => item.entry);
+}
+
+function entryAt(entry: unknown): number {
+  if (!isRecord(entry) || typeof entry.at !== 'number' || !Number.isFinite(entry.at)) return 0;
+  return entry.at;
 }
 
 function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {

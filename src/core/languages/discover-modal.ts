@@ -1831,7 +1831,6 @@ async function saveDiscoveredElement(language: string, hit: DiscoverHit): Promis
       forms: [],
       examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
       metadata: { ...sense.metadata },
-      log: [],
     })),
   );
   await saveElement({

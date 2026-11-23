@@ -43,6 +43,7 @@ import {
   type DefinitionHighlightPart,
   type ElementDefinition,
   type ElementEquivalent,
+  type ElementLogEntry,
   type RemovedDefinition,
   type ElementForm,
   type ElementMetadata,
@@ -784,7 +785,7 @@ function writeExampleSuggestions(
                                           [equivalent]="labeledEquivalent(equivalent)"
                                           [lemma]="element().title"
                                           (translated)="
-                                            noteReveal(index, passage.text, $event, 'definition')
+                                            noteReveal(passage.text, $event, 'definition')
                                           "
                                           (equivalentFound)="noteEquivalent(index, $event)"
                                         />
@@ -915,7 +916,7 @@ function writeExampleSuggestions(
                                               [targetLang]="translationTarget()"
                                               [seeded]="seededTranslation(passage)"
                                               (translated)="
-                                                noteReveal(index, passage.text, $event, 'example')
+                                                noteReveal(passage.text, $event, 'example')
                                               "
                                             />
                                           }
@@ -2174,7 +2175,7 @@ function writeExampleSuggestions(
           </div>
         }
 
-        @if (statsDefinition(); as definition) {
+        @if (statsDefinition()) {
           @let index = exerciseLog();
           <div class="sheet-backdrop" (click)="closeExerciseLog($event)">
             <section
@@ -2207,13 +2208,13 @@ function writeExampleSuggestions(
                         <li
                           [attr.data-game]="row.game"
                           [attr.aria-label]="
-                            exerciseAverageLabel(definition, row.game, modeLabel(row.mode))
+                            exerciseAverageLabel(row.game, modeLabel(row.mode))
                           "
                         >
                           <span class="stats-stone" aria-hidden="true">
                             <app-mode-icon class="stats-stone-icon" [mode]="row.mode" />
                           </span>
-                          @if (exerciseAverage(definition, row.game); as average) {
+                          @if (exerciseAverage(row.game); as average) {
                             <span class="stats-count">
                               {{ average }}<span class="score-max">/5</span>
                             </span>
@@ -2229,9 +2230,9 @@ function writeExampleSuggestions(
                 <section class="stats-block">
                   <h3>Activity</h3>
                   <ul class="stats-activity">
-                    @let seen = activityCount(definition, 'view');
-                    @let reworked = activityCount(definition, 'rework');
-                    @let revealed = activityCount(definition, 'reveal');
+                    @let seen = activityCount('view');
+                    @let reworked = activityCount('rework');
+                    @let revealed = activityCount('reveal');
                     <li [attr.aria-label]="activityLabel('view', seen)">
                       <span class="stats-well" aria-hidden="true">
                         <svg class="stats-mark" viewBox="0 0 24 24">
@@ -2263,7 +2264,7 @@ function writeExampleSuggestions(
                   </ul>
                 </section>
               </div>
-              @if (definitionHistory(definition).length) {
+              @if (elementHistory().length) {
                 <section class="stats-log">
                   <h3>History</h3>
                   <div class="add-choices">
@@ -2285,14 +2286,14 @@ function writeExampleSuggestions(
                         </svg>
                       </button>
                     </ng-template>
-                    @for (entry of definitionHistory(definition); track $index) {
+                    @for (entry of elementHistory(); track $index) {
                       @if (
                         entry.event === 'view' ||
                         (entry.event === 'reveal' && !entry.phrase && !entry.translation)
                       ) {
                         <div
                           class="log-row log-plain"
-                          [attr.aria-label]="historyAria(definition, entry)"
+                          [attr.aria-label]="historyAria(entry)"
                         >
                           <span class="log-copy">
                             <span class="log-game">{{ historyTitle(entry) }}</span>
@@ -2310,7 +2311,7 @@ function writeExampleSuggestions(
                               type="button"
                               class="log-open"
                               [attr.aria-expanded]="exerciseEntry() === $index"
-                              [attr.aria-label]="historyAria(definition, entry)"
+                              [attr.aria-label]="historyAria(entry)"
                               (click)="toggleExerciseEntry($index)"
                             >
                               <span class="log-copy">
@@ -2324,7 +2325,7 @@ function writeExampleSuggestions(
                                     [attr.data-game]="entry.game"
                                     aria-hidden="true"
                                   >
-                                    @if (earnedGameGem(definition, entry)) {
+                                    @if (earnedGameGem(entry)) {
                                       <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
                                     }
                                     {{ entry.score }}<span class="score-max">/5</span>
@@ -2514,11 +2515,9 @@ function writeExampleSuggestions(
                                 }
                                 <p class="hint">{{ exerciseWhen(entry.at) }}</p>
                               } @else {
-                                @let passage =
-                                  parsePassage(entry.snapshot?.text ?? definition.text);
+                                @let passage = parsePassage(entry.snapshot?.text ?? '');
                                 @let gloss = passage.text;
-                                @let equivalent =
-                                  entry.snapshot?.equivalent ?? equivalentText(definition);
+                                @let equivalent = entry.snapshot?.equivalent ?? '';
                                 @if (gloss && entry.answer && entry.game !== 'definition') {
                                   <div class="equivalent-gloss">
                                     <p class="field-label">Definition</p>
@@ -2603,9 +2602,9 @@ function writeExampleSuggestions(
                                   class="score-readout"
                                   [attr.data-game]="entry.game"
                                   role="img"
-                                  [attr.aria-label]="scoreAria(definition, entry)"
+                                  [attr.aria-label]="scoreAria(entry)"
                                 >
-                                  @if (earnedGameGem(definition, entry)) {
+                                  @if (earnedGameGem(entry)) {
                                     <app-gem-icon class="gem-gain-stone" [game]="entry.game" />
                                   }
                                   {{ entry.score }}<span class="score-max">/5</span>
@@ -2645,7 +2644,7 @@ function writeExampleSuggestions(
                   pending.kind === 'element'
                     ? 'This element will be removed. All gems accumulated for it and all of its stats will disappear.'
                     : pending.kind === 'definition'
-                      ? 'This definition will be removed. The stats and gems gained for it will be lost.'
+                      ? 'This definition will be removed.'
                       : 'This will be removed.'
                 }}
               </p>
@@ -6068,7 +6067,6 @@ export class ElementModal {
       forms: [],
       examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
       metadata: { ...sense.metadata },
-      log: [],
     }));
     const existing = this.copyDefinitions();
     const next = placement === 'end' ? [...existing, ...created] : [...created, ...existing];
@@ -6245,15 +6243,14 @@ export class ElementModal {
   /** Record that this definition's text was unveiled. `at` is the UTC instant. */
   private noteDefinitionView(index: number): void {
     const element = this.currentElement();
-    const definitions = this.copyDefinitions();
-    const definition = definitions[index];
+    const definition = element.definitions[index];
     if (!definition) return;
     const gloss = definitionGloss(definition.text);
     const key = `${element.id}:${gloss || index}`;
     if (this.viewedDefinitions.has(key)) return;
     this.viewedDefinitions.add(key);
-    definition.log = [...definition.log, { event: 'view', at: Date.now() }];
-    void this.persist(definitions, element.equivalents, { busy: false });
+    this.appendLog({ event: 'view', at: Date.now() });
+    void this.persist(this.copyDefinitions(), element.equivalents, { busy: false });
   }
 
   private scrollSenseIntoView(index: number): void {
@@ -7198,7 +7195,6 @@ export class ElementModal {
             forms: selectionForms(generated.lemma, title),
             examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
             metadata: { ...sense.metadata },
-            log: [],
           })),
         });
         return;
@@ -7377,15 +7373,16 @@ export class ElementModal {
       current.equivalentIds,
       this.translationTarget(),
     );
+    const metadata = this.metadataToStore();
     const next: ElementDefinition = {
       text,
       equivalentIds: current.equivalentIds,
       forms: current.forms,
       examples: current.examples,
-      metadata: this.metadataToStore(),
-      log: this.logWithRework(current, text, equivalent, this.metadataToStore()),
+      metadata,
     };
     definitions[editor.index] = next;
+    this.recordRework(current, text, equivalent, metadata);
     if (!(await this.persist(definitions, element.equivalents))) return null;
     const still = this.editor();
     const sameSheet = still?.kind === 'definition' && still.index === editor.index;
@@ -7528,10 +7525,7 @@ export class ElementModal {
     if (pending.kind === 'element') return 'Delete this element?';
     if (pending.kind === 'definition') return 'Delete this definition?';
     if (pending.kind === 'exercise') {
-      const definition = this.element().definitions[pending.definitionIndex];
-      const entry = definition
-        ? this.definitionHistory(definition)[pending.historyIndex]
-        : undefined;
+      const entry = this.elementHistory()[pending.historyIndex];
       if (entry?.event === 'rework') return 'Delete this rework?';
       if (entry?.event === 'example') return 'Delete this example?';
       if (entry?.event === 'form') return 'Delete these forms?';
@@ -7564,7 +7558,7 @@ export class ElementModal {
 
   askDeleteExercise(definitionIndex: number, historyIndex: number): void {
     if (this.busy() || historyIndex < 0) return;
-    const entry = this.definitionHistory(this.element().definitions[definitionIndex])[historyIndex];
+    const entry = this.elementHistory()[historyIndex];
     if (!entry) return;
     this.confirm.set({ kind: 'exercise', definitionIndex, historyIndex });
   }
@@ -7577,7 +7571,7 @@ export class ElementModal {
       return;
     }
     if (pending.kind === 'exercise') {
-      await this.removeExercise(pending.definitionIndex, pending.historyIndex);
+      await this.removeExercise(pending.historyIndex);
       return;
     }
     const definitions = this.copyDefinitions();
@@ -7663,23 +7657,20 @@ export class ElementModal {
     }
   }
 
-  private async removeExercise(definitionIndex: number, historyIndex: number): Promise<void> {
+  private async removeExercise(historyIndex: number): Promise<void> {
     const elementId = this.element().id;
-    const definition = this.currentElement().definitions[definitionIndex];
-    const entry = definition ? this.definitionHistory(definition)[historyIndex] : undefined;
-    const logIndex = definition && entry ? definition.log.indexOf(entry) : -1;
-    if (!definition || logIndex < 0) {
+    const entry = this.elementHistory()[historyIndex];
+    const current = this.currentElement();
+    const logIndex = entry ? current.log.indexOf(entry) : -1;
+    if (!entry || logIndex < 0) {
       this.confirm.set(null);
       return;
     }
-    const definitions = this.copyDefinitions();
-    const next = definitions[definitionIndex];
-    if (!next) {
-      this.confirm.set(null);
-      return;
-    }
-    next.log = next.log.filter((_, index) => index !== logIndex);
-    if (!(await this.persist(definitions, this.element().equivalents))) return;
+    this.written = {
+      ...current,
+      log: current.log.filter((_, index) => index !== logIndex),
+    };
+    if (!(await this.persist(this.copyDefinitions(), current.equivalents))) return;
     if (!this.alive || this.element().id !== elementId) {
       this.confirm.set(null);
       return;
@@ -7814,19 +7805,17 @@ export class ElementModal {
         metadata: { ...example.metadata },
       })),
       metadata: { ...definition.metadata },
-      log: definition.log.map((entry) => ({ ...entry })),
     };
   }
 
-  /** Keep the log, and append a rework when the passage, equivalent, or metadata changed. */
-  private logWithRework(
+  /** Append a rework when the passage, equivalent, or metadata changed. */
+  private recordRework(
     current: ElementDefinition | null,
     text: string,
     equivalent: string,
     metadata: ElementMetadata,
-  ): ElementDefinition['log'] {
-    const log = current?.log.map((entry) => ({ ...entry })) ?? [];
-    if (!current) return log;
+  ): void {
+    if (!current) return;
     const before = this.snapshotWithMetadata(this.snapshotOf(current), current.metadata);
     const after = this.snapshotWithMetadata({ text, equivalent }, metadata);
     if (
@@ -7834,10 +7823,9 @@ export class ElementModal {
       before.equivalent === after.equivalent &&
       this.sameMetadata(current.metadata, metadata)
     ) {
-      return log;
+      return;
     }
-    log.push({ event: 'rework', at: Date.now(), before, after });
-    return log;
+    this.appendLog({ event: 'rework', at: Date.now(), before, after });
   }
 
   private snapshotWithMetadata(
@@ -7860,18 +7848,28 @@ export class ElementModal {
 
   /** An added example keeps the definition it was added to. */
   private appendExample(definition: ElementDefinition, example: string): void {
-    definition.log = [
-      ...definition.log,
-      { event: 'example', at: Date.now(), example, snapshot: this.snapshotOf(definition) },
-    ];
+    this.appendLog({
+      event: 'example',
+      at: Date.now(),
+      example,
+      snapshot: this.snapshotOf(definition),
+    });
   }
 
   /** Forms saved in one action keep the definition they were added to. */
   private appendForm(definition: ElementDefinition, forms: string[]): void {
-    definition.log = [
-      ...definition.log,
-      { event: 'form', at: Date.now(), forms, snapshot: this.snapshotOf(definition) },
-    ];
+    this.appendLog({
+      event: 'form',
+      at: Date.now(),
+      forms,
+      snapshot: this.snapshotOf(definition),
+    });
+  }
+
+  /** Activity is stored on the element, in the order it happened. */
+  private appendLog(entry: DefinitionLogEntry): void {
+    const current = this.currentElement();
+    this.written = { ...current, log: [...current.log, entry] };
   }
 
   private snapshotOf(definition: ElementDefinition, equivalent?: string): DefinitionSnapshot {
@@ -7914,27 +7912,22 @@ export class ElementModal {
 
   /** First score captures the definition. A later score in the same round keeps that snapshot. */
 
-  noteReveal(
-    index: number,
-    phrase: string,
-    translation: string,
-    kind: 'definition' | 'example',
-  ): void {
+  noteReveal(phrase: string, translation: string, kind: 'definition' | 'example'): void {
     const wording = phrase.trim();
     const meaning = translation.trim();
     if (!wording || !meaning) return;
-    const definitions = this.copyDefinitions();
-    const definition = definitions[index];
-    if (!definition) return;
-    definition.log = [
-      ...definition.log,
-      { event: 'reveal', at: Date.now(), phrase: wording, translation: meaning, kind },
-    ];
-    void this.persist(definitions, this.currentElement().equivalents, { busy: false });
+    this.appendLog({
+      event: 'reveal',
+      at: Date.now(),
+      phrase: wording,
+      translation: meaning,
+      kind,
+    });
+    void this.persist(this.copyDefinitions(), this.currentElement().equivalents, { busy: false });
   }
 
-  activityCount(definition: ElementDefinition, event: 'rework' | 'view' | 'reveal'): number {
-    return definition.log.filter((entry) => entry.event === event).length;
+  activityCount(event: 'rework' | 'view' | 'reveal'): number {
+    return this.currentElement().log.filter((entry) => entry.event === event).length;
   }
 
   activityLabel(event: 'rework' | 'view' | 'reveal', count: number): string {
@@ -8068,11 +8061,11 @@ export class ElementModal {
     return this.shownTitle();
   }
 
-  /** Mean score for one exercise on this definition. Null when it has not been played. */
-  exerciseAverage(definition: ElementDefinition, game: DefinitionGameLog['game']): string | null {
+  /** Mean score for one exercise on this element. Null when it has not been played. */
+  exerciseAverage(game: DefinitionGameLog['game']): string | null {
     let total = 0;
     let count = 0;
-    for (const entry of definition.log) {
+    for (const entry of this.currentElement().log) {
       if (entry.event !== 'game' || entry.game !== game || !Number.isFinite(entry.score)) continue;
       total += entry.score;
       count += 1;
@@ -8081,12 +8074,8 @@ export class ElementModal {
     return (total / count).toFixed(1);
   }
 
-  exerciseAverageLabel(
-    definition: ElementDefinition,
-    game: DefinitionGameLog['game'],
-    label: string,
-  ): string {
-    const average = this.exerciseAverage(definition, game);
+  exerciseAverageLabel(game: DefinitionGameLog['game'], label: string): string {
+    const average = this.exerciseAverage(game);
     if (average == null) return `${label}, non applicable`;
     return `${label} average ${average} out of 5`;
   }
@@ -8097,10 +8086,10 @@ export class ElementModal {
     return 1;
   }
 
-  /** Reworks, saved examples, saved forms, exercises, reveals, and seen events for this definition. */
-  definitionHistory(definition: ElementDefinition): DefinitionHistoryEntry[] {
-    return definition.log
-      .filter((entry): entry is DefinitionHistoryEntry => this.listedHistory(entry))
+  /** Reworks, saved examples, saved forms, exercises, reveals, and seen events for this element. */
+  elementHistory(): DefinitionHistoryEntry[] {
+    return this.currentElement()
+      .log.filter((entry): entry is DefinitionHistoryEntry => this.listedHistory(entry))
       .reverse();
   }
 
@@ -8113,25 +8102,25 @@ export class ElementModal {
     return this.modeLabel(this.logMode(entry.game));
   }
 
-  historyAria(definition: ElementDefinition, entry: DefinitionHistoryEntry): string {
+  historyAria(entry: DefinitionHistoryEntry): string {
     const when = this.exerciseWhen(entry.at);
     if (entry.event === 'game') {
-      const gem = this.earnedGameGem(definition, entry) ? ', earned a gem' : '';
+      const gem = this.earnedGameGem(entry) ? ', earned a gem' : '';
       return `${this.historyTitle(entry)}, score ${entry.score} out of 5${gem}, ${when}`;
     }
     return `${this.historyTitle(entry)}, ${when}`;
   }
 
-  earnedGameGem(definition: ElementDefinition, entry: DefinitionGameLog): boolean {
-    return gameEarnedGem(definition.log, entry);
+  earnedGameGem(entry: DefinitionGameLog): boolean {
+    return gameEarnedGem(this.currentElement().log, entry);
   }
 
-  scoreAria(definition: ElementDefinition, entry: DefinitionGameLog): string {
-    const gem = this.earnedGameGem(definition, entry) ? ', earned a gem' : '';
+  scoreAria(entry: DefinitionGameLog): string {
+    const gem = this.earnedGameGem(entry) ? ', earned a gem' : '';
     return `Score ${entry.score} out of 5${gem}`;
   }
 
-  private listedHistory(entry: DefinitionLogEntry): entry is DefinitionHistoryEntry {
+  private listedHistory(entry: ElementLogEntry): entry is DefinitionHistoryEntry {
     return (
       entry.event === 'rework' ||
       entry.event === 'example' ||
@@ -8151,7 +8140,7 @@ export class ElementModal {
     }).format(at);
   }
 
-  /** The definition on screen. Stats read this definition only. */
+  /** The definition whose stats sheet is open. The log belongs to the element. */
   statsDefinition(): ElementDefinition | null {
     const index = this.exerciseLog();
     if (index < 0) return null;

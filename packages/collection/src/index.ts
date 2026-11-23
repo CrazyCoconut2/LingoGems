@@ -39,7 +39,6 @@ export {
   earnsGem,
   elementGemCounts,
   gameEarnedGem,
-  loggedDefinitions,
   type ElementGemCounts,
   replaceElementColorOrder,
   saveElement,

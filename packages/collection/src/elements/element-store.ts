@@ -106,7 +106,7 @@ export type DefinitionRevealLog = {
   kind?: 'definition' | 'example';
 };
 
-/** One interaction on a definition. `at` is Unix time in UTC. */
+/** One activity entry. `at` is Unix time in UTC. Stored on the element. */
 export type DefinitionLogEntry =
   | DefinitionGameLog
   | DefinitionReworkLog
@@ -115,8 +115,8 @@ export type DefinitionLogEntry =
   | DefinitionRevealLog
   | { event: 'view'; at: number };
 
-/** An open. `at` is when it happened. */
-export type ElementLogEntry = { event: 'click'; at: number };
+/** An interaction on an element. `at` is when it happened. */
+export type ElementLogEntry = { event: 'click'; at: number } | DefinitionLogEntry;
 
 export type ElementDefinition = {
   text: string;
@@ -125,19 +125,10 @@ export type ElementDefinition = {
   forms: ElementForm[];
   examples: ElementExample[];
   metadata: ElementMetadata;
-  log: DefinitionLogEntry[];
 };
 
-/** A definition taken out of the editor. Its log still counts in stats. */
+/** A definition taken out of the editor. */
 export type RemovedDefinition = ElementDefinition & { deletedAt: number };
-
-/** Live definitions and removed ones. Stats count both logs. */
-export function loggedDefinitions(element: {
-  definitions: readonly ElementDefinition[];
-  removedDefinitions?: readonly ElementDefinition[];
-}): ElementDefinition[] {
-  return [...element.definitions, ...(element.removedDefinitions ?? [])];
-}
 
 const GEM_GAMES: readonly DefinitionGame[] = ['translation', 'example', 'definition'];
 
@@ -156,7 +147,7 @@ export function earnsGem(priorSum: number, priorCount: number, score: number): b
 
 /** Whether this stored attempt earned its game's gem. Earlier attempts come first in time. */
 export function gameEarnedGem(
-  log: readonly DefinitionLogEntry[],
+  log: readonly ElementLogEntry[],
   entry: DefinitionGameLog,
 ): boolean {
   let priorSum = 0;
@@ -169,21 +160,19 @@ export function gameEarnedGem(
   return false;
 }
 
-/** Gems earned across this element's definitions, including removed ones. */
+/** Gems earned from this element's log. */
 export function elementGemCounts(element: {
-  definitions: readonly ElementDefinition[];
-  removedDefinitions?: readonly ElementDefinition[];
+  log?: readonly ElementLogEntry[];
 }): ElementGemCounts {
   const counts: ElementGemCounts = { translation: 0, example: 0, definition: 0 };
-  for (const definition of loggedDefinitions(element)) {
-    for (const game of GEM_GAMES) {
-      let priorSum = 0;
-      let priorCount = 0;
-      for (const attempt of orderedGameAttempts(definition.log, game)) {
-        if (earnsGem(priorSum, priorCount, attempt.score)) counts[game] += 1;
-        priorSum += attempt.score;
-        priorCount += 1;
-      }
+  const log = element.log ?? [];
+  for (const game of GEM_GAMES) {
+    let priorSum = 0;
+    let priorCount = 0;
+    for (const attempt of orderedGameAttempts(log, game)) {
+      if (earnsGem(priorSum, priorCount, attempt.score)) counts[game] += 1;
+      priorSum += attempt.score;
+      priorCount += 1;
     }
   }
   return counts;
@@ -191,7 +180,7 @@ export function elementGemCounts(element: {
 
 /** One game's scored attempts, oldest first. Equal timestamps keep log order. */
 function orderedGameAttempts(
-  log: readonly DefinitionLogEntry[],
+  log: readonly ElementLogEntry[],
   game: DefinitionGame,
 ): DefinitionGameLog[] {
   const attempts: { entry: DefinitionGameLog; index: number }[] = [];
@@ -227,13 +216,13 @@ export type StoredElement = {
   title: string;
   equivalents: ElementEquivalent[];
   definitions: ElementDefinition[];
-  /** Definitions removed from the editor. Their logs stay so stats do not drop. */
+  /** Definitions removed from the editor. */
   removedDefinitions: RemovedDefinition[];
   /** Optional swatch. Missing or invalid values are unset. */
   color: string | null;
   /** Times this card was opened from the edition list. Missing values are 0. */
   clicks: number;
-  /** Dated opens. Missing values are an empty log. */
+  /** Opens and activity. Missing values are an empty log. */
   log: ElementLogEntry[];
   /** Distinct metadata values across this element's definitions. */
   definitionMetadata: ElementMetadataVariability;
@@ -367,7 +356,9 @@ async function materializeElements(
     .filter((record): record is RemovedRecord => record !== null);
   if (removed.length) await purgeElements(removed);
   const live = records.filter((record) => !removedRecord(record));
-  const stale = live.filter(recordHasDefinitionGem);
+  const stale = live.filter(
+    (record) => recordHasDefinitionGem(record) || recordHasDefinitionLog(record),
+  );
   if (stale.length) {
     await Promise.all(
       stale.map(async (record) => {
@@ -397,6 +388,22 @@ function recordHasDefinitionGem(record: unknown): boolean {
       typeof definition === 'object' &&
       ('gem' in definition || 'frequency' in definition),
   );
+}
+
+/** An older build kept activity on each definition. Those rows are rewritten onto the element. */
+function recordHasDefinitionLog(record: unknown): boolean {
+  if (!record || typeof record !== 'object') return false;
+  const source = record as { definitions?: unknown; removedDefinitions?: unknown };
+  return bucketHasLog(source.definitions) || bucketHasLog(source.removedDefinitions);
+}
+
+function bucketHasLog(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some((definition) => {
+    if (!definition || typeof definition !== 'object') return false;
+    const log = (definition as { log?: unknown }).log;
+    return Array.isArray(log) && log.length > 0;
+  });
 }
 
 export async function addElement(language: string, title: string): Promise<StoredElement> {
@@ -457,7 +464,7 @@ export async function saveElement(
     removedDefinitions,
     color: normalizeColor(element?.color),
     clicks: normalizeClicks(element?.clicks),
-    log: normalizeElementLog(element?.log),
+    log: readElementLog(element),
     ...indexes,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
@@ -641,7 +648,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
     removedDefinitions: normalizeRemovedDefinitions(source.removedDefinitions, content.equivalents),
     color: normalizeColor(source.color),
     clicks: normalizeClicks(source.clicks),
-    log: normalizeElementLog(source.log),
+    log: readElementLog(source),
     ...collectMetadataIndexes(content.definitions),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
@@ -680,6 +687,31 @@ async function purgeElements(removed: RemovedRecord[]): Promise<void> {
   }
 }
 
+/** Element log, plus activity an older build stored on definitions. */
+function readElementLog(raw: unknown): ElementLogEntry[] {
+  const source =
+    raw && typeof raw === 'object'
+      ? (raw as { log?: unknown; definitions?: unknown; removedDefinitions?: unknown })
+      : {};
+  let log = normalizeElementLog(source.log);
+  const lifted: ElementLogEntry[] = [];
+  for (const bucket of [source.definitions, source.removedDefinitions]) {
+    if (!Array.isArray(bucket)) continue;
+    for (const definition of bucket) {
+      if (!definition || typeof definition !== 'object') continue;
+      lifted.push(...normalizeLog((definition as { log?: unknown }).log));
+    }
+  }
+  if (lifted.length) {
+    const combined = [...log, ...lifted];
+    log = combined
+      .map((entry, index) => ({ entry, index }))
+      .sort((left, right) => left.entry.at - right.entry.at || left.index - right.index)
+      .map((item) => item.entry);
+  }
+  return presentLog(log);
+}
+
 function normalizeElementLog(value: unknown): ElementLogEntry[] {
   if (!Array.isArray(value)) return [];
   const log: ElementLogEntry[] = [];
@@ -693,9 +725,11 @@ function normalizeElementLog(value: unknown): ElementLogEntry[] {
 function normalizeElementLogEntry(raw: unknown): ElementLogEntry | null {
   if (!raw || typeof raw !== 'object') return null;
   const source = raw as { event?: unknown; at?: unknown };
-  if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
-  if (source.event !== 'click') return null;
-  return { event: 'click', at: source.at };
+  if (source.event === 'click') {
+    if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
+    return { event: 'click', at: source.at };
+  }
+  return normalizeLogEntry(raw);
 }
 
 /** Missing or invalid values are 0. */
@@ -758,7 +792,6 @@ function normalizeDefinitions(
       forms: normalizeForms(source.forms),
       examples: normalizeExamples(source.examples),
       metadata: normalizeMetadata(source.metadata),
-      log: normalizeLog(source.log),
     });
   }
   return definitions;
@@ -964,11 +997,10 @@ function presentDefinition<T extends ElementDefinition>(definition: T): T {
       ...example,
       text: capitalizePassage(example.text),
     })),
-    log: presentLog(definition.log),
   };
 }
 
-function presentLog(log: DefinitionLogEntry[]): DefinitionLogEntry[] {
+function presentLog(log: ElementLogEntry[]): ElementLogEntry[] {
   return log.map((entry) => {
     if (entry.event === 'game') {
       return entry.snapshot ? { ...entry, snapshot: presentSnapshot(entry.snapshot) } : entry;
