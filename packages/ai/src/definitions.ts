@@ -58,34 +58,6 @@ export const SENSE_EXAMPLE_FIELD =
 
 const EQUIVALENT_MAX_LENGTH = 200;
 
-function definitionsSystemPrompt(fields: readonly AiMetadataField[], extra = false): string {
-  return joinPrompt([
-    'You write dictionary senses for one headword.',
-    'JSON keys stay in English.',
-    'Every gloss MUST be in the language named by writeFieldsIn.',
-    'Do not use English for a gloss unless writeFieldsIn is English.',
-    metadataIntro(fields, extra),
-    'Rules:',
-    '- Return exactly one new sense',
-    '- Do not repeat a meaning or a gloss already listed in existingDefinitions. Those are senses already kept, and they include no forms',
-    '- One short dictionary-style gloss per sense',
-    NO_SELF_MENTION,
-    '- Do not include forms',
-    '- Do not add bracket tags such as [en:…]',
-    '- Spelling MUST be correct in every gloss, example, and translation',
-    SENSE_EXAMPLE,
-    ...metadataRuleLines('definition', fields, extra),
-    VERBATIM_SENSE_TRANSLATION,
-    SENSE_EXAMPLE_TRANSLATION,
-    SENSE_EQUIVALENT,
-    'Return JSON only with this shape:',
-    `{"senses":[${definitionSenseShape(fields, extra, true)}]}`,
-    VERBATIM_SENSE_TRANSLATION_FIELD,
-    SENSE_EXAMPLE_FIELD,
-    SENSE_EQUIVALENT_FIELD,
-  ]);
-}
-
 function elementFromSelectionSystemPrompt(
   fields: readonly AiMetadataField[],
   extra = false,
@@ -217,23 +189,6 @@ type GenerateFormsInput = {
   gloss: string;
   existingForms: string[];
 };
-
-function buildDefinitionsUserMessage(input: GenerateDefinitionsInput): string {
-  const language = input.language.trim().toLowerCase();
-  const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, input.translation);
-  return JSON.stringify({
-    language,
-    writeFieldsIn,
-    ...(translateFieldsIn ? { translateFieldsIn } : {}),
-    lemma: input.title.trim(),
-    existingDefinitions: describedDefinitions(
-      language,
-      input.existingDefinitions,
-      input.translation ?? '',
-    ),
-  });
-}
 
 /** Usable senses, or null when the reply has no senses array. */
 export function parseGeneratedDefinitions(
@@ -523,33 +478,6 @@ function selectionContext(context: SelectionContext | undefined): SelectionConte
   if (!phrase) return undefined;
   const root = context.root?.replace(/\s+/g, ' ').trim() ?? '';
   return { kind: context.kind, phrase, ...(root ? { root } : {}) };
-}
-
-/** Ask the saved model for one sense this headword does not already have. */
-export async function generateDefinitions(
-  request: GenerateDefinitionsInput,
-): Promise<GeneratedDefinition[]> {
-  const title = request.title.trim();
-  const language = request.language.trim().toLowerCase();
-  if (!title || !language) return [];
-  const input: CompleteJsonInput = {
-    system: definitionsSystemPrompt(readDefinitionMetadataFields(), readDefinitionExtraFields()),
-    user: buildDefinitionsUserMessage({ ...request, title, language }),
-    maxTokens: DEFINITIONS_MAX_TOKENS,
-    temperature: 0,
-  };
-  const keys = readStoredAiCredentials().keys;
-  const complete = () =>
-    runWithKeyFallback(keys, (provider, credentials) => completeJson(provider, input, credentials));
-  try {
-    let senses = parseGeneratedDefinitions(await complete(), { ...request, title, language });
-    if (!senses)
-      senses = parseGeneratedDefinitions(await complete(), { ...request, title, language });
-    if (!senses) aiError(AI_ERROR.RESPONSE_INVALID);
-    return ensureSenseEquivalents(title, language, request.translation, senses.slice(0, 1));
-  } catch (err) {
-    throw attachAiPrompt(err, input);
-  }
 }
 
 function describedDefinitions(

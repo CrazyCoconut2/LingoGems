@@ -58,7 +58,6 @@ import {
   MAX_EXAMPLE_LENGTH,
   MAX_RELATED_PICKS,
   generateDefinitionFromExample,
-  generateDefinitions,
   generateDerivedExample,
   generateElementFromSelection,
   generateEquivalent,
@@ -88,7 +87,7 @@ const META_KEY_MAX_LENGTH = 40;
 const META_VALUE_MAX_LENGTH = 100;
 
 type Editor =
-  | { kind: 'definition'; index: number | null }
+  | { kind: 'definition'; index: number }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number | null };
 
 type WorkTab = 'definitions' | 'examples' | 'forms';
@@ -184,14 +183,6 @@ type ConfirmDelete =
   | { kind: 'example'; definitionIndex: number; exampleIndex: number }
   | { kind: 'exercise'; definitionIndex: number; historyIndex: number };
 
-type StoredSuggestion = {
-  text: string;
-  metadata: ElementMetadata;
-  example?: string;
-  equivalent?: string;
-};
-
-const SUGGESTIONS_KEY = 'lingogem.definition-suggestions.v1';
 const NEW_DEFINITIONS_KEY = 'lingogem.definition-new.v1';
 
 function definitionGloss(text: string): string {
@@ -256,20 +247,6 @@ function dropExampleKeys(keys: ReadonlySet<string>, index: number): Set<string> 
   return next;
 }
 
-function readDefinitionSuggestions(elementId: string): StoredSuggestion[] {
-  if (!elementId) return [];
-  const stored = readRecord(SUGGESTIONS_KEY);
-  return suggestionList(stored[elementId]);
-}
-
-function clearDefinitionSuggestions(elementId: string): void {
-  if (!elementId) return;
-  const stored = readRecord(SUGGESTIONS_KEY);
-  if (!(elementId in stored)) return;
-  delete stored[elementId];
-  writeRecord(SUGGESTIONS_KEY, stored);
-}
-
 function readNewDefinitions(elementId: string): string[] {
   if (!elementId) return [];
   const value = readRecord(NEW_DEFINITIONS_KEY)[elementId];
@@ -326,41 +303,6 @@ function dropNewDefinitions(elementId: string): void {
   if (!(elementId in stored)) return;
   delete stored[elementId];
   writeRecord(NEW_DEFINITIONS_KEY, stored);
-}
-
-function suggestionList(raw: unknown): StoredSuggestion[] {
-  if (!Array.isArray(raw)) return [];
-  const suggestions: StoredSuggestion[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const text = String((item as { text?: unknown }).text ?? '').trim();
-    if (!text) continue;
-    const example = String((item as { example?: unknown }).example ?? '')
-      .trim()
-      .slice(0, MAX_EXAMPLE_LENGTH);
-    const equivalent = String((item as { equivalent?: unknown }).equivalent ?? '')
-      .trim()
-      .slice(0, EQUIVALENT_MAX);
-    suggestions.push({
-      text,
-      metadata: suggestionMetadata((item as { metadata?: unknown }).metadata),
-      ...(example ? { example } : {}),
-      ...(equivalent ? { equivalent } : {}),
-    });
-  }
-  return suggestions;
-}
-
-function suggestionMetadata(raw: unknown): ElementMetadata {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  const metadata: ElementMetadata = {};
-  for (const [key, value] of Object.entries(raw)) {
-    const name = key.trim();
-    if (!name || typeof value !== 'string') continue;
-    const text = value.trim();
-    if (text) metadata[name] = text;
-  }
-  return metadata;
 }
 
 function readRecord(key: string): Record<string, unknown> {
@@ -703,19 +645,6 @@ function writeExampleSuggestions(
               />
             </div>
             <div class="title-end">
-              <button
-                type="button"
-                class="icon-btn"
-                aria-label="Add a definition"
-                title="Add a definition"
-                [disabled]="aiBusy()"
-                (click)="addDefinitionManually()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 5v14" />
-                  <path d="M5 12h14" />
-                </svg>
-              </button>
               <button
                 #closeButton
                 type="button"
@@ -1163,8 +1092,8 @@ function writeExampleSuggestions(
                   [value]="definitionExample()"
                   [attr.maxlength]="exampleLengthMax"
                   [disabled]="aiBusy()"
-                  placeholder="Enter your own example…"
-                  aria-label="Enter your own example"
+                  [placeholder]="examplePlaceholder()"
+                  [attr.aria-label]="examplePlaceholder()"
                   aria-describedby="example-slot-hint"
                   (input)="definitionExample.set(inputValue($event))"
                 />
@@ -1266,12 +1195,11 @@ function writeExampleSuggestions(
                 <span class="sheet-tools">
                   @if (
                     current.kind === 'example' ||
-                    (current.kind === 'definition' &&
-                      (workTab() === 'definitions' || current.index == null))
+                    (current.kind === 'definition' && workTab() === 'definitions')
                   ) {
                     <ng-container [ngTemplateOutlet]="draftActions" />
                   }
-                  @if (current.kind === 'definition' && current.index != null) {
+                  @if (current.kind === 'definition') {
                     <button
                       type="button"
                       class="icon-btn danger"
@@ -1329,28 +1257,7 @@ function writeExampleSuggestions(
                       </button>
                     </span>
                   }
-                  @if (current.kind === 'definition' && current.index == null) {
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label="Suggest a definition"
-                      title="Suggest a definition"
-                      [disabled]="aiBusy()"
-                      [attr.aria-busy]="addingDefinitions() === 'missing' ? true : null"
-                      (click)="prefillDefinitionDraft()"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                          d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                        />
-                        <path d="M5 3v4" />
-                        <path d="M3 5h4" />
-                        <path d="M19 17v4" />
-                        <path d="M17 19h4" />
-                      </svg>
-                    </button>
-                  }
-                  @if (current.kind === 'definition' && current.index != null) {
+                  @if (current.kind === 'definition') {
                     <button
                       type="button"
                       class="icon-btn"
@@ -1780,19 +1687,12 @@ function writeExampleSuggestions(
                 </div>
               </ng-template>
               <div class="sheet-scroll">
-                @if (
-                  current.kind === 'definition' &&
-                  (workTab() === 'definitions' || current.index == null)
-                ) {
+                @if (current.kind === 'definition' && workTab() === 'definitions') {
                   <section class="sheet-part work-section">
                     <ng-container [ngTemplateOutlet]="editorFields" />
                   </section>
                 }
-                @if (
-                  current.kind === 'definition' &&
-                  current.index != null &&
-                  workTab() === 'examples'
-                ) {
+                @if (current.kind === 'definition' && workTab() === 'examples') {
                   @let workIndex = current.index;
                   @let worked = sheetDefinition(workIndex);
                   <section class="sheet-part work-section">
@@ -1945,11 +1845,7 @@ function writeExampleSuggestions(
                     }
                   </section>
                 }
-                @if (
-                  current.kind === 'definition' &&
-                  current.index != null &&
-                  workTab() === 'forms'
-                ) {
+                @if (current.kind === 'definition' && workTab() === 'forms') {
                   @let workIndex = current.index;
                   @let worked = sheetDefinition(workIndex);
                   <section class="sheet-part work-section">
@@ -2067,7 +1963,7 @@ function writeExampleSuggestions(
                     [disabled]="workSaveDisabled()"
                     (click)="saveWork()"
                   >
-                    @if (workTab() === 'definitions' || current.index == null) {
+                    @if (workTab() === 'definitions') {
                       <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path
                           d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
@@ -5573,11 +5469,7 @@ export class ElementModal {
   readonly supportRevealed = signal<ReadonlySet<number>>(new Set());
   /** Example translations open, keyed by definition and example index. */
   readonly revealedExamples = signal<ReadonlySet<string>>(new Set());
-  readonly addingDefinitions = signal<'example' | 'missing' | null>(null);
-  /** Dismissed suggestions, so the next one is a different sense. */
-  private skippedDefinitions: StoredSuggestion[] = [];
-  /** Generated sense filling the new-definition draft, until it is saved or skipped. */
-  private prefilledDefinition: StoredSuggestion | null = null;
+  readonly addingDefinitions = signal<'example' | null>(null);
   readonly definitionExample = signal('');
   /** Arrived example shown as text until it is placed. */
   readonly heldExample = signal('');
@@ -5679,8 +5571,6 @@ export class ElementModal {
       this.heldExample.set(arrived);
       this.formAttributesView.set(null);
       this.addingDefinitions.set(null);
-      this.prefilledDefinition = null;
-      this.skippedDefinitions = [];
       this.equivalentTicket += 1;
       this.askingEquivalent.set(false);
       this.askingMetadata.set(false);
@@ -5688,7 +5578,6 @@ export class ElementModal {
       this.definitionEngineerDrafts = readRelatedDrafts(id);
       void this.commitStoredExamples(id);
       this.refreshNewDefinitions(id);
-      void this.adoptStoredSuggestions(id);
       this.scrollSenseIntoView(definition);
     });
     const stopWatchingExamples = watchExampleSuggestions((elementId) => {
@@ -5894,6 +5783,11 @@ export class ElementModal {
     const selected = this.equivalentSelected(id);
     this.equivalentDraft.set('');
     this.equivalentIdDraft.set(selected ? null : id);
+  }
+
+  examplePlaceholder(): string {
+    const language = languageDisplayName(this.element().language);
+    return language ? `Enter your own example in ${language}…` : 'Enter your own example…';
   }
 
   translationLanguageName(): string {
@@ -6140,14 +6034,12 @@ export class ElementModal {
   }
 
   sheetTitle(editor: Editor): string {
-    if (editor.kind === 'definition') {
-      return editor.index == null ? 'Add a definition' : 'Definition';
-    }
+    if (editor.kind === 'definition') return 'Definition';
     return editor.exampleIndex == null ? 'Add an example' : 'Edit example';
   }
 
   workSectionLabel(editor: Editor): string {
-    if (editor.kind !== 'definition' || editor.index == null) return 'Definition';
+    if (editor.kind !== 'definition') return 'Definition';
     if (this.workTab() === 'examples') return 'Examples';
     if (this.workTab() === 'forms') return 'Forms';
     return 'Definition';
@@ -6156,10 +6048,10 @@ export class ElementModal {
   workSaveDisabled(): boolean {
     const editor = this.editor();
     if (!editor || editor.kind !== 'definition') return true;
-    if (editor.index != null && this.workTab() === 'examples') {
+    if (this.workTab() === 'examples') {
       return this.busy() || this.askingExamples() !== null || !this.examplesDirty(editor.index);
     }
-    if (editor.index != null && this.workTab() === 'forms') {
+    if (this.workTab() === 'forms') {
       const pending = this.pendingForms();
       return (
         this.busy() ||
@@ -6190,11 +6082,11 @@ export class ElementModal {
   saveWork(): void {
     const editor = this.editor();
     if (!editor || editor.kind !== 'definition' || this.workSaveDisabled()) return;
-    if (editor.index != null && this.workTab() === 'examples') {
+    if (this.workTab() === 'examples') {
       void this.saveExampleEdits();
       return;
     }
-    if (editor.index != null && this.workTab() === 'forms') {
+    if (this.workTab() === 'forms') {
       void this.savePendingForms();
       return;
     }
@@ -6221,7 +6113,6 @@ export class ElementModal {
       this.openExamples(editor.definitionIndex);
       return;
     }
-    if (editor.kind === 'definition' && editor.index == null) this.skipPrefilledDefinition();
     this.editor.set(null);
     this.workTab.set('definitions');
     this.definitionEngineer.set(null);
@@ -6240,47 +6131,20 @@ export class ElementModal {
     this.closeEditor();
   }
 
-  /** Examples and forms open once this definition has text, including one that is not saved yet. */
+  /** Examples and forms are available on the definition that is open. */
   canOpenWorkSection(): boolean {
-    const editor = this.editor();
-    if (editor?.kind !== 'definition') return false;
-    if (editor.index != null) return true;
-    return !!this.draftGloss() && !this.definitionCommitBlocked();
+    return this.editor()?.kind === 'definition';
   }
 
   showWorkTab(tab: WorkTab): void {
     const editor = this.editor();
     if (!editor || editor.kind !== 'definition') return;
-    if (tab !== 'definitions' && editor.index == null) {
-      if (!this.canOpenWorkSection()) return;
-      void this.openNewDefinitionSection(tab);
-      return;
-    }
     this.workTab.set(tab);
     this.scrollWorkSheet();
   }
 
   private scrollWorkSheet(): void {
     this.editorSheet()?.nativeElement.querySelector('.sheet-scroll')?.scrollTo({ top: 0 });
-  }
-
-  /** Save the new definition, then open Examples or Forms on it. */
-  private async openNewDefinitionSection(tab: Exclude<WorkTab, 'definitions'>): Promise<void> {
-    const index = await this.commitDefinition(false);
-    const editor = this.editor();
-    if (index == null || editor?.kind !== 'definition' || editor.index !== index) return;
-    this.workTab.set(tab);
-    this.scrollWorkSheet();
-  }
-
-  private definitionCommitBlocked(): boolean {
-    return (
-      this.busy() ||
-      this.asking() ||
-      this.translating() ||
-      this.askingEquivalent() ||
-      this.definitionSheetBusy()
-    );
   }
 
   aiBusy(): boolean {
@@ -6382,93 +6246,6 @@ export class ElementModal {
     }
   }
 
-  addDefinitionManually(): void {
-    if (this.asking()) return;
-    this.openDefinition(null);
-  }
-
-  async prefillDefinitionDraft(): Promise<void> {
-    const editor = this.editor();
-    if (!editor || editor.kind !== 'definition' || editor.index != null || this.aiBusy()) return;
-    const element = this.element();
-    const title = element.title.trim();
-    if (!title) return;
-    if (!readStoredAiCredentials().keys.length) {
-      this.sheetError.set('Save an API key first.');
-      return;
-    }
-    this.skipPrefilledDefinition();
-    this.addingDefinitions.set('missing');
-    this.asking.set(true);
-    this.sheetError.set('');
-    try {
-      const senses = await generateDefinitions({
-        language: element.language,
-        title,
-        translation: this.translationTarget(),
-        existingDefinitions: [
-          ...element.definitions.map((definition) => ({
-            text: definition.text,
-            metadata: definition.metadata,
-          })),
-          ...this.skippedDefinitions.map((definition) => ({
-            text: definition.text,
-            metadata: definition.metadata,
-          })),
-        ],
-      });
-      if (this.element().id !== element.id) return;
-      const open = this.editor();
-      if (open?.kind !== 'definition' || open.index != null) return;
-      const sense = senses[0];
-      if (!sense) {
-        this.sheetError.set('No further definitions.');
-        return;
-      }
-      this.applyGeneratedDefinition(sense);
-    } catch {
-      if (this.element().id === element.id) this.sheetError.set('Could not add that definition.');
-    } finally {
-      if (this.element().id === element.id) this.asking.set(false);
-      this.addingDefinitions.set(null);
-    }
-  }
-
-  /** The generated gloss was not kept, so the next suggestion is a different sense. */
-  private skipPrefilledDefinition(): void {
-    const prefilled = this.prefilledDefinition;
-    this.prefilledDefinition = null;
-    if (!prefilled) return;
-    this.skippedDefinitions.push(prefilled);
-  }
-
-  private applyGeneratedDefinition(sense: {
-    text: string;
-    metadata: ElementMetadata;
-    example?: string;
-    equivalent?: string;
-  }): void {
-    this.beginSheet(sense.text);
-    this.sheetMetadata.set({ ...sense.metadata });
-    this.metaEdit.set(null);
-    this.metaKey.set('');
-    this.metaValue.set('');
-    const language = this.translationTarget();
-    const equivalent = sense.equivalent?.trim() ?? '';
-    if (language && equivalent) {
-      const assigned = assignEquivalent(this.sheetEquivalents(), equivalent, language);
-      this.sheetEquivalents.set(assigned.equivalents);
-      this.equivalentIdDraft.set(assigned.equivalentId);
-    } else this.equivalentIdDraft.set(null);
-    this.equivalentDraft.set('');
-    this.prefilledDefinition = {
-      text: sense.text,
-      metadata: { ...sense.metadata },
-      ...(sense.example ? { example: sense.example } : {}),
-      ...(equivalent ? { equivalent } : {}),
-    };
-  }
-
   async addDefinitionFromExample(): Promise<void> {
     if (this.aiBusy()) return;
     const example = this.definitionExample().trim().slice(0, MAX_EXAMPLE_LENGTH);
@@ -6561,27 +6338,6 @@ export class ElementModal {
     this.newGlosses.set(new Set(pruneNewDefinitions(elementId, present)));
   }
 
-  private async adoptStoredSuggestions(elementId: string): Promise<void> {
-    const stored = readDefinitionSuggestions(elementId);
-    if (!stored.length || this.element().id !== elementId) return;
-    const seen = new Set(
-      this.element().definitions.map((definition) => definitionGloss(definition.text)),
-    );
-    const fresh = stored.filter((suggestion) => {
-      const gloss = definitionGloss(suggestion.text);
-      if (!gloss || seen.has(gloss)) return false;
-      seen.add(gloss);
-      return true;
-    });
-    if (!fresh.length) {
-      clearDefinitionSuggestions(elementId);
-      return;
-    }
-    if (this.element().id !== elementId) return;
-    const saved = await this.commitGeneratedSenses(this.element(), fresh);
-    if (saved) clearDefinitionSuggestions(elementId);
-  }
-
   private async commitGeneratedSenses(
     element: StoredElement,
     senses: readonly {
@@ -6630,7 +6386,7 @@ export class ElementModal {
     const editing = this.formEdit();
     if (editing) this.formEdit.set({ ...editing, definitionIndex: editing.definitionIndex + by });
     const editor = this.editor();
-    if (editor?.kind === 'definition' && editor.index != null) {
+    if (editor?.kind === 'definition') {
       this.editor.set({ kind: 'definition', index: editor.index + by });
     }
     if (editor?.kind === 'example') {
@@ -6819,18 +6575,14 @@ export class ElementModal {
     this.revealedExamples.update((current) => dropExampleKeys(current, index));
   }
 
-  openDefinition(index: number | null): void {
+  openDefinition(index: number): void {
     const current = this.editor();
-    if (index != null && current?.kind === 'definition' && current.index === index) {
+    if (current?.kind === 'definition' && current.index === index) {
       this.showWorkTab('definitions');
       return;
     }
-    const definition =
-      index == null ? null : (this.sheetDefinition(index) ?? this.element().definitions[index]);
-    if (index != null && !definition) return;
-    const leaving = this.editor();
-    if (leaving?.kind === 'definition' && leaving.index == null) this.skipPrefilledDefinition();
-    else this.prefilledDefinition = null;
+    const definition = this.sheetDefinition(index) ?? this.element().definitions[index];
+    if (!definition) return;
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
@@ -6842,9 +6594,9 @@ export class ElementModal {
     this.formsError.set('');
     if (this.exampleDraft()?.definitionIndex !== index) this.exampleDraft.set(null);
     if (this.pendingForms()?.definitionIndex !== index) this.pendingForms.set(null);
-    this.sheetMetadata.set({ ...(definition?.metadata ?? {}) });
+    this.sheetMetadata.set({ ...definition.metadata });
     const language = this.translationTarget();
-    const equivalentId = language ? (definition?.equivalentIds[language] ?? null) : null;
+    const equivalentId = language ? (definition.equivalentIds[language] ?? null) : null;
     const known =
       equivalentId &&
       this.element().equivalents.some(
@@ -6855,8 +6607,8 @@ export class ElementModal {
     this.equivalentIdDraft.set(known);
     this.equivalentDraft.set('');
     this.sheetEquivalents.set(this.element().equivalents.map((item) => ({ ...item })));
-    this.beginSheet(definition?.text ?? '');
-    if (definition) this.dismissNew(definition.text);
+    this.beginSheet(definition.text);
+    this.dismissNew(definition.text);
     this.editor.set({ kind: 'definition', index });
     this.workTab.set('definitions');
   }
@@ -7000,16 +6752,12 @@ export class ElementModal {
   definitionEngineerOpen(): boolean {
     const editor = this.editor();
     const engineer = this.definitionEngineer();
-    return (
-      editor?.kind === 'definition' &&
-      editor.index != null &&
-      engineer?.definitionIndex === editor.index
-    );
+    return editor?.kind === 'definition' && engineer?.definitionIndex === editor.index;
   }
 
   toggleDefinitionEngineer(): void {
     const editor = this.editor();
-    if (!editor || editor.kind !== 'definition' || editor.index == null) return;
+    if (!editor || editor.kind !== 'definition') return;
     if (this.definitionEngineerOpen()) {
       this.closeDefinitionEngineer();
       return;
@@ -7371,7 +7119,7 @@ export class ElementModal {
 
   async saveExampleEdits(): Promise<void> {
     const editor = this.editor();
-    if (!editor || editor.kind !== 'definition' || editor.index == null || this.busy()) return;
+    if (!editor || editor.kind !== 'definition' || this.busy()) return;
     const index = editor.index;
     if (!this.examplesDirty(index)) return;
     const definitions = this.copyDefinitions();
@@ -7923,8 +7671,8 @@ export class ElementModal {
     }
     const text = this.phraseToStore();
     const definitions = this.copyDefinitions();
-    const current = editor.index == null ? null : definitions[editor.index];
-    if (editor.index != null && !current) return null;
+    const current = definitions[editor.index];
+    if (!current) return null;
     const language = this.translationTarget();
     const typed = language ? this.equivalentDraft().trim() : '';
     const selectedId = language ? this.equivalentIdDraft() : null;
@@ -7945,45 +7693,28 @@ export class ElementModal {
       ...definition,
       equivalentIds: pruneEquivalentLinks(definition.equivalentIds, kept),
     }));
-    const previous = pruneEquivalentLinks(current?.equivalentIds ?? {}, kept);
+    const previous = pruneEquivalentLinks(current.equivalentIds, kept);
     const equivalentIds = language
       ? linkEquivalent(previous, language, linked.equivalentId)
       : previous;
     const equivalent = linked.equivalentId
       ? (linked.equivalents.find((item) => item.id === linked.equivalentId)?.text ?? '')
       : '';
-    const prefilled = this.prefilledDefinition;
-    const generatedExample =
-      editor.index == null &&
-      prefilled?.example &&
-      definitionGloss(prefilled.text) === definitionGloss(text)
-        ? prefilled.example
-        : '';
     const next: ElementDefinition = {
       text,
       equivalentIds,
-      forms: current?.forms ?? [],
-      examples: generatedExample
-        ? [...(current?.examples ?? []), { text: generatedExample, metadata: {} }]
-        : (current?.examples ?? []),
+      forms: current.forms,
+      examples: current.examples,
       metadata: this.metadataToStore(),
       log: this.logWithRework(current, text, equivalent, this.metadataToStore()),
     };
-    if (editor.index == null) unlinked.push(next);
-    else unlinked[editor.index] = next;
-    const index = editor.index ?? unlinked.length - 1;
+    unlinked[editor.index] = next;
     if (!(await this.persist(unlinked, linked.equivalents))) return null;
-    this.prefilledDefinition = null;
     const still = this.editor();
     const sameSheet = still?.kind === 'definition' && still.index === editor.index;
     if (!sameSheet) return null;
-    if (editor.index == null) this.scrollSenseIntoView(index);
-    if (close) {
-      this.closeEditor();
-      return index;
-    }
-    if (editor.index == null) this.editor.set({ kind: 'definition', index });
-    return index;
+    if (close) this.closeEditor();
+    return editor.index;
   }
 
   async saveEditor(): Promise<void> {
@@ -8142,8 +7873,6 @@ export class ElementModal {
 
   askDeleteElement(): void {
     if (this.busy()) return;
-    const editor = this.editor();
-    if (editor?.kind === 'definition' && editor.index == null) this.skipPrefilledDefinition();
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
@@ -8247,8 +7976,6 @@ export class ElementModal {
     }
     this.confirm.set(null);
     if (pending.kind === 'definition') {
-      const editor = this.editor();
-      if (editor?.kind === 'definition' && editor.index == null) this.skipPrefilledDefinition();
       this.editor.set(null);
     } else {
       this.adjustExampleEditor(pending.definitionIndex, pending.exampleIndex);
@@ -8298,7 +8025,6 @@ export class ElementModal {
     try {
       const id = this.element().id;
       await deleteElement(id);
-      clearDefinitionSuggestions(id);
       dropNewDefinitions(id);
       writeExampleSuggestions(id, {});
       writeRelatedDrafts(id, new Map());

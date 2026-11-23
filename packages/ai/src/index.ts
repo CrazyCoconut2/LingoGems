@@ -43,7 +43,6 @@ export { generateEquivalent, translateTexts } from './translate';
 
 export {
   generateDefinitionFromExample,
-  generateDefinitions,
   generateElementFromSelection,
   generateForms,
   type GeneratedDefinition,
