@@ -1,5 +1,6 @@
 import { Component, computed, effect, input, output, signal } from '@angular/core';
 import { languageDisplayName } from 'collection';
+import { FeedbackTranslation } from '../translate/feedback-translation';
 import {
   correctRecallAnswer,
   evaluateRecallAnswer,
@@ -35,18 +36,27 @@ type RecallView = {
 /** Recall the meanings of one headword before its definitions are shown. */
 @Component({
   selector: 'app-definition-recall',
+  imports: [FeedbackTranslation],
   template: `
     <section class="recall" [attr.aria-label]="'Definitions of ' + lemma()">
       @if (result(); as scored) {
         @if (!cleared()) {
           <section class="result" [class.gave-up]="scored.gaveUp" [attr.aria-label]="scoreLabel(scored)">
             <div class="result-head">
-              <p class="score">
-                {{ scored.coverage }}<span class="max">/10</span>
-                @if (scored.extra) {
-                  <span class="bonus">+1</span>
-                }
-              </p>
+              <div class="result-lead">
+                <app-feedback-translation
+                  #note
+                  [text]="scored.gaveUp ? '' : scored.feedback"
+                  [sourceLang]="learningLanguage()"
+                  [targetLang]="supportLanguage()"
+                />
+                <p class="score">
+                  {{ scored.coverage }}<span class="max">/10</span>
+                  @if (scored.extra) {
+                    <span class="bonus">+1</span>
+                  }
+                </p>
+              </div>
               <button type="button" class="clear" aria-label="Clear" (click)="clearResult()">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M18 6 6 18" />
@@ -58,6 +68,9 @@ type RecallView = {
               <p class="hint">You gave up.</p>
             } @else if (scored.feedback) {
               <p class="feedback">{{ scored.feedback }}</p>
+              @if (note.shown(); as text) {
+                <p class="feedback-translation">{{ text }}</p>
+              }
             }
           </section>
         }
@@ -234,6 +247,7 @@ type RecallView = {
     .ask,
     .score,
     .feedback,
+    .feedback-translation,
     .extra p {
       margin: 0;
     }
@@ -446,6 +460,13 @@ type RecallView = {
       gap: 0.6rem;
     }
 
+    .result-lead {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+
     .clear {
       display: inline-flex;
       align-items: center;
@@ -487,8 +508,13 @@ type RecallView = {
       color: var(--gem-definition);
     }
 
-    .feedback {
+    .feedback,
+    .feedback-translation {
       line-height: 1.45;
+    }
+
+    .feedback-translation {
+      color: var(--text-muted);
     }
 
     .extra {

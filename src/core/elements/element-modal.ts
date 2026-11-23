@@ -73,6 +73,7 @@ import { ShowText } from './show-text';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { supportLanguageFor } from '../languages/translation-language';
 import { HighlightColorPicker } from './highlight-color-picker';
+import { FeedbackTranslation } from '../translate/feedback-translation';
 import { PhraseTranslation } from '../translate/phrase-translation';
 import {
   readPhraseTranslation,
@@ -476,6 +477,7 @@ function writeExampleSuggestions(
   selector: 'app-element-modal',
   imports: [
     NgTemplateOutlet,
+    FeedbackTranslation,
     PhraseTranslation,
     ShowText,
     HighlightColorPicker,
@@ -649,7 +651,7 @@ function writeExampleSuggestions(
           @if (error()) {
             <p class="error">{{ error() }}</p>
           }
-          @if (element().definitions.length) {
+          @if (element().definitions.length && !skipRecall()) {
             <app-definition-recall
               [elementId]="element().id"
               [lemma]="shownTitle()"
@@ -1577,6 +1579,41 @@ function writeExampleSuggestions(
                         </svg>
                       </button>
                     </div>
+                    <ng-template
+                      #exampleTranslateButton
+                      let-phrase="phrase"
+                      let-raw="raw"
+                      let-key="key"
+                    >
+                      @if (
+                        canTranslateListedExample(phrase, raw, key) || translatingExample() === key
+                      ) {
+                        <span class="generate-bundle translate-split">
+                          <button
+                            type="button"
+                            class="generate-main"
+                            [attr.aria-label]="
+                              translatingExample() === key ? 'Translating…' : 'Translate'
+                            "
+                            [attr.title]="
+                              translatingExample() === key ? 'Translating…' : 'Translate'
+                            "
+                            [attr.aria-busy]="translatingExample() === key ? true : null"
+                            [disabled]="translatingExample() === key"
+                            (click)="translateListedExample(phrase, raw, key)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="m5 8 6 6" />
+                              <path d="m4 14 6-6 2-3" />
+                              <path d="M2 5h12" />
+                              <path d="M7 2h1" />
+                              <path d="m22 22-5-10-5 10" />
+                              <path d="M14 18h6" />
+                            </svg>
+                          </button>
+                        </span>
+                      }
+                    </ng-template>
                     @if (
                       worked &&
                       (worked.examples.length ||
@@ -1589,62 +1626,102 @@ function writeExampleSuggestions(
                           track additionIndex
                         ) {
                           <li class="saved-example">
-                            <div class="example-input-row">
-                              <textarea
-                                class="example-addition"
-                                rows="2"
-                                [value]="exampleAdditionValue(workIndex, additionIndex)"
-                                [disabled]="aiBusy()"
-                                placeholder="Add an example"
-                                [attr.aria-label]="'New example ' + (additionIndex + 1)"
-                                (input)="onExampleAddition(workIndex, additionIndex, $event)"
-                              ></textarea>
-                              <button
-                                type="button"
-                                class="icon-btn danger"
-                                aria-label="Remove example"
-                                title="Remove example"
-                                [disabled]="aiBusy()"
-                                (click)="removeExampleAddition(workIndex, additionIndex)"
-                              >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="M3 6h18" />
-                                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                  <path d="M10 11v6" />
-                                  <path d="M14 11v6" />
-                                </svg>
-                              </button>
+                            <div class="field-heading">
+                              <span class="field-label">New example</span>
+                              <span class="header-actions">
+                                <ng-container
+                                  [ngTemplateOutlet]="exampleTranslateButton"
+                                  [ngTemplateOutletContext]="{
+                                    phrase: exampleAdditionValue(workIndex, additionIndex),
+                                    raw: '',
+                                    key: 'add:' + workIndex + ':' + additionIndex,
+                                  }"
+                                />
+                                <button
+                                  type="button"
+                                  class="icon-btn danger"
+                                  aria-label="Remove example"
+                                  title="Remove example"
+                                  [disabled]="aiBusy()"
+                                  (click)="removeExampleAddition(workIndex, additionIndex)"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 6h18" />
+                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                    <path d="M10 11v6" />
+                                    <path d="M14 11v6" />
+                                  </svg>
+                                </button>
+                              </span>
                             </div>
+                            <textarea
+                              class="example-addition"
+                              rows="2"
+                              [value]="exampleAdditionValue(workIndex, additionIndex)"
+                              [disabled]="aiBusy()"
+                              placeholder="Add an example"
+                              aria-label="New example"
+                              (input)="onExampleAddition(workIndex, additionIndex, $event)"
+                            ></textarea>
+                            @if (
+                              listedExampleTranslation(
+                                exampleAdditionValue(workIndex, additionIndex),
+                                ''
+                              );
+                              as translation
+                            ) {
+                              <p class="draft-translation">{{ translation }}</p>
+                            }
                           </li>
                         }
                         @if (exampleDraftFor(workIndex); as draft) {
                           <li class="saved-example">
-                            <div class="example-input-row">
-                              <textarea
-                                rows="2"
-                                [value]="exampleDraftFieldValue(workIndex)"
-                                [disabled]="aiBusy()"
-                                aria-label="New example"
-                                (input)="onExampleDraftField(workIndex, $event)"
-                              ></textarea>
-                              <button
-                                type="button"
-                                class="icon-btn danger"
-                                aria-label="Remove example"
-                                title="Remove example"
-                                [disabled]="aiBusy()"
-                                (click)="discardExampleDraft()"
-                              >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="M3 6h18" />
-                                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                  <path d="M10 11v6" />
-                                  <path d="M14 11v6" />
-                                </svg>
-                              </button>
+                            <div class="field-heading">
+                              <span class="field-label">New example</span>
+                              <span class="header-actions">
+                                <ng-container
+                                  [ngTemplateOutlet]="exampleTranslateButton"
+                                  [ngTemplateOutletContext]="{
+                                    phrase: exampleDraftFieldValue(workIndex),
+                                    raw: draft.text,
+                                    key: 'draft:' + workIndex,
+                                  }"
+                                />
+                                <button
+                                  type="button"
+                                  class="icon-btn danger"
+                                  aria-label="Remove example"
+                                  title="Remove example"
+                                  [disabled]="aiBusy()"
+                                  (click)="discardExampleDraft()"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 6h18" />
+                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                    <path d="M10 11v6" />
+                                    <path d="M14 11v6" />
+                                  </svg>
+                                </button>
+                              </span>
                             </div>
+                            <textarea
+                              rows="2"
+                              [value]="exampleDraftFieldValue(workIndex)"
+                              [disabled]="aiBusy()"
+                              aria-label="New example"
+                              (input)="onExampleDraftField(workIndex, $event)"
+                            ></textarea>
+                            @if (
+                              listedExampleTranslation(
+                                exampleDraftFieldValue(workIndex),
+                                draft.text
+                              );
+                              as translation
+                            ) {
+                              <p class="draft-translation">{{ translation }}</p>
+                            }
                           </li>
                         }
                         @for (
@@ -1653,39 +1730,51 @@ function writeExampleSuggestions(
                         ) {
                           @let example = worked.examples[exampleIndex];
                           <li class="saved-example">
-                            <div class="example-input-row">
-                              <textarea
-                                rows="2"
-                                [value]="exampleFieldValue(workIndex, exampleIndex)"
-                                [disabled]="aiBusy()"
-                                aria-label="Example"
-                                (input)="onExampleField(workIndex, exampleIndex, $event)"
-                              ></textarea>
-                              <ng-container
-                                [ngTemplateOutlet]="hearButton"
-                                [ngTemplateOutletContext]="{
-                                  key: 'example:' + workIndex + ':' + exampleIndex,
-                                  text: exampleSpeakText(workIndex, exampleIndex),
-                                  label: 'example',
-                                }"
-                              />
-                              <button
-                                type="button"
-                                class="icon-btn danger"
-                                aria-label="Delete example"
-                                title="Delete example"
-                                [disabled]="aiBusy()"
-                                (click)="askDeleteExample(workIndex, exampleIndex)"
-                              >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="M3 6h18" />
-                                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                  <path d="M10 11v6" />
-                                  <path d="M14 11v6" />
-                                </svg>
-                              </button>
+                            <div class="field-heading">
+                              <span class="field-label">Example {{ exampleIndex + 1 }}</span>
+                              <span class="header-actions">
+                                <ng-container
+                                  [ngTemplateOutlet]="exampleTranslateButton"
+                                  [ngTemplateOutletContext]="{
+                                    phrase: exampleFieldValue(workIndex, exampleIndex),
+                                    raw: example.text,
+                                    key: 'saved:' + workIndex + ':' + exampleIndex,
+                                  }"
+                                />
+                                <button
+                                  type="button"
+                                  class="icon-btn danger"
+                                  aria-label="Delete example"
+                                  title="Delete example"
+                                  [disabled]="aiBusy()"
+                                  (click)="askDeleteExample(workIndex, exampleIndex)"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 6h18" />
+                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                    <path d="M10 11v6" />
+                                    <path d="M14 11v6" />
+                                  </svg>
+                                </button>
+                              </span>
                             </div>
+                            <textarea
+                              rows="2"
+                              [value]="exampleFieldValue(workIndex, exampleIndex)"
+                              [disabled]="aiBusy()"
+                              [attr.aria-label]="'Example ' + (exampleIndex + 1)"
+                              (input)="onExampleField(workIndex, exampleIndex, $event)"
+                            ></textarea>
+                            @if (
+                              listedExampleTranslation(
+                                exampleFieldValue(workIndex, exampleIndex),
+                                example.text
+                              );
+                              as translation
+                            ) {
+                              <p class="draft-translation">{{ translation }}</p>
+                            }
                             @if (entries(example.metadata); as meta) {
                               @if (meta.length) {
                                 <ul class="pills">
@@ -2307,7 +2396,16 @@ function writeExampleSuggestions(
                         </div>
                         @if (!gaveUp(entry) && exerciseEntry() === $index) {
                           <div class="log-detail">
+                            <app-feedback-translation
+                              #note
+                              [text]="entry.explanation || entry.answer"
+                              [sourceLang]="element().language"
+                              [targetLang]="translationTarget()"
+                            />
                             <p class="log-feedback">{{ entry.explanation || entry.answer }}</p>
+                            @if (note.shown(); as text) {
+                              <p class="log-translation">{{ text }}</p>
+                            }
                           </div>
                         }
                       </div>
@@ -3570,16 +3668,8 @@ function writeExampleSuggestions(
       gap: 0.35rem;
     }
 
-    .example-input-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.35rem;
-    }
-
-    .example-input-row textarea {
-      flex: 1 1 auto;
-      min-width: 0;
-      min-height: 2.6rem;
+    .saved-example .draft-translation {
+      margin: 0;
     }
 
     .example-quote {
@@ -4659,9 +4749,17 @@ function writeExampleSuggestions(
     .log-detail {
       display: flex;
       flex-direction: column;
-      gap: 0.55rem;
-      padding: 0.15rem 0.75rem 0.75rem;
+      align-items: flex-start;
+      gap: 0.45rem;
+      padding: 0.55rem 0.75rem 0.75rem;
       border-top: 1px solid var(--border);
+    }
+
+    .log-translation {
+      align-self: stretch;
+      margin: 0;
+      color: var(--text-muted);
+      line-height: 1.4;
     }
 
     .log-detail .hint {
@@ -4690,6 +4788,7 @@ function writeExampleSuggestions(
     }
 
     .log-feedback {
+      align-self: stretch;
       margin: 0;
       font-weight: 500;
       line-height: 1.4;
@@ -4961,6 +5060,8 @@ export class ElementModal {
   readonly definitionIndex = input(0);
   /** Example sentence carried in from the element that opened this one. */
   readonly arrivedExample = input('');
+  /** This open is the one that created the element, so recall stays out of the way. */
+  readonly skipRecall = input(false);
   /** Parent headword and gloss, shown so an example can be written before it is added. */
   readonly arrivedGuide = input('');
   readonly closed = output<void>();
@@ -5042,7 +5143,7 @@ export class ElementModal {
   /** The recall for this open has been submitted or given up. */
   readonly recallSettled = signal(false);
   readonly recallPending = computed(
-    () => this.element().definitions.length > 0 && !this.recallSettled(),
+    () => this.element().definitions.length > 0 && !this.skipRecall() && !this.recallSettled(),
   );
   readonly recallSenses = computed((): RecallSense[] => {
     const target = this.translationTarget();
@@ -5094,6 +5195,9 @@ export class ElementModal {
   readonly pendingForms = signal<PendingForms | null>(null);
   readonly exampleError = signal('');
   readonly formsError = signal('');
+  /** Which listed example is waiting on a translation. */
+  readonly translatingExample = signal<string | null>(null);
+  private readonly exampleTranslationVersion = signal(0);
   readonly askingRelated = signal<number | null>(null);
   readonly askingWording = signal<number | null>(null);
   readonly newGlosses = signal<ReadonlySet<string>>(new Set());
@@ -5152,6 +5256,7 @@ export class ElementModal {
       this.pendingForms.set(null);
       this.exampleError.set('');
       this.formsError.set('');
+      this.translatingExample.set(null);
       this.askingExamples.set(null);
       this.askingRelated.set(null);
       this.askingWording.set(null);
@@ -5495,6 +5600,7 @@ export class ElementModal {
   }
 
   senseStage(index: number): SenseStage | 'closed' {
+    if (this.skipRecall()) return 'open';
     return this.senseStages().get(index) ?? 'closed';
   }
 
@@ -6568,6 +6674,60 @@ export class ElementModal {
     return plainPassage(example?.text ?? '');
   }
 
+  /** Stored translation for this example wording, the same way a definition draft shows one. */
+  listedExampleTranslation(phrase: string, raw: string): string {
+    this.exampleTranslationVersion();
+    const text = plainPassage(phrase).trim();
+    if (!text || !this.supportAvailable()) return '';
+    const passage = parsePassage(raw);
+    if (passage.text.trim() === text) {
+      const seeded = this.shownTranslations(passage)[0]?.text.trim() ?? '';
+      if (seeded) return seeded;
+    }
+    return (
+      readPhraseTranslation(this.element().language, this.translationTarget(), text)?.text.trim() ??
+      ''
+    );
+  }
+
+  canTranslateListedExample(phrase: string, raw: string, key: string): boolean {
+    return (
+      this.supportAvailable() &&
+      !!plainPassage(phrase).trim() &&
+      !this.listedExampleTranslation(phrase, raw) &&
+      this.translatingExample() !== key &&
+      !this.aiBusy() &&
+      !this.translating()
+    );
+  }
+
+  async translateListedExample(phrase: string, raw: string, key: string): Promise<void> {
+    const text = plainPassage(phrase).trim();
+    if (!this.canTranslateListedExample(phrase, raw, key)) return;
+    if (!readStoredAiCredentials().keys.length) {
+      this.exampleError.set('Save an API key first.');
+      return;
+    }
+    const passage = parsePassage(raw);
+    const seeded =
+      passage.text.trim() === text ? (this.shownTranslations(passage)[0]?.text ?? '') : '';
+    this.translatingExample.set(key);
+    this.exampleError.set('');
+    try {
+      await requestPhraseTranslation(
+        this.element().language,
+        this.translationTarget(),
+        text,
+        seeded,
+      );
+      this.exampleTranslationVersion.update((version) => version + 1);
+    } catch {
+      this.exampleError.set('Could not translate this.');
+    } finally {
+      if (this.translatingExample() === key) this.translatingExample.set(null);
+    }
+  }
+
   onExampleField(definitionIndex: number, exampleIndex: number, event: Event): void {
     const value = this.inputValue(event);
     this.exampleEdits.update((current) => {
@@ -6575,10 +6735,6 @@ export class ElementModal {
       next.set(this.exampleEditKey(definitionIndex, exampleIndex), value);
       return next;
     });
-  }
-
-  exampleSpeakText(definitionIndex: number, exampleIndex: number): string {
-    return plainPassage(this.exampleFieldValue(definitionIndex, exampleIndex));
   }
 
   exampleDraftFieldValue(index: number): string {

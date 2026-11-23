@@ -817,6 +817,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           [definitionIndex]="openedDefinition()"
           [arrivedExample]="arrivedExample()"
           [arrivedGuide]="arrivedGuide()"
+          [skipRecall]="skipRecall()"
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
           (deleted)="onElementDeleted()"
@@ -2163,6 +2164,8 @@ export class LanguagePage {
   readonly statsOpen = signal(false);
   readonly expanded = signal<FilterSection | null>('definitions');
   readonly elementId = signal('');
+  /** True only while the open element was just created. */
+  readonly skipRecall = signal(false);
   readonly trail = signal<ElementTrailStop[]>([]);
   readonly canGoBack = computed(() => this.trail().length > 1);
   readonly openedDefinition = computed(() => this.trail().at(-1)?.definition ?? 0);
@@ -2272,6 +2275,7 @@ export class LanguagePage {
 
   openElement(id: string): void {
     if (!id) return;
+    this.skipRecall.set(false);
     this.trail.set([{ id, definition: 0 }]);
     this.showElement(id);
   }
@@ -2506,7 +2510,10 @@ export class LanguagePage {
     }
   }
 
-  visitElement(visit: { id: string; definition: number; example?: string; guide?: string }): void {
+  visitElement(
+    visit: { id: string; definition: number; example?: string; guide?: string },
+    fresh = false,
+  ): void {
     const id = visit.id;
     if (!id || id === this.elementId()) return;
     const example = visit.example?.trim() ?? '';
@@ -2523,6 +2530,7 @@ export class LanguagePage {
       });
       return next;
     });
+    this.skipRecall.set(fresh);
     this.showElement(id);
   }
 
@@ -2531,6 +2539,7 @@ export class LanguagePage {
     if (trail.length < 2) return;
     const next = trail.slice(0, -1);
     this.trail.set(next);
+    this.skipRecall.set(false);
     this.showElement(next.at(-1)?.id ?? '');
   }
 
@@ -2550,15 +2559,19 @@ export class LanguagePage {
       return;
     }
     try {
+      const started = Date.now();
       const created = await addElement(code, name);
       if (code === this.code()) this.elements.set(await readElements(code));
       if (created.id !== this.elementId()) {
-        this.visitElement({
-          id: created.id,
-          definition: pick.definition,
-          example: pick.example,
-          guide: pick.guide,
-        });
+        this.visitElement(
+          {
+            id: created.id,
+            definition: pick.definition,
+            example: pick.example,
+            guide: pick.guide,
+          },
+          created.createdAt >= started,
+        );
       }
       finish(true);
     } catch {
@@ -2581,7 +2594,9 @@ export class LanguagePage {
     const code = (prepared.language || this.code()).trim().toLowerCase();
     if (!name || !code) return;
     const example = prepared.example?.replace(/\s+/g, ' ').trim() ?? '';
+    const started = Date.now();
     let created = await addElement(code, name);
+    const fresh = created.createdAt >= started;
     if (!created.definitions.length && prepared.definitions.length) {
       const attached = sensesWithEquivalents(
         created.equivalents,
@@ -2599,16 +2614,20 @@ export class LanguagePage {
     if (fromSearch) {
       this.clearSearch();
       this.trail.set([{ id: created.id, definition: 0 }]);
+      this.skipRecall.set(fresh);
       this.showElement(created.id);
       return;
     }
     if (created.id === this.elementId()) return;
-    this.visitElement({
-      id: created.id,
-      definition: prepared.definition ?? 0,
-      example,
-      guide: prepared.guide,
-    });
+    this.visitElement(
+      {
+        id: created.id,
+        definition: prepared.definition ?? 0,
+        example,
+        guide: prepared.guide,
+      },
+      fresh,
+    );
   }
 
   replaceElement(saved: StoredElement): void {
@@ -2762,10 +2781,12 @@ export class LanguagePage {
   }
 
   private async openBareElement(code: string, title: string): Promise<void> {
+    const started = Date.now();
     const created = await addElement(code, title);
     this.elements.set(await readElements(code));
     this.clearSearch();
     this.trail.set([{ id: created.id, definition: 0 }]);
+    this.skipRecall.set(created.createdAt >= started);
     this.showElement(created.id);
   }
 
