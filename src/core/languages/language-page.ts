@@ -2539,7 +2539,7 @@ export class LanguagePage {
     if (trail.length < 2) return;
     const next = trail.slice(0, -1);
     this.trail.set(next);
-    this.skipRecall.set(false);
+    this.skipRecall.set(true);
     this.showElement(next.at(-1)?.id ?? '');
   }
 
