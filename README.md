@@ -16,7 +16,6 @@ npm run deploy
 `deploy` bumps the patch version, builds, and publishes with Wrangler.
 
 TODO
-- We need a clear option to give up an exercise for a definition.
 - FORMS: 
       Forms prioritized for example generation.
       If you choose one, it checks its metadata and recommends some to prioritize among the other forms when you want to create an example for another thing. Upon what the user writes.
@@ -27,6 +26,9 @@ TODO
 - The amount of time we translated stuff or opened a translation
   is also a useful metric. I think we should see it decrease through the days.
 - The metric for the amount of times you saw the element being translated is important to show too.
+- To unlock elements you need to provide for a definition for it.
+  if the definition (or translation) is valid you can use that
+  to generate elements and that's how we can populate our shit.
 
 TODO Later:
 - Edit or delete metadata for all the elements : Example, modify

@@ -1,6 +1,10 @@
 import { Component, computed, effect, input, signal } from '@angular/core';
 import { readStoredAiCredentials } from 'ai';
-import { readPhraseTranslation, requestPhraseTranslation } from './translation-cache';
+import {
+  notePhraseUnveil,
+  readPhraseTranslation,
+  requestPhraseTranslation,
+} from './translation-cache';
 
 /** Translate one learning-language comment into the support language. */
 @Component({
@@ -128,6 +132,7 @@ export class FeedbackTranslation {
     const cached = readPhraseTranslation(sourceLang, targetLang, text)?.text.trim() ?? '';
     if (cached) {
       this.shown.set(cached);
+      notePhraseUnveil(sourceLang, targetLang, text);
       return;
     }
     if (!readStoredAiCredentials().keys.length) {

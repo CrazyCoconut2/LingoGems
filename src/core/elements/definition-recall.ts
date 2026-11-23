@@ -41,28 +41,33 @@ type RecallView = {
     <section class="recall" [attr.aria-label]="'Definitions of ' + lemma()">
       @if (result(); as scored) {
         @if (!cleared()) {
-          <section class="result" [class.gave-up]="scored.gaveUp" [attr.aria-label]="scoreLabel(scored)">
+          <section
+            class="result"
+            [class.gave-up]="scored.gaveUp"
+            [style.--score-mix]="scoreMix(scored)"
+            [attr.aria-label]="scoreLabel(scored)"
+          >
             <div class="result-head">
-              <div class="result-lead">
+              <p class="score">
+                {{ scored.coverage }}<span class="max">/10</span>
+                @if (scored.extra) {
+                  <span class="bonus">+1</span>
+                }
+              </p>
+              <div class="result-tools">
                 <app-feedback-translation
                   #note
                   [text]="scored.gaveUp ? '' : scored.feedback"
                   [sourceLang]="learningLanguage()"
                   [targetLang]="supportLanguage()"
                 />
-                <p class="score">
-                  {{ scored.coverage }}<span class="max">/10</span>
-                  @if (scored.extra) {
-                    <span class="bonus">+1</span>
-                  }
-                </p>
+                <button type="button" class="clear" aria-label="Clear" (click)="clearResult()">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
               </div>
-              <button type="button" class="clear" aria-label="Clear" (click)="clearResult()">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M18 6 6 18" />
-                  <path d="m6 6 12 12" />
-                </svg>
-              </button>
             </div>
             @if (scored.gaveUp) {
               <p class="hint">You gave up.</p>
@@ -439,18 +444,26 @@ type RecallView = {
     }
 
     .result {
+      --score-color: color-mix(
+        in srgb,
+        var(--gem-definition) calc(var(--score-mix) * 100%),
+        var(--danger)
+      );
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
       padding: 0.8rem 0.85rem;
-      border: 1px solid color-mix(in srgb, var(--gem-definition) 46%, transparent);
+      border: 1px solid color-mix(in srgb, var(--score-color) 46%, transparent);
       border-radius: 12px;
-      background: color-mix(in srgb, var(--gem-definition) 16%, transparent);
+      background: color-mix(in srgb, var(--score-color) 16%, transparent);
+    }
+
+    .result .score {
+      color: var(--score-color);
     }
 
     .result.gave-up {
-      border-color: color-mix(in srgb, var(--text-muted) 42%, transparent);
-      background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+      --score-color: var(--text-muted);
     }
 
     .result-head {
@@ -460,11 +473,11 @@ type RecallView = {
       gap: 0.6rem;
     }
 
-    .result-lead {
+    .result-tools {
       display: flex;
       align-items: center;
-      gap: 0.35rem;
-      min-width: 0;
+      gap: 0.15rem;
+      margin-left: auto;
     }
 
     .clear {
@@ -630,6 +643,11 @@ export class DefinitionRecall {
   scoreLabel(scored: RecallView): string {
     const bonus = scored.extra ? ', plus 1' : '';
     return `Score ${scored.coverage} out of 10${bonus}`;
+  }
+
+  /** 0 is fully red and 10 is fully green. */
+  scoreMix(scored: RecallView): number {
+    return Math.min(1, Math.max(0, scored.coverage / 10));
   }
 
   showHint(): void {

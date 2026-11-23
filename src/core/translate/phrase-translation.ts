@@ -1,6 +1,7 @@
 import { Component, effect, input, output, signal } from '@angular/core';
 import {
   readPhraseTranslation,
+  notePhraseUnveil,
   requestDefinitionTranslation,
   requestPhraseTranslation,
 } from './translation-cache';
@@ -168,8 +169,10 @@ export class PhraseTranslation {
   reveal(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
-    if (!this.stored()) return;
+    const text = this.stored().trim();
+    if (!text) return;
     this.revealed.set(true);
+    notePhraseUnveil(this.sourceLang(), this.targetLang(), this.phrase(), text);
   }
 
   shownEquivalent(): string {

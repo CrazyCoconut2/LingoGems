@@ -2295,14 +2295,19 @@ function writeExampleSuggestions(
                 </button>
               </div>
               <div class="stats-summary">
+                @let average = scoreAverage();
                 <section
                   class="stats-hero"
+                  [class.unscored]="average === 'NA'"
                   [style.--score-mix]="scoreMix()"
                   [attr.aria-label]="scoreAverageLabel()"
                 >
                   <p class="stats-eyebrow">Score</p>
                   <p class="stats-hero-value">
-                    {{ scoreAverage() }}<span class="score-max">/10</span>
+                    {{ average }}
+                    @if (average !== 'NA') {
+                      <span class="score-max">/10</span>
+                    }
                   </p>
                 </section>
                 <section class="stats-block">
@@ -3954,6 +3959,10 @@ function writeExampleSuggestions(
         color-mix(in srgb, var(--score-color) 24%, transparent),
         color-mix(in srgb, var(--score-color) 9%, rgba(8, 10, 18, 0.35))
       );
+    }
+
+    .stats-hero.unscored {
+      --score-color: var(--text-muted);
     }
 
     .stats-eyebrow,
@@ -8021,7 +8030,7 @@ export class ElementModal {
     return this.shownTitle();
   }
 
-  /** Mean recall score for this element. Zero when it has not been scored. */
+  /** Mean recall score for this element. NA when it has not been exercised. */
   scoreAverage(): string {
     let total = 0;
     let count = 0;
@@ -8032,12 +8041,14 @@ export class ElementModal {
       total += this.shownGameScore(entry);
       count += 1;
     }
-    if (!count) return '0';
+    if (!count) return 'NA';
     return (total / count).toFixed(1);
   }
 
   scoreAverageLabel(): string {
-    return `Score average ${this.scoreAverage()} out of 10`;
+    const average = this.scoreAverage();
+    if (average === 'NA') return 'Score not available';
+    return `Score average ${average} out of 10`;
   }
 
   /** 0 is fully red and 10 is fully green. */

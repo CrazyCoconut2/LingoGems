@@ -102,7 +102,7 @@ export function readPhraseTranslation(
   return readStore()[pair]?.[key] ?? null;
 }
 
-/** Remember one request. A phrase that already has text keeps that text and gains a UTC instant. */
+/** Store the translation text. An existing wording is kept, and unveil dates stay as they are. */
 export function recordPhraseTranslation(
   sourceLang: string,
   targetLang: string,
@@ -116,18 +116,41 @@ export function recordPhraseTranslation(
   const store = readStore();
   const bucket = { ...(store[pair] ?? {}) };
   const current = bucket[key];
-  const stored = current?.text || body;
-  bucket[key] = { text: stored, dates: [...(current?.dates ?? []), new Date().toISOString()] };
+  bucket[key] = { text: current?.text || body, dates: current?.dates ?? [] };
   store[pair] = bucket;
   writeStore(store);
-  return stored;
+  return bucket[key].text;
+}
+
+/** One click that revealed a translation which was already stored. */
+export function notePhraseUnveil(
+  sourceLang: string,
+  targetLang: string,
+  phrase: string,
+  text = '',
+): void {
+  const pair = pairKey(sourceLang, targetLang);
+  const key = phraseKey(phrase);
+  if (!pair || !key) return;
+  const store = readStore();
+  const bucket = { ...(store[pair] ?? {}) };
+  const current = bucket[key];
+  const stored = (current?.text || text).trim();
+  if (!stored) return;
+  bucket[key] = {
+    text: stored,
+    dates: [...(current?.dates ?? []), new Date().toISOString()],
+  };
+  store[pair] = bucket;
+  writeStore(store);
 }
 
 /**
- * The translation for one click.
- * A cached phrase gains a UTC instant and is not queried.
- * A passage that still has an embedded translation is stored the same way.
- * Otherwise the model is asked, and a failed query writes nothing.
+ * The translation for one request.
+ * A stored phrase is returned as it is, with no new unveil.
+ * A passage that still has an embedded translation is stored without an unveil.
+ * Otherwise the model is asked. Seeing that new translation counts as an unveil.
+ * A failed query writes nothing.
  */
 export async function requestPhraseTranslation(
   sourceLang: string,
@@ -138,19 +161,24 @@ export async function requestPhraseTranslation(
   const key = requestKey(sourceLang, targetLang, phrase);
   if (!key || key.startsWith('\0') || key.endsWith('\0')) throw new Error('translate_failed');
   const cached = readPhraseTranslation(sourceLang, targetLang, phrase);
-  if (cached?.text) return recordPhraseTranslation(sourceLang, targetLang, phrase, cached.text);
+  if (cached?.text) return cached.text;
 
+  const missing = !seeded.trim();
   const running = pending.get(key);
   if (running) {
     const text = await running;
-    return recordPhraseTranslation(sourceLang, targetLang, phrase, text);
+    const stored = recordPhraseTranslation(sourceLang, targetLang, phrase, text);
+    if (missing) notePhraseUnveil(sourceLang, targetLang, phrase, stored);
+    return stored;
   }
 
   const job = resolvePhrase(sourceLang, targetLang, phrase, seeded);
   pending.set(key, job);
   try {
     const text = await job;
-    return recordPhraseTranslation(sourceLang, targetLang, phrase, text);
+    const stored = recordPhraseTranslation(sourceLang, targetLang, phrase, text);
+    if (missing) notePhraseUnveil(sourceLang, targetLang, phrase, stored);
+    return stored;
   } finally {
     if (pending.get(key) === job) pending.delete(key);
   }
@@ -181,6 +209,7 @@ export async function requestDefinitionTranslation(
     readPhraseTranslation(sourceLang, targetLang, phrase)?.text || seeded.trim()
   ).trim();
   const knownEquivalent = equivalent.trim().slice(0, EQUIVALENT_MAX);
+  const missing = !knownTranslation;
   if (knownTranslation && knownEquivalent) {
     return {
       translation: recordPhraseTranslation(sourceLang, targetLang, phrase, knownTranslation),
@@ -199,8 +228,10 @@ export async function requestDefinitionTranslation(
       EQUIVALENT_MAX,
     );
     if (!translation) throw new Error('translate_failed');
+    const stored = recordPhraseTranslation(sourceLang, targetLang, phrase, translation);
+    if (missing) notePhraseUnveil(sourceLang, targetLang, phrase, stored);
     return {
-      translation: recordPhraseTranslation(sourceLang, targetLang, phrase, translation),
+      translation: stored,
       equivalent: nextEquivalent,
     };
   } catch (err) {
