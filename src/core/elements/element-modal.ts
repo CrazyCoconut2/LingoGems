@@ -1178,16 +1178,15 @@ function writeExampleSuggestions(
               <ng-template #draftActions>
                 <span class="header-actions work-title-actions">
                   @if (supportAvailable()) {
-                    <span class="generate-bundle translate-split">
-                      <button
-                        type="button"
-                        class="generate-main"
-                        [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
-                        [attr.title]="translating() ? 'Translating…' : 'Translate'"
-                        [attr.aria-busy]="translating() ? true : null"
-                        [disabled]="!canTranslate()"
-                        (click)="translateDraft()"
-                      >
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
+                      [attr.title]="translating() ? 'Translating…' : 'Translate'"
+                      [attr.aria-busy]="translating() ? true : null"
+                      [disabled]="!canTranslate()"
+                      (click)="translateDraft()"
+                    >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                           <path d="m5 8 6 6" />
                           <path d="m4 14 6-6 2-3" />
@@ -1196,8 +1195,7 @@ function writeExampleSuggestions(
                           <path d="m22 22-5-10-5 10" />
                           <path d="M14 18h6" />
                         </svg>
-                      </button>
-                    </span>
+                    </button>
                   }
                   @if (current.kind === 'definition') {
                     <button
@@ -1594,23 +1592,20 @@ function writeExampleSuggestions(
                       let-raw="raw"
                       let-key="key"
                     >
-                      @if (
-                        canTranslateListedExample(phrase, raw, key) || translatingExample() === key
-                      ) {
-                        <span class="generate-bundle translate-split">
-                          <button
-                            type="button"
-                            class="generate-main"
-                            [attr.aria-label]="
-                              translatingExample() === key ? 'Translating…' : 'Translate'
-                            "
-                            [attr.title]="
-                              translatingExample() === key ? 'Translating…' : 'Translate'
-                            "
-                            [attr.aria-busy]="translatingExample() === key ? true : null"
-                            [disabled]="translatingExample() === key"
-                            (click)="translateListedExample(phrase, raw, key)"
-                          >
+                      @if (supportAvailable()) {
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          [attr.aria-label]="
+                            translatingExample() === key ? 'Translating…' : 'Translate'
+                          "
+                          [attr.title]="
+                            translatingExample() === key ? 'Translating…' : 'Translate'
+                          "
+                          [attr.aria-busy]="translatingExample() === key ? true : null"
+                          [disabled]="!canTranslateListedExample(phrase, raw, key)"
+                          (click)="translateListedExample(phrase, raw, key)"
+                        >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
                               <path d="m5 8 6 6" />
                               <path d="m4 14 6-6 2-3" />
@@ -1619,8 +1614,7 @@ function writeExampleSuggestions(
                               <path d="m22 22-5-10-5 10" />
                               <path d="M14 18h6" />
                             </svg>
-                          </button>
-                        </span>
+                        </button>
                       }
                     </ng-template>
                     <ng-template #exampleWrench let-work="work" let-kind="kind" let-index="index">
@@ -4693,27 +4687,6 @@ function writeExampleSuggestions(
 
     .field-heading .header-actions {
       gap: 0.4rem;
-    }
-
-    .translate-split .generate-main {
-      padding: 0.28rem 0.65rem;
-      opacity: 1;
-    }
-
-    .translate-split .generate-main svg {
-      width: 0.95rem;
-      height: 0.95rem;
-      flex: none;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .translate-split .generate-main:disabled {
-      color: rgba(255, 255, 255, 0.4);
-      opacity: 1;
     }
 
     .btn-danger {
