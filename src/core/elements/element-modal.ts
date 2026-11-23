@@ -297,6 +297,15 @@ type ExampleEngineer = EngineerDraft & {
   formsOpen: boolean;
 };
 
+type ExampleFieldKind = 'saved' | 'addition' | 'draft';
+
+type ExampleFieldEngineer = {
+  definitionIndex: number;
+  kind: ExampleFieldKind;
+  index: number | null;
+  instruction: string;
+};
+
 type DefinitionEngineerDraft = {
   instruction: string;
   words: RelatedWord[];
@@ -1614,6 +1623,77 @@ function writeExampleSuggestions(
                         </span>
                       }
                     </ng-template>
+                    <ng-template #exampleWrench let-work="work" let-kind="kind" let-index="index">
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        aria-label="Engineer example"
+                        title="Engineer example"
+                        [class.active]="exampleFieldOpen(work, kind, index)"
+                        [attr.aria-pressed]="exampleFieldOpen(work, kind, index)"
+                        [attr.aria-busy]="exampleFieldBusy(work, kind, index) ? true : null"
+                        [disabled]="aiBusy() && !exampleFieldOpen(work, kind, index)"
+                        (click)="toggleExampleField(work, kind, index)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+                          />
+                        </svg>
+                      </button>
+                    </ng-template>
+                    <ng-template
+                      #exampleField
+                      let-work="work"
+                      let-kind="kind"
+                      let-index="index"
+                      let-phrase="phrase"
+                      let-raw="raw"
+                      let-label="label"
+                      let-placeholder="placeholder"
+                    >
+                      @if (exampleFieldOpen(work, kind, index)) {
+                        <div class="definition-ai">
+                          <div class="instruct-field">
+                            <input
+                              [value]="exampleFieldEngineer()?.instruction ?? ''"
+                              [attr.maxlength]="exampleInstructionMax"
+                              [disabled]="askingExamples() !== null"
+                              [attr.placeholder]="exampleFieldPrompt(phrase)"
+                              [attr.aria-label]="exampleFieldPrompt(phrase)"
+                              (input)="onExampleFieldInstruction($event)"
+                              (keydown.enter)="$event.preventDefault(); generateExampleField()"
+                            />
+                            <button
+                              type="button"
+                              class="entry-confirm"
+                              [attr.aria-label]="phrase.trim() ? 'Modify example' : 'Write example'"
+                              [disabled]="exampleFieldGenerateDisabled()"
+                              [attr.aria-busy]="exampleFieldBusy(work, kind, index) ? true : null"
+                              (click)="generateExampleField()"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M20 6 9 17l-5-5" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      }
+                      <div class="draft-field square">
+                        <textarea
+                          [class.example-addition]="kind === 'addition'"
+                          rows="3"
+                          [value]="phrase"
+                          [disabled]="aiBusy()"
+                          [attr.placeholder]="placeholder || null"
+                          [attr.aria-label]="label"
+                          (input)="onListedExampleInput(work, kind, index, $event)"
+                        ></textarea>
+                        @if (listedExampleTranslation(phrase, raw); as translation) {
+                          <p class="draft-translation">{{ translation }}</p>
+                        }
+                      </div>
+                    </ng-template>
                     @if (
                       worked &&
                       (worked.examples.length ||
@@ -1637,6 +1717,14 @@ function writeExampleSuggestions(
                                     key: 'add:' + workIndex + ':' + additionIndex,
                                   }"
                                 />
+                                <ng-container
+                                  [ngTemplateOutlet]="exampleWrench"
+                                  [ngTemplateOutletContext]="{
+                                    work: workIndex,
+                                    kind: 'addition',
+                                    index: additionIndex,
+                                  }"
+                                />
                                 <button
                                   type="button"
                                   class="icon-btn danger"
@@ -1655,24 +1743,18 @@ function writeExampleSuggestions(
                                 </button>
                               </span>
                             </div>
-                            <textarea
-                              class="example-addition"
-                              rows="2"
-                              [value]="exampleAdditionValue(workIndex, additionIndex)"
-                              [disabled]="aiBusy()"
-                              placeholder="Add an example"
-                              aria-label="New example"
-                              (input)="onExampleAddition(workIndex, additionIndex, $event)"
-                            ></textarea>
-                            @if (
-                              listedExampleTranslation(
-                                exampleAdditionValue(workIndex, additionIndex),
-                                ''
-                              );
-                              as translation
-                            ) {
-                              <p class="draft-translation">{{ translation }}</p>
-                            }
+                            <ng-container
+                              [ngTemplateOutlet]="exampleField"
+                              [ngTemplateOutletContext]="{
+                                work: workIndex,
+                                kind: 'addition',
+                                index: additionIndex,
+                                phrase: exampleAdditionValue(workIndex, additionIndex),
+                                raw: '',
+                                label: 'New example',
+                                placeholder: 'Add an example',
+                              }"
+                            />
                           </li>
                         }
                         @if (exampleDraftFor(workIndex); as draft) {
@@ -1686,6 +1768,14 @@ function writeExampleSuggestions(
                                     phrase: exampleDraftFieldValue(workIndex),
                                     raw: draft.text,
                                     key: 'draft:' + workIndex,
+                                  }"
+                                />
+                                <ng-container
+                                  [ngTemplateOutlet]="exampleWrench"
+                                  [ngTemplateOutletContext]="{
+                                    work: workIndex,
+                                    kind: 'draft',
+                                    index: null,
                                   }"
                                 />
                                 <button
@@ -1706,22 +1796,18 @@ function writeExampleSuggestions(
                                 </button>
                               </span>
                             </div>
-                            <textarea
-                              rows="2"
-                              [value]="exampleDraftFieldValue(workIndex)"
-                              [disabled]="aiBusy()"
-                              aria-label="New example"
-                              (input)="onExampleDraftField(workIndex, $event)"
-                            ></textarea>
-                            @if (
-                              listedExampleTranslation(
-                                exampleDraftFieldValue(workIndex),
-                                draft.text
-                              );
-                              as translation
-                            ) {
-                              <p class="draft-translation">{{ translation }}</p>
-                            }
+                            <ng-container
+                              [ngTemplateOutlet]="exampleField"
+                              [ngTemplateOutletContext]="{
+                                work: workIndex,
+                                kind: 'draft',
+                                index: null,
+                                phrase: exampleDraftFieldValue(workIndex),
+                                raw: draft.text,
+                                label: 'New example',
+                                placeholder: '',
+                              }"
+                            />
                           </li>
                         }
                         @for (
@@ -1739,6 +1825,14 @@ function writeExampleSuggestions(
                                     phrase: exampleFieldValue(workIndex, exampleIndex),
                                     raw: example.text,
                                     key: 'saved:' + workIndex + ':' + exampleIndex,
+                                  }"
+                                />
+                                <ng-container
+                                  [ngTemplateOutlet]="exampleWrench"
+                                  [ngTemplateOutletContext]="{
+                                    work: workIndex,
+                                    kind: 'saved',
+                                    index: exampleIndex,
                                   }"
                                 />
                                 <button
@@ -1759,22 +1853,18 @@ function writeExampleSuggestions(
                                 </button>
                               </span>
                             </div>
-                            <textarea
-                              rows="2"
-                              [value]="exampleFieldValue(workIndex, exampleIndex)"
-                              [disabled]="aiBusy()"
-                              [attr.aria-label]="'Example ' + (exampleIndex + 1)"
-                              (input)="onExampleField(workIndex, exampleIndex, $event)"
-                            ></textarea>
-                            @if (
-                              listedExampleTranslation(
-                                exampleFieldValue(workIndex, exampleIndex),
-                                example.text
-                              );
-                              as translation
-                            ) {
-                              <p class="draft-translation">{{ translation }}</p>
-                            }
+                            <ng-container
+                              [ngTemplateOutlet]="exampleField"
+                              [ngTemplateOutletContext]="{
+                                work: workIndex,
+                                kind: 'saved',
+                                index: exampleIndex,
+                                phrase: exampleFieldValue(workIndex, exampleIndex),
+                                raw: example.text,
+                                label: 'Example ' + (exampleIndex + 1),
+                                placeholder: '',
+                              }"
+                            />
                             @if (entries(example.metadata); as meta) {
                               @if (meta.length) {
                                 <ul class="pills">
@@ -5212,6 +5302,8 @@ export class ElementModal {
   readonly newGlosses = signal<ReadonlySet<string>>(new Set());
   readonly exampleSuggestions = signal<Record<string, ExampleSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
+  /** Instruction panel open on one example row in the work sheet. */
+  readonly exampleFieldEngineer = signal<ExampleFieldEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
   readonly historyOpen = signal(false);
   readonly exerciseEntry = signal(-1);
@@ -5270,6 +5362,7 @@ export class ElementModal {
       this.askingRelated.set(null);
       this.askingWording.set(null);
       this.exampleEngineer.set(null);
+      this.exampleFieldEngineer.set(null);
       this.definitionEngineer.set(null);
       this.senseStages.set(new Map());
       this.recallSettled.set(false);
@@ -5758,6 +5851,7 @@ export class ElementModal {
     this.workTab.set('definitions');
     this.definitionEngineer.set(null);
     this.exampleEngineer.set(null);
+    this.exampleFieldEngineer.set(null);
     this.exampleDraft.set(null);
     this.exampleDraftField.set(null);
     this.exampleEdits.set(new Map());
@@ -6211,6 +6305,7 @@ export class ElementModal {
     this.metaKey.set('');
     this.metaValue.set('');
     this.exampleEngineer.set(null);
+    this.exampleFieldEngineer.set(null);
     this.definitionEngineer.set(null);
     this.exampleError.set('');
     this.formsError.set('');
@@ -6666,6 +6761,21 @@ export class ElementModal {
 
   removeExampleAddition(definitionIndex: number, additionIndex: number): void {
     if (this.aiBusy()) return;
+    const engineer = this.exampleFieldEngineer();
+    if (
+      engineer?.definitionIndex === definitionIndex &&
+      engineer.kind === 'addition' &&
+      engineer.index === additionIndex
+    ) {
+      this.exampleFieldEngineer.set(null);
+    } else if (
+      engineer?.definitionIndex === definitionIndex &&
+      engineer.kind === 'addition' &&
+      engineer.index != null &&
+      engineer.index > additionIndex
+    ) {
+      this.exampleFieldEngineer.set({ ...engineer, index: engineer.index - 1 });
+    }
     this.exampleAdditions.update((current) => {
       const rows = [...(current.get(definitionIndex) ?? [])];
       rows.splice(additionIndex, 1);
@@ -6734,6 +6844,135 @@ export class ElementModal {
       this.exampleError.set('Could not translate this.');
     } finally {
       if (this.translatingExample() === key) this.translatingExample.set(null);
+    }
+  }
+
+  exampleFieldOpen(
+    definitionIndex: number,
+    kind: ExampleFieldKind,
+    index: number | null,
+  ): boolean {
+    const engineer = this.exampleFieldEngineer();
+    return (
+      !!engineer &&
+      engineer.definitionIndex === definitionIndex &&
+      engineer.kind === kind &&
+      (kind === 'draft' || engineer.index === index)
+    );
+  }
+
+  exampleFieldBusy(
+    definitionIndex: number,
+    kind: ExampleFieldKind,
+    index: number | null,
+  ): boolean {
+    return (
+      this.askingExamples() === definitionIndex &&
+      this.exampleFieldOpen(definitionIndex, kind, index)
+    );
+  }
+
+  exampleFieldPrompt(phrase: string): string {
+    return phrase.trim()
+      ? 'Instruct AI on how to modify this example'
+      : 'Instruct AI on how to write this example';
+  }
+
+  exampleFieldGenerateDisabled(): boolean {
+    return this.askingExamples() !== null || !this.exampleFieldEngineer()?.instruction.trim();
+  }
+
+  toggleExampleField(
+    definitionIndex: number,
+    kind: ExampleFieldKind,
+    index: number | null,
+  ): void {
+    if (this.exampleFieldOpen(definitionIndex, kind, index)) {
+      if (this.askingExamples() !== null) return;
+      this.exampleFieldEngineer.set(null);
+      return;
+    }
+    if (this.aiBusy()) return;
+    this.exampleError.set('');
+    this.exampleFieldEngineer.set({ definitionIndex, kind, index, instruction: '' });
+  }
+
+  onExampleFieldInstruction(event: Event): void {
+    const engineer = this.exampleFieldEngineer();
+    if (!engineer) return;
+    this.exampleFieldEngineer.set({
+      ...engineer,
+      instruction: this.inputValue(event).slice(0, MAX_EXAMPLE_INSTRUCTION),
+    });
+  }
+
+  onListedExampleInput(
+    definitionIndex: number,
+    kind: ExampleFieldKind,
+    index: number | null,
+    event: Event,
+  ): void {
+    if (kind === 'saved' && index != null) this.onExampleField(definitionIndex, index, event);
+    else if (kind === 'addition' && index != null)
+      this.onExampleAddition(definitionIndex, index, event);
+    else if (kind === 'draft') this.onExampleDraftField(definitionIndex, event);
+  }
+
+  async generateExampleField(): Promise<void> {
+    const engineer = this.exampleFieldEngineer();
+    const instruction = engineer?.instruction.trim() ?? '';
+    if (!engineer || this.aiBusy() || !instruction) return;
+    const element = this.currentElement();
+    const definition = element.definitions[engineer.definitionIndex];
+    const gloss = parsePassage(definition?.text ?? '').text.trim();
+    if (!definition || !gloss) return;
+    if (!readStoredAiCredentials().keys.length) {
+      this.exampleError.set('Save an API key first.');
+      return;
+    }
+    const current = this.exampleFieldText(engineer);
+    const index = engineer.definitionIndex;
+    const job = ++this.exampleJob;
+    this.askingExamples.set(index);
+    this.exampleError.set('');
+    try {
+      const examples = await generateExamples({
+        language: element.language,
+        title: element.title,
+        gloss,
+        translation: this.translationTarget(),
+        metadata: definition.metadata,
+        existingExamples: this.otherExampleTexts(engineer),
+        forms: definition.forms.map((form) => form.text),
+        exampleWords: [],
+        exampleInstruction: instruction,
+        ...(current ? { currentExample: current } : {}),
+      });
+      const sentence = parsePassage(examples[0]?.text ?? '').text;
+      const showing = this.element().id === element.id;
+      const open = showing ? this.exampleFieldEngineer() : null;
+      const same =
+        !!open &&
+        open.definitionIndex === index &&
+        open.kind === engineer.kind &&
+        open.index === engineer.index;
+      if (!showing || !same) return;
+      if (!sentence || (current && sentence.toLowerCase() === current.toLowerCase())) {
+        this.exampleError.set(
+          current ? 'Could not change that example.' : 'Could not write that example.',
+        );
+        return;
+      }
+      this.setExampleFieldText(engineer, sentence);
+    } catch {
+      if (this.element().id === element.id) {
+        this.exampleError.set(
+          current ? 'Could not change that example.' : 'Could not write that example.',
+        );
+      }
+    } finally {
+      if (this.exampleJob === job && this.element().id === element.id)
+        this.askingExamples.set(null);
     }
   }
 
@@ -6861,6 +7100,12 @@ export class ElementModal {
     const field = this.exampleDraftField();
     if (field)
       this.exampleDraftField.set({ ...field, definitionIndex: field.definitionIndex + by });
+    const engineer = this.exampleFieldEngineer();
+    if (engineer)
+      this.exampleFieldEngineer.set({
+        ...engineer,
+        definitionIndex: engineer.definitionIndex + by,
+      });
   }
 
   private dropDefinitionExampleEdits(index: number): void {
@@ -6888,6 +7133,14 @@ export class ElementModal {
     else if (field && field.definitionIndex > index) {
       this.exampleDraftField.set({ ...field, definitionIndex: field.definitionIndex - 1 });
     }
+    const engineer = this.exampleFieldEngineer();
+    if (engineer?.definitionIndex === index) this.exampleFieldEngineer.set(null);
+    else if (engineer && engineer.definitionIndex > index) {
+      this.exampleFieldEngineer.set({
+        ...engineer,
+        definitionIndex: engineer.definitionIndex - 1,
+      });
+    }
   }
 
   private dropExampleEdit(definitionIndex: number, exampleIndex: number): void {
@@ -6907,10 +7160,82 @@ export class ElementModal {
       }
       return next;
     });
+    const engineer = this.exampleFieldEngineer();
+    if (
+      !engineer ||
+      engineer.definitionIndex !== definitionIndex ||
+      engineer.kind !== 'saved' ||
+      engineer.index == null
+    ) {
+      return;
+    }
+    if (engineer.index === exampleIndex) this.exampleFieldEngineer.set(null);
+    else if (engineer.index > exampleIndex) {
+      this.exampleFieldEngineer.set({ ...engineer, index: engineer.index - 1 });
+    }
+  }
+
+  private exampleFieldText(engineer: ExampleFieldEngineer): string {
+    if (engineer.kind === 'saved' && engineer.index != null) {
+      return plainPassage(this.exampleFieldValue(engineer.definitionIndex, engineer.index));
+    }
+    if (engineer.kind === 'addition' && engineer.index != null) {
+      return plainPassage(this.exampleAdditionValue(engineer.definitionIndex, engineer.index));
+    }
+    return plainPassage(this.exampleDraftFieldValue(engineer.definitionIndex));
+  }
+
+  private otherExampleTexts(engineer: ExampleFieldEngineer): string[] {
+    const index = engineer.definitionIndex;
+    const definition = this.sheetDefinition(index);
+    const texts: string[] = [];
+    const seen = new Set<string>();
+    const add = (value: string) => {
+      const text = plainPassage(value).trim();
+      const key = text.toLowerCase();
+      if (!text || seen.has(key)) return;
+      seen.add(key);
+      texts.push(text);
+    };
+    definition?.examples.forEach((_, exampleIndex) => {
+      if (engineer.kind === 'saved' && engineer.index === exampleIndex) return;
+      add(this.exampleFieldValue(index, exampleIndex));
+    });
+    (this.exampleAdditions().get(index) ?? []).forEach((row, additionIndex) => {
+      if (engineer.kind === 'addition' && engineer.index === additionIndex) return;
+      add(row);
+    });
+    if (engineer.kind !== 'draft') add(this.exampleDraftFieldValue(index));
+    return texts;
+  }
+
+  private setExampleFieldText(engineer: ExampleFieldEngineer, text: string): void {
+    const row = engineer.index;
+    if (engineer.kind === 'saved' && row != null) {
+      this.exampleEdits.update((current) => {
+        const next = new Map(current);
+        next.set(this.exampleEditKey(engineer.definitionIndex, row), text);
+        return next;
+      });
+      return;
+    }
+    if (engineer.kind === 'addition' && row != null) {
+      this.exampleAdditions.update((current) => {
+        const rows = [...(current.get(engineer.definitionIndex) ?? [])];
+        if (row >= rows.length) return current;
+        rows[row] = text;
+        const next = new Map(current);
+        next.set(engineer.definitionIndex, rows);
+        return next;
+      });
+      return;
+    }
+    this.exampleDraftField.set({ definitionIndex: engineer.definitionIndex, text });
   }
 
   discardExampleDraft(): void {
     if (this.askingExamples() !== null) return;
+    if (this.exampleFieldEngineer()?.kind === 'draft') this.exampleFieldEngineer.set(null);
     this.exampleDraft.set(null);
     this.exampleDraftField.set(null);
     this.exampleError.set('');

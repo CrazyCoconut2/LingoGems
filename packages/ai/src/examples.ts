@@ -39,6 +39,7 @@ function examplesSystemPrompt(fields: readonly AiMetadataField[], extra = false)
     '- Write the sentence so the meaning of the lemma is obvious from the rest of the sentence. A learner who knows the other words should be able to tell what the lemma means immediately',
     '- exampleWords, when present, are words the learner chose to include. Use as many as fit naturally. Do not pull in other collection words. The array order is not an order to use in the sentence',
     "- exampleInstruction, when present, is the learner's note about the subject or the wording. Follow it. It does not override the other rules",
+    '- currentExample, when present, is the sentence to revise. Return that sentence changed to follow exampleInstruction. Do not write a different example',
     '- Do not add citations or bracket tags such as [en: …]',
     '- Do not repeat existingExamples',
     `- Keep the sentence at most ${MAX_EXAMPLE_LENGTH} characters`,
@@ -59,6 +60,8 @@ type GenerateExamplesInput = {
   forms: readonly string[];
   exampleWords: readonly string[];
   exampleInstruction?: string;
+  /** Sentence to revise. Absent when the learner wants a new example. */
+  currentExample?: string;
   requiredForm?: string;
   translation?: string;
 };
@@ -73,6 +76,7 @@ function buildExamplesUserMessage(input: GenerateExamplesInput): string {
   const forms = requiredForm ? [] : uniqueTexts(input.forms);
   const words = exampleWords(title, input.exampleWords);
   const instruction = (input.exampleInstruction ?? '').trim().slice(0, MAX_EXAMPLE_INSTRUCTION);
+  const currentExample = (input.currentExample ?? '').trim().slice(0, MAX_EXAMPLE_LENGTH);
   const metadata = senseMetadata(input.metadata);
   return JSON.stringify({
     language,
@@ -84,6 +88,7 @@ function buildExamplesUserMessage(input: GenerateExamplesInput): string {
     exampleCount: 1,
     ...(words.length ? { exampleWords: words } : {}),
     ...(instruction ? { exampleInstruction: instruction } : {}),
+    ...(currentExample ? { currentExample } : {}),
     ...(requiredForm ? { requiredForm } : {}),
     ...(forms.length ? { forms } : {}),
   });
