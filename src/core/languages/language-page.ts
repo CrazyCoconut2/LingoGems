@@ -11,7 +11,6 @@ import {
   DestroyRef,
   HostListener,
   inject,
-  isDevMode,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -601,7 +600,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                     </div>
                     @if (!colorOptions().length) {
                       <p class="section-hint">Colors show up once an element has one.</p>
-                    } @else if (orderingColors) {
+                    } @else {
                       <p class="section-hint">
                         Drag to reorder. The first color is what new elements get.
                       </p>
@@ -635,26 +634,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                                 [style.height.rem]="2.2"
                               ></span>
                             </ng-template>
-                          </div>
-                        }
-                      </div>
-                    } @else {
-                      <p class="section-hint">Show elements in any selected color.</p>
-                      <div class="color-choices" role="group" aria-label="Color">
-                        @for (color of colorOptions(); track color; let first = $first) {
-                          <div class="color-choice">
-                            <button
-                              type="button"
-                              class="color-swatch"
-                              [class.selected]="colorSelected(color)"
-                              [attr.aria-pressed]="colorSelected(color)"
-                              [attr.aria-label]="first ? color + ', default' : color"
-                              [style.--swatch]="color"
-                              (click)="chooseColor(color)"
-                            ></button>
-                            @if (first) {
-                              <span class="color-default">Default</span>
-                            }
                           </div>
                         }
                       </div>
@@ -2174,7 +2153,6 @@ export class LanguagePage {
   readonly exampleMetaFilter = signal<ElementMetadataVariability>({});
   readonly formMetaFilter = signal<ElementMetadataVariability>({});
   readonly metadataCatalog = signal<ElementCatalog>(emptyElementCatalog());
-  readonly orderingColors = isDevMode();
   readonly colorOptions = computed(() => this.metadataCatalog().colors);
   /** Drop time, so the click that ends a drag does not toggle the filter. */
   private colorDragAt = 0;
