@@ -860,22 +860,24 @@ function writeExampleSuggestions(
                               </svg>
                             </button>
                           }
-                          <button
-                            type="button"
-                            class="icon-btn danger log-delete"
-                            aria-label="Delete"
-                            title="Delete"
-                            [disabled]="busy()"
-                            (click)="askDeleteExercise(entry)"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M3 6h18" />
-                              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                              <path d="M10 11v6" />
-                              <path d="M14 11v6" />
-                            </svg>
-                          </button>
+                          @if (entry.event !== 'rework') {
+                            <button
+                              type="button"
+                              class="icon-btn danger log-delete"
+                              aria-label="Delete"
+                              title="Delete"
+                              [disabled]="busy()"
+                              (click)="askDeleteExercise(entry)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M3 6h18" />
+                                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                <path d="M10 11v6" />
+                                <path d="M14 11v6" />
+                              </svg>
+                            </button>
+                          }
                         </div>
                         @if (entry.event === 'rework' && exerciseEntry() === $index) {
                           <div class="log-detail log-versions">
@@ -8430,7 +8432,6 @@ export class ElementModal {
     if (pending.kind === 'definition') return 'Delete this definition?';
     if (pending.kind === 'exercise') {
       const entry = this.elementHistory()[pending.historyIndex];
-      if (entry?.event === 'rework') return 'Delete this rework?';
       if (entry?.event === 'delete') return 'Delete this deletion?';
       if (entry?.event === 'example') return 'Delete this example?';
       if (entry?.event === 'form') return 'Delete these forms?';
@@ -8462,7 +8463,7 @@ export class ElementModal {
   }
 
   askDeleteExercise(entry: DefinitionHistoryEntry): void {
-    if (this.busy()) return;
+    if (this.busy() || entry.event === 'rework') return;
     const historyIndex = this.elementHistory().indexOf(entry);
     if (historyIndex < 0) return;
     this.confirm.set({ kind: 'exercise', definitionIndex: 0, historyIndex });
@@ -8594,7 +8595,7 @@ export class ElementModal {
     const entry = this.elementHistory()[historyIndex];
     const current = this.currentElement();
     const logIndex = entry ? current.log.indexOf(entry) : -1;
-    if (!entry || logIndex < 0) {
+    if (!entry || entry.event === 'rework' || logIndex < 0) {
       this.confirm.set(null);
       return;
     }
