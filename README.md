@@ -17,7 +17,7 @@ npm run deploy
 
 TODO
 - Points differential now is the feature
-    -> Points differential for every eleent that was 
+    -> Points differential for every element that was 
        exercised that day and the total differential for
        the day.
 - Fix the translation feature. 
