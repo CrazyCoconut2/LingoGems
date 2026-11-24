@@ -25,23 +25,3 @@ export function normalizeElementColors(value: unknown): string[] {
 export function mergeElementColors(base: readonly string[], extra: readonly unknown[]): string[] {
   return normalizeElementColors([...base, ...extra]);
 }
-
-/**
- * Saved order for colors that still appear in `used`, then any used color that
- * was not in that order. Colors no longer used are dropped.
- */
-export function orderElementColors(
-  previous: readonly unknown[],
-  used: readonly unknown[],
-): string[] {
-  const live = normalizeElementColors(used);
-  const liveSet = new Set(live);
-  const ordered = normalizeElementColors(previous).filter((color) => liveSet.has(color));
-  const kept = new Set(ordered);
-  for (const color of live) {
-    if (kept.has(color)) continue;
-    ordered.push(color);
-    kept.add(color);
-  }
-  return ordered;
-}

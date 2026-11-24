@@ -1,4 +1,9 @@
-import { elementGemCounts, type StoredElement } from './element-store';
+import {
+  DEFINITION_COVERAGE_MAX,
+  elementGemCounts,
+  type DefinitionGameLog,
+  type StoredElement,
+} from './element-store';
 import {
   normalizeMetadataVariability,
   type ElementMetadataVariability,
@@ -36,6 +41,51 @@ export function elementMatchesColor(
   colors: readonly string[],
 ): boolean {
   return colors.length === 0 || (element.color != null && colors.includes(element.color));
+}
+
+/** Coverage out of 10 for a definition recall. Other games keep their stored score. */
+export function definitionCoverage(entry: DefinitionGameLog): number {
+  if (entry.game !== 'definition') return entry.score;
+  const coverage = entry.extra ? entry.score - 1 : entry.score;
+  return Math.min(DEFINITION_COVERAGE_MAX, Math.max(0, coverage));
+}
+
+/** Mean definition-recall coverage, or null when this element has not been scored. */
+export function definitionScoreAverage(element: StoredElement): number | null {
+  let total = 0;
+  let count = 0;
+  for (const entry of element.log) {
+    if (entry.event !== 'game' || entry.game !== 'definition' || !Number.isFinite(entry.score)) {
+      continue;
+    }
+    total += definitionCoverage(entry);
+    count += 1;
+  }
+  return count ? total / count : null;
+}
+
+/** Nearest whole score from 1 through 10. A scored 0 is 1. */
+export function definitionScoreStep(average: number): number {
+  if (!Number.isFinite(average)) return 1;
+  return Math.min(10, Math.max(1, Math.round(average)));
+}
+
+/** Color score for this element, or null when it has not been scored. */
+export function elementScoreStep(element: StoredElement): number | null {
+  const average = definitionScoreAverage(element);
+  return average == null ? null : definitionScoreStep(average);
+}
+
+/** Keep an element on one of the chosen scores. An empty list with unscored off keeps every element. */
+export function elementMatchesScore(
+  element: StoredElement,
+  steps: readonly number[],
+  unscored = false,
+): boolean {
+  if (!steps.length && !unscored) return true;
+  const step = elementScoreStep(element);
+  if (step == null) return unscored;
+  return steps.includes(step);
 }
 
 /** `definitionMeta`, `exampleMeta`, and `formMeta` query values. Empty means no constraint. */

@@ -1,5 +1,5 @@
 import { CATALOG_ID, CATALOG_STORE, idbRequest, openDatabase } from '../database';
-import { mergeElementColors, normalizeElementColors, orderElementColors } from './element-color';
+import { mergeElementColors, normalizeElementColors } from './element-color';
 import {
   emptyMetadataIndexes,
   mergeMetadataIndexes,
@@ -9,7 +9,7 @@ import {
   type ElementMetadataIndexes,
 } from './metadata-variability';
 
-/** Metadata lists plus the colors saved on elements, in display order. */
+/** Metadata lists plus the colors still stored on elements. */
 export type ElementCatalog = ElementMetadataIndexes & {
   colors: string[];
 };
@@ -45,22 +45,14 @@ export function absorbSavedElement(
   };
 }
 
-/** Metadata and colors that still appear on these elements. `colorOrder` wins when set. */
+/** Metadata and colors that still appear on these elements. */
 export function catalogFromElements(
   elements: readonly (ElementMetadataIndexes & { color?: string | null })[],
-  colorOrder?: readonly string[],
 ): ElementCatalog {
-  const gathered = elements.reduce(
+  return elements.reduce(
     (catalog, element) => absorbSavedElement(catalog, element),
     emptyElementCatalog(),
   );
-  return {
-    ...gathered,
-    colors: orderElementColors(
-      colorOrder ?? gathered.colors,
-      elements.map((element) => element.color),
-    ),
-  };
 }
 
 export async function readMetadataCatalog(): Promise<ElementCatalog> {

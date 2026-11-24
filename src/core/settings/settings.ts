@@ -17,6 +17,14 @@ import { GemStatsJob } from '../elements/gem-stats-job';
 import { supportSettings, writeGeneralSupportLanguage } from '../languages/translation-language';
 import { LanguageAiSettings } from '../languages/language-ai-settings';
 import { buildDataFile, downloadDataFile, readDataFile } from './data-file';
+import {
+  DEFAULT_SCORE_COLORS,
+  readScoreColors,
+  resetScoreColors,
+  SCORE_STEPS,
+  writeScoreColor,
+  type ScoreStep,
+} from './score-colors';
 
 type ProviderOption = {
   id: AiProviderId;
@@ -45,7 +53,7 @@ const AI_PROVIDERS: ProviderOption[] = [
         <header class="panel-header">
           <div>
             <h2>Settings</h2>
-            <p>Provider, support language, metadata, and your data.</p>
+            <p>Provider, support language, score colors, metadata, and your data.</p>
           </div>
           <button type="button" class="icon-btn" aria-label="Close" (click)="back()">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -142,6 +150,47 @@ const AI_PROVIDERS: ProviderOption[] = [
                     }
                   </select>
                 </label>
+              </div>
+            }
+          </section>
+
+          <section class="settings-section" [class.expanded]="expanded() === 'score'">
+            <button
+              type="button"
+              class="section-header"
+              [attr.aria-expanded]="expanded() === 'score'"
+              (click)="toggle('score')"
+            >
+              <span class="section-title">Score colors</span>
+              <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            @if (expanded() === 'score') {
+              <div class="section-body">
+                <p class="section-hint">
+                  Each score has its own color. 1 is red, 5 is orange, and 10 is green. The scores
+                  between those start on even steps, and you can change any of them.
+                </p>
+                @for (step of scoreSteps; track step) {
+                  <label class="score-color-row" [attr.for]="'settings-score-' + step">
+                    Score {{ step }}
+                    <input
+                      [id]="'settings-score-' + step"
+                      class="score-color"
+                      type="color"
+                      [value]="scoreColor(step)"
+                      (input)="setScoreColor(step, $event)"
+                    />
+                  </label>
+                }
+                @if (scoreColorsChanged()) {
+                  <div class="actions">
+                    <button type="button" class="btn btn-secondary" (click)="resetScoreColorEnds()">
+                      Reset
+                    </button>
+                  </div>
+                }
               </div>
             }
           </section>
@@ -438,6 +487,18 @@ const AI_PROVIDERS: ProviderOption[] = [
       padding: 0 0.75rem 0.85rem;
     }
 
+    .score-color-row {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .score-color {
+      width: 2.6rem;
+      height: 2rem;
+      padding: 0.15rem;
+    }
+
     label {
       display: flex;
       flex-direction: column;
@@ -595,6 +656,8 @@ export class Settings {
   readonly provider = signal<AiProviderId>(this.stored?.provider ?? 'openai');
   readonly apiKey = signal(this.stored?.apiKey ?? '');
   readonly saved = signal(false);
+  readonly scoreSteps = SCORE_STEPS;
+  readonly scoreColorMap = signal(readScoreColors());
   readonly ready = computed(() => this.apiKey().trim().length > 0);
   readonly busy = signal(false);
   readonly confirm = signal<'delete' | 'import' | null>(null);
@@ -624,6 +687,24 @@ export class Settings {
 
   setGeneralSupport(value: string): void {
     writeGeneralSupportLanguage(value);
+  }
+
+  scoreColor(step: ScoreStep): string {
+    return this.scoreColorMap()[step];
+  }
+
+  scoreColorsChanged(): boolean {
+    const colors = this.scoreColorMap();
+    return SCORE_STEPS.some((step) => colors[step] !== DEFAULT_SCORE_COLORS[step]);
+  }
+
+  setScoreColor(step: ScoreStep, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.scoreColorMap.set(writeScoreColor(step, value));
+  }
+
+  resetScoreColorEnds(): void {
+    this.scoreColorMap.set(resetScoreColors());
   }
 
   toggle(id: string): void {

@@ -16,7 +16,6 @@ npm run deploy
 `deploy` bumps the patch version, builds, and publishes with Wrangler.
 
 TODO
-- Logs for edition
 - Decide on the gems and how you get them
 - TODO: We just have to know what happens if a form is not 
         present, so if an element exists but one of its forms in an example is not there. How should it act? And I think we're done. Maybe we can have duplicates or something.

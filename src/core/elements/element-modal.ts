@@ -18,6 +18,9 @@ import {
   assignEquivalent,
   deleteElement,
   DEFINITION_COVERAGE_MAX,
+  definitionCoverage,
+  definitionScoreAverage,
+  definitionScoreStep,
   displayTitle,
   equivalentTextFor,
   linkEquivalent,
@@ -31,7 +34,6 @@ import {
   languageDisplayName,
   saveElement,
   sensesWithEquivalents,
-  sanitizeElementColor,
   type DefinitionDeleteLog,
   type DefinitionExampleLog,
   type DefinitionFormLog,
@@ -74,7 +76,6 @@ import { DefinitionRecall, type RecallFinish } from './definition-recall';
 import { ShowText } from './show-text';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { supportLanguageFor } from '../languages/translation-language';
-import { HighlightColorPicker } from './highlight-color-picker';
 import { FeedbackTranslation } from '../translate/feedback-translation';
 import { PhraseTranslation } from '../translate/phrase-translation';
 import {
@@ -493,7 +494,6 @@ function writeExampleSuggestions(
     FeedbackTranslation,
     PhraseTranslation,
     ShowText,
-    HighlightColorPicker,
     DefinitionRecall,
     CdkScrollable,
   ],
@@ -507,8 +507,8 @@ function writeExampleSuggestions(
     >
       <div
         class="panel"
-        [class.has-color]="!!element().color"
-        [style.--swatch]="element().color || null"
+        [class.has-color]="scoreAverage() !== 'NA'"
+        [style.--score-color]="scoreColorVar()"
       >
         <ng-template #hearButton let-key="key" let-text="text" let-label="label" let-off="off">
           @if (canHear(text)) {
@@ -603,8 +603,7 @@ function writeExampleSuggestions(
                 <button
                   type="button"
                   class="element-title"
-                  [class.has-color]="!!element().color"
-                  [style.--swatch]="element().color || null"
+                  [class.has-color]="scoreAverage() !== 'NA'"
                   title="Edit element"
                   [disabled]="aiBusy()"
                   (click)="openTitle()"
@@ -674,7 +673,7 @@ function writeExampleSuggestions(
                 <section
                   class="stats-hero"
                   [class.unscored]="average === 'NA'"
-                  [style.--score-mix]="scoreMix()"
+                  [style.--score-color]="scoreColorVar()"
                   [attr.aria-label]="scoreAverageLabel()"
                 >
                   <p class="stats-eyebrow">Score</p>
@@ -1147,7 +1146,8 @@ function writeExampleSuggestions(
                 <p class="hint history-empty">No answers yet.</p>
               }
             </div>
-          } @else {
+          }
+          <div class="element-view" [class.offstage]="historyOpen()">
           @if (element().definitions.length && !skipRecall()) {
             <app-definition-recall
               [elementId]="element().id"
@@ -1156,6 +1156,7 @@ function writeExampleSuggestions(
               [supportLanguage]="translationTarget()"
               [senses]="recallSenses()"
               [examples]="recallExamples()"
+              [settled]="recallSettled()"
               (finished)="finishRecall($event)"
               (acceptExtra)="acceptRecallExtra($event)"
             />
@@ -1512,7 +1513,7 @@ function writeExampleSuggestions(
           } @else if (!element().definitions.length) {
             <p class="empty">No definitions yet.</p>
           }
-          }
+          </div>
         </div>
         @if (!recallPending() && !historyOpen()) {
           <footer class="definition-footer">
@@ -2845,13 +2846,6 @@ function writeExampleSuggestions(
               @if (titleError()) {
                 <p class="error">{{ titleError() }}</p>
               }
-              <app-highlight-color-picker
-                [embedded]="true"
-                [color]="element().color"
-                [colors]="colors()"
-                [disabled]="busy()"
-                (changed)="colorDraft.set($event)"
-              />
               <div class="sheet-actions">
                 <button
                   type="button"
@@ -2962,6 +2956,7 @@ function writeExampleSuggestions(
     }
 
     .panel.has-color {
+      --swatch: var(--score-color);
       --element-accent: oklch(from var(--swatch) 0.74 calc(min(max(c, 0.16), 0.24)) h);
     }
 
@@ -3059,10 +3054,6 @@ function writeExampleSuggestions(
 
     .element-edit {
       width: min(100%, 22rem);
-    }
-
-    .element-edit app-highlight-color-picker {
-      margin-top: 0.2rem;
     }
 
     .element-edit .sheet-actions .btn-danger {
@@ -3483,6 +3474,16 @@ function writeExampleSuggestions(
       flex-direction: column;
       gap: 0.85rem;
       padding: 0.85rem var(--header-inline) 0.75rem calc(var(--header-pad-left) + var(--title-lead));
+    }
+
+    .element-view {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .element-view.offstage {
+      display: none;
     }
 
     .definition-footer {
@@ -4455,7 +4456,6 @@ function writeExampleSuggestions(
     }
 
     .stats-hero {
-      --score-color: color-mix(in srgb, var(--gem-definition) calc(var(--score-mix) * 100%), var(--danger));
       display: flex;
       flex-direction: column;
       gap: 0.28rem;
@@ -5641,8 +5641,6 @@ function writeExampleSuggestions(
 export class ElementModal {
   readonly element = input.required<StoredElement>();
   readonly collection = input<StoredElement[]>([]);
-  /** Presets and custom colors already saved, for the highlight picker. */
-  readonly colors = input<readonly string[]>([]);
   readonly canGoBack = input(false);
   /** Sense to scroll into view when this element opens. It stays collapsed. */
   readonly definitionIndex = input(0);
@@ -5771,8 +5769,6 @@ export class ElementModal {
   readonly titleEdit = signal(false);
   readonly titleDraft = signal('');
   readonly titleError = signal('');
-  /** Color chosen in the element editor. Null clears it. */
-  readonly colorDraft = signal<string | null>(null);
   readonly addingDefinitions = signal<'example' | null>(null);
   readonly definitionExample = signal('');
   /** Arrived example shown as text until it is placed. */
@@ -5975,7 +5971,6 @@ export class ElementModal {
     if (this.aiBusy() || this.titleEdit()) return;
     this.titleError.set('');
     this.titleDraft.set(this.element().title);
-    this.colorDraft.set(sanitizeElementColor(this.element().color));
     this.titleEdit.set(true);
   }
 
@@ -5991,7 +5986,7 @@ export class ElementModal {
 
   canSaveElement(): boolean {
     if (this.busy() || !this.editedTitle()) return false;
-    return this.titleChanged() || this.colorChanged();
+    return this.titleChanged();
   }
 
   async saveTitle(event?: Event): Promise<void> {
@@ -6019,7 +6014,7 @@ export class ElementModal {
     const editing = this.formEdit();
     this.titleError.set('');
     const saved = await this.commit(
-      { ...current, title: name, definitions, color: this.chosenColor() },
+      { ...current, title: name, definitions },
       { report: false },
     );
     if (!this.alive || this.element().id !== element.id) return;
@@ -7911,14 +7906,6 @@ export class ElementModal {
     return this.editedTitle() !== this.element().title;
   }
 
-  private chosenColor(): string | null {
-    return sanitizeElementColor(this.colorDraft());
-  }
-
-  private colorChanged(): boolean {
-    return this.chosenColor() !== sanitizeElementColor(this.element().color);
-  }
-
   showCollision(
     event: MouseEvent,
     matches: DefinitionHighlightMatch[],
@@ -9016,17 +9003,9 @@ export class ElementModal {
 
   /** Mean recall score for this element. NA when it has not been exercised. */
   scoreAverage(): string {
-    let total = 0;
-    let count = 0;
-    for (const entry of this.currentElement().log) {
-      if (entry.event !== 'game' || entry.game !== 'definition' || !Number.isFinite(entry.score)) {
-        continue;
-      }
-      total += this.shownGameScore(entry);
-      count += 1;
-    }
-    if (!count) return 'NA';
-    return (total / count).toFixed(1);
+    const average = definitionScoreAverage(this.currentElement());
+    if (average == null) return 'NA';
+    return average.toFixed(1);
   }
 
   scoreAverageLabel(): string {
@@ -9035,18 +9014,16 @@ export class ElementModal {
     return `Score average ${average} out of 10`;
   }
 
-  /** 0 is fully red and 10 is fully green. */
-  scoreMix(): number {
-    const value = Number(this.scoreAverage());
-    if (!Number.isFinite(value)) return 0;
-    return Math.min(1, Math.max(0, value / 10));
+  /** CSS color for this element's score, or null when it has not been scored. */
+  scoreColorVar(): string | null {
+    const average = definitionScoreAverage(this.currentElement());
+    if (average == null) return null;
+    return `var(--score-${definitionScoreStep(average)})`;
   }
 
   /** Coverage out of 10 for a definition recall. Other games keep their stored score. */
   shownGameScore(entry: DefinitionGameLog): number {
-    if (entry.game !== 'definition') return entry.score;
-    const coverage = entry.extra ? entry.score - 1 : entry.score;
-    return Math.min(DEFINITION_COVERAGE_MAX, Math.max(0, coverage));
+    return definitionCoverage(entry);
   }
 
   gameScoreMaxLabel(game: DefinitionGameLog['game']): string {
@@ -9308,7 +9285,9 @@ function selectionCoversPassage(passage: Element, range: Range): boolean {
 }
 
 function scoreColor(element: StoredElement): { color: string } {
-  return { color: element.color ?? '' };
+  const average = definitionScoreAverage(element);
+  if (average == null) return { color: '' };
+  return { color: `var(--score-${definitionScoreStep(average)})` };
 }
 
 function elementFormTexts(element: StoredElement): string[] {

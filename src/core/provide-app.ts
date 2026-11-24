@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 import { setElementWriteListener } from 'collection';
 import { GemStatsJob } from './elements/gem-stats-job';
+import { applyScoreColors } from './settings/score-colors';
 
 export function provideApp(): ApplicationConfig['providers'] {
   return [
@@ -16,6 +17,7 @@ export function provideApp(): ApplicationConfig['providers'] {
       provide: ENVIRONMENT_INITIALIZER,
       multi: true,
       useValue: () => {
+        applyScoreColors();
         const job = inject(GemStatsJob);
         setElementWriteListener((language) => job.invalidate(language));
         job.resumePending();

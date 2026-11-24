@@ -5,11 +5,10 @@ import {
   languageDisplayName,
   type LearnableLanguage,
 } from '../languages/catalog';
-import { orderElementColors, sanitizeElementColor } from './element-color';
+import { sanitizeElementColor } from './element-color';
 import {
   mergeMetadataCatalog,
   normalizeElementCatalog,
-  readMetadataCatalog,
   replaceMetadataCatalog,
   type ElementCatalog,
 } from './metadata-catalog';
@@ -433,7 +432,6 @@ export async function addElement(language: string, title: string): Promise<Store
   if (!name) throw new Error('Title is required');
   const existing = (await readElements(code)).find((element) => sameTitle(element.title, name));
   if (existing) return existing;
-  const catalog = await syncElementColorCatalog();
   const created: StoredElement = {
     id: crypto.randomUUID(),
     language: code,
@@ -441,7 +439,7 @@ export async function addElement(language: string, title: string): Promise<Store
     equivalents: [],
     definitions: [],
     removedDefinitions: [],
-    color: sanitizeElementColor(catalog.colors[0]),
+    color: null,
     clicks: 0,
     log: [],
     ...emptyMetadataIndexes(),
@@ -490,11 +488,8 @@ export async function saveElement(
     ...(deletedAt ? { deletedAt } : {}),
   };
   await putElement(saved);
-  if (options?.syncCatalog !== false) {
-    await enqueueCatalogColorWrite(async () => {
-      if (!metadataIndexesEmpty(indexes)) await mergeMetadataCatalog(indexes);
-      return reconcileElementColors();
-    });
+  if (options?.syncCatalog !== false && !metadataIndexesEmpty(indexes)) {
+    await enqueueCatalogColorWrite(() => mergeMetadataCatalog(indexes));
   }
   return saved;
 }
@@ -524,14 +519,7 @@ async function writeCollection(elements: readonly unknown[], catalog: unknown): 
     seen.add(element.id);
     saved.push(element);
   }
-  const indexes = normalizeElementCatalog(catalog);
-  const next = {
-    ...indexes,
-    colors: orderElementColors(
-      indexes.colors,
-      saved.map((element) => element.color),
-    ),
-  };
+  const next = normalizeElementCatalog(catalog);
   const db = await openDatabase();
   const tx = db.transaction([ELEMENTS_STORE, CATALOG_STORE], 'readwrite');
   const done = transactionDone(tx);
@@ -555,7 +543,6 @@ export async function deleteElement(id: string): Promise<void> {
   const element = normalizeElement(raw);
   if (!element || element.deletedAt) return;
   await putElement({ ...element, deletedAt: Date.now() });
-  await syncElementColorCatalog();
 }
 
 let catalogColorWrite: Promise<void> = Promise.resolve();
@@ -569,54 +556,11 @@ function enqueueCatalogColorWrite<T>(work: () => Promise<T>): Promise<T> {
   return run;
 }
 
-/** Keeps catalog colors equal to the colors still saved on elements, in the saved order. */
-export function syncElementColorCatalog(): Promise<ElementCatalog> {
-  return enqueueCatalogColorWrite(reconcileElementColors);
-}
-
-/** Replaces the catalog after any in-flight color sync, so the two cannot overwrite each other. */
+/** Replaces the catalog after any in-flight catalog write, so the two cannot overwrite each other. */
 export function commitElementCatalog(
   indexes: Parameters<typeof replaceMetadataCatalog>[0],
 ): Promise<ElementCatalog> {
   return enqueueCatalogColorWrite(() => replaceMetadataCatalog(indexes));
-}
-
-/** Stores this color order. Colors no element uses are dropped, and missing ones are appended. */
-export function replaceElementColorOrder(colors: readonly string[]): Promise<ElementCatalog> {
-  return enqueueCatalogColorWrite(() => writeElementColorOrder(colors));
-}
-
-async function reconcileElementColors(): Promise<ElementCatalog> {
-  const [used, catalog] = await Promise.all([readStoredElementColors(), readMetadataCatalog()]);
-  const colors = orderElementColors(catalog.colors, used);
-  if (sameColorOrder(colors, catalog.colors)) return catalog;
-  return replaceMetadataCatalog({ ...catalog, colors });
-}
-
-async function writeElementColorOrder(colors: readonly string[]): Promise<ElementCatalog> {
-  const [used, catalog] = await Promise.all([readStoredElementColors(), readMetadataCatalog()]);
-  const next = orderElementColors(colors, used);
-  if (sameColorOrder(next, catalog.colors)) return catalog;
-  return replaceMetadataCatalog({ ...catalog, colors: next });
-}
-
-function sameColorOrder(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((color, index) => color === right[index]);
-}
-
-async function readStoredElementColors(): Promise<unknown[]> {
-  if (typeof indexedDB === 'undefined') return [];
-  const db = await openDatabase();
-  const result = await idbRequest(
-    db.transaction(ELEMENTS_STORE, 'readonly').objectStore(ELEMENTS_STORE).getAll(),
-  );
-  if (!Array.isArray(result)) return [];
-  const colors: unknown[] = [];
-  for (const record of result) {
-    if (!record || typeof record !== 'object' || removedRecord(record)) continue;
-    colors.push((record as { color?: unknown }).color);
-  }
-  return colors;
 }
 
 function transactionDone(tx: IDBTransaction): Promise<void> {

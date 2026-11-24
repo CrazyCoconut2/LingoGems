@@ -1,11 +1,4 @@
 import {
-  CdkDrag,
-  CdkDragPreview,
-  CdkDropList,
-  moveItemInArray,
-  type CdkDragDrop,
-} from '@angular/cdk/drag-drop';
-import {
   Component,
   computed,
   DestroyRef,
@@ -16,7 +9,6 @@ import {
 import { FormsModule } from '@angular/forms';
 import { ElementModal } from '../elements/element-modal';
 import { GemStatsModal } from '../elements/gem-stats-modal';
-import { HighlightColorPicker } from '../elements/highlight-color-picker';
 import { RevealIcon } from '../elements/reveal-icon';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { DiscoverModal } from './discover-modal';
@@ -34,12 +26,12 @@ import {
   displayTitle,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
-  elementMatchesColor,
   elementMatchesMetadata,
   elementMatchesPrefix,
+  elementMatchesScore,
   elementPrefixSearch,
+  elementScoreStep,
   emptyElementCatalog,
-  sanitizeElementColor,
   formatMetadataFilter,
   isLearnableLanguage,
   isValidForm,
@@ -51,10 +43,8 @@ import {
   readAllElements,
   readElements,
   readMetadataCatalog,
-  replaceElementColorOrder,
   saveElement,
   sensesWithEquivalents,
-  syncElementColorCatalog,
   type ElementCatalog,
   type ElementDefinition,
   type ElementMetadataVariability,
@@ -66,7 +56,7 @@ import {
 
 type ElementTrailStop = { id: string; definition: number; example?: string; guide?: string };
 
-type FilterSection = 'language' | 'color' | 'definitions' | 'examples' | 'forms';
+type FilterSection = 'language' | 'score' | 'definitions' | 'examples' | 'forms';
 
 type MetadataKind = 'definitions' | 'examples' | 'forms';
 
@@ -129,15 +119,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
   selector: 'app-language-page',
   imports: [
     FormsModule,
-    CdkDropList,
-    CdkDrag,
-    CdkDragPreview,
     ElementModal,
     RevealIcon,
     DiscoverModal,
     Settings,
     GemStatsModal,
-    HighlightColorPicker,
   ],
   template: `
     <main>
@@ -259,21 +245,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 @if (selectedIds().size) {
                   <button
                     type="button"
-                    class="list-action"
-                    [class.active]="colorOpen()"
-                    aria-label="Set color"
-                    title="Set color"
-                    [disabled]="selectionBusy()"
-                    (click)="openSelectionColor()"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m9 11-6 6v3h9l3-3" />
-                      <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
-                      <path d="M3 22h18" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
                     class="list-action danger"
                     aria-label="Delete selected"
                     title="Delete selected"
@@ -351,11 +322,12 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         } @else if (shown().length) {
           <ul class="elements">
             @for (element of shown(); track element.id) {
+              @let color = scoreColor(element);
               <li
                 class="card"
                 [class.selected]="isSelected(element.id)"
-                [class.colored]="!!cardAccent(element)"
-                [style.--score-color]="cardAccent(element)"
+                [class.colored]="!!color"
+                [style.--score-color]="color"
                 (click)="onCardClick(element.id)"
                 (contextmenu)="onCardContextMenu($event, element.id)"
                 (pointerdown)="onCardPointerDown($event, element.id)"
@@ -478,7 +450,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               <div>
                 <h2 class="filter-title">Filters</h2>
                 <p class="filter-subtitle">
-                  Keep elements by language, color, counts, or metadata.
+                  Keep elements by language, score, counts, or metadata.
                 </p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
@@ -568,75 +540,67 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 }
               </section>
 
-              <section class="filter-section" [class.expanded]="expanded() === 'color'">
+              <section class="filter-section" [class.expanded]="expanded() === 'score'">
                 <button
                   type="button"
                   class="section-header"
-                  [attr.aria-expanded]="expanded() === 'color'"
-                  (click)="toggleSection('color')"
+                  [attr.aria-expanded]="expanded() === 'score'"
+                  (click)="toggleSection('score')"
                 >
                   <span class="section-title">
-                    Color
-                    @if (colorFilter().length) {
-                      <span class="section-count">{{ colorSummary() }}</span>
+                    Score
+                    @if (scoreFilterActive()) {
+                      <span class="section-count">{{ scoreSummary() }}</span>
                     }
                   </span>
                   <svg class="section-chevron" viewBox="0 0 24 24">
                     <path d="m6 9 6 6 6-6" />
                   </svg>
                 </button>
-                @if (expanded() === 'color') {
+                @if (expanded() === 'score') {
                   <div class="section-body">
                     <div class="section-actions">
                       <button
                         type="button"
                         class="link-btn"
-                        [disabled]="colorFilter().length === 0"
-                        (click)="clearColor()"
+                        [disabled]="!scoreFilterActive()"
+                        (click)="clearScore()"
                       >
                         Clear
                       </button>
                     </div>
-                    @if (!colorOptions().length) {
-                      <p class="section-hint">Colors show up once an element has one.</p>
-                    } @else {
-                      <p class="section-hint">
-                        Drag to reorder. The first color is what new elements get.
-                      </p>
-                      <div
-                        class="color-choices"
-                        cdkDropList
-                        cdkDropListOrientation="mixed"
-                        role="group"
-                        aria-label="Color"
-                        (cdkDropListDropped)="reorderColors($event)"
+                    <div class="score-values" role="group" aria-label="Score">
+                      @for (step of scoreSteps; track step) {
+                        <button
+                          type="button"
+                          class="score-chip"
+                          [class.selected]="scoreSelected(step)"
+                          [attr.aria-pressed]="scoreSelected(step)"
+                          [attr.aria-label]="'Score ' + step"
+                          [style.--step-color]="'var(--score-' + step + ')'"
+                          [style.--step-bg]="
+                            'color-mix(in srgb, var(--score-' + step + ') 14%, transparent)'
+                          "
+                          (click)="toggleScore(step)"
+                        >
+                          {{ step }}
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        class="score-chip unscored"
+                        [class.selected]="unscoredFilter()"
+                        [attr.aria-pressed]="unscoredFilter()"
+                        aria-label="No score"
+                        [style.--step-color]="'var(--text-muted)'"
+                        [style.--step-bg]="
+                          'color-mix(in srgb, var(--text-muted) 14%, transparent)'
+                        "
+                        (click)="toggleUnscored()"
                       >
-                        @for (color of colorOptions(); track color; let first = $first) {
-                          <div class="color-choice" cdkDrag>
-                            <button
-                              type="button"
-                              class="color-swatch draggable"
-                              [class.selected]="colorSelected(color)"
-                              [attr.aria-pressed]="colorSelected(color)"
-                              [attr.aria-label]="first ? color + ', default' : color"
-                              [style.--swatch]="color"
-                              (click)="chooseColor(color)"
-                            ></button>
-                            @if (first) {
-                              <span class="color-default">Default</span>
-                            }
-                            <ng-template cdkDragPreview>
-                              <span
-                                class="color-swatch-preview"
-                                [style.background]="color"
-                                [style.width.rem]="2.2"
-                                [style.height.rem]="2.2"
-                              ></span>
-                            </ng-template>
-                          </div>
-                        }
-                      </div>
-                    }
+                        No score
+                      </button>
+                    </div>
                   </div>
                 }
               </section>
@@ -734,23 +698,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         </div>
       }
 
-      @if (colorOpen()) {
-        <div class="selection-backdrop" (click)="closeColorSheet($event)">
-          <div class="highlight-picker-stack">
-            <app-highlight-color-picker
-              [color]="selectionColor()"
-              [colors]="colorOptions()"
-              [disabled]="selectionBusy()"
-              (saved)="confirmSelectionColor($event)"
-              (dismissed)="closeColorSheet()"
-            />
-            @if (selectionError()) {
-              <p class="selection-error">{{ selectionError() }}</p>
-            }
-          </div>
-        </div>
-      }
-
       @if (deleteConfirm()) {
         <div class="selection-backdrop" (click)="closeDeleteConfirm($event)">
           <section
@@ -812,7 +759,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         <app-element-modal
           [element]="element"
           [collection]="elements()"
-          [colors]="colorOptions()"
           [canGoBack]="canGoBack()"
           [definitionIndex]="openedDefinition()"
           [arrivedExample]="arrivedExample()"
@@ -1860,82 +1806,52 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       font-weight: 650;
     }
 
-    .color-choices {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-start;
-      gap: 0.55rem 0.7rem;
+    .score-values {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0.3rem;
+      padding-top: 0.2rem;
     }
 
-    .color-choice {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.28rem;
-      width: 3.4rem;
-    }
-
-    .color-default {
-      color: var(--text-muted);
-      font-size: 0.62rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      line-height: 1;
-      text-transform: uppercase;
-    }
-
-    .color-swatch {
-      width: 2.2rem;
-      height: 2.2rem;
-      padding: 0;
-      border: 2px solid transparent;
-      border-radius: 999px;
-      background: var(--swatch);
-      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28);
+    .score-chip {
+      border: 0;
+      border-radius: 0.65rem;
+      background: color-mix(in srgb, var(--surface) 80%, transparent);
+      padding: 0.4rem 0;
+      color: color-mix(in srgb, var(--step-color) 75%, var(--text-muted));
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
       cursor: pointer;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+      user-select: none;
     }
 
-    .color-swatch:hover:not(:disabled) {
-      filter: brightness(1.06);
+    .score-chip:hover {
+      color: var(--step-color);
+      background: var(--step-bg);
     }
 
-    .color-swatch.selected {
-      border-color: var(--text);
+    .score-chip.selected {
+      background: var(--step-bg);
+      color: var(--step-color);
+      font-weight: 750;
+      box-shadow: inset 0 0 0 1.5px var(--step-color);
     }
 
-    .color-swatch:disabled {
-      opacity: 0.45;
-      cursor: default;
+    .score-chip.unscored {
+      grid-column: 1 / -1;
     }
 
-    .color-swatch.draggable {
-      cursor: grab;
-      touch-action: none;
+    .score-chip.unscored:hover {
+      color: var(--text);
     }
 
-    .color-swatch.draggable:active {
-      cursor: grabbing;
-    }
-
-    .color-choices.cdk-drop-list-dragging .color-swatch:not(.cdk-drag-placeholder) {
-      transition: transform 180ms ease;
-    }
-
-    .color-swatch-preview {
-      display: block;
-      width: 2.2rem;
-      height: 2.2rem;
-      border-radius: 999px;
-      box-shadow:
-        inset 0 0 0 1px rgba(0, 0, 0, 0.28),
-        0 8px 18px rgba(0, 0, 0, 0.35);
-    }
-
-    .highlight-picker-stack {
-      display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
-      width: min(100%, 19.5rem);
+    .score-chip.unscored.selected {
+      color: var(--text);
+      box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 45%, var(--border));
     }
 
     .meta-key {
@@ -2090,7 +2006,6 @@ export class LanguagePage {
   private pressStartX = 0;
   private pressStartY = 0;
   private swallowClickUntil = 0;
-  private colorApplied = false;
   private scrollLock = '';
   private scrollLocked = false;
   private promptedLanguage = false;
@@ -2105,7 +2020,6 @@ export class LanguagePage {
   readonly selectedIds = signal<ReadonlySet<string>>(new Set());
   readonly selectionBusy = signal(false);
   readonly selectionError = signal('');
-  readonly colorOpen = signal(false);
   readonly deleteConfirm = signal(false);
   readonly skeletons = ELEMENT_SKELETONS;
   readonly sortOptions: { value: ElementSort; label: string }[] = [
@@ -2148,14 +2062,13 @@ export class LanguagePage {
       empty: 'No form metadata yet. Recompute to collect it.',
     },
   ];
-  readonly colorFilter = signal<string[]>([]);
+  readonly scoreSteps = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  readonly scoreFilter = signal<number[]>([]);
+  readonly unscoredFilter = signal(false);
   readonly definitionMetaFilter = signal<ElementMetadataVariability>({});
   readonly exampleMetaFilter = signal<ElementMetadataVariability>({});
   readonly formMetaFilter = signal<ElementMetadataVariability>({});
   readonly metadataCatalog = signal<ElementCatalog>(emptyElementCatalog());
-  readonly colorOptions = computed(() => this.metadataCatalog().colors);
-  /** Drop time, so the click that ends a drag does not toggle the filter. */
-  private colorDragAt = 0;
   readonly recomputing = signal(false);
   readonly recomputeError = signal('');
   readonly sortOpen = signal(false);
@@ -2178,7 +2091,8 @@ export class LanguagePage {
   });
   readonly optionalFilterCount = computed(
     () =>
-      this.colorFilter().length +
+      this.scoreFilter().length +
+      (this.unscoredFilter() ? 1 : 0) +
       metadataFilterSize(this.definitionMetaFilter()) +
       metadataFilterSize(this.exampleMetaFilter()) +
       metadataFilterSize(this.formMetaFilter()),
@@ -2190,13 +2104,14 @@ export class LanguagePage {
   });
   readonly visible = computed(() => {
     const search = this.search();
-    const color = this.colorFilter();
+    const score = this.scoreFilter();
+    const unscored = this.unscoredFilter();
     const definitionMeta = this.definitionMetaFilter();
     const exampleMeta = this.exampleMetaFilter();
     const formMeta = this.formMetaFilter();
     const matched = this.elements().filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
-      if (!elementMatchesColor(element, color)) return false;
+      if (!elementMatchesScore(element, score, unscored)) return false;
       return elementMatchesMetadata(element, definitionMeta, exampleMeta, formMeta);
     });
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
@@ -2258,10 +2173,6 @@ export class LanguagePage {
       return;
     }
     if (this.elementId() || this.selectionBusy()) return;
-    if (this.colorOpen()) {
-      this.closeColorSheet();
-      return;
-    }
     if (this.deleteConfirm()) {
       this.deleteConfirm.set(false);
       return;
@@ -2349,55 +2260,12 @@ export class LanguagePage {
     this.clearPressTimer();
     this.selecting.set(false);
     this.selectedIds.set(new Set());
-    this.colorOpen.set(false);
     this.deleteConfirm.set(false);
-    this.colorApplied = false;
     this.selectionError.set('');
-  }
-
-  openSelectionColor(): void {
-    if (this.selectionBusy() || this.selectedIds().size === 0) return;
-    this.colorApplied = false;
-    this.deleteConfirm.set(false);
-    this.colorOpen.set(true);
-  }
-
-  closeColorSheet(event?: Event): void {
-    event?.stopPropagation();
-    if (this.selectionBusy()) return;
-    this.colorOpen.set(false);
-    if (!this.colorApplied) return;
-    this.colorApplied = false;
-    this.clearSelection();
-  }
-
-  selectionColor(): string | null {
-    const selected = this.selectedElements();
-    if (!selected.length) return null;
-    const color = selected[0]?.color ?? null;
-    return selected.every((element) => element.color === color) ? color : null;
-  }
-
-  async confirmSelectionColor(color: string | null): Promise<void> {
-    await this.setSelectionColor(color);
-    if (this.selectionError()) return;
-    this.closeColorSheet();
-  }
-
-  async setSelectionColor(color: string | null): Promise<void> {
-    const next = color == null ? null : sanitizeElementColor(color);
-    if (color != null && !next) return;
-    if (this.selectionBusy()) return;
-    const saved = await this.writeSelected((element) =>
-      element.color === next ? element : { ...element, color: next },
-    );
-    if (!saved) return;
-    this.colorApplied = true;
   }
 
   askDeleteSelection(): void {
     if (this.selectionBusy() || this.selectedIds().size === 0) return;
-    this.colorOpen.set(false);
     this.deleteConfirm.set(true);
   }
 
@@ -2467,7 +2335,7 @@ export class LanguagePage {
 
   private dismissSelectionFromOutside(target: Element | null): void {
     if (this.selectionBusy() || !this.selecting()) return;
-    if (this.colorOpen() || this.deleteConfirm()) return;
+    if (this.deleteConfirm()) return;
     if (
       target?.closest(
         '.card, .element, .list-toolbar-actions, .selection-backdrop, app-element-modal',
@@ -2664,8 +2532,10 @@ export class LanguagePage {
     return compiledLeadValues(element, this.leadFieldKey());
   }
 
-  cardAccent(element: StoredElement): string | null {
-    return element.color ?? this.leadPills(element)[0]?.color ?? null;
+  /** CSS color for this element's score, or null when it has not been scored. */
+  scoreColor(element: StoredElement): string | null {
+    const step = elementScoreStep(element);
+    return step == null ? null : `var(--score-${step})`;
   }
 
   /** Color of the metadata field shown under the title. The element color stays off this line. */
@@ -2860,38 +2730,38 @@ export class LanguagePage {
     this.expanded.update((current) => (current === section ? null : section));
   }
 
-  colorSelected(color: string): boolean {
-    return this.colorFilter().includes(color);
+  scoreSelected(step: number): boolean {
+    return this.scoreFilter().includes(step);
   }
 
-  colorSummary(): string {
-    return String(this.colorFilter().length);
+  scoreFilterActive(): boolean {
+    return this.scoreFilter().length > 0 || this.unscoredFilter();
   }
 
-  chooseColor(color: string): void {
-    if (Date.now() - this.colorDragAt < 400) return;
-    const current = this.colorFilter();
-    const next = current.includes(color)
-      ? current.filter((item) => item !== color)
-      : [...current, color];
-    this.colorFilter.set(next);
+  scoreSummary(): string {
+    return String(this.scoreFilter().length + (this.unscoredFilter() ? 1 : 0));
   }
 
-  reorderColors(event: CdkDragDrop<string[]>): void {
-    this.colorDragAt = Date.now();
-    if (event.previousIndex === event.currentIndex) return;
-    const colors = [...this.colorOptions()];
-    moveItemInArray(colors, event.previousIndex, event.currentIndex);
-    this.metadataCatalog.update((catalog) => ({ ...catalog, colors }));
-    void replaceElementColorOrder(colors).then((catalog) => this.applyCatalog(catalog));
+  toggleScore(step: number): void {
+    const current = this.scoreFilter();
+    const next = current.includes(step)
+      ? current.filter((item) => item !== step)
+      : [...current, step];
+    this.scoreFilter.set(next);
   }
 
-  clearColor(): void {
-    this.colorFilter.set([]);
+  toggleUnscored(): void {
+    this.unscoredFilter.update((selected) => !selected);
+  }
+
+  clearScore(): void {
+    this.scoreFilter.set([]);
+    this.unscoredFilter.set(false);
   }
 
   clearFilters(): void {
-    this.colorFilter.set([]);
+    this.scoreFilter.set([]);
+    this.unscoredFilter.set(false);
     this.definitionMetaFilter.set({});
     this.exampleMetaFilter.set({});
     this.formMetaFilter.set({});
@@ -3055,14 +2925,13 @@ export class LanguagePage {
     this.recomputing.set(true);
     this.recomputeError.set('');
     try {
-      const previous = await readMetadataCatalog();
       const all = await readAllElements();
       const next: StoredElement[] = [];
       for (const element of all) {
         next.push(await saveElement(element, { syncCatalog: false }));
       }
       const live = next.filter((element) => !element.deletedAt);
-      const catalog = await commitElementCatalog(catalogFromElements(live, previous.colors));
+      const catalog = await commitElementCatalog(catalogFromElements(live));
       const code = this.code();
       if (code) this.elements.set(live.filter((element) => element.language === code));
       this.applyCatalog(catalog);
@@ -3074,7 +2943,7 @@ export class LanguagePage {
   }
 
   private async loadCatalog(): Promise<void> {
-    this.applyCatalog(await syncElementColorCatalog());
+    this.applyCatalog(await readMetadataCatalog());
   }
 
   private async refreshCatalog(): Promise<void> {
@@ -3083,12 +2952,6 @@ export class LanguagePage {
 
   private applyCatalog(catalog: ElementCatalog): void {
     this.metadataCatalog.set(catalog);
-    const live = new Set(catalog.colors);
-    this.colorFilter.update((current) =>
-      current.every((color) => live.has(color))
-        ? current
-        : current.filter((color) => live.has(color)),
-    );
   }
 
   private async load(language: string): Promise<void> {

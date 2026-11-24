@@ -1,5 +1,5 @@
 import { Component, computed, effect, input, output, signal } from '@angular/core';
-import { languageDisplayName } from 'collection';
+import { definitionScoreStep, languageDisplayName } from 'collection';
 import { FeedbackTranslation } from '../translate/feedback-translation';
 import {
   correctRecallAnswer,
@@ -37,6 +37,9 @@ type RecallView = {
 @Component({
   selector: 'app-definition-recall',
   imports: [FeedbackTranslation],
+  host: {
+    '[class.quiet]': 'settled() && !result()',
+  },
   template: `
     <section class="recall" [attr.aria-label]="'Definitions of ' + lemma()">
       @if (result(); as scored) {
@@ -44,7 +47,7 @@ type RecallView = {
           <section
             class="result"
             [class.gave-up]="scored.gaveUp"
-            [style.--score-mix]="scoreMix(scored)"
+            [style.--score-color]="scored.gaveUp ? null : scoreColor(scored)"
             [attr.aria-label]="scoreLabel(scored)"
           >
             <div class="result-head">
@@ -103,7 +106,7 @@ type RecallView = {
             <p class="hint">Added to this element.</p>
           }
         }
-      } @else {
+      } @else if (!settled()) {
         <div class="prompt">
           <p class="ask">Write the {{ definitionCountLabel() }} of this element.</p>
           <div class="prompt-meta">
@@ -234,6 +237,10 @@ type RecallView = {
   styles: `
     :host {
       display: block;
+    }
+
+    :host.quiet {
+      display: none;
     }
 
     .recall {
@@ -444,11 +451,6 @@ type RecallView = {
     }
 
     .result {
-      --score-color: color-mix(
-        in srgb,
-        var(--gem-definition) calc(var(--score-mix) * 100%),
-        var(--danger)
-      );
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
@@ -556,6 +558,8 @@ export class DefinitionRecall {
   /** Which of the two languages the answer is written in. */
   readonly answerSide = signal<'support' | 'learning'>('support');
   readonly senses = input.required<readonly RecallSense[]>();
+  /** This open already revealed the definitions, so the prompt cannot return. */
+  readonly settled = input(false);
   readonly examples = input.required<readonly RecallExample[]>();
   readonly finished = output<RecallFinish>();
   readonly acceptExtra = output<RecallExtra>();
@@ -645,9 +649,8 @@ export class DefinitionRecall {
     return `Score ${scored.coverage} out of 10${bonus}`;
   }
 
-  /** 0 is fully red and 10 is fully green. */
-  scoreMix(scored: RecallView): number {
-    return Math.min(1, Math.max(0, scored.coverage / 10));
+  scoreColor(scored: RecallView): string {
+    return `var(--score-${definitionScoreStep(scored.coverage)})`;
   }
 
   showHint(): void {
