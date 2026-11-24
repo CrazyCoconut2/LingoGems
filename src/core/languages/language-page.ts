@@ -23,6 +23,7 @@ import {
   compareElements,
   DEFAULT_ELEMENT_SORT,
   deleteElement,
+  definitionScoreAverage,
   displayTitle,
   ELEMENT_SEARCH_MAX_LENGTH,
   elementHighlightParts,
@@ -343,13 +344,20 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   class="element"
                   [attr.aria-pressed]="selecting() ? isSelected(element.id) : null"
                 >
-                  <span class="title">
-                    @for (part of highlight(element.title); track $index) {
-                      @if (part.hit) {
-                        <mark class="hit">{{ part.text }}</mark>
-                      } @else {
-                        <span>{{ part.text }}</span>
+                  <span class="title-line">
+                    <span class="title">
+                      @for (part of highlight(element.title); track $index) {
+                        @if (part.hit) {
+                          <mark class="hit">{{ part.text }}</mark>
+                        } @else {
+                          <span>{{ part.text }}</span>
+                        }
                       }
+                    </span>
+                    @if (scoreLabel(element); as score) {
+                      <span class="card-score" [attr.aria-label]="'Score average ' + score + ' out of 10'">
+                        {{ score }}<span class="card-score-max">/10</span>
+                      </span>
                     }
                   </span>
                   <span
@@ -1447,7 +1455,15 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       outline: none;
     }
 
+    .title-line {
+      display: flex;
+      align-items: baseline;
+      gap: 0.45rem;
+      min-width: 0;
+    }
+
     .title {
+      flex: 1 1 auto;
       min-width: 0;
       max-width: 100%;
       overflow: hidden;
@@ -1458,6 +1474,22 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       letter-spacing: -0.02em;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .card-score {
+      flex: none;
+      color: var(--card-accent);
+      font-size: 0.8rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .card-score-max {
+      color: color-mix(in srgb, var(--card-accent) 65%, var(--text-muted));
+      font-size: 0.62rem;
+      font-weight: 650;
     }
 
     .card.colored:hover .title {
@@ -2536,6 +2568,12 @@ export class LanguagePage {
   scoreColor(element: StoredElement): string | null {
     const step = elementScoreStep(element);
     return step == null ? null : `var(--score-${step})`;
+  }
+
+  /** Average out of 10, or null when this element has not been scored. */
+  scoreLabel(element: StoredElement): string | null {
+    const average = definitionScoreAverage(element);
+    return average == null ? null : average.toFixed(1);
   }
 
   /** Color of the metadata field shown under the title. The element color stays off this line. */
