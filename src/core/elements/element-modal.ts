@@ -5269,8 +5269,13 @@ function writeExampleSuggestions(
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      gap: 0.4rem;
+      gap: 0.55rem;
+      box-sizing: border-box;
       min-width: 0;
+      padding: 0.7rem 0.75rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.035);
     }
 
     .log-detail-head {
