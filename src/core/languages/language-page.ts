@@ -9,7 +9,6 @@ import {
 import { FormsModule } from '@angular/forms';
 import { ElementModal } from '../elements/element-modal';
 import { GemStatsModal } from '../elements/gem-stats-modal';
-import { RevealIcon } from '../elements/reveal-icon';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { DiscoverModal } from './discover-modal';
 import { ensureSelectedLanguage, writeSelectedLanguage } from './selected-language';
@@ -121,7 +120,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
   imports: [
     FormsModule,
     ElementModal,
-    RevealIcon,
     DiscoverModal,
     Settings,
     GemStatsModal,
@@ -312,10 +310,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   <span class="bone bone-pill"></span>
                 </div>
                 <div class="stat-rail">
-                  <span class="bone bone-stat"></span>
-                  <span class="bone bone-stat"></span>
-                  <span class="bone bone-stat"></span>
-                  <span class="bone bone-stat"></span>
+                  <span class="stat-group">
+                    <span class="bone bone-stat"></span>
+                    <span class="bone bone-stat"></span>
+                  </span>
+                  <span class="bone bone-score"></span>
                 </div>
               </li>
             }
@@ -344,20 +343,13 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   class="element"
                   [attr.aria-pressed]="selecting() ? isSelected(element.id) : null"
                 >
-                  <span class="title-line">
-                    <span class="title">
-                      @for (part of highlight(element.title); track $index) {
-                        @if (part.hit) {
-                          <mark class="hit">{{ part.text }}</mark>
-                        } @else {
-                          <span>{{ part.text }}</span>
-                        }
+                  <span class="title">
+                    @for (part of highlight(element.title); track $index) {
+                      @if (part.hit) {
+                        <mark class="hit">{{ part.text }}</mark>
+                      } @else {
+                        <span>{{ part.text }}</span>
                       }
-                    </span>
-                    @if (scoreLabel(element); as score) {
-                      <span class="card-score" [attr.aria-label]="'Score average ' + score + ' out of 10'">
-                        {{ score }}<span class="card-score-max">/10</span>
-                      </span>
                     }
                   </span>
                   <span
@@ -371,60 +363,46 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   </span>
                 </button>
                 <div class="stat-rail">
-                  <span
-                    class="stat stat-opened"
-                    [class.zero]="activity.opened === 0"
-                    [attr.aria-label]="openedLabel(activity.opened)"
-                    [attr.title]="openedLabel(activity.opened)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                    <span>{{ activity.opened }}</span>
+                  <span class="stat-group">
+                    <span
+                      class="stat"
+                      [class.zero]="activity.worked === 0"
+                      [attr.aria-label]="workedLabel(activity.worked)"
+                      [attr.title]="workedLabel(activity.worked)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m14 13-8.381 8.38a1 1 0 0 1-3.001-3L11 9.999" />
+                        <path
+                          d="M15.973 4.027A13 13 0 0 0 5.902 2.373c-1.398.342-1.092 2.158.277 2.601a19.9 19.9 0 0 1 5.822 3.024"
+                        />
+                        <path
+                          d="M16.001 11.999a19.9 19.9 0 0 1 3.024 5.824c.444 1.369 2.26 1.676 2.603.278A13 13 0 0 0 20 8.069"
+                        />
+                        <path
+                          d="M18.352 3.352a1.205 1.205 0 0 0-1.704 0l-5.296 5.296a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l5.296-5.296a1.205 1.205 0 0 0 0-1.704z"
+                        />
+                      </svg>
+                      <span>{{ activity.worked }}</span>
+                    </span>
+                    <span
+                      class="stat"
+                      [class.zero]="activity.reworked === 0"
+                      [attr.aria-label]="reworkedLabel(activity.reworked)"
+                      [attr.title]="reworkedLabel(activity.reworked)"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+                        />
+                      </svg>
+                      <span>{{ activity.reworked }}</span>
+                    </span>
                   </span>
-                  <span
-                    class="stat stat-reworked"
-                    [class.zero]="activity.reworked === 0"
-                    [attr.aria-label]="reworkedLabel(activity.reworked)"
-                    [attr.title]="reworkedLabel(activity.reworked)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-                      />
-                    </svg>
-                    <span>{{ activity.reworked }}</span>
-                  </span>
-                  <span
-                    class="stat stat-revealed"
-                    [class.zero]="activity.revealed === 0"
-                    [attr.aria-label]="revealedLabel(activity.revealed)"
-                    [attr.title]="revealedLabel(activity.revealed)"
-                  >
-                    <app-reveal-icon />
-                    <span>{{ activity.revealed }}</span>
-                  </span>
-                  <span
-                    class="stat stat-exercised"
-                    [class.zero]="activity.exercises === 0"
-                    [attr.aria-label]="exercisedLabel(activity.exercises)"
-                    [attr.title]="exercisedLabel(activity.exercises)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m14 13-8.381 8.38a1 1 0 0 1-3.001-3L11 9.999" />
-                      <path
-                        d="M15.973 4.027A13 13 0 0 0 5.902 2.373c-1.398.342-1.092 2.158.277 2.601a19.9 19.9 0 0 1 5.822 3.024"
-                      />
-                      <path
-                        d="M16.001 11.999a19.9 19.9 0 0 1 3.024 5.824c.444 1.369 2.26 1.676 2.603.278A13 13 0 0 0 20 8.069"
-                      />
-                      <path
-                        d="M18.352 3.352a1.205 1.205 0 0 0-1.704 0l-5.296 5.296a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l5.296-5.296a1.205 1.205 0 0 0 0-1.704z"
-                      />
-                    </svg>
-                    <span>{{ activity.exercises }}</span>
-                  </span>
+                  @if (scoreLabel(element); as score) {
+                    <span class="stat-score" [attr.aria-label]="'Score average ' + score + ' out of 10'">
+                      {{ score }}<span class="stat-score-max">/10</span>
+                    </span>
+                  }
                 </div>
               </li>
             }
@@ -1455,15 +1433,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       outline: none;
     }
 
-    .title-line {
-      display: flex;
-      align-items: baseline;
-      gap: 0.45rem;
-      min-width: 0;
-    }
-
     .title {
-      flex: 1 1 auto;
       min-width: 0;
       max-width: 100%;
       overflow: hidden;
@@ -1474,22 +1444,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       letter-spacing: -0.02em;
       text-overflow: ellipsis;
       white-space: nowrap;
-    }
-
-    .card-score {
-      flex: none;
-      color: var(--card-accent);
-      font-size: 0.8rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.03em;
-      line-height: 1;
-    }
-
-    .card-score-max {
-      color: color-mix(in srgb, var(--card-accent) 65%, var(--text-muted));
-      font-size: 0.62rem;
-      font-weight: 650;
     }
 
     .card.colored:hover .title {
@@ -1528,10 +1482,17 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 0.35rem;
+      gap: 0.5rem;
       margin-top: 0.7rem;
       padding: 0.55rem 0 0.7rem;
       border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .stat-group {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      min-width: 0;
     }
 
     .stat {
@@ -1557,14 +1518,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       opacity: 0.4;
     }
 
-    .stat app-reveal-icon {
-      display: flex;
-      align-items: center;
-      width: 1.44rem;
-      height: 0.75rem;
-      color: var(--card-accent, #94a3b8);
-    }
-
     .stat svg {
       display: block;
       width: 0.75rem;
@@ -1576,6 +1529,23 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       stroke-linecap: round;
       stroke-linejoin: round;
       color: var(--card-accent, #94a3b8);
+    }
+
+    .stat-score {
+      flex: none;
+      margin-left: auto;
+      color: var(--card-accent);
+      font-size: 0.95rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .stat-score-max {
+      color: color-mix(in srgb, var(--card-accent) 65%, var(--text-muted));
+      font-size: 0.68rem;
+      font-weight: 650;
     }
 
     .card.skeleton {
@@ -1618,6 +1588,12 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     .skeleton .bone-stat {
       width: 1.6rem;
       height: 0.75rem;
+    }
+
+    .skeleton .bone-score {
+      width: 2.4rem;
+      height: 0.95rem;
+      margin-left: auto;
     }
 
     .empty {
@@ -2585,48 +2561,24 @@ export class LanguagePage {
     return pills.map((pill) => pill.value).join(' · ');
   }
 
-  activityTotals(element: StoredElement): {
-    opened: number;
-    reworked: number;
-    revealed: number;
-    exercises: number;
-  } {
-    let opened = 0;
+  activityTotals(element: StoredElement): { worked: number; reworked: number } {
+    let worked = 0;
     let reworked = 0;
-    let revealed = 0;
-    let exercises = 0;
     for (const entry of element.log) {
-      if (entry.event === 'view') opened += 1;
-      else if (entry.event === 'rework') reworked += 1;
-      else if (entry.event === 'reveal') revealed += 1;
-      else if (
-        entry.event === 'game' &&
-        (entry.game === 'translation' || entry.game === 'example' || entry.game === 'definition')
-      ) {
-        exercises += 1;
-      }
+      if (entry.event === 'rework') reworked += 1;
+      else if (entry.event === 'game') worked += 1;
     }
-    return { opened, reworked, revealed, exercises };
+    return { worked, reworked };
   }
 
-  openedLabel(count: number): string {
-    if (count === 0) return 'Not seen';
-    return count === 1 ? 'Seen once' : `Seen ${count} times`;
+  workedLabel(count: number): string {
+    if (count === 0) return 'Not worked';
+    return count === 1 ? 'Worked once' : `Worked ${count} times`;
   }
 
   reworkedLabel(count: number): string {
     if (count === 0) return 'Not reworked';
     return count === 1 ? 'Reworked once' : `Reworked ${count} times`;
-  }
-
-  revealedLabel(count: number): string {
-    if (count === 0) return 'Not revealed';
-    return count === 1 ? 'Revealed once' : `Revealed ${count} times`;
-  }
-
-  exercisedLabel(count: number): string {
-    if (count === 0) return 'Not exercised';
-    return count === 1 ? 'Exercised once' : `Exercised ${count} times`;
   }
 
   inputValue(event: Event): string {
