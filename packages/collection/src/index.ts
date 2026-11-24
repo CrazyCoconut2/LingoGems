@@ -48,6 +48,7 @@ export {
   DEFINITION_SCORE_MAX,
   TRANSLATION_GEM_MAX,
   gameScoreCeiling,
+  type DefinitionDeleteLog,
   type DefinitionExampleLog,
   type DefinitionFormLog,
   type DefinitionGame,

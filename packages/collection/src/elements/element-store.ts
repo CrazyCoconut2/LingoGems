@@ -89,6 +89,17 @@ export type DefinitionReworkLog = {
   after?: DefinitionSnapshot;
 };
 
+/** A definition removed from the element, with the wording and the pieces that belonged to it. */
+export type DefinitionDeleteLog = {
+  event: 'delete';
+  at: number;
+  definition?: DefinitionSnapshot;
+  forms?: ElementForm[];
+  examples?: { text: string; metadata: ElementMetadata }[];
+  /** Equivalent wording for each support language this sense was linked to. */
+  equivalents?: { language: string; text: string }[];
+};
+
 /** An example added to the definition. */
 export type DefinitionExampleLog = {
   event: 'example';
@@ -121,6 +132,7 @@ export type DefinitionRevealLog = {
 export type DefinitionLogEntry =
   | DefinitionGameLog
   | DefinitionReworkLog
+  | DefinitionDeleteLog
   | DefinitionExampleLog
   | DefinitionFormLog
   | DefinitionRevealLog
@@ -899,6 +911,9 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     forms?: unknown;
     before?: unknown;
     after?: unknown;
+    definition?: unknown;
+    examples?: unknown;
+    equivalents?: unknown;
     snapshot?: unknown;
     phrase?: unknown;
     translation?: unknown;
@@ -932,6 +947,21 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
       at,
       ...(before ? { before } : {}),
       ...(after ? { after } : {}),
+    };
+  }
+  if (source.event === 'delete') {
+    if (at == null) return null;
+    const definition = normalizeSnapshot(source.definition);
+    const forms = normalizeForms(source.forms);
+    const examples = normalizeExamples(source.examples);
+    const equivalents = normalizeEquivalentCopies(source.equivalents);
+    return {
+      event: 'delete',
+      at,
+      ...(definition ? { definition } : {}),
+      ...(forms.length ? { forms } : {}),
+      ...(examples.length ? { examples } : {}),
+      ...(equivalents.length ? { equivalents } : {}),
     };
   }
   if (source.event === 'example') {
@@ -1021,6 +1051,29 @@ function presentLog(log: ElementLogEntry[]): ElementLogEntry[] {
         at: entry.at,
         ...(before ? { before } : {}),
         ...(after ? { after } : {}),
+      };
+    }
+    if (entry.event === 'delete') {
+      const definition = entry.definition ? presentSnapshot(entry.definition) : undefined;
+      const forms = entry.forms?.map((form) => ({
+        text: form.text.trim(),
+        metadata: form.metadata,
+      }));
+      const examples = entry.examples?.map((example) => ({
+        text: capitalizePassage(example.text),
+        metadata: example.metadata,
+      }));
+      const equivalents = entry.equivalents?.map((item) => ({
+        language: item.language,
+        text: item.text.trim(),
+      }));
+      return {
+        event: 'delete',
+        at: entry.at,
+        ...(definition ? { definition } : {}),
+        ...(forms?.length ? { forms } : {}),
+        ...(examples?.length ? { examples } : {}),
+        ...(equivalents?.length ? { equivalents } : {}),
       };
     }
     if (entry.event === 'example') {
@@ -1171,6 +1224,20 @@ function withEmbeddedTranslation(text: string, translation: unknown): string {
   const marker = `[en: ${extra}]`;
   if (body.includes(marker)) return body;
   return body ? `${body}\n${marker}` : marker;
+}
+
+function normalizeEquivalentCopies(value: unknown): { language: string; text: string }[] {
+  if (!Array.isArray(value)) return [];
+  const copies: { language: string; text: string }[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue;
+    const source = raw as { language?: unknown; text?: unknown };
+    const language = typeof source.language === 'string' ? source.language.trim().toLowerCase() : '';
+    const text = typeof source.text === 'string' ? source.text.trim() : '';
+    if (!language || !text) continue;
+    copies.push({ language, text });
+  }
+  return copies;
 }
 
 function normalizeForms(value: unknown): ElementForm[] {

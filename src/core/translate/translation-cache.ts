@@ -102,6 +102,36 @@ export function readPhraseTranslation(
   return readStore()[pair]?.[key] ?? null;
 }
 
+/**
+ * Replace the stored translation for this phrase.
+ * Unveil dates stay. Empty text removes the entry. This is not an unveil.
+ */
+export function replacePhraseTranslation(
+  sourceLang: string,
+  targetLang: string,
+  phrase: string,
+  text: string,
+): string {
+  const pair = pairKey(sourceLang, targetLang);
+  const key = phraseKey(phrase);
+  if (!pair || !key) return '';
+  const store = readStore();
+  const bucket = { ...(store[pair] ?? {}) };
+  const body = text.trim();
+  if (!body) {
+    delete bucket[key];
+    if (Object.keys(bucket).length) store[pair] = bucket;
+    else delete store[pair];
+    writeStore(store);
+    return '';
+  }
+  const current = bucket[key];
+  bucket[key] = { text: body, dates: current?.dates ?? [] };
+  store[pair] = bucket;
+  writeStore(store);
+  return body;
+}
+
 /** Store the translation text. An existing wording is kept, and unveil dates stay as they are. */
 export function recordPhraseTranslation(
   sourceLang: string,
