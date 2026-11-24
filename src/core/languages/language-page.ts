@@ -507,8 +507,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                     <select
                       class="language-select"
                       aria-label="Language"
-                      [value]="code()"
-                      (change)="chooseLanguageValue($event)"
+                      [ngModel]="code()"
+                      (ngModelChange)="chooseLanguageValue($event)"
                     >
                       @if (!code()) {
                         <option value="">Choose a language</option>
@@ -2832,8 +2832,7 @@ export class LanguagePage {
     writeSupportLanguage(learning, value);
   }
 
-  chooseLanguageValue(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
+  chooseLanguageValue(value: string): void {
     if (!isLearnableLanguage(value) || value === this.code()) return;
     writeSelectedLanguage(value);
     void this.load(value);
