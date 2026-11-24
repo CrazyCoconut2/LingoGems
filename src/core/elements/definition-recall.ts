@@ -1,5 +1,6 @@
 import { Component, computed, effect, input, output, signal } from '@angular/core';
 import { definitionScoreStep, languageDisplayName } from 'collection';
+import { UpwardQuotePipe } from '../text/upward-quote.pipe';
 import { FeedbackTranslation } from '../translate/feedback-translation';
 import {
   correctRecallAnswer,
@@ -36,7 +37,7 @@ type RecallView = {
 /** Recall the meanings of one headword before its definitions are shown. */
 @Component({
   selector: 'app-definition-recall',
-  imports: [FeedbackTranslation],
+  imports: [FeedbackTranslation, UpwardQuotePipe],
   host: {
     '[class.quiet]': 'settled() && !result()',
   },
@@ -75,9 +76,9 @@ type RecallView = {
             @if (scored.gaveUp) {
               <p class="hint">You gave up.</p>
             } @else if (scored.feedback) {
-              <p class="feedback">{{ scored.feedback }}</p>
+              <p class="feedback">{{ scored.feedback | upwardQuote }}</p>
               @if (note.shown(); as text) {
-                <p class="feedback-translation">{{ text }}</p>
+                <p class="feedback-translation">{{ text | upwardQuote }}</p>
               }
             }
           </section>

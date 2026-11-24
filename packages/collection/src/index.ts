@@ -23,6 +23,8 @@ export {
   displayTitle,
   readAllElements,
   readElements,
+  readRemovedElements,
+  restoreElement,
   replaceCollection,
   assignEquivalent,
   sensesWithEquivalents,

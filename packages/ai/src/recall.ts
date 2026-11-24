@@ -35,7 +35,7 @@ extra.gloss is a short dictionary definition of that new sense, written in learn
 extra.example is one sentence in learningLang that uses the lemma and makes that new sense obvious.
 When answerLang differs from learningLang, extra.equivalent is the headword's equivalent for that new sense in answerLang. Otherwise omit equivalent.
 Omit extra entirely when there is no additional sense.
-feedback comments on what was covered and how close it was. Write it in learningLang. Do not put the numeric score in feedback.
+feedback comments on what was covered and how close it was. Write it in learningLang, as a natural sentence. Do not quote the stored definition, the learner's wording, or any phrase, and do not use quotation marks. Do not put the numeric score in feedback.
 JSON only: {"coverage":0,"feedback":"<comment>","extra":{"gloss":"<definition>","example":"<sentence>","equivalent":"<headword>"}}`;
 
 export type RecallSense = {

@@ -32,6 +32,7 @@ import {
   highlightDefinitionPassage,
   isValidForm,
   languageDisplayName,
+  restoreElement,
   saveElement,
   sensesWithEquivalents,
   type DefinitionDeleteLog,
@@ -76,6 +77,7 @@ import { DefinitionRecall, type RecallFinish } from './definition-recall';
 import { ShowText } from './show-text';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { supportLanguageFor } from '../languages/translation-language';
+import { UpwardQuotePipe } from '../text/upward-quote.pipe';
 import { FeedbackTranslation } from '../translate/feedback-translation';
 import { PhraseTranslation } from '../translate/phrase-translation';
 import {
@@ -492,6 +494,7 @@ function writeExampleSuggestions(
   imports: [
     NgTemplateOutlet,
     FeedbackTranslation,
+    UpwardQuotePipe,
     PhraseTranslation,
     ShowText,
     DefinitionRecall,
@@ -508,6 +511,7 @@ function writeExampleSuggestions(
       <div
         class="panel"
         [class.has-color]="scoreAverage() !== 'NA'"
+        [class.removed]="!!element().deletedAt"
         [style.--score-color]="scoreColorVar()"
       >
         <ng-template #hearButton let-key="key" let-text="text" let-label="label" let-off="off">
@@ -600,16 +604,20 @@ function writeExampleSuggestions(
             }
             <div class="title-main">
               <h2>
-                <button
-                  type="button"
-                  class="element-title"
-                  [class.has-color]="scoreAverage() !== 'NA'"
-                  title="Edit element"
-                  [disabled]="aiBusy()"
-                  (click)="openTitle()"
-                >
-                  {{ shownTitle() }}
-                </button>
+                @if (element().deletedAt) {
+                  <span class="element-title removed static">{{ shownTitle() }}</span>
+                } @else {
+                  <button
+                    type="button"
+                    class="element-title"
+                    [class.has-color]="scoreAverage() !== 'NA'"
+                    title="Edit element"
+                    [disabled]="aiBusy()"
+                    (click)="openTitle()"
+                  >
+                    {{ shownTitle() }}
+                  </button>
+                }
               </h2>
               <ng-container
                 [ngTemplateOutlet]="hearButton"
@@ -621,6 +629,16 @@ function writeExampleSuggestions(
               />
             </div>
             <div class="title-end">
+              @if (element().deletedAt) {
+                <button
+                  type="button"
+                  class="reinstate"
+                  [disabled]="busy()"
+                  (click)="restoreOpenElement()"
+                >
+                  Restore
+                </button>
+              }
               <button
                 type="button"
                 class="icon-btn"
@@ -802,7 +820,7 @@ function writeExampleSuggestions(
                                     <path d="m9 14 2 2 4-4" />
                                   </svg>
                                   <span class="log-edit-copies">
-                                    <span class="log-game">{{ entry.explanation || entry.answer }}</span>
+                                    <span class="log-game">Exercise</span>
                                     <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                                   </span>
                                 </span>
@@ -821,6 +839,14 @@ function writeExampleSuggestions(
                             <span class="score-readout score-plain" aria-label="Score 0 out of 10">
                               <span>0</span>
                               <span class="score-max">/10</span>
+                            </span>
+                          } @else if (entry.event === 'game' && element().deletedAt) {
+                            <span class="score-readout score-plain" [attr.aria-label]="scoreAria(entry)">
+                              <span>{{ shownGameScore(entry) }}</span>
+                              <span class="score-max">{{ gameScoreMaxLabel(entry.game) }}</span>
+                              @if (entry.extra) {
+                                <span class="score-max">+1</span>
+                              }
                             </span>
                           } @else if (entry.event === 'game') {
                             <label
@@ -845,7 +871,7 @@ function writeExampleSuggestions(
                               }
                             </label>
                           }
-                          @if (entry.event === 'delete') {
+                          @if (entry.event === 'delete' && !element().deletedAt) {
                             <button
                               type="button"
                               class="icon-btn"
@@ -860,7 +886,7 @@ function writeExampleSuggestions(
                               </svg>
                             </button>
                           }
-                          @if (entry.event !== 'rework') {
+                          @if (entry.event !== 'rework' && !element().deletedAt) {
                             <button
                               type="button"
                               class="icon-btn danger log-delete"
@@ -1036,7 +1062,7 @@ function writeExampleSuggestions(
                           </div>
                         }
                         @if (entry.event === 'game' && !gaveUp(entry) && exerciseEntry() === $index) {
-                          <div class="log-detail">
+                          <div class="log-detail feedback-note">
                             <div class="log-detail-head">
                               <span class="log-game">Feedback</span>
                               <app-feedback-translation
@@ -1046,9 +1072,11 @@ function writeExampleSuggestions(
                                 [targetLang]="translationTarget()"
                               />
                             </div>
-                            <p class="log-feedback">{{ entry.explanation || entry.answer }}</p>
+                            <p class="log-feedback">{{
+                              (entry.explanation || entry.answer) | upwardQuote
+                            }}</p>
                             @if (note.shown(); as text) {
-                              <p class="log-translation">{{ text }}</p>
+                              <p class="log-translation">{{ text | upwardQuote }}</p>
                             }
                           </div>
                         }
@@ -1150,7 +1178,7 @@ function writeExampleSuggestions(
             </div>
           }
           <div class="element-view" [class.offstage]="historyOpen()">
-          @if (element().definitions.length && !skipRecall()) {
+          @if (element().definitions.length && !recallSkipped()) {
             <app-definition-recall
               [elementId]="element().id"
               [lemma]="shownTitle()"
@@ -1288,7 +1316,9 @@ function writeExampleSuggestions(
                                           <span [textContent]="part.text"></span>
                                         }
                                       }
-                                      <ng-container [ngTemplateOutlet]="definitionPencil" />
+                                      @if (!element().deletedAt) {
+                                        <ng-container [ngTemplateOutlet]="definitionPencil" />
+                                      }
                                       @if (supportAvailable() && passage.text) {
                                         <app-phrase-translation
                                           [phrase]="passage.text"
@@ -1311,7 +1341,7 @@ function writeExampleSuggestions(
                                     }"
                                   />
                                 </div>
-                              } @else {
+                              } @else if (!element().deletedAt) {
                                 <ng-container [ngTemplateOutlet]="definitionPencil" />
                               }
                             </ng-template>
@@ -1405,6 +1435,7 @@ function writeExampleSuggestions(
                                               <span [textContent]="part.text"></span>
                                             }
                                           }
+                                          @if (!element().deletedAt) {
                                           <button
                                             type="button"
                                             class="inline-pencil"
@@ -1419,6 +1450,7 @@ function writeExampleSuggestions(
                                               />
                                             </svg>
                                           </button>
+                                          }
                                           @if (supportAvailable() && passage.text) {
                                             <app-phrase-translation
                                               [phrase]="passage.text"
@@ -1462,7 +1494,7 @@ function writeExampleSuggestions(
                               </li>
                             }
                           </ul>
-                        } @else {
+                        } @else if (!element().deletedAt) {
                           <button
                             type="button"
                             class="example-cta"
@@ -1492,7 +1524,7 @@ function writeExampleSuggestions(
                                   </button>
                                 </li>
                               }
-                            } @else {
+                            } @else if (!element().deletedAt) {
                               <li>
                                 <button
                                   type="button"
@@ -1517,7 +1549,7 @@ function writeExampleSuggestions(
           }
           </div>
         </div>
-        @if (!recallPending() && !historyOpen()) {
+        @if (!element().deletedAt && !recallPending() && !historyOpen()) {
           <footer class="definition-footer">
             <form class="example-slot" (submit)="submitDefinitionExample($event)">
               <div class="example-slot-field" [class.arrived]="!!heldExample() || guidedExample()">
@@ -2849,14 +2881,25 @@ function writeExampleSuggestions(
                 <p class="error">{{ titleError() }}</p>
               }
               <div class="sheet-actions">
-                <button
-                  type="button"
-                  class="btn btn-danger"
-                  [disabled]="busy()"
-                  (click)="askDeleteElement()"
-                >
-                  Delete
-                </button>
+                @if (element().deletedAt) {
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    [disabled]="busy()"
+                    (click)="restoreOpenElement()"
+                  >
+                    Restore
+                  </button>
+                } @else {
+                  <button
+                    type="button"
+                    class="btn btn-danger"
+                    [disabled]="busy()"
+                    (click)="askDeleteElement()"
+                  >
+                    Delete
+                  </button>
+                }
                 <button
                   type="button"
                   class="btn btn-secondary"
@@ -2962,6 +3005,10 @@ function writeExampleSuggestions(
       --element-accent: oklch(from var(--swatch) 0.74 calc(min(max(c, 0.16), 0.24)) h);
     }
 
+    .panel.removed {
+      border-style: dashed;
+    }
+
     header,
     .sheet-head,
     .section-heading,
@@ -3039,6 +3086,38 @@ function writeExampleSuggestions(
 
     .element-title.has-color {
       text-decoration-color: oklch(from var(--swatch) 0.74 calc(min(max(c, 0.16), 0.24)) h);
+    }
+
+    .element-title.removed {
+      color: var(--text-muted);
+      text-decoration-style: dashed;
+    }
+
+    .element-title.static {
+      text-decoration: none;
+      cursor: default;
+    }
+
+    .reinstate {
+      flex: none;
+      border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--danger);
+      font: inherit;
+      font-size: 0.75rem;
+      font-weight: 650;
+      padding: 0.35rem 0.7rem;
+      cursor: pointer;
+    }
+
+    .reinstate:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--danger) 12%, transparent);
+    }
+
+    .reinstate:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .element-title:hover:not(:disabled) {
@@ -5262,6 +5341,10 @@ function writeExampleSuggestions(
       border-top: 1px solid var(--border);
     }
 
+    .log-detail.feedback-note {
+      padding-left: calc(0.7rem + 0.95rem + 0.4rem);
+    }
+
     .log-versions {
       align-items: stretch;
       gap: 1.15rem;
@@ -5655,6 +5738,7 @@ export class ElementModal {
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
   readonly deleted = output<void>();
+  readonly restored = output<StoredElement>();
   readonly visit = output<{ id: string; definition: number; example: string; guide: string }>();
   readonly back = output<void>();
   readonly addSelection = output<{
@@ -5739,8 +5823,13 @@ export class ElementModal {
   readonly shownDefinitions = computed(() => this.element().definitions);
   /** The recall for this open has been submitted or given up. */
   readonly recallSettled = signal(false);
+  /** This open started on a deleted element, so recall stays off after it is restored. */
+  private readonly straightOpen = signal(false);
+  readonly recallSkipped = computed(
+    () => this.skipRecall() || this.straightOpen() || !!this.element().deletedAt,
+  );
   readonly recallPending = computed(
-    () => this.element().definitions.length > 0 && !this.skipRecall() && !this.recallSettled(),
+    () => this.element().definitions.length > 0 && !this.recallSkipped() && !this.recallSettled(),
   );
   readonly recallSenses = computed((): RecallSense[] => {
     const target = this.translationTarget();
@@ -5831,6 +5920,14 @@ export class ElementModal {
       stopSpeaking();
     });
     effect(() => {
+      const element = this.element();
+      const written = this.written;
+      if (!written || written.id !== element.id || element.deletedAt || !written.deletedAt) return;
+      const next: StoredElement = { ...written };
+      delete next.deletedAt;
+      this.written = next;
+    });
+    effect(() => {
       const id = this.element().id;
       if (id === this.trackedElementId) return;
       const definition = this.definitionIndex();
@@ -5861,6 +5958,7 @@ export class ElementModal {
       this.exampleFieldEngineer.set(null);
       this.definitionEngineer.set(null);
       this.senseStages.set(new Map());
+      this.straightOpen.set(!!this.element().deletedAt);
       this.recallSettled.set(false);
       this.draftTranslation.set(null);
       this.translationEdit.set(null);
@@ -5970,7 +6068,7 @@ export class ElementModal {
   }
 
   openTitle(): void {
-    if (this.aiBusy() || this.titleEdit()) return;
+    if (this.aiBusy() || this.titleEdit() || this.element().deletedAt) return;
     this.titleError.set('');
     this.titleDraft.set(this.element().title);
     this.titleEdit.set(true);
@@ -6202,7 +6300,7 @@ export class ElementModal {
   }
 
   senseStage(index: number): SenseStage | 'closed' {
-    if (this.skipRecall()) return 'open';
+    if (this.recallSkipped()) return 'open';
     return this.senseStages().get(index) ?? 'closed';
   }
 
@@ -6410,7 +6508,7 @@ export class ElementModal {
   }
 
   addExampleManually(index: number): void {
-    if (this.aiBusy() || !this.element().definitions[index]) return;
+    if (this.element().deletedAt || this.aiBusy() || !this.element().definitions[index]) return;
     this.exampleAdditions.update((current) => {
       const next = new Map(current);
       next.set(index, ['', ...(next.get(index) ?? [])]);
@@ -6792,6 +6890,7 @@ export class ElementModal {
   }
 
   openDefinition(index: number): void {
+    if (this.element().deletedAt) return;
     const current = this.editor();
     if (current?.kind === 'definition' && current.index === index) {
       this.showWorkTab('definitions');
@@ -6832,7 +6931,7 @@ export class ElementModal {
   }
 
   onFormsClick(event: MouseEvent, index: number): void {
-    if (this.aiBusy()) return;
+    if (this.element().deletedAt || this.aiBusy()) return;
     if (this.ignoredSheetClick(event, 'button, a, input, textarea')) return;
     this.openForms(index);
   }
@@ -6843,12 +6942,12 @@ export class ElementModal {
   }
 
   openExamples(index: number): void {
-    if (!this.element().definitions[index]) return;
+    if (this.element().deletedAt || !this.element().definitions[index]) return;
     this.openWorkTab(index, 'examples');
   }
 
   openForms(index: number): void {
-    if (this.aiBusy() || !this.element().definitions[index]) return;
+    if (this.element().deletedAt || this.aiBusy() || !this.element().definitions[index]) return;
     this.openWorkTab(index, 'forms');
   }
 
@@ -8058,6 +8157,10 @@ export class ElementModal {
   private blockPassageSelectionUntil = 0;
 
   private readonly syncPassageSelection = (): void => {
+    if (this.element().deletedAt) {
+      if (this.passageSelection()) this.passageSelection.set(null);
+      return;
+    }
     if (Date.now() < this.blockPassageSelectionUntil) {
       window.getSelection()?.removeAllRanges();
       if (!this.addingSelection()) this.passageSelection.set(null);
@@ -8442,6 +8545,39 @@ export class ElementModal {
     return 'Delete this example?';
   }
 
+  async restoreOpenElement(): Promise<void> {
+    if (this.busy() || !this.element().deletedAt) return;
+    this.busy.set(true);
+    this.titleError.set('');
+    this.error.set('');
+    const id = this.element().id;
+    const run = this.saveChain.then(async () => {
+      const saved = await restoreElement(id);
+      if (!this.alive || this.element().id !== id) return;
+      this.written = saved;
+      this.restored.emit(saved);
+      this.historyOpen.set(false);
+      this.titleEdit.set(false);
+    });
+    this.saveChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    try {
+      await run;
+    } catch (error) {
+      if (!this.alive || this.element().id !== id) return;
+      const message =
+        error instanceof Error && error.message === 'That title is already there.'
+          ? error.message
+          : 'Could not restore this element.';
+      this.error.set(message);
+      if (this.titleEdit()) this.titleError.set(message);
+    } finally {
+      if (this.alive) this.busy.set(false);
+    }
+  }
+
   askDeleteElement(): void {
     if (this.busy()) return;
     this.editor.set(null);
@@ -8463,7 +8599,7 @@ export class ElementModal {
   }
 
   askDeleteExercise(entry: DefinitionHistoryEntry): void {
-    if (this.busy() || entry.event === 'rework') return;
+    if (this.busy() || this.element().deletedAt || entry.event === 'rework') return;
     const historyIndex = this.elementHistory().indexOf(entry);
     if (historyIndex < 0) return;
     this.confirm.set({ kind: 'exercise', definitionIndex: 0, historyIndex });
@@ -8472,7 +8608,14 @@ export class ElementModal {
   /** Change the score shown for one attempt. A definition's extra point stays added on top. */
   updateGameScore(entry: DefinitionGameLog, event: Event): void {
     const target = event.target;
-    if (!(target instanceof HTMLInputElement) || this.busy() || this.gaveUp(entry)) return;
+    if (
+      !(target instanceof HTMLInputElement) ||
+      this.busy() ||
+      this.element().deletedAt ||
+      this.gaveUp(entry)
+    ) {
+      return;
+    }
     const max = this.gameScoreOutOf(entry.game);
     const typed = Math.round(Number(target.value));
     const shown = Number.isInteger(typed) ? Math.min(max, Math.max(0, typed)) : null;
@@ -8853,6 +8996,7 @@ export class ElementModal {
 
   /** Link an equivalent found with a definition translation. An existing link stays. */
   noteEquivalent(index: number, equivalent: string): void {
+    if (this.element().deletedAt) return;
     void this.storeMissingEquivalent(index, equivalent);
   }
 
@@ -8904,6 +9048,7 @@ export class ElementModal {
     next: StoredElement,
     options?: { busy?: boolean; report?: boolean },
   ): Promise<boolean> {
+    if (this.element().deletedAt) return Promise.resolve(false);
     const busy = options?.busy !== false;
     const report = options?.report ?? busy;
     this.written = next;
@@ -9058,7 +9203,7 @@ export class ElementModal {
 
   /** Put the deleted definition, its equivalent, examples, and forms back on the element. */
   async restoreDefinition(entry: DefinitionDeleteLog): Promise<void> {
-    if (this.busy() || !this.canRestoreDefinition(entry)) return;
+    if (this.busy() || this.element().deletedAt || !this.canRestoreDefinition(entry)) return;
     const element = this.currentElement();
     let equivalents = element.equivalents.map((item) => ({ ...item }));
     let equivalentIds: EquivalentLinks = {};
@@ -9094,7 +9239,7 @@ export class ElementModal {
     if (!(await this.persist(definitions, equivalents))) return;
     if (!this.alive || this.element().id !== element.id) return;
     this.exerciseEntry.set(-1);
-    if (this.recallSettled() || this.skipRecall()) {
+    if (this.recallSettled() || this.recallSkipped()) {
       this.senseStages.update((current) => {
         const next = new Map(current);
         next.set(definitions.length - 1, 'open');

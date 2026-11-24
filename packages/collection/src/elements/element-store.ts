@@ -359,15 +359,14 @@ function supportCode(language: string): string {
 export async function readElements(language: string): Promise<StoredElement[]> {
   const code = language.trim().toLowerCase();
   if (!isLearnableLanguage(code) || typeof indexedDB === 'undefined') return [];
-  const db = await openDatabase();
-  const result = await idbRequest(
-    db
-      .transaction(ELEMENTS_STORE, 'readonly')
-      .objectStore(ELEMENTS_STORE)
-      .index('language')
-      .getAll(code),
-  );
-  return materializeElements(Array.isArray(result) ? result : [], code);
+  return materializeElements(await readLanguageRecords(code), code);
+}
+
+/** Soft-deleted elements for one language. The live list leaves these out. */
+export async function readRemovedElements(language: string): Promise<StoredElement[]> {
+  const code = language.trim().toLowerCase();
+  if (!isLearnableLanguage(code) || typeof indexedDB === 'undefined') return [];
+  return materializeElements(await readLanguageRecords(code), code, 'only');
 }
 
 export async function readAllElements(): Promise<StoredElement[]> {
@@ -376,15 +375,21 @@ export async function readAllElements(): Promise<StoredElement[]> {
   const result = await idbRequest(
     db.transaction(ELEMENTS_STORE, 'readonly').objectStore(ELEMENTS_STORE).getAll(),
   );
-  return materializeElements(Array.isArray(result) ? result : [], undefined, true);
+  return materializeElements(Array.isArray(result) ? result : [], undefined, 'include');
 }
+
+type RemovedVisibility = 'hide' | 'include' | 'only';
 
 function materializeElements(
   records: unknown[],
   language?: LearnableLanguage,
-  includeRemoved = false,
+  removed: RemovedVisibility = 'hide',
 ): StoredElement[] {
-  const visible = includeRemoved ? records : records.filter((record) => !removedRecord(record));
+  const visible = records.filter((record) => {
+    if (removed === 'include') return true;
+    const gone = !!removedRecord(record);
+    return removed === 'only' ? gone : !gone;
+  });
   return visible
     .map(normalizeElement)
     .filter(
@@ -519,15 +524,45 @@ async function writeCollection(
 }
 
 export async function deleteElement(id: string): Promise<void> {
+  const element = await readStoredElement(id);
+  if (!element || element.deletedAt) return;
+  await putElement({ ...element, deletedAt: Date.now() });
+}
+
+/** Clears `deletedAt` and returns the element to the live list. */
+export async function restoreElement(id: string): Promise<StoredElement> {
+  const element = await readStoredElement(id);
+  if (!element) throw new Error('Element not found');
+  if (!element.deletedAt) return element;
+  const live = await readElements(element.language);
+  if (live.some((item) => sameTitle(item.title, element.title))) {
+    throw new Error('That title is already there.');
+  }
+  const restored: StoredElement = { ...element };
+  delete restored.deletedAt;
+  return saveElement(restored);
+}
+
+async function readLanguageRecords(language: string): Promise<unknown[]> {
+  const db = await openDatabase();
+  const result = await idbRequest(
+    db
+      .transaction(ELEMENTS_STORE, 'readonly')
+      .objectStore(ELEMENTS_STORE)
+      .index('language')
+      .getAll(language),
+  );
+  return Array.isArray(result) ? result : [];
+}
+
+async function readStoredElement(id: string): Promise<StoredElement | null> {
   const key = id.trim();
-  if (!key || typeof indexedDB === 'undefined') return;
+  if (!key || typeof indexedDB === 'undefined') return null;
   const db = await openDatabase();
   const raw = await idbRequest(
     db.transaction(ELEMENTS_STORE, 'readonly').objectStore(ELEMENTS_STORE).get(key),
   );
-  const element = normalizeElement(raw);
-  if (!element || element.deletedAt) return;
-  await putElement({ ...element, deletedAt: Date.now() });
+  return normalizeElement(raw);
 }
 
 let catalogColorWrite: Promise<void> = Promise.resolve();
