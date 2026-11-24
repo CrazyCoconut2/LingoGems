@@ -240,6 +240,8 @@ export type StoredElement = {
   color: string | null;
   /** Times this card was opened from the edition list. Missing values are 0. */
   clicks: number;
+  /** Set when the element is removed from the list. The record stays so its stats remain. */
+  deletedAt?: number;
   /** Opens and activity. Missing values are an empty log. */
   log: ElementLogEntry[];
   /** Distinct metadata values across this element's definitions. */
@@ -362,20 +364,18 @@ export async function readAllElements(): Promise<StoredElement[]> {
   const result = await idbRequest(
     db.transaction(ELEMENTS_STORE, 'readonly').objectStore(ELEMENTS_STORE).getAll(),
   );
-  return materializeElements(Array.isArray(result) ? result : []);
+  return materializeElements(Array.isArray(result) ? result : [], undefined, true);
 }
 
 async function materializeElements(
   records: unknown[],
   language?: LearnableLanguage,
+  includeRemoved = false,
 ): Promise<StoredElement[]> {
-  const removed = records
-    .map(removedRecord)
-    .filter((record): record is RemovedRecord => record !== null);
-  if (removed.length) await purgeElements(removed);
-  const live = records.filter((record) => !removedRecord(record));
-  const stale = live.filter(
-    (record) => recordHasDefinitionGem(record) || recordHasDefinitionLog(record),
+  const visible = includeRemoved ? records : records.filter((record) => !removedRecord(record));
+  const stale = visible.filter(
+    (record) =>
+      !removedRecord(record) && (recordHasDefinitionGem(record) || recordHasDefinitionLog(record)),
   );
   if (stale.length) {
     await Promise.all(
@@ -385,7 +385,7 @@ async function materializeElements(
       }),
     );
   }
-  return live
+  return visible
     .map(normalizeElement)
     .filter(
       (element): element is StoredElement =>
@@ -473,6 +473,7 @@ export async function saveElement(
     content.equivalents,
   ).map(presentDefinition);
   const indexes = collectMetadataIndexes(definitions);
+  const deletedAt = deletedAtOf(element);
   const saved: StoredElement = {
     id,
     language,
@@ -486,6 +487,7 @@ export async function saveElement(
     ...indexes,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
+    ...(deletedAt ? { deletedAt } : {}),
   };
   await putElement(saved);
   if (options?.syncCatalog !== false) {
@@ -517,7 +519,6 @@ async function writeCollection(elements: readonly unknown[], catalog: unknown): 
   const saved: StoredElement[] = [];
   const seen = new Set<string>();
   for (const raw of elements) {
-    if (removedRecord(raw)) continue;
     const element = normalizeElement(raw);
     if (!element || seen.has(element.id)) continue;
     seen.add(element.id);
@@ -551,12 +552,10 @@ export async function deleteElement(id: string): Promise<void> {
   const raw = await idbRequest(
     db.transaction(ELEMENTS_STORE, 'readonly').objectStore(ELEMENTS_STORE).get(key),
   );
-  await idbRequest(
-    db.transaction(ELEMENTS_STORE, 'readwrite').objectStore(ELEMENTS_STORE).delete(key),
-  );
+  const element = normalizeElement(raw);
+  if (!element || element.deletedAt) return;
+  await putElement({ ...element, deletedAt: Date.now() });
   await syncElementColorCatalog();
-  const language = languageOf(raw);
-  if (language) elementWriteListener?.(language);
 }
 
 let catalogColorWrite: Promise<void> = Promise.resolve();
@@ -657,6 +656,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
   if (!title || !id) return null;
   const createdAtValue = source.createdAt;
   const content = normalizeContent(source.equivalents, source.definitions);
+  const deletedAt = deletedAtOf(source);
   return {
     id,
     language,
@@ -670,20 +670,31 @@ function normalizeElement(raw: unknown): StoredElement | null {
     ...collectMetadataIndexes(content.definitions),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
+    ...(deletedAt ? { deletedAt } : {}),
   };
 }
 
 type RemovedRecord = { id: string; language: string };
 
-/** An older build kept a removed element and stamped `deletedAt`. Drop that row. */
+/** A removed element stays in the store. Lists hide it, and its stats still count. */
 function removedRecord(record: unknown): RemovedRecord | null {
-  if (!record || typeof record !== 'object') return null;
-  const source = record as { id?: unknown; language?: unknown; deletedAt?: unknown };
-  const deletedAt = source.deletedAt;
-  if (typeof deletedAt !== 'number' || !Number.isFinite(deletedAt) || deletedAt <= 0) return null;
-  const id = typeof source.id === 'string' ? source.id.trim() : '';
+  const deletedAt = deletedAtOf(record);
+  if (!record || typeof record !== 'object' || deletedAt == null) return null;
+  const id =
+    typeof (record as { id?: unknown }).id === 'string'
+      ? (record as { id: string }).id.trim()
+      : '';
   if (!id) return null;
-  return { id, language: languageOf(source) };
+  return { id, language: languageOf(record) };
+}
+
+function deletedAtOf(record: unknown): number | undefined {
+  if (!record || typeof record !== 'object') return undefined;
+  const deletedAt = (record as { deletedAt?: unknown }).deletedAt;
+  if (typeof deletedAt !== 'number' || !Number.isFinite(deletedAt) || deletedAt <= 0) {
+    return undefined;
+  }
+  return deletedAt;
 }
 
 function languageOf(record: unknown): string {
@@ -692,17 +703,6 @@ function languageOf(record: unknown): string {
     .trim()
     .toLowerCase();
   return isLearnableLanguage(language) ? language : '';
-}
-
-async function purgeElements(removed: RemovedRecord[]): Promise<void> {
-  const db = await openDatabase();
-  const tx = db.transaction(ELEMENTS_STORE, 'readwrite');
-  const store = tx.objectStore(ELEMENTS_STORE);
-  for (const record of removed) store.delete(record.id);
-  await transactionDone(tx);
-  for (const language of new Set(removed.map((record) => record.language).filter(Boolean))) {
-    elementWriteListener?.(language);
-  }
 }
 
 /** Element log, plus activity an older build stored on definitions. */

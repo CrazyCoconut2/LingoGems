@@ -764,8 +764,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             <p class="selection-hint">
               {{
                 selectedIds().size === 1
-                  ? 'This element will be removed. All gems accumulated for it and all of its stats will disappear.'
-                  : 'These elements will be removed. All gems accumulated for them and all of their stats will disappear.'
+                  ? 'This element will be removed. Its stats stay.'
+                  : 'These elements will be removed. Their stats stay.'
               }}
             </p>
             <div class="selection-actions">
@@ -3061,9 +3061,10 @@ export class LanguagePage {
       for (const element of all) {
         next.push(await saveElement(element, { syncCatalog: false }));
       }
-      const catalog = await commitElementCatalog(catalogFromElements(next, previous.colors));
+      const live = next.filter((element) => !element.deletedAt);
+      const catalog = await commitElementCatalog(catalogFromElements(live, previous.colors));
       const code = this.code();
-      if (code) this.elements.set(next.filter((element) => element.language === code));
+      if (code) this.elements.set(live.filter((element) => element.language === code));
       this.applyCatalog(catalog);
     } catch {
       this.recomputeError.set('Could not recompute metadata.');

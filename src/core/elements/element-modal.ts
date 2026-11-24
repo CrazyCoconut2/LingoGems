@@ -2891,7 +2891,7 @@ function writeExampleSuggestions(
               <p class="hint">
                 {{
                   pending.kind === 'element'
-                    ? 'This element will be removed. All gems accumulated for it and all of its stats will disappear.'
+                    ? 'This element will be removed. Its stats stay.'
                     : pending.kind === 'definition'
                       ? 'This definition will be removed.'
                       : 'This will be removed.'

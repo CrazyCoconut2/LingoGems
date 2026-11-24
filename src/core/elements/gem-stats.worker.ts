@@ -100,7 +100,6 @@ function tally(
   for (const record of records) {
     if (!record || typeof record !== 'object') continue;
     const source = record as {
-      deletedAt?: unknown;
       language?: unknown;
       id?: unknown;
       title?: unknown;
@@ -109,7 +108,6 @@ function tally(
       removedDefinitions?: unknown;
       log?: unknown;
     };
-    if (source.deletedAt != null) continue;
     if (
       String(source.language ?? '')
         .trim()
