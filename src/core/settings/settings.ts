@@ -777,7 +777,7 @@ export class Settings {
     try {
       const data = await readDataFile(file);
       try {
-        const languages = await replaceCollection(data.elements, data.catalog);
+        const languages = await replaceCollection(data.elements, data.catalog, data.translations);
         this.job.forget();
         for (const language of languages) this.job.invalidate(language);
         this.importFile = null;
@@ -801,7 +801,7 @@ export class Settings {
     this.error.set('');
     this.note.set('');
     try {
-      await replaceCollection([], emptyMetadataIndexes());
+      await replaceCollection([], emptyMetadataIndexes(), []);
       this.job.forget();
       this.confirm.set(null);
       this.note.set('Deleted.');

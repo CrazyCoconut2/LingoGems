@@ -105,7 +105,6 @@ function tally(
       title?: unknown;
       createdAt?: unknown;
       definitions?: unknown;
-      removedDefinitions?: unknown;
       log?: unknown;
     };
     if (
@@ -134,7 +133,7 @@ function tally(
       }
     }
 
-    const entries = activityEntries(source);
+    const entries = Array.isArray(source.log) ? source.log : [];
     const attempts: GameAttempt[] = [];
     for (let index = 0; index < entries.length; index += 1) {
       const entry = entries[index];
@@ -189,33 +188,6 @@ function tally(
   }
   result.sort((left, right) => (left.day < right.day ? 1 : left.day > right.day ? -1 : 0));
   return { days: result, missing: missingTokens(phrases, coverage, code) };
-}
-
-/** Element log, plus activity an older build stored on definitions. */
-function activityEntries(source: {
-  log?: unknown;
-  definitions?: unknown;
-  removedDefinitions?: unknown;
-}): unknown[] {
-  const log = Array.isArray(source.log) ? [...source.log] : [];
-  const lifted: unknown[] = [];
-  for (const bucket of [source.definitions, source.removedDefinitions]) {
-    if (!Array.isArray(bucket)) continue;
-    for (const definition of bucket) {
-      if (!isRecord(definition) || !Array.isArray(definition.log)) continue;
-      lifted.push(...definition.log);
-    }
-  }
-  if (!lifted.length) return log;
-  return [...log, ...lifted]
-    .map((entry, index) => ({ entry, index, at: entryAt(entry) }))
-    .sort((left, right) => left.at - right.at || left.index - right.index)
-    .map((item) => item.entry);
-}
-
-function entryAt(entry: unknown): number {
-  if (!isRecord(entry) || typeof entry.at !== 'number' || !Number.isFinite(entry.at)) return 0;
-  return entry.at;
 }
 
 function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {
@@ -308,8 +280,8 @@ function awardGems(
   }
 }
 
-function gameScore(entry: { game?: unknown; score?: unknown; gems?: unknown }): number | null {
-  const score = Math.round(Number(entry.score ?? entry.gems));
+function gameScore(entry: { game?: unknown; score?: unknown }): number | null {
+  const score = Math.round(Number(entry.score));
   const max = entry.game === 'definition' ? DEFINITION_SCORE_MAX : TRANSLATION_GEM_MAX;
   if (!Number.isInteger(score) || score < 0 || score > max) return null;
   return score;
@@ -324,8 +296,6 @@ function isRecord(value: unknown): value is {
   at?: unknown;
   game?: unknown;
   score?: unknown;
-  gems?: unknown;
-  log?: unknown;
 } {
   return !!value && typeof value === 'object';
 }

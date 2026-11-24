@@ -1,4 +1,4 @@
-import { isLearnableLanguage, type ElementMetadata } from 'collection';
+import { type ElementMetadata } from 'collection';
 
 export const MAX_METADATA_FIELDS = 12;
 export const MAX_METADATA_FIELD_KEY = 40;
@@ -7,7 +7,6 @@ const MAX_METADATA_VALUE_LENGTH = 100;
 
 const LANGUAGE_SETTINGS_KEY = 'lingogem.ai-language-settings.v1';
 const GLOBAL_SETTINGS_KEY = 'app';
-const LEGACY_METADATA_FIELDS_KEY = 'lingogem.ai-metadata-fields.v1';
 
 export type AiMetadataField = {
   key: string;
@@ -49,11 +48,6 @@ type StoredLanguageSettings = {
 };
 
 type LanguageSettingsMap = Record<string, StoredLanguageSettings>;
-
-type LegacyMetadataFields = {
-  definitions: AiMetadataField[] | null;
-  examples: AiMetadataField[] | null;
-};
 
 /** Trim, cap, and drop empty or repeated keys. The first spelling of a key wins. */
 export function normalizeMetadataFields(fields: readonly AiMetadataField[]): AiMetadataField[] {
@@ -292,19 +286,11 @@ function copyFields(fields: readonly AiMetadataField[]): AiMetadataField[] {
   return fields.map((field) => ({ key: field.key, prompt: field.prompt }));
 }
 
-function languageCode(language: string): string {
-  return language.trim().toLowerCase();
-}
-
 function fieldsFor(
   kind: 'definitions' | 'examples' | 'forms',
   defaults: readonly AiMetadataField[],
 ): readonly AiMetadataField[] {
-  const entry = readEntry();
-  if (entry) return entry[kind] ?? defaults;
-  if (kind === 'forms') return defaults;
-  const legacy = readLegacyFields();
-  return (kind === 'definitions' ? legacy.definitions : legacy.examples) ?? defaults;
+  return readEntry()?.[kind] ?? defaults;
 }
 
 function readEntry(): StoredLanguageSettings | null {
@@ -315,17 +301,9 @@ function readEntry(): StoredLanguageSettings | null {
 function updateSettings(change: (entry: StoredLanguageSettings) => void): void {
   if (typeof localStorage === 'undefined') return;
   const map = readMap();
-  const entry = map[GLOBAL_SETTINGS_KEY] ?? entryFromLegacy();
+  const entry = map[GLOBAL_SETTINGS_KEY] ?? {};
   change(entry);
   writeMap({ [GLOBAL_SETTINGS_KEY]: entry });
-}
-
-function entryFromLegacy(): StoredLanguageSettings {
-  const fields = readLegacyFields();
-  const entry: StoredLanguageSettings = {};
-  if (fields.definitions !== null) entry.definitions = copyFields(fields.definitions);
-  if (fields.examples !== null) entry.examples = copyFields(fields.examples);
-  return entry;
 }
 
 function readMap(): LanguageSettingsMap {
@@ -335,83 +313,31 @@ function readMap(): LanguageSettingsMap {
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    const map: LanguageSettingsMap = {};
-    for (const [code, value] of Object.entries(parsed)) {
-      const language = languageCode(code);
-      if (
-        !language ||
-        (language !== GLOBAL_SETTINGS_KEY && !isLearnableLanguage(language)) ||
-        !value ||
-        typeof value !== 'object' ||
-        Array.isArray(value)
-      ) {
-        continue;
-      }
-      const record = value as {
-        definitions?: unknown;
-        examples?: unknown;
-        forms?: unknown;
-        definitionExtraFields?: unknown;
-        exampleExtraFields?: unknown;
-        formExtraFields?: unknown;
-      };
-      const entry: StoredLanguageSettings = {};
-      if (Array.isArray(record.definitions)) entry.definitions = readFieldList(record.definitions);
-      if (Array.isArray(record.examples)) entry.examples = readFieldList(record.examples);
-      if (Array.isArray(record.forms)) entry.forms = readFieldList(record.forms);
-      if (record.definitionExtraFields === true) entry.definitionExtraFields = true;
-      if (record.exampleExtraFields === true) entry.exampleExtraFields = true;
-      if (record.formExtraFields === true) entry.formExtraFields = true;
-      map[language] = entry;
-    }
-    return collapseToGlobal(map);
+    const entry = settingsEntry((parsed as Record<string, unknown>)[GLOBAL_SETTINGS_KEY]);
+    return entry ? { [GLOBAL_SETTINGS_KEY]: entry } : {};
   } catch {
     return {};
   }
 }
 
-function collapseToGlobal(map: LanguageSettingsMap): LanguageSettingsMap {
-  const languages = Object.entries(map).filter(([code]) => isLearnableLanguage(code));
-  if (!languages.length)
-    return map[GLOBAL_SETTINGS_KEY] ? { [GLOBAL_SETTINGS_KEY]: map[GLOBAL_SETTINGS_KEY] } : {};
-  const merged = mergeSettings([
-    ...(map[GLOBAL_SETTINGS_KEY] ? [map[GLOBAL_SETTINGS_KEY]] : []),
-    ...languages.map(([, entry]) => entry),
-  ]);
-  const next = { [GLOBAL_SETTINGS_KEY]: merged };
-  writeMap(next);
-  return next;
-}
-
-function mergeSettings(entries: readonly StoredLanguageSettings[]): StoredLanguageSettings {
-  const merged: StoredLanguageSettings = {};
-  const definitions: AiMetadataField[] = [];
-  const examples: AiMetadataField[] = [];
-  const forms: AiMetadataField[] = [];
-  let sawDefinitions = false;
-  let sawExamples = false;
-  let sawForms = false;
-  for (const entry of entries) {
-    if (entry.definitions) {
-      sawDefinitions = true;
-      definitions.push(...entry.definitions);
-    }
-    if (entry.examples) {
-      sawExamples = true;
-      examples.push(...entry.examples);
-    }
-    if (entry.forms) {
-      sawForms = true;
-      forms.push(...entry.forms);
-    }
-    if (entry.definitionExtraFields) merged.definitionExtraFields = true;
-    if (entry.exampleExtraFields) merged.exampleExtraFields = true;
-    if (entry.formExtraFields) merged.formExtraFields = true;
-  }
-  if (sawDefinitions) merged.definitions = normalizeMetadataFields(definitions);
-  if (sawExamples) merged.examples = normalizeMetadataFields(examples);
-  if (sawForms) merged.forms = normalizeMetadataFields(forms);
-  return merged;
+function settingsEntry(value: unknown): StoredLanguageSettings | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as {
+    definitions?: unknown;
+    examples?: unknown;
+    forms?: unknown;
+    definitionExtraFields?: unknown;
+    exampleExtraFields?: unknown;
+    formExtraFields?: unknown;
+  };
+  const entry: StoredLanguageSettings = {};
+  if (Array.isArray(record.definitions)) entry.definitions = readFieldList(record.definitions);
+  if (Array.isArray(record.examples)) entry.examples = readFieldList(record.examples);
+  if (Array.isArray(record.forms)) entry.forms = readFieldList(record.forms);
+  if (record.definitionExtraFields === true) entry.definitionExtraFields = true;
+  if (record.exampleExtraFields === true) entry.exampleExtraFields = true;
+  if (record.formExtraFields === true) entry.formExtraFields = true;
+  return entry;
 }
 
 function writeMap(map: LanguageSettingsMap): void {
@@ -429,25 +355,6 @@ function writeMap(map: LanguageSettingsMap): void {
   }
   if (!Object.keys(stored).length) localStorage.removeItem(LANGUAGE_SETTINGS_KEY);
   else localStorage.setItem(LANGUAGE_SETTINGS_KEY, JSON.stringify(stored));
-}
-
-function readLegacyFields(): LegacyMetadataFields {
-  if (typeof localStorage === 'undefined') return { definitions: null, examples: null };
-  try {
-    const raw = localStorage.getItem(LEGACY_METADATA_FIELDS_KEY);
-    if (!raw) return { definitions: null, examples: null };
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return { definitions: null, examples: null };
-    }
-    const record = parsed as { definitions?: unknown; examples?: unknown };
-    return {
-      definitions: Array.isArray(record.definitions) ? readFieldList(record.definitions) : null,
-      examples: Array.isArray(record.examples) ? readFieldList(record.examples) : null,
-    };
-  } catch {
-    return { definitions: null, examples: null };
-  }
 }
 
 function readFieldList(raw: unknown[]): AiMetadataField[] {

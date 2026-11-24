@@ -16,9 +16,7 @@ export function readDailyGoals(language: string): DailyGoals {
     const raw = localStorage.getItem(key);
     if (!raw) return emptyDailyGoals();
     const parsed = JSON.parse(raw) as unknown;
-    const goals = normalizeGoals(parsed);
-    if (hasLegacyGems(parsed)) writeDailyGoals(language, goals);
-    return goals;
+    return normalizeGoals(parsed);
   } catch {
     return emptyDailyGoals();
   }
@@ -70,10 +68,6 @@ function storedGoals(goals: DailyGoals): Partial<DailyGoals> {
 
 function goalsUnset(goals: DailyGoals): boolean {
   return GOAL_KINDS.every((kind) => goals[kind] == null);
-}
-
-function hasLegacyGems(value: unknown): boolean {
-  return !!value && typeof value === 'object' && 'gems' in value;
 }
 
 function positiveInteger(value: unknown): number | null {

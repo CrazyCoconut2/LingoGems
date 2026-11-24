@@ -1,12 +1,15 @@
 import {
+  normalizeStoredPhraseTranslations,
   readAllElements,
+  readAllPhraseTranslations,
   readMetadataCatalog,
   type ElementCatalog,
   type StoredElement,
+  type StoredPhraseTranslation,
 } from 'collection';
 
 const KIND = 'lingogem-data';
-const VERSION = 1;
+const VERSION = 2;
 
 export const DATA_FILE_NAME = 'lingogem.json.gz';
 
@@ -15,11 +18,16 @@ export type DataFile = {
   version: typeof VERSION;
   elements: StoredElement[];
   catalog: ElementCatalog;
+  translations: StoredPhraseTranslation[];
 };
 
 export async function buildDataFile(): Promise<Blob> {
-  const [elements, catalog] = await Promise.all([readAllElements(), readMetadataCatalog()]);
-  const json = JSON.stringify({ kind: KIND, version: VERSION, elements, catalog });
+  const [elements, catalog, translations] = await Promise.all([
+    readAllElements(),
+    readMetadataCatalog(),
+    readAllPhraseTranslations(),
+  ]);
+  const json = JSON.stringify({ kind: KIND, version: VERSION, elements, catalog, translations });
   const stream = new Blob([new TextEncoder().encode(json)])
     .stream()
     .pipeThrough(new CompressionStream('gzip'));
@@ -40,24 +48,36 @@ export function downloadDataFile(blob: Blob): void {
 export async function readDataFile(file: Blob): Promise<DataFile> {
   const stream = file.stream().pipeThrough(new DecompressionStream('gzip'));
   const parsed: unknown = JSON.parse(await new Response(stream).text());
-  if (!isDataFile(parsed)) throw new Error('Unrecognized data file');
-  return parsed;
+  const data = dataFileOf(parsed);
+  if (!data) throw new Error('Unrecognized data file');
+  return data;
 }
 
-function isDataFile(value: unknown): value is DataFile {
-  if (!value || typeof value !== 'object') return false;
+function dataFileOf(value: unknown): DataFile | null {
+  if (!value || typeof value !== 'object') return null;
   const source = value as {
     kind?: unknown;
     version?: unknown;
     elements?: unknown;
     catalog?: unknown;
+    translations?: unknown;
   };
-  return (
-    source.kind === KIND &&
-    source.version === VERSION &&
-    Array.isArray(source.elements) &&
-    !!source.catalog &&
-    typeof source.catalog === 'object' &&
-    !Array.isArray(source.catalog)
-  );
+  if (
+    source.kind !== KIND ||
+    source.version !== VERSION ||
+    !Array.isArray(source.elements) ||
+    !Array.isArray(source.translations) ||
+    !source.catalog ||
+    typeof source.catalog !== 'object' ||
+    Array.isArray(source.catalog)
+  ) {
+    return null;
+  }
+  return {
+    kind: KIND,
+    version: VERSION,
+    elements: source.elements as StoredElement[],
+    catalog: source.catalog as ElementCatalog,
+    translations: normalizeStoredPhraseTranslations(source.translations),
+  };
 }

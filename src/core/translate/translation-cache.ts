@@ -1,14 +1,18 @@
+import {
+  notePhraseUnveil,
+  readPhraseTranslation,
+  recordPhraseTranslation,
+  replacePhraseTranslation,
+} from 'collection';
 import { translateDefinitionPhrase, translatePhrase } from './translate';
 
-const STORAGE_KEY = 'lingogem.phrase-translations';
-
-export type PhraseTranslation = {
-  text: string;
-  dates: string[];
+export {
+  notePhraseUnveil,
+  readPhraseTranslation,
+  recordPhraseTranslation,
+  replacePhraseTranslation,
 };
-
-type PhraseBucket = Record<string, PhraseTranslation>;
-type TranslationStore = Record<string, PhraseBucket>;
+export type { PhraseTranslation } from 'collection';
 
 const EQUIVALENT_MAX = 200;
 
@@ -28,151 +32,6 @@ function phraseKey(phrase: string): string {
 
 function requestKey(sourceLang: string, targetLang: string, phrase: string): string {
   return `${pairKey(sourceLang, targetLang)}\0${phraseKey(phrase)}`;
-}
-
-function readStore(): TranslationStore {
-  if (typeof localStorage === 'undefined') return {};
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '');
-    return storeOf(parsed);
-  } catch {
-    return {};
-  }
-}
-
-function writeStore(store: TranslationStore): void {
-  if (typeof localStorage === 'undefined') return;
-  if (!Object.keys(store).length) {
-    localStorage.removeItem(STORAGE_KEY);
-    return;
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-}
-
-function storeOf(value: unknown): TranslationStore {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const store: TranslationStore = {};
-  for (const [pair, bucket] of Object.entries(value)) {
-    if (!pair.includes('>')) continue;
-    const phrases = bucketOf(bucket);
-    if (Object.keys(phrases).length) store[pair] = phrases;
-  }
-  return store;
-}
-
-function bucketOf(value: unknown): PhraseBucket {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const bucket: PhraseBucket = {};
-  for (const [phrase, entry] of Object.entries(value)) {
-    const text = phrase.trim();
-    const record = entryOf(entry);
-    if (text && record) bucket[text] = record;
-  }
-  return bucket;
-}
-
-function entryOf(value: unknown): PhraseTranslation | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const text = String((value as { text?: unknown }).text ?? '').trim();
-  if (!text) return null;
-  return { text, dates: datesOf((value as { dates?: unknown }).dates) };
-}
-
-function datesOf(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === 'string' && isoInstant(item));
-}
-
-function isoInstant(value: string): boolean {
-  return (
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value) &&
-    !Number.isNaN(Date.parse(value))
-  );
-}
-
-/** The stored translation for this phrase, or null when this language pair has none. */
-export function readPhraseTranslation(
-  sourceLang: string,
-  targetLang: string,
-  phrase: string,
-): PhraseTranslation | null {
-  const pair = pairKey(sourceLang, targetLang);
-  const key = phraseKey(phrase);
-  if (!pair || !key) return null;
-  return readStore()[pair]?.[key] ?? null;
-}
-
-/**
- * Replace the stored translation for this phrase.
- * Unveil dates stay. Empty text removes the entry. This is not an unveil.
- */
-export function replacePhraseTranslation(
-  sourceLang: string,
-  targetLang: string,
-  phrase: string,
-  text: string,
-): string {
-  const pair = pairKey(sourceLang, targetLang);
-  const key = phraseKey(phrase);
-  if (!pair || !key) return '';
-  const store = readStore();
-  const bucket = { ...(store[pair] ?? {}) };
-  const body = text.trim();
-  if (!body) {
-    delete bucket[key];
-    if (Object.keys(bucket).length) store[pair] = bucket;
-    else delete store[pair];
-    writeStore(store);
-    return '';
-  }
-  const current = bucket[key];
-  bucket[key] = { text: body, dates: current?.dates ?? [] };
-  store[pair] = bucket;
-  writeStore(store);
-  return body;
-}
-
-/** Store the translation text. An existing wording is kept, and unveil dates stay as they are. */
-export function recordPhraseTranslation(
-  sourceLang: string,
-  targetLang: string,
-  phrase: string,
-  text: string,
-): string {
-  const pair = pairKey(sourceLang, targetLang);
-  const key = phraseKey(phrase);
-  const body = text.trim();
-  if (!pair || !key || !body) throw new Error('translate_failed');
-  const store = readStore();
-  const bucket = { ...(store[pair] ?? {}) };
-  const current = bucket[key];
-  bucket[key] = { text: current?.text || body, dates: current?.dates ?? [] };
-  store[pair] = bucket;
-  writeStore(store);
-  return bucket[key].text;
-}
-
-/** One click that revealed a translation which was already stored. */
-export function notePhraseUnveil(
-  sourceLang: string,
-  targetLang: string,
-  phrase: string,
-  text = '',
-): void {
-  const pair = pairKey(sourceLang, targetLang);
-  const key = phraseKey(phrase);
-  if (!pair || !key) return;
-  const store = readStore();
-  const bucket = { ...(store[pair] ?? {}) };
-  const current = bucket[key];
-  const stored = (current?.text || text).trim();
-  if (!stored) return;
-  bucket[key] = {
-    text: stored,
-    dates: [...(current?.dates ?? []), new Date().toISOString()],
-  };
-  store[pair] = bucket;
-  writeStore(store);
 }
 
 /**

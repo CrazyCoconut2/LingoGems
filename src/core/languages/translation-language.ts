@@ -2,7 +2,6 @@ import { signal } from '@angular/core';
 import { isLearnableLanguage } from 'collection';
 
 const SUPPORT_LANGUAGE_KEY = 'lingogem.support-language';
-const LEGACY_TRANSLATION_LANGUAGE_KEY = 'lingogem.translation-language';
 
 export type SupportLanguageSettings = {
   /** Learnable code, or '' when there is no general support language. */
@@ -41,35 +40,20 @@ function readOverrides(source: unknown, general: string): Record<string, string>
 function normalize(value: unknown): SupportLanguageSettings {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return emptySettings();
   const record = value as { general?: unknown; overrides?: unknown };
-  if ('general' in record || 'overrides' in record) {
-    const general = languageCode(record.general);
-    return { general, overrides: readOverrides(record.overrides, general) };
-  }
-  return { general: '', overrides: readOverrides(value, '') };
+  if (!('general' in record) && !('overrides' in record)) return emptySettings();
+  const general = languageCode(record.general);
+  return { general, overrides: readOverrides(record.overrides, general) };
 }
 
 function readStored(): SupportLanguageSettings {
   if (typeof localStorage === 'undefined') return emptySettings();
   const raw = localStorage.getItem(SUPPORT_LANGUAGE_KEY);
-  if (raw !== null) {
-    try {
-      return normalize(JSON.parse(raw));
-    } catch {
-      return emptySettings();
-    }
+  if (raw == null) return emptySettings();
+  try {
+    return normalize(JSON.parse(raw));
+  } catch {
+    return emptySettings();
   }
-  return migrateLegacy();
-}
-
-/** Copy a saved translation language into the general support language, once. */
-function migrateLegacy(): SupportLanguageSettings {
-  const legacy = localStorage.getItem(LEGACY_TRANSLATION_LANGUAGE_KEY);
-  if (legacy === null) return emptySettings();
-  localStorage.removeItem(LEGACY_TRANSLATION_LANGUAGE_KEY);
-  const general = languageCode(legacy);
-  const settings = { general, overrides: {} };
-  if (general) localStorage.setItem(SUPPORT_LANGUAGE_KEY, JSON.stringify(settings));
-  return settings;
 }
 
 function persist(settings: SupportLanguageSettings): void {

@@ -1,10 +1,23 @@
-import { CATALOG_ID, CATALOG_STORE, ELEMENTS_STORE, idbRequest, openDatabase } from '../database';
+import {
+  CATALOG_ID,
+  CATALOG_STORE,
+  ELEMENTS_STORE,
+  TRANSLATIONS_STORE,
+  idbRequest,
+  openDatabase,
+} from '../database';
 import {
   isLearnableLanguage,
   languageCodeFromLabel,
   languageDisplayName,
   type LearnableLanguage,
 } from '../languages/catalog';
+import {
+  adoptPhraseTranslations,
+  normalizeStoredPhraseTranslations,
+  stagePhraseTranslations,
+  withPhraseTranslationWrite,
+} from '../translations/phrase-store';
 import { sanitizeElementColor } from './element-color';
 import {
   mergeMetadataCatalog,
@@ -29,7 +42,7 @@ type ElementExample = {
 export type ElementEquivalent = {
   id: string;
   text: string;
-  /** Learnable code this equivalent was written in. Empty on older records, which stay hidden. */
+  /** Learnable code this equivalent was written in. */
   language: string;
 };
 
@@ -68,7 +81,7 @@ export type DefinitionSnapshot = {
 export type DefinitionGameLog = {
   event: 'game';
   game: DefinitionGame;
-  /** Score from 0 to {@link gameScoreCeiling}. Older records stored this as `gems`. */
+  /** Score from 0 to {@link gameScoreCeiling}. */
   score: number;
   by: DefinitionLogBy;
   at: number;
@@ -115,7 +128,7 @@ export type DefinitionFormLog = {
   snapshot?: DefinitionSnapshot;
 };
 
-/** A translation uncovered on a definition or one of its examples. Older rows may only have `at`. */
+/** A translation uncovered on a definition or one of its examples. */
 export type DefinitionRevealLog = {
   event: 'reveal';
   at: number;
@@ -123,7 +136,7 @@ export type DefinitionRevealLog = {
   phrase?: string;
   /** Translation that was uncovered. */
   translation?: string;
-  /** Which passage was uncovered. Missing on older rows. */
+  /** Which passage was uncovered. */
   kind?: 'definition' | 'example';
 };
 
@@ -366,24 +379,12 @@ export async function readAllElements(): Promise<StoredElement[]> {
   return materializeElements(Array.isArray(result) ? result : [], undefined, true);
 }
 
-async function materializeElements(
+function materializeElements(
   records: unknown[],
   language?: LearnableLanguage,
   includeRemoved = false,
-): Promise<StoredElement[]> {
+): StoredElement[] {
   const visible = includeRemoved ? records : records.filter((record) => !removedRecord(record));
-  const stale = visible.filter(
-    (record) =>
-      !removedRecord(record) && (recordHasDefinitionGem(record) || recordHasDefinitionLog(record)),
-  );
-  if (stale.length) {
-    await Promise.all(
-      stale.map(async (record) => {
-        const element = normalizeElement(record);
-        if (element) await putElement(element);
-      }),
-    );
-  }
   return visible
     .map(normalizeElement)
     .filter(
@@ -393,34 +394,6 @@ async function materializeElements(
     .sort(
       (left, right) => left.createdAt - right.createdAt || left.title.localeCompare(right.title),
     );
-}
-
-function recordHasDefinitionGem(record: unknown): boolean {
-  if (!record || typeof record !== 'object') return false;
-  const definitions = (record as { definitions?: unknown }).definitions;
-  if (!Array.isArray(definitions)) return false;
-  return definitions.some(
-    (definition) =>
-      !!definition &&
-      typeof definition === 'object' &&
-      ('gem' in definition || 'frequency' in definition),
-  );
-}
-
-/** An older build kept activity on each definition. Those rows are rewritten onto the element. */
-function recordHasDefinitionLog(record: unknown): boolean {
-  if (!record || typeof record !== 'object') return false;
-  const source = record as { definitions?: unknown; removedDefinitions?: unknown };
-  return bucketHasLog(source.definitions) || bucketHasLog(source.removedDefinitions);
-}
-
-function bucketHasLog(value: unknown): boolean {
-  if (!Array.isArray(value)) return false;
-  return value.some((definition) => {
-    if (!definition || typeof definition !== 'object') return false;
-    const log = (definition as { log?: unknown }).log;
-    return Array.isArray(log) && log.length > 0;
-  });
 }
 
 export async function addElement(language: string, title: string): Promise<StoredElement> {
@@ -501,16 +474,22 @@ export function setElementWriteListener(listener: ((language: string) => void) |
   elementWriteListener = listener;
 }
 
-/** Replaces every element and the metadata catalog, then notifies once per language. */
+/** Replaces elements, the catalog, and phrase translations, then notifies once per language. */
 export function replaceCollection(
   elements: readonly unknown[],
   catalog: unknown,
+  translations: readonly unknown[],
 ): Promise<string[]> {
-  return enqueueCatalogColorWrite(() => writeCollection(elements, catalog));
+  return enqueueCatalogColorWrite(() =>
+    withPhraseTranslationWrite(() => writeCollection(elements, catalog, translations)),
+  );
 }
 
-async function writeCollection(elements: readonly unknown[], catalog: unknown): Promise<string[]> {
-  if (typeof indexedDB === 'undefined') return [];
+async function writeCollection(
+  elements: readonly unknown[],
+  catalog: unknown,
+  translations: readonly unknown[],
+): Promise<string[]> {
   const saved: StoredElement[] = [];
   const seen = new Set<string>();
   for (const raw of elements) {
@@ -520,14 +499,20 @@ async function writeCollection(elements: readonly unknown[], catalog: unknown): 
     saved.push(element);
   }
   const next = normalizeElementCatalog(catalog);
+  if (typeof indexedDB === 'undefined') {
+    adoptPhraseTranslations(normalizeStoredPhraseTranslations(translations));
+    return [];
+  }
   const db = await openDatabase();
-  const tx = db.transaction([ELEMENTS_STORE, CATALOG_STORE], 'readwrite');
+  const tx = db.transaction([ELEMENTS_STORE, CATALOG_STORE, TRANSLATIONS_STORE], 'readwrite');
   const done = transactionDone(tx);
   const store = tx.objectStore(ELEMENTS_STORE);
   store.clear();
   for (const element of saved) store.put(element);
   tx.objectStore(CATALOG_STORE).put({ id: CATALOG_ID, ...next });
+  const phrases = stagePhraseTranslations(tx, translations);
   await done;
+  adoptPhraseTranslations(phrases);
   const languages = [...new Set(saved.map((element) => element.language))];
   for (const language of languages) elementWriteListener?.(language);
   return languages;
@@ -649,29 +634,9 @@ function languageOf(record: unknown): string {
   return isLearnableLanguage(language) ? language : '';
 }
 
-/** Element log, plus activity an older build stored on definitions. */
 function readElementLog(raw: unknown): ElementLogEntry[] {
-  const source =
-    raw && typeof raw === 'object'
-      ? (raw as { log?: unknown; definitions?: unknown; removedDefinitions?: unknown })
-      : {};
-  let log = normalizeElementLog(source.log);
-  const lifted: ElementLogEntry[] = [];
-  for (const bucket of [source.definitions, source.removedDefinitions]) {
-    if (!Array.isArray(bucket)) continue;
-    for (const definition of bucket) {
-      if (!definition || typeof definition !== 'object') continue;
-      lifted.push(...normalizeLog((definition as { log?: unknown }).log));
-    }
-  }
-  if (lifted.length) {
-    const combined = [...log, ...lifted];
-    log = combined
-      .map((entry, index) => ({ entry, index }))
-      .sort((left, right) => left.entry.at - right.entry.at || left.index - right.index)
-      .map((item) => item.entry);
-  }
-  return presentLog(log);
+  const source = raw && typeof raw === 'object' ? (raw as { log?: unknown }) : {};
+  return presentLog(normalizeElementLog(source.log));
 }
 
 function normalizeElementLog(value: unknown): ElementLogEntry[] {
@@ -726,9 +691,10 @@ function normalizeEquivalents(value: unknown): ElementEquivalent[] {
     const source = raw as Partial<ElementEquivalent>;
     const id = typeof source.id === 'string' ? source.id.trim() : '';
     const text = normalizePlainText(source.text);
-    if (!id || !text || seen.has(id)) continue;
+    const language = supportCode(source.language ?? '');
+    if (!id || !text || !language || seen.has(id)) continue;
     seen.add(id);
-    equivalents.push({ id, text, language: supportCode(source.language ?? '') });
+    equivalents.push({ id, text, language });
   }
   return equivalents;
 }
@@ -741,12 +707,8 @@ function normalizeDefinitions(
   const definitions: ElementDefinition[] = [];
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') continue;
-    const source = raw as Partial<ElementDefinition> & {
-      equivalent?: unknown;
-      equivalentId?: unknown;
-      translation?: unknown;
-    };
-    const text = withEmbeddedTranslation(String(source.text ?? ''), source.translation);
+    const source = raw as Partial<ElementDefinition>;
+    const text = String(source.text ?? '').trim();
     if (!text) continue;
     definitions.push({
       text,
@@ -778,34 +740,17 @@ function normalizeRemovedDefinitions(
 }
 
 function resolveEquivalentIds(
-  source: { equivalentId?: unknown; equivalentIds?: unknown; equivalent?: unknown },
+  source: { equivalentIds?: unknown },
   equivalents: ElementEquivalent[],
 ): EquivalentLinks {
   if (
-    source.equivalentIds &&
-    typeof source.equivalentIds === 'object' &&
-    !Array.isArray(source.equivalentIds)
+    !source.equivalentIds ||
+    typeof source.equivalentIds !== 'object' ||
+    Array.isArray(source.equivalentIds)
   ) {
-    return linksFromRecord(source.equivalentIds, equivalents);
+    return {};
   }
-  const links: EquivalentLinks = {};
-  const id = typeof source.equivalentId === 'string' ? source.equivalentId.trim() : '';
-  if (id) {
-    const item = equivalents.find((entry) => entry.id === id);
-    if (item?.language) links[item.language] = item.id;
-    return links;
-  }
-  const legacy = normalizePlainText(source.equivalent);
-  if (!legacy) return links;
-  const match = equivalents.find((item) => item.language && item.text === legacy);
-  if (match?.language) {
-    links[match.language] = match.id;
-    return links;
-  }
-  if (!equivalents.some((item) => !item.language && item.text === legacy)) {
-    equivalents.push({ id: crypto.randomUUID(), text: legacy, language: '' });
-  }
-  return links;
+  return linksFromRecord(source.equivalentIds, equivalents);
 }
 
 function linksFromRecord(
@@ -828,24 +773,12 @@ function normalizePlainText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function normalizeLog(value: unknown): DefinitionLogEntry[] {
-  if (!Array.isArray(value)) return [];
-  const log: DefinitionLogEntry[] = [];
-  for (const raw of value) {
-    const entry = normalizeLogEntry(raw);
-    if (entry) log.push(entry);
-  }
-  return log;
-}
-
 function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   if (!raw || typeof raw !== 'object') return null;
   const source = raw as {
     event?: unknown;
     game?: unknown;
     score?: unknown;
-    /** Older records stored the score in `gems`. */
-    gems?: unknown;
     by?: unknown;
     at?: unknown;
     answer?: unknown;
@@ -935,7 +868,7 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   if (source.game !== 'translation' && source.game !== 'example' && source.game !== 'definition') {
     return null;
   }
-  const score = Math.round(Number(source.score ?? source.gems));
+  const score = Math.round(Number(source.score));
   if (!Number.isInteger(score) || score < 0 || score > gameScoreCeiling(source.game)) return null;
   if (source.by !== 'user' && source.by !== 'ai') return null;
   if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
@@ -1160,16 +1093,6 @@ export function embedTranslation(raw: string, lang: string, text: string): strin
   return base ? `${base} ${parts.join(' ')}` : parts.join(' ');
 }
 
-/** Older records kept a translation field. It now lives in the text as `[en: …]`. */
-function withEmbeddedTranslation(text: string, translation: unknown): string {
-  const body = text.trim();
-  const extra = normalizePlainText(translation);
-  if (!extra) return body;
-  const marker = `[en: ${extra}]`;
-  if (body.includes(marker)) return body;
-  return body ? `${body}\n${marker}` : marker;
-}
-
 function normalizeEquivalentCopies(value: unknown): { language: string; text: string }[] {
   if (!Array.isArray(value)) return [];
   const copies: { language: string; text: string }[] = [];
@@ -1213,8 +1136,8 @@ function normalizeExamples(value: unknown): ElementExample[] {
   const examples: ElementExample[] = [];
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') continue;
-    const source = raw as Partial<ElementExample> & { translation?: unknown };
-    const text = withEmbeddedTranslation(String(source.text ?? ''), source.translation);
+    const source = raw as Partial<ElementExample>;
+    const text = String(source.text ?? '').trim();
     if (!text) continue;
     examples.push({
       text,

@@ -105,6 +105,19 @@ export {
 
 export { ELEMENTS_STORE, idbRequest, openDatabase } from './database';
 
+export {
+  loadPhraseTranslations,
+  normalizeStoredPhraseTranslations,
+  notePhraseUnveil,
+  readAllPhraseTranslations,
+  readPhraseTranslation,
+  recordPhraseTranslation,
+  replacePhraseTranslation,
+  replacePhraseTranslations,
+  type PhraseTranslation,
+  type StoredPhraseTranslation,
+} from './translations/phrase-store';
+
 export { requestPersistentStorage, storageIsPersistent } from './persistent-storage';
 
 export {
