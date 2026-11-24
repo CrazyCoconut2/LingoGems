@@ -1,6 +1,6 @@
 import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
 
-const KEY_PREFIX = 'lingogem.stats.v11.';
+const KEY_PREFIX = 'lingogem.stats.v13.';
 
 export type StatsPhase = 'empty' | 'pending' | 'ready' | 'error';
 
@@ -145,8 +145,6 @@ function isDay(value: unknown): value is DayStats {
     /^\d{4}-\d{2}-\d{2}$/.test(source.day) &&
     isGemCounts(source.gems) &&
     isCount(source.added) &&
-    isCount(source.opened) &&
-    isCount(source.reworked) &&
     isCount(source.revealed) &&
     isCount(source.exercises) &&
     Array.isArray(source.elements) &&
@@ -164,8 +162,6 @@ function isElementDay(value: unknown): value is ElementDayStats {
     source.title.trim().length > 0 &&
     isGemCounts(source.gems) &&
     isCount(source.added) &&
-    isCount(source.opened) &&
-    isCount(source.reworked) &&
     isCount(source.revealed) &&
     isCount(source.exercises)
   );

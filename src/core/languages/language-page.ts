@@ -2165,8 +2165,6 @@ export class LanguagePage {
     { value: 'created-asc', label: 'Least recent' },
     { value: 'definitions-desc', label: 'Most definitions' },
     { value: 'translations-desc', label: 'Most translations' },
-    { value: 'clicks-desc', label: 'Most seen' },
-    { value: 'clicks-asc', label: 'Least seen' },
     { value: 'gems-desc', label: 'Most gems' },
     { value: 'gems-asc', label: 'Least gems' },
   ];

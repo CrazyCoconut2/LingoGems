@@ -22,8 +22,6 @@ export type ElementDayStats = {
   title: string;
   gems: GemCounts;
   added: number;
-  opened: number;
-  reworked: number;
   revealed: number;
   exercises: number;
 };
@@ -32,8 +30,6 @@ export type DayStats = {
   day: string;
   gems: GemCounts;
   added: number;
-  opened: number;
-  reworked: number;
   revealed: number;
   exercises: number;
   elements: ElementDayStats[];
@@ -57,8 +53,6 @@ type MutableElement = ElementDayStats;
 type MutableDay = {
   gems: GemCounts;
   added: number;
-  opened: number;
-  reworked: number;
   revealed: number;
   exercises: number;
   elements: Map<string, MutableElement>;
@@ -138,18 +132,9 @@ function tally(
     for (let index = 0; index < entries.length; index += 1) {
       const entry = entries[index];
       if (!isRecord(entry)) continue;
+      if (entry.event === 'view' || entry.event === 'rework') continue;
       const day = bucket(days, entry.at);
       if (!day) continue;
-      if (entry.event === 'view') {
-        day.opened += 1;
-        elementOf(day, id, title).opened += 1;
-        continue;
-      }
-      if (entry.event === 'rework') {
-        day.reworked += 1;
-        elementOf(day, id, title).reworked += 1;
-        continue;
-      }
       if (entry.event === 'reveal') {
         day.revealed += 1;
         elementOf(day, id, title).revealed += 1;
@@ -179,8 +164,6 @@ function tally(
       day,
       gems: stats.gems,
       added: stats.added,
-      opened: stats.opened,
-      reworked: stats.reworked,
       revealed: stats.revealed,
       exercises: stats.exercises,
       elements,
@@ -198,8 +181,6 @@ function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {
     day = {
       gems: { translation: 0, example: 0, definition: 0 },
       added: 0,
-      opened: 0,
-      reworked: 0,
       revealed: 0,
       exercises: 0,
       elements: new Map(),
@@ -217,8 +198,6 @@ function elementOf(day: MutableDay, id: string, title: string): MutableElement {
       title,
       gems: { translation: 0, example: 0, definition: 0 },
       added: 0,
-      opened: 0,
-      reworked: 0,
       revealed: 0,
       exercises: 0,
     };
@@ -237,7 +216,7 @@ function dayKey(at: number): string {
 function hasActivity(element: ElementDayStats): boolean {
   return (
     gemTotal(element.gems) > 0 ||
-    element.added + element.opened + element.reworked + element.revealed > 0 ||
+    element.added + element.revealed > 0 ||
     element.exercises > 0
   );
 }
@@ -248,7 +227,7 @@ function compareElements(left: ElementDayStats, right: ElementDayStats, language
   const exercises = right.exercises - left.exercises;
   if (exercises) return exercises;
   const activity =
-    right.opened + right.reworked + right.revealed - (left.opened + left.reworked + left.revealed);
+    right.added + right.revealed - (left.added + left.revealed);
   if (activity) return activity;
   return left.title.localeCompare(right.title, language);
 }

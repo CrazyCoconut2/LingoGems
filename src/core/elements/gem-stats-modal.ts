@@ -33,14 +33,13 @@ const GAMES: readonly { game: GemGame; label: string }[] = [
   { game: 'definition', label: 'Definition' },
 ];
 
-type ActivityKey = 'opened' | 'reworked' | 'revealed';
+type ActivityKey = 'added' | 'revealed';
 
 const ACTIVITIES: readonly {
   key: ActivityKey;
   label: string;
 }[] = [
-  { key: 'opened', label: 'Seen' },
-  { key: 'reworked', label: 'Reworked' },
+  { key: 'added', label: 'Added' },
   { key: 'revealed', label: 'Revealed' },
 ];
 
@@ -56,8 +55,6 @@ const EMPTY_DAY: DayStats = {
   day: '',
   gems: { translation: 0, example: 0, definition: 0 },
   added: 0,
-  opened: 0,
-  reworked: 0,
   revealed: 0,
   exercises: 0,
   elements: [],
@@ -144,12 +141,6 @@ const EMPTY_DAY: DayStats = {
         <div class="body">
           @if (pending()) {
             <div class="loading" aria-hidden="true">
-              <div class="hero hero-loading">
-                <div class="hero-copy">
-                  <span class="bone bone-label"></span>
-                  <span class="bone bone-hero"></span>
-                </div>
-              </div>
               <section class="block">
                 <div class="block-head">
                   <h3>Gems</h3>
@@ -192,8 +183,8 @@ const EMPTY_DAY: DayStats = {
               </section>
             </div>
           } @else if (ready()) {
-            <div class="lead">
-              @if (viewingToday()) {
+            @if (viewingToday()) {
+              <div class="lead">
                 <div
                   class="streak-card"
                   [attr.aria-label]="streakLabel()"
@@ -209,90 +200,8 @@ const EMPTY_DAY: DayStats = {
                   <span class="count">{{ formatCount(streak()) }}</span>
                   <span class="caption">Streak</span>
                 </div>
-              }
-              <div
-                class="streak-card added-card"
-                [attr.aria-label]="activityCardLabel('Added', shown().added)"
-                [attr.title]="activityCardLabel('Added', shown().added)"
-              >
-                <span class="well" aria-hidden="true">
-                  <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 12h14" />
-                    <path d="M12 5v14" />
-                  </svg>
-                </span>
-                <span class="count">{{ formatCount(shown().added) }}</span>
-                <span class="caption">Added</span>
-                @if (goalsOpen() || goals().added !== null) {
-                  <div class="card-foot">
-                    @if (goalsOpen()) {
-                      <span class="card-goal-label">Goal</span>
-                      <ng-container
-                        *ngTemplateOutlet="goalStepper; context: { kind: 'added', label: 'added' }"
-                      />
-                    }
-                    @if (goals().added; as goal) {
-                      <div
-                        class="meter"
-                        role="progressbar"
-                        aria-valuemin="0"
-                        [attr.aria-valuenow]="meterNow(shown().added, goal)"
-                        [attr.aria-valuemax]="goal"
-                        [attr.aria-label]="addedMeterLabel(goal)"
-                      >
-                        <span class="meter-track">
-                          <span
-                            class="meter-fill"
-                            [style.width.%]="meterPercent(shown().added, goal)"
-                          ></span>
-                        </span>
-                        <span class="meter-label">{{ meterText(shown().added, goal) }}</span>
-                      </div>
-                    }
-                  </div>
-                }
               </div>
-              <div class="hero" [attr.aria-label]="exerciseLabel(shown().exercises)">
-                <div class="hero-stats">
-                  <span class="well" aria-hidden="true">
-                    <ng-container *ngTemplateOutlet="exerciseIcon" />
-                  </span>
-                  <span class="count">{{ formatCount(shown().exercises) }}</span>
-                  <span class="caption">Exercises</span>
-                </div>
-                @if (goalsOpen() || goals().exercises !== null) {
-                  <div class="card-foot">
-                    @if (goalsOpen()) {
-                      <span class="card-goal-label">Goal</span>
-                      <ng-container
-                        *ngTemplateOutlet="
-                          goalStepper;
-                          context: { kind: 'exercises', label: 'exercises' }
-                        "
-                      />
-                    }
-                    @if (goals().exercises; as goal) {
-                      <div
-                        class="meter"
-                        role="progressbar"
-                        aria-valuemin="0"
-                        [attr.aria-valuenow]="meterNow(shown().exercises, goal)"
-                        [attr.aria-valuemax]="goal"
-                        [attr.aria-label]="exerciseMeterLabel(goal)"
-                      >
-                        <span class="meter-track">
-                          <span
-                            class="meter-fill"
-                            [style.width.%]="meterPercent(shown().exercises, goal)"
-                          ></span>
-                        </span>
-                        <span class="meter-label">{{ meterText(shown().exercises, goal) }}</span>
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            </div>
+            }
             <section class="block">
               <div class="block-head">
                 <h3>Gems</h3>
@@ -365,6 +274,47 @@ const EMPTY_DAY: DayStats = {
                 <h3>Activity</h3>
               </div>
               <ul class="activity">
+                <li
+                  [attr.aria-label]="exerciseLabel(shown().exercises)"
+                  [attr.title]="exerciseLabel(shown().exercises)"
+                >
+                  <span class="well" aria-hidden="true">
+                    <ng-container *ngTemplateOutlet="exerciseIcon" />
+                  </span>
+                  <span class="count">{{ formatCount(shown().exercises) }}</span>
+                  <span class="caption">Exercises</span>
+                  @if (goalsOpen() || goals().exercises !== null) {
+                    <div class="card-foot">
+                      @if (goalsOpen()) {
+                        <span class="card-goal-label">Goal</span>
+                        <ng-container
+                          *ngTemplateOutlet="
+                            goalStepper;
+                            context: { kind: 'exercises', label: 'exercises' }
+                          "
+                        />
+                      }
+                      @if (goals().exercises; as goal) {
+                        <div
+                          class="meter"
+                          role="progressbar"
+                          aria-valuemin="0"
+                          [attr.aria-valuenow]="meterNow(shown().exercises, goal)"
+                          [attr.aria-valuemax]="goal"
+                          [attr.aria-label]="exerciseMeterLabel(goal)"
+                        >
+                          <span class="meter-track">
+                            <span
+                              class="meter-fill"
+                              [style.width.%]="meterPercent(shown().exercises, goal)"
+                            ></span>
+                          </span>
+                          <span class="meter-label">{{ meterText(shown().exercises, goal) }}</span>
+                        </div>
+                      }
+                    </div>
+                  }
+                </li>
                 @for (row of activities; track row.key) {
                   <li
                     [attr.aria-label]="activityCardLabel(row.label, shown()[row.key])"
@@ -377,6 +327,37 @@ const EMPTY_DAY: DayStats = {
                     </span>
                     <span class="count">{{ formatCount(shown()[row.key]) }}</span>
                     <span class="caption">{{ row.label }}</span>
+                    @if (row.key === 'added' && (goalsOpen() || goals().added !== null)) {
+                      <div class="card-foot">
+                        @if (goalsOpen()) {
+                          <span class="card-goal-label">Goal</span>
+                          <ng-container
+                            *ngTemplateOutlet="
+                              goalStepper;
+                              context: { kind: 'added', label: 'added' }
+                            "
+                          />
+                        }
+                        @if (goals().added; as goal) {
+                          <div
+                            class="meter"
+                            role="progressbar"
+                            aria-valuemin="0"
+                            [attr.aria-valuenow]="meterNow(shown().added, goal)"
+                            [attr.aria-valuemax]="goal"
+                            [attr.aria-label]="addedMeterLabel(goal)"
+                          >
+                            <span class="meter-track">
+                              <span
+                                class="meter-fill"
+                                [style.width.%]="meterPercent(shown().added, goal)"
+                              ></span>
+                            </span>
+                            <span class="meter-label">{{ meterText(shown().added, goal) }}</span>
+                          </div>
+                        }
+                      </div>
+                    }
                   </li>
                 }
               </ul>
@@ -458,36 +439,39 @@ const EMPTY_DAY: DayStats = {
                           }}</span>
                           @if (hasBits(element) || elementSort()) {
                             <span class="bits">
+                              <span
+                                class="bit"
+                                [class.on]="isSort(exerciseSort)"
+                                [attr.aria-label]="exerciseLabel(element.exercises)"
+                                [attr.title]="exerciseLabel(element.exercises)"
+                              >
+                                <ng-container *ngTemplateOutlet="exerciseIcon" />
+                                <span>{{ formatCount(element.exercises) }}</span>
+                              </span>
                               @for (activity of activities; track activity.key) {
-                                <span
-                                  class="bit"
-                                  [class.on]="isSort(activitySort(activity.key))"
-                                  [attr.aria-label]="
-                                    activityLabel(activity.label, element[activity.key])
-                                  "
-                                  [attr.title]="
-                                    activityLabel(activity.label, element[activity.key])
-                                  "
-                                >
-                                  <ng-container
-                                    *ngTemplateOutlet="
-                                      activityIcon;
-                                      context: { $implicit: activity.key }
+                                @if (
+                                  activity.key !== 'added' ||
+                                  showsMetric(element.added, activitySort('added'))
+                                ) {
+                                  <span
+                                    class="bit"
+                                    [class.on]="isSort(activitySort(activity.key))"
+                                    [attr.aria-label]="
+                                      activityLabel(activity.label, element[activity.key])
                                     "
-                                  />
-                                  <span>{{ element[activity.key] }}</span>
-                                </span>
-                              }
-                              @if (showsMetric(element.exercises, exerciseSort)) {
-                                <span
-                                  class="bit"
-                                  [class.on]="isSort(exerciseSort)"
-                                  [attr.aria-label]="exerciseLabel(element.exercises)"
-                                  [attr.title]="exerciseLabel(element.exercises)"
-                                >
-                                  <ng-container *ngTemplateOutlet="exerciseIcon" />
-                                  <span>{{ formatCount(element.exercises) }}</span>
-                                </span>
+                                    [attr.title]="
+                                      activityLabel(activity.label, element[activity.key])
+                                    "
+                                  >
+                                    <ng-container
+                                      *ngTemplateOutlet="
+                                        activityIcon;
+                                        context: { $implicit: activity.key }
+                                      "
+                                    />
+                                    <span>{{ element[activity.key] }}</span>
+                                  </span>
+                                }
                               }
                               @for (game of games(); track game.game) {
                                 @if (showsMetric(element.gems[game.game], gemSort(game.game))) {
@@ -547,12 +531,9 @@ const EMPTY_DAY: DayStats = {
                             <span class="bits">
                               <span
                                 class="bit"
-                                [attr.aria-label]="seenLabel(token.seen)"
-                                [attr.title]="seenLabel(token.seen)"
+                                [attr.aria-label]="appearedLabel(token.seen)"
+                                [attr.title]="appearedLabel(token.seen)"
                               >
-                                <ng-container
-                                  *ngTemplateOutlet="activityIcon; context: { $implicit: 'opened' }"
-                                />
                                 <span>{{ formatCount(token.seen) }}</span>
                               </span>
                             </span>
@@ -616,15 +597,9 @@ const EMPTY_DAY: DayStats = {
                                   <span class="bits">
                                     <span
                                       class="bit"
-                                      [attr.aria-label]="seenLabel(token.seen)"
-                                      [attr.title]="seenLabel(token.seen)"
+                                      [attr.aria-label]="appearedLabel(token.seen)"
+                                      [attr.title]="appearedLabel(token.seen)"
                                     >
-                                      <ng-container
-                                        *ngTemplateOutlet="
-                                          activityIcon;
-                                          context: { $implicit: 'opened' }
-                                        "
-                                      />
                                       <span>{{ formatCount(token.seen) }}</span>
                                     </span>
                                   </span>
@@ -695,21 +670,14 @@ const EMPTY_DAY: DayStats = {
     </ng-template>
     <ng-template #activityIcon let-key>
       @switch (key) {
-        @case ('opened') {
+        @case ('added') {
           <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-            <circle cx="12" cy="12" r="3" />
+            <path d="M5 12h14" />
+            <path d="M12 5v14" />
           </svg>
         }
         @case ('revealed') {
           <app-reveal-icon />
-        }
-        @case ('reworked') {
-          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-            />
-          </svg>
         }
       }
     </ng-template>
@@ -946,29 +914,9 @@ const EMPTY_DAY: DayStats = {
 
     .lead {
       display: grid;
-      grid-auto-columns: minmax(0, 1fr);
-      grid-auto-flow: column;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 0.45rem;
       margin: 0.7rem 1rem 0;
-    }
-
-    .hero {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      justify-content: flex-start;
-      gap: 0.65rem;
-      min-width: 0;
-      margin: 0.7rem 1rem 0;
-      padding: 0.8rem 0.55rem;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 1rem;
-      background: var(--surface-2);
-      color: var(--text);
-    }
-
-    .lead .hero {
-      margin: 0;
     }
 
     .streak-card {
@@ -1023,22 +971,6 @@ const EMPTY_DAY: DayStats = {
       text-transform: uppercase;
     }
 
-    .added-card {
-      align-items: stretch;
-    }
-
-    .added-card .well,
-    .added-card .count,
-    .added-card .caption {
-      align-self: center;
-    }
-
-    .added-card .well {
-      background: rgba(8, 10, 18, 0.45);
-      color: var(--text-muted);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-    }
-
     .activity app-reveal-icon {
       width: 2.15rem;
       height: 1.12rem;
@@ -1047,53 +979,6 @@ const EMPTY_DAY: DayStats = {
     .bit app-reveal-icon {
       width: 1.76rem;
       height: 0.92rem;
-    }
-
-    .hero-copy,
-    .hero-stats {
-      min-width: 0;
-    }
-
-    .hero-stats {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.12rem;
-    }
-
-    .hero-stats .well {
-      display: grid;
-      place-items: center;
-      width: 2.35rem;
-      height: 2.35rem;
-      margin-bottom: 0.28rem;
-      border-radius: 0.7rem;
-      background: rgba(8, 10, 18, 0.45);
-      color: var(--text-muted);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-    }
-
-    .hero-stats .mark {
-      width: 1.45rem;
-      height: 1.45rem;
-    }
-
-    .hero-stats .count {
-      color: var(--text);
-      font-size: 1.55rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.03em;
-      line-height: 1;
-    }
-
-    .hero-stats .caption {
-      color: var(--text-muted);
-      font-size: 0.6rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      line-height: 1.2;
-      text-transform: uppercase;
     }
 
     .meter {
@@ -1430,6 +1315,21 @@ const EMPTY_DAY: DayStats = {
       color: var(--text-muted);
     }
 
+    .activity li:has(.card-foot) {
+      align-items: stretch;
+    }
+
+    .activity li:has(.card-foot) .well,
+    .activity li:has(.card-foot) .count,
+    .activity li:has(.card-foot) .caption {
+      align-self: center;
+    }
+
+    .activity .meter {
+      align-self: stretch;
+      width: 100%;
+    }
+
     .flame {
       display: block;
       width: 1.45rem;
@@ -1714,12 +1614,6 @@ const EMPTY_DAY: DayStats = {
       margin: 0;
     }
 
-    .hero-loading {
-      border-color: rgba(255, 255, 255, 0.08);
-      background: var(--surface-2);
-      color: var(--text-muted);
-    }
-
     .bone {
       display: block;
       border-radius: 999px;
@@ -1730,18 +1624,6 @@ const EMPTY_DAY: DayStats = {
       width: 9.5rem;
       height: 0.9rem;
       margin-inline: auto;
-    }
-
-    .bone-label {
-      width: 4.4rem;
-      height: 0.55rem;
-    }
-
-    .bone-hero {
-      width: 5.5rem;
-      height: 2.4rem;
-      margin-top: 0.45rem;
-      border-radius: 0.7rem;
     }
 
     .gems li.loading-card,
@@ -2040,7 +1922,7 @@ export class GemStatsModal {
 
   hasBits(element: ElementDayStats): boolean {
     const gems = this.games().reduce((sum, row) => sum + element.gems[row.game], 0);
-    const activity = element.added + element.opened + element.reworked + element.revealed;
+    const activity = element.added + element.revealed;
     return gems + element.exercises + activity > 0;
   }
 
@@ -2074,9 +1956,9 @@ export class GemStatsModal {
     return `${count} ${label.toLowerCase()}`;
   }
 
-  seenLabel(count: number): string {
+  appearedLabel(count: number): string {
     const amount = this.formatCount(count);
-    return count === 1 ? `Seen ${amount} time` : `Seen ${amount} times`;
+    return count === 1 ? `Appeared ${amount} time` : `Appeared ${amount} times`;
   }
 
   hideMissing(token: MissingToken): void {
@@ -2156,7 +2038,7 @@ function gemTotal(element: ElementDayStats): number {
 }
 
 function activityTotal(element: ElementDayStats): number {
-  return element.opened + element.reworked + element.revealed;
+  return element.added + element.revealed;
 }
 
 function formatDay(day: string): string {
@@ -2230,8 +2112,6 @@ function daysWithToday(days: readonly DayStats[]): readonly DayStats[] {
       day: today,
       gems: { translation: 0, example: 0, definition: 0 },
       added: 0,
-      opened: 0,
-      reworked: 0,
       revealed: 0,
       exercises: 0,
       elements: [],

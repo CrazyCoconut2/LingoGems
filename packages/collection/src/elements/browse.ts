@@ -16,8 +16,6 @@ const ELEMENT_SORTS = [
   'created-asc',
   'definitions-desc',
   'translations-desc',
-  'clicks-desc',
-  'clicks-asc',
   'gems-desc',
   'gems-asc',
   'none',
@@ -138,15 +136,6 @@ function variabilityMatches(
   return true;
 }
 
-/** Definition views. */
-function elementViews(element: StoredElement): number {
-  let views = 0;
-  for (const entry of element.log) {
-    if (entry.event === 'view') views += 1;
-  }
-  return views;
-}
-
 function elementGems(element: StoredElement): number {
   const counts = elementGemCounts(element);
   return counts.translation + counts.example + counts.definition;
@@ -163,10 +152,6 @@ export function compareElements(
   if (sort === 'created-desc' || sort === 'created-asc') {
     const diff = left.createdAt - right.createdAt;
     return (sort === 'created-desc' ? -diff : diff) || title;
-  }
-  if (sort === 'clicks-desc' || sort === 'clicks-asc') {
-    const diff = elementViews(left) - elementViews(right);
-    return (sort === 'clicks-desc' ? -diff : diff) || title;
   }
   if (sort === 'gems-desc' || sort === 'gems-asc') {
     const diff = elementGems(left) - elementGems(right);

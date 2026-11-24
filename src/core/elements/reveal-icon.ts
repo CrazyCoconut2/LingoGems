@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 
-/** The same eye as Seen, with the translation mark beside it. */
+/** Eye with the translation mark, for a revealed phrase. */
 @Component({
   selector: 'app-reveal-icon',
   template: `

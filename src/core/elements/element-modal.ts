@@ -171,8 +171,7 @@ type DefinitionHistoryEntry =
   | DefinitionDeleteLog
   | DefinitionExampleLog
   | DefinitionFormLog
-  | DefinitionRevealLog
-  | { event: 'view'; at: number };
+  | DefinitionRevealLog;
 
 type ExampleDraft = {
   definitionIndex: number;
@@ -8538,7 +8537,6 @@ export class ElementModal {
       if (entry?.event === 'delete') return 'Delete this deletion?';
       if (entry?.event === 'example') return 'Delete this example?';
       if (entry?.event === 'form') return 'Delete these forms?';
-      if (entry?.event === 'view') return 'Delete this seen event?';
       if (entry?.event === 'reveal') return 'Delete this revealed event?';
       return 'Delete this exercise?';
     }
@@ -9285,7 +9283,6 @@ export class ElementModal {
     if (entry.event === 'delete') return 'Deleted';
     if (entry.event === 'example') return 'Example';
     if (entry.event === 'form') return 'Forms';
-    if (entry.event === 'view') return 'Seen';
     if (entry.event === 'reveal') return 'Revealed';
     return this.modeLabel(this.logMode(entry.game));
   }
@@ -9316,7 +9313,6 @@ export class ElementModal {
       entry.event === 'delete' ||
       entry.event === 'example' ||
       entry.event === 'form' ||
-      entry.event === 'view' ||
       entry.event === 'reveal' ||
       entry.event === 'game'
     );
