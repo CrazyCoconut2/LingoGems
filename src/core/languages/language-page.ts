@@ -1164,32 +1164,30 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
     .sort-options {
       display: flex;
-      flex-direction: column;
-      gap: 0.15rem;
+      flex-wrap: wrap;
+      gap: 0.35rem;
     }
 
     .sort-option {
-      display: block;
-      width: 100%;
-      text-align: left;
-      border: 0;
-      border-radius: 0.4rem;
-      background: transparent;
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+      border-radius: 999px;
+      background: var(--bg);
       color: var(--text);
-      padding: 0.45rem 0.5rem;
+      padding: 0.35rem 0.7rem;
       font: inherit;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
+      font-weight: 650;
       cursor: pointer;
     }
 
     .sort-option:hover {
-      background: var(--surface-2);
+      background: rgba(127, 127, 127, 0.1);
     }
 
     .sort-option.selected {
-      background: rgba(var(--accent-rgb), 0.14);
+      background: var(--accent-soft);
       color: var(--accent-text);
-      font-weight: 650;
+      border-color: var(--accent-border);
     }
 
     .list-count {
@@ -2368,7 +2366,6 @@ export class LanguagePage {
     { value: 'title-desc', label: 'Title Z–A' },
     { value: 'created-desc', label: 'Most recent' },
     { value: 'created-asc', label: 'Least recent' },
-    { value: 'definitions-desc', label: 'Most definitions' },
     { value: 'translations-desc', label: 'Most translations' },
     { value: 'gems-desc', label: 'Most gems' },
     { value: 'gems-asc', label: 'Least gems' },

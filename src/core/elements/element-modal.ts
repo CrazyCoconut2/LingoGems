@@ -4419,32 +4419,32 @@ function writeExampleSuggestions(
 
     .forms-region .forms,
     .log-detail .forms {
-      gap: 0.16rem;
+      gap: 0.2rem;
     }
 
-    .forms-region .form-chip.readonly:not(.form-cta),
+    .forms-region .form-chip.readonly,
     .log-detail .form-chip.readonly {
-      gap: 0.14rem;
+      gap: 0.22rem;
       min-height: 0;
       border-style: solid;
       border-color: rgba(51, 65, 85, 0.6);
       border-radius: 999px;
       background: color-mix(in srgb, var(--surface-2) 80%, transparent);
       color: #e2e8f0;
-      padding: 0 0.26rem;
+      padding: 0.16rem 0.52rem;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.58rem;
+      font-size: 0.68rem;
       font-weight: 400;
-      line-height: 1.05;
+      line-height: 1.15;
     }
 
-    .forms-region .form-chip.readonly:not(.form-cta) svg,
+    .forms-region .form-chip.readonly svg,
     .log-detail .form-chip svg {
-      width: 0.48rem;
-      height: 0.48rem;
+      width: 0.58rem;
+      height: 0.58rem;
     }
 
-    .forms-region .form-chip.readonly.tinted:not(.form-cta),
+    .forms-region .form-chip.readonly.tinted,
     .log-detail .form-chip.readonly.tinted {
       background: color-mix(in srgb, var(--form-color) 15%, transparent);
       border-color: color-mix(in srgb, var(--form-color) 30%, transparent);
@@ -4453,9 +4453,11 @@ function writeExampleSuggestions(
     }
 
     .forms-region .form-chip.readonly.form-cta {
+      width: auto;
       border-style: dashed;
       background: transparent;
       color: var(--text-muted);
+      font-weight: 500;
     }
 
     button.form-chip {
