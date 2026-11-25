@@ -727,12 +727,13 @@ function writeExampleSuggestions(
             <div class="definition-stats">
               @let average = scoreAverage();
               @let reworked = activityCount('rework');
-              <section
-                class="stats-hero"
-                [class.unscored]="average === 'NA'"
-                [style.--score-color]="scoreColorVar()"
-              >
-                <div class="stats-hero-score" [attr.aria-label]="scoreAverageLabel()">
+              <div class="stats-pair">
+                <section
+                  class="stats-hero"
+                  [class.unscored]="average === 'NA'"
+                  [style.--score-color]="scoreColorVar()"
+                  [attr.aria-label]="scoreAverageLabel()"
+                >
                   <p class="stats-eyebrow">Score</p>
                   <p class="stats-hero-value">
                     {{ average }}
@@ -740,12 +741,17 @@ function writeExampleSuggestions(
                       <span class="score-max">/10</span>
                     }
                   </p>
-                </div>
-                <p class="stats-rework" [attr.aria-label]="activityLabel('rework', reworked)">
+                </section>
+                <section class="stats-rework" [attr.aria-label]="activityLabel('rework', reworked)">
+                  <svg class="stats-rework-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+                    />
+                  </svg>
                   <span class="stats-rework-count">{{ reworked }}</span>
                   <span class="stats-rework-label">Reworked</span>
-                </p>
-              </section>
+                </section>
+              </div>
               @if (shownHistory().length) {
                 <section class="stats-log">
                   <h3>History</h3>
@@ -874,7 +880,7 @@ function writeExampleSuggestions(
                             </span>
                           } @else if (entry.event === 'game') {
                             <label
-                              class="score-readout"
+                              class="score-readout score-plain"
                               [style.color]="gameScoreColor(entry)"
                               [attr.aria-label]="scoreAria(entry)"
                             >
@@ -4577,12 +4583,19 @@ function writeExampleSuggestions(
       gap: 0.85rem;
     }
 
+    .stats-pair {
+      display: flex;
+      align-items: stretch;
+      gap: 0.65rem;
+    }
+
     .stats-hero {
       display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
+      flex: 1 1 auto;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.28rem;
+      min-width: 0;
       padding: 0.95rem 1.05rem;
       border: 1px solid color-mix(in srgb, var(--score-color) 48%, transparent);
       border-radius: 1.05rem;
@@ -4591,13 +4604,6 @@ function writeExampleSuggestions(
         color-mix(in srgb, var(--score-color) 24%, transparent),
         color-mix(in srgb, var(--score-color) 9%, rgba(8, 10, 18, 0.35))
       );
-    }
-
-    .stats-hero-score {
-      display: flex;
-      flex-direction: column;
-      gap: 0.28rem;
-      min-width: 0;
     }
 
     .stats-hero.unscored {
@@ -4634,12 +4640,27 @@ function writeExampleSuggestions(
 
     .stats-rework {
       display: flex;
+      flex: 0 0 6.6rem;
       flex-direction: column;
-      align-items: flex-end;
-      gap: 0.18rem;
+      align-items: center;
+      justify-content: center;
+      gap: 0.16rem;
       margin: 0;
-      padding-left: 0.85rem;
-      border-left: 1px solid color-mix(in srgb, var(--score-color) 28%, transparent);
+      padding: 0.55rem 0.45rem;
+      border: 1px solid var(--border);
+      border-radius: 1.05rem;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .stats-rework-icon {
+      width: 1.05rem;
+      height: 1.05rem;
+      color: var(--text-muted);
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .stats-rework-count {
@@ -4653,7 +4674,7 @@ function writeExampleSuggestions(
 
     .stats-rework-label {
       color: var(--text-muted);
-      font-size: 0.62rem;
+      font-size: 0.58rem;
       font-weight: 700;
       letter-spacing: 0.08em;
       line-height: 1.2;
@@ -5481,16 +5502,19 @@ function writeExampleSuggestions(
     }
 
     .score-input {
-      width: 2.6rem;
+      width: auto;
+      min-width: 1ch;
       margin: 0;
-      padding: 0.1rem 0.15rem;
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
       background: transparent;
       color: inherit;
       font: inherit;
       font-weight: 700;
+      line-height: 1;
       text-align: center;
+      field-sizing: content;
       appearance: textfield;
     }
 
@@ -5502,7 +5526,6 @@ function writeExampleSuggestions(
 
     .score-input:focus {
       outline: none;
-      border-color: var(--accent-border);
     }
 
     .log-side {
