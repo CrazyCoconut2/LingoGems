@@ -22,13 +22,10 @@ import {
   definitionScoreAverage,
   definitionScoreStep,
   displayTitle,
-  attributeGem,
-  storedGem,
   equivalentTextFor,
   linkEquivalent,
   parsePassage,
   type ParsedPassage,
-  type GemTier,
   formTexts,
   highlightDefinitionPassage,
   isValidForm,
@@ -76,7 +73,6 @@ import {
   type RelatedWord,
 } from 'ai';
 import { DefinitionRecall, type RecallFinish } from './definition-recall';
-import { GemIcon } from './gem-icon';
 import { ShowText } from './show-text';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { supportLanguageFor } from '../languages/translation-language';
@@ -514,7 +510,6 @@ function writeExampleSuggestions(
     PhraseTranslation,
     ShowText,
     DefinitionRecall,
-    GemIcon,
     CdkScrollable,
   ],
   template: `
@@ -730,14 +725,14 @@ function writeExampleSuggestions(
           }
           @if (historyOpen()) {
             <div class="definition-stats">
-              <div class="stats-summary">
-                @let average = scoreAverage();
-                <section
-                  class="stats-hero"
-                  [class.unscored]="average === 'NA'"
-                  [style.--score-color]="scoreColorVar()"
-                  [attr.aria-label]="scoreAverageLabel()"
-                >
+              @let average = scoreAverage();
+              @let reworked = activityCount('rework');
+              <section
+                class="stats-hero"
+                [class.unscored]="average === 'NA'"
+                [style.--score-color]="scoreColorVar()"
+              >
+                <div class="stats-hero-score" [attr.aria-label]="scoreAverageLabel()">
                   <p class="stats-eyebrow">Score</p>
                   <p class="stats-hero-value">
                     {{ average }}
@@ -745,25 +740,12 @@ function writeExampleSuggestions(
                       <span class="score-max">/10</span>
                     }
                   </p>
-                </section>
-                <section class="stats-block">
-                  <h3>Activity</h3>
-                  <ul class="stats-activity">
-                    @let reworked = activityCount('rework');
-                    <li [attr.aria-label]="activityLabel('rework', reworked)">
-                      <span class="stats-well" aria-hidden="true">
-                        <svg class="stats-mark" viewBox="0 0 24 24">
-                          <path
-                            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-                          />
-                        </svg>
-                      </span>
-                      <span class="stats-count">{{ reworked }}</span>
-                      <span class="stats-caption">Reworked</span>
-                    </li>
-                  </ul>
-                </section>
-              </div>
+                </div>
+                <p class="stats-rework" [attr.aria-label]="activityLabel('rework', reworked)">
+                  <span class="stats-rework-count">{{ reworked }}</span>
+                  <span class="stats-rework-label">Reworked</span>
+                </p>
+              </section>
               @if (shownHistory().length) {
                 <section class="stats-log">
                   <h3>History</h3>
@@ -881,20 +863,10 @@ function writeExampleSuggestions(
                               </svg>
                             </button>
                           }
-                          @if (entry.event === 'game' && exerciseGem(entry); as tier) {
-                            <span
-                              class="gem-gain"
-                              role="img"
-                              [attr.data-gem]="tier"
-                              [attr.aria-label]="earnedGemLabel(tier)"
-                            >
-                              <app-gem-icon class="gem-gain-stone" [tier]="tier" />
-                            </span>
-                          }
                           @if (entry.event === 'game' && gaveUp(entry)) {
                             <span
                               class="score-readout score-plain"
-                              [attr.data-gem]="exerciseGem(entry)"
+                              [style.color]="gameScoreColor(entry)"
                               aria-label="Score 0 out of 10"
                             >
                               <span>0</span>
@@ -903,7 +875,7 @@ function writeExampleSuggestions(
                           } @else if (entry.event === 'game') {
                             <label
                               class="score-readout"
-                              [attr.data-gem]="exerciseGem(entry)"
+                              [style.color]="gameScoreColor(entry)"
                               [attr.aria-label]="scoreAria(entry)"
                             >
                               <input
@@ -4595,14 +4567,9 @@ function writeExampleSuggestions(
       gap: 1.35rem;
     }
 
-    .stats-summary,
     .stats-log {
       display: flex;
       flex-direction: column;
-      gap: 1.15rem;
-    }
-
-    .stats-log {
       gap: 0.7rem;
     }
 
@@ -4612,9 +4579,11 @@ function writeExampleSuggestions(
 
     .stats-hero {
       display: flex;
-      flex-direction: column;
-      gap: 0.28rem;
-      padding: 1rem 1.05rem 0.95rem;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.95rem 1.05rem;
       border: 1px solid color-mix(in srgb, var(--score-color) 48%, transparent);
       border-radius: 1.05rem;
       background: linear-gradient(
@@ -4624,12 +4593,18 @@ function writeExampleSuggestions(
       );
     }
 
+    .stats-hero-score {
+      display: flex;
+      flex-direction: column;
+      gap: 0.28rem;
+      min-width: 0;
+    }
+
     .stats-hero.unscored {
       --score-color: var(--text-muted);
     }
 
-    .stats-eyebrow,
-    .definition-stats .stats-block > h3 {
+    .stats-eyebrow {
       margin: 0;
       color: var(--text-muted);
       font-size: 0.62rem;
@@ -4639,19 +4614,12 @@ function writeExampleSuggestions(
       text-transform: uppercase;
     }
 
-    .stats-hero-value,
-    .stats-count {
-      margin: 0;
-      color: var(--text);
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.03em;
-      line-height: 1;
-    }
-
     .stats-hero-value {
+      margin: 0;
       color: var(--score-color);
-      font-size: 2.7rem;
+      font-size: 2.35rem;
       font-weight: 700;
+      font-variant-numeric: tabular-nums;
       letter-spacing: -0.045em;
       line-height: 0.95;
     }
@@ -4659,132 +4627,37 @@ function writeExampleSuggestions(
     .stats-hero-value .score-max {
       margin-left: 0.12rem;
       color: var(--text-muted);
-      font-size: 1.15rem;
+      font-size: 1.05rem;
       font-weight: 650;
       letter-spacing: 0;
     }
 
-    .stats-block {
+    .stats-rework {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
-      min-width: 0;
-    }
-
-    .stats-gems,
-    .stats-activity {
-      display: grid;
-      gap: 0.45rem;
+      align-items: flex-end;
+      gap: 0.18rem;
       margin: 0;
-      padding: 0;
-      list-style: none;
+      padding-left: 0.85rem;
+      border-left: 1px solid color-mix(in srgb, var(--score-color) 28%, transparent);
     }
 
-    .stats-gems {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .stats-activity {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .stats-gems li,
-    .stats-activity li {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.15rem;
-      min-width: 0;
-      padding: 0.85rem 0.55rem 0.7rem;
-      border-radius: 1.05rem;
-    }
-
-    .stats-gems li {
-      border: 1px solid color-mix(in srgb, var(--exercise-gem) 32%, transparent);
-      background: color-mix(in srgb, var(--exercise-gem) 13%, rgba(8, 10, 18, 0.55));
-    }
-
-    .stats-activity li {
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.035);
-      color: var(--text-muted);
-    }
-
-    .stats-stone,
-    .stats-well {
-      display: grid;
-      place-items: center;
-      margin-bottom: 0.28rem;
-      border-radius: 0.7rem;
-    }
-
-    .stats-stone {
-      width: 2.35rem;
-      height: 2.35rem;
-      background: color-mix(in srgb, var(--exercise-gem) 16%, rgba(6, 8, 16, 0.82));
-      color: var(--exercise-gem);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--exercise-gem) 38%, transparent);
-    }
-
-    .stats-stone-icon {
-      width: 1.45rem;
-      height: 1.45rem;
-    }
-
-    .stats-gems .stats-count {
-      color: var(--exercise-gem);
-    }
-
-    .stats-count .score-max {
-      color: var(--text-muted);
-      font-size: 0.72rem;
-      font-weight: 650;
-    }
-
-    .stats-gems .stats-count.stats-na {
-      color: var(--text-muted);
-      font-size: 1.15rem;
-      letter-spacing: 0.04em;
-    }
-
-    .stats-gems:not(:has(> li:nth-child(3))) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .stats-well {
-      width: 2.15rem;
-      height: 2.15rem;
-      background: rgba(8, 10, 18, 0.45);
-      color: var(--text-muted);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-    }
-
-    .stats-mark {
-      display: block;
-      width: 0.95rem;
-      height: 0.95rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .stats-count {
-      font-size: 1.55rem;
+    .stats-rework-count {
+      color: var(--text);
+      font-size: 1.35rem;
       font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1;
     }
 
-    .stats-caption {
-      max-width: 100%;
+    .stats-rework-label {
       color: var(--text-muted);
-      font-size: 0.6rem;
+      font-size: 0.62rem;
       font-weight: 700;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.08em;
       line-height: 1.2;
-      text-align: center;
       text-transform: uppercase;
-      overflow-wrap: anywhere;
     }
 
     .editor-sheet {
@@ -5362,33 +5235,6 @@ function writeExampleSuggestions(
       margin: 0;
     }
 
-    .gem-gain {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.35rem;
-      flex: none;
-    }
-
-    .score-readout[data-gem='red'],
-    .gem-gain[data-gem='red'] {
-      --exercise-gem: var(--gem-red);
-    }
-
-    .score-readout[data-gem='orange'],
-    .gem-gain[data-gem='orange'] {
-      --exercise-gem: var(--gem-orange);
-    }
-
-    .score-readout[data-gem='green'],
-    .gem-gain[data-gem='green'] {
-      --exercise-gem: var(--gem-green);
-    }
-
-    .gem-gain-stone {
-      --gem-size: 0.85rem;
-    }
-
     .log-row {
       display: flex;
       justify-content: space-between;
@@ -5419,23 +5265,19 @@ function writeExampleSuggestions(
     }
 
     .log-item > .log-row {
-      align-items: flex-start;
-      gap: 0.1rem;
+      align-items: center;
+      gap: 0.35rem;
       border: 0;
       border-radius: 0;
       background: transparent;
     }
 
     .log-row > .icon-btn {
-      margin-top: -0.22rem;
+      margin-top: 0;
     }
 
     .log-row > .score-readout {
       margin-top: 0.02rem;
-    }
-
-    .log-row > .gem-gain {
-      margin-top: 0.28rem;
     }
 
     .log-open {
@@ -5613,7 +5455,7 @@ function writeExampleSuggestions(
       align-items: center;
       gap: 0.28rem;
       margin: 0;
-      color: var(--exercise-gem, var(--text));
+      color: var(--text);
       font-size: 1.35rem;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
@@ -5628,11 +5470,14 @@ function writeExampleSuggestions(
 
     .log-row .score-readout {
       flex: none;
-      font-size: 1rem;
+      font-size: 0.95rem;
     }
 
     .score-readout.score-plain {
-      gap: 0.12rem;
+      gap: 0.08rem;
+      padding: 0.28rem 0.5rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, currentColor 14%, transparent);
     }
 
     .score-input {
@@ -6220,8 +6065,6 @@ export class ElementModal {
       ...(result.extra ? { extra: true } : {}),
       ...(glosses.length ? { snapshot: { text: glosses.join('\n'), equivalent: '' } } : {}),
     };
-    const gem = attributeGem(element.log, entry);
-    if (gem) entry.gem = gem;
     this.appendLog(entry);
     this.revealRecallDefinitions(element);
     this.recallSettled.set(true);
@@ -9221,7 +9064,9 @@ export class ElementModal {
   }
 
   activityCount(event: 'rework'): number {
-    return this.currentElement().log.filter((entry) => entry.event === event).length;
+    return this.currentElement().log.filter(
+      (entry) => entry.event === event || entry.event === 'delete',
+    ).length;
   }
 
   activityLabel(event: 'rework', count: number): string {
@@ -9358,18 +9203,9 @@ export class ElementModal {
     return definitionCoverage(entry);
   }
 
-  /** The gem this recall earned, from how far its coverage sits above earlier ones. */
-  exerciseGem(
-    entry: DefinitionGameLog | DefinitionReworkLog | DefinitionDeleteLog,
-  ): GemTier | null {
-    if (entry.event !== 'game') return null;
-    return storedGem(entry);
-  }
-
-  earnedGemLabel(tier: GemTier): string {
-    if (tier === 'red') return 'Red gem';
-    if (tier === 'orange') return 'Orange gem';
-    return 'Green gem';
+  /** Score-step color for one recall, matching the score hero. */
+  gameScoreColor(entry: DefinitionGameLog): string {
+    return `var(--score-${definitionScoreStep(this.shownGameScore(entry))})`;
   }
 
   readonly scoreMax = DEFINITION_COVERAGE_MAX;

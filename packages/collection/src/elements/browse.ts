@@ -1,4 +1,4 @@
-import { definitionCoverage, elementGemCounts, type StoredElement } from './element-store';
+import { definitionCoverage, type StoredElement } from './element-store';
 
 export { definitionCoverage };
 import {
@@ -15,8 +15,6 @@ const ELEMENT_SORTS = [
   'score-asc',
   'definitions-desc',
   'translations-desc',
-  'gems-desc',
-  'gems-asc',
   'none',
 ] as const;
 
@@ -129,11 +127,6 @@ function variabilityMatches(
   return true;
 }
 
-function elementGems(element: StoredElement): number {
-  const counts = elementGemCounts(element);
-  return counts.red + counts.orange + counts.green;
-}
-
 export function compareElements(
   left: StoredElement,
   right: StoredElement,
@@ -145,10 +138,6 @@ export function compareElements(
   if (sort === 'created-desc' || sort === 'created-asc') {
     const diff = left.createdAt - right.createdAt;
     return (sort === 'created-desc' ? -diff : diff) || title;
-  }
-  if (sort === 'gems-desc' || sort === 'gems-asc') {
-    const diff = elementGems(left) - elementGems(right);
-    return (sort === 'gems-desc' ? -diff : diff) || title;
   }
   if (sort === 'score-desc' || sort === 'score-asc') {
     const leftScore = definitionScoreAverage(left);

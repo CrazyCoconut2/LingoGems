@@ -10,8 +10,8 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ElementModal } from '../elements/element-modal';
-import { GemStatsJob } from '../elements/gem-stats-job';
-import { GemStatsModal } from '../elements/gem-stats-modal';
+import { StatsJob } from '../elements/stats-job';
+import { StatsModal } from '../elements/stats-modal';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { DiscoverModal } from './discover-modal';
 import { ensureSelectedLanguage, writeSelectedLanguage } from './selected-language';
@@ -128,7 +128,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
 @Component({
   selector: 'app-language-page',
-  imports: [FormsModule, ElementModal, DiscoverModal, Settings, GemStatsModal],
+  imports: [FormsModule, ElementModal, DiscoverModal, Settings, StatsModal],
   template: `
     <main>
       <div class="page-top">
@@ -893,7 +893,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       }
 
       @if (statsOpen()) {
-        <app-gem-stats
+        <app-stats
           [language]="code()"
           [asking]="asking()"
           [askError]="statsAskError()"
@@ -1967,7 +1967,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .grammar-rule-btn.resolved svg {
-      color: var(--gem-green);
+      color: var(--score-10);
     }
 
     .grammar-rule-btn.selected {
@@ -1996,12 +1996,12 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .grammar-fix.colored {
-      color: var(--gem-green);
+      color: var(--score-10);
       font-weight: 650;
     }
 
     .grammar-good {
-      color: var(--gem-green);
+      color: var(--score-10);
       font-weight: 650;
     }
 
@@ -2347,7 +2347,7 @@ export class LanguagePage {
   private scrollLock = '';
   private scrollLocked = false;
   private promptedLanguage = false;
-  private readonly statsJob = inject(GemStatsJob);
+  private readonly statsJob = inject(StatsJob);
 
   readonly languageOptions = LEARNABLE_LANGUAGES;
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
@@ -2369,8 +2369,6 @@ export class LanguagePage {
     { value: 'score-desc', label: 'Highest score' },
     { value: 'score-asc', label: 'Lowest score' },
     { value: 'translations-desc', label: 'Most translations' },
-    { value: 'gems-desc', label: 'Most gems' },
-    { value: 'gems-asc', label: 'Least gems' },
   ];
   readonly code = signal('');
   private translationLanguage = '';
@@ -2945,7 +2943,7 @@ export class LanguagePage {
     let worked = 0;
     let reworked = 0;
     for (const entry of element.log) {
-      if (entry.event === 'rework') reworked += 1;
+      if (entry.event === 'rework' || entry.event === 'delete') reworked += 1;
       else if (entry.event === 'game') worked += 1;
     }
     return { worked, reworked };

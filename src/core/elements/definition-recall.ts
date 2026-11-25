@@ -530,7 +530,7 @@ type RecallView = {
 
     .bonus {
       margin-left: 0.35rem;
-      color: var(--gem-green);
+      color: var(--score-10);
     }
 
     .feedback,

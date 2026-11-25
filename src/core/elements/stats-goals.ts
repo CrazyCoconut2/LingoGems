@@ -1,11 +1,12 @@
-const KEY_PREFIX = 'lingogem.stats.goals.v2.';
+const KEY_PREFIX = 'lingogem.stats.goals.v3.';
+const STALE_GOALS_ROOT = 'lingogem.stats.goals.v';
 
-const GOAL_KINDS = ['red', 'orange', 'green', 'exercises', 'added'] as const;
+const GOAL_KINDS = ['exercises', 'added'] as const;
 
 export type DailyGoals = Record<(typeof GOAL_KINDS)[number], number | null>;
 
 export function emptyDailyGoals(): DailyGoals {
-  return { red: null, orange: null, green: null, exercises: null, added: null };
+  return { exercises: null, added: null };
 }
 
 export function readDailyGoals(language: string): DailyGoals {
@@ -73,3 +74,21 @@ function goalsUnset(goals: DailyGoals): boolean {
 function positiveInteger(value: unknown): number | null {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null;
 }
+
+/** Drops goal records stored by earlier formats. */
+function dropStaleGoalKeys(): void {
+  if (typeof localStorage === 'undefined') return;
+  const stale: string[] = [];
+  try {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith(STALE_GOALS_ROOT) || key.startsWith(KEY_PREFIX)) continue;
+      stale.push(key);
+    }
+    for (const key of stale) localStorage.removeItem(key);
+  } catch {
+    // Current goals still load.
+  }
+}
+
+dropStaleGoalKeys();

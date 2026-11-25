@@ -10,15 +10,15 @@ import {
   writeStatsSnapshot,
   type StatsSnapshot,
   type StatsView,
-} from './gem-stats-cache';
-import type { DayStats, MissingToken } from './gem-stats.worker';
+} from './stats-cache';
+import type { DayStats, MissingToken } from './stats.worker';
 
 type StatsMessage = { ok?: boolean; days?: DayStats[]; missing?: MissingToken[] };
 
 const DEBOUNCE_MS = 300;
 
 @Injectable({ providedIn: 'root' })
-export class GemStatsJob {
+export class StatsJob {
   private readonly zone = inject(NgZone);
   private readonly tick = signal(0);
   private readonly memory = new Map<string, StatsView>();
@@ -115,7 +115,7 @@ export class GemStatsJob {
     }
     let worker: Worker;
     try {
-      worker = new Worker(new URL('./gem-stats.worker.ts', import.meta.url), { type: 'module' });
+      worker = new Worker(new URL('./stats.worker.ts', import.meta.url), { type: 'module' });
     } catch {
       this.fail(language, generation);
       return;

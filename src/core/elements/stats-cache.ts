@@ -1,6 +1,6 @@
-import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
+import type { DayStats, ElementDayStats, MissingToken } from './stats.worker';
 
-const KEY_PREFIX = 'lingogem.stats.v18.';
+const KEY_PREFIX = 'lingogem.stats.v19.';
 const STALE_STATS_ROOT = 'lingogem.stats.v';
 
 export type StatsPhase = 'empty' | 'pending' | 'ready' | 'error';
@@ -165,7 +165,6 @@ function isDay(value: unknown): value is DayStats {
   return (
     typeof source.day === 'string' &&
     /^\d{4}-\d{2}-\d{2}$/.test(source.day) &&
-    isGemCounts(source.gems) &&
     isCount(source.added) &&
     isCount(source.revealed) &&
     isCount(source.exercises) &&
@@ -183,18 +182,11 @@ function isElementDay(value: unknown): value is ElementDayStats {
     source.id.trim().length > 0 &&
     typeof source.title === 'string' &&
     source.title.trim().length > 0 &&
-    isGemCounts(source.gems) &&
     isCount(source.added) &&
     isCount(source.revealed) &&
     isCount(source.exercises) &&
     isOptionalSigned(source.differential)
   );
-}
-
-function isGemCounts(value: unknown): value is GemCounts {
-  if (!value || typeof value !== 'object') return false;
-  const source = value as GemCounts;
-  return isCount(source.red) && isCount(source.orange) && isCount(source.green);
 }
 
 function isMissingToken(value: unknown): value is MissingToken {

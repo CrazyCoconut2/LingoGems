@@ -8,16 +8,11 @@ import {
   isValidForm,
   openDatabase,
   phraseTokens,
-  storedGem,
-  type ElementGemCounts,
 } from 'collection';
-
-export type GemCounts = ElementGemCounts;
 
 export type ElementDayStats = {
   id: string;
   title: string;
-  gems: GemCounts;
   added: number;
   revealed: number;
   exercises: number;
@@ -27,7 +22,6 @@ export type ElementDayStats = {
 
 export type DayStats = {
   day: string;
-  gems: GemCounts;
   added: number;
   revealed: number;
   exercises: number;
@@ -48,7 +42,6 @@ type CompileMessage = { type?: string; language?: unknown };
 type MutableElement = ElementDayStats;
 
 type MutableDay = {
-  gems: GemCounts;
   added: number;
   revealed: number;
   exercises: number;
@@ -152,11 +145,6 @@ function tally(
           if (prior) prior.push({ at: entry.at, coverage: score });
           else attempts.set(id, [{ at: entry.at, coverage: score }]);
         }
-        const gem = storedGem(entry);
-        if (gem) {
-          day.gems[gem] += 1;
-          elementOf(day, id, title).gems[gem] += 1;
-        }
       }
     }
   }
@@ -172,7 +160,6 @@ function tally(
     if (!elements.length) continue;
     result.push({
       day,
-      gems: stats.gems,
       added: stats.added,
       revealed: stats.revealed,
       exercises: stats.exercises,
@@ -190,7 +177,6 @@ function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {
   let day = days.get(key);
   if (!day) {
     day = {
-      gems: emptyGems(),
       added: 0,
       revealed: 0,
       exercises: 0,
@@ -207,7 +193,6 @@ function elementOf(day: MutableDay, id: string, title: string): MutableElement {
     element = {
       id,
       title,
-      gems: emptyGems(),
       added: 0,
       revealed: 0,
       exercises: 0,
@@ -269,27 +254,15 @@ function dayKey(at: number): string {
 }
 
 function hasActivity(element: ElementDayStats): boolean {
-  return (
-    gemTotal(element.gems) > 0 || element.added + element.revealed > 0 || element.exercises > 0
-  );
+  return element.added + element.revealed > 0 || element.exercises > 0;
 }
 
 function compareElements(left: ElementDayStats, right: ElementDayStats, language: string): number {
-  const gems = gemTotal(right.gems) - gemTotal(left.gems);
-  if (gems) return gems;
   const exercises = right.exercises - left.exercises;
   if (exercises) return exercises;
   const activity = right.added + right.revealed - (left.added + left.revealed);
   if (activity) return activity;
   return left.title.localeCompare(right.title, language);
-}
-
-function emptyGems(): GemCounts {
-  return { red: 0, orange: 0, green: 0 };
-}
-
-function gemTotal(gems: GemCounts): number {
-  return gems.red + gems.orange + gems.green;
 }
 
 function isRecord(value: unknown): value is {
@@ -299,7 +272,6 @@ function isRecord(value: unknown): value is {
   score?: unknown;
   extra?: unknown;
   answer?: unknown;
-  gem?: unknown;
 } {
   return !!value && typeof value === 'object';
 }

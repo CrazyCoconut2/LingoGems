@@ -75,8 +75,6 @@ export type DefinitionGameLog = {
   extra?: true;
   /** Definition when this attempt was first scored. */
   snapshot?: DefinitionSnapshot;
-  /** Set when this recall was finished and earned a gem. */
-  gem?: GemTier;
 };
 
 /** A change to the definition passage, its equivalent, or its metadata. */
@@ -151,90 +149,10 @@ export type ElementDefinition = {
 /** A definition taken out of the editor. */
 export type RemovedDefinition = ElementDefinition & { deletedAt: number };
 
-const GEM_TIERS = ['red', 'orange', 'green'] as const;
-
-export type GemTier = (typeof GEM_TIERS)[number];
-
-/** Gems earned from recall exercises. One count per color. */
-export type ElementGemCounts = Record<GemTier, number>;
-
 /** Coverage out of 10 for a recall. The extra sense point is not part of it. */
 export function definitionCoverage(entry: { score: number; extra?: boolean }): number {
   const coverage = entry.extra ? entry.score - 1 : entry.score;
   return Math.min(DEFINITION_COVERAGE_MAX, Math.max(0, coverage));
-}
-
-/**
- * The gem for one finished recall compared with the mean of earlier coverages.
- * The first recall has no average, and a score under the average earns nothing.
- * A coverage of 0 earns nothing.
- * A gap of 0 up to 1.5 is red, 1.5 up to 3 is orange, and 3 or more is green.
- * Giving up is not a finished exercise, so it earns nothing.
- */
-function gemTierForScore(priorSum: number, priorCount: number, score: number): GemTier | null {
-  if (priorCount <= 0 || !Number.isFinite(score) || score <= 0) return null;
-  const gap = score - priorSum / priorCount;
-  if (!(gap >= 0)) return null;
-  if (gap < 1.5) return 'red';
-  if (gap < 3) return 'orange';
-  return 'green';
-}
-
-/** A recall was finished when an answer was kept. Giving up stores an empty answer. */
-function recallFinished(entry: { answer?: string }): boolean {
-  return !!entry.answer?.trim();
-}
-
-/** The gem stored on this recall when it was finished, or null. */
-export function storedGem(entry: { gem?: unknown }): GemTier | null {
-  return entry.gem === 'red' || entry.gem === 'orange' || entry.gem === 'green' ? entry.gem : null;
-}
-
-/**
- * The gem a finished recall earns against earlier coverages.
- * Written onto the log entry when the exercise is finished.
- */
-export function attributeGem(
-  log: readonly ElementLogEntry[],
-  entry: DefinitionGameLog,
-): GemTier | null {
-  if (entry.game !== 'definition' || !recallFinished(entry) || !Number.isFinite(entry.score)) {
-    return null;
-  }
-  let priorSum = 0;
-  let priorCount = 0;
-  for (const attempt of orderedGameAttempts(log, 'definition')) {
-    if (attempt === entry || attempt.at > entry.at) continue;
-    if (!Number.isFinite(attempt.score)) continue;
-    priorSum += definitionCoverage(attempt);
-    priorCount += 1;
-  }
-  return gemTierForScore(priorSum, priorCount, definitionCoverage(entry));
-}
-
-/** Gems stored on this element's finished recalls. */
-export function elementGemCounts(element: { log?: readonly ElementLogEntry[] }): ElementGemCounts {
-  const counts: ElementGemCounts = { red: 0, orange: 0, green: 0 };
-  for (const entry of element.log ?? []) {
-    if (entry.event !== 'game') continue;
-    const gem = storedGem(entry);
-    if (gem) counts[gem] += 1;
-  }
-  return counts;
-}
-
-/** One game's scored attempts, oldest first. Equal timestamps keep log order. */
-function orderedGameAttempts(
-  log: readonly ElementLogEntry[],
-  game: DefinitionGame,
-): DefinitionGameLog[] {
-  const attempts: { entry: DefinitionGameLog; index: number }[] = [];
-  for (let index = 0; index < log.length; index += 1) {
-    const entry = log[index];
-    if (entry?.event === 'game' && entry.game === game) attempts.push({ entry, index });
-  }
-  attempts.sort((left, right) => left.entry.at - right.entry.at || left.index - right.index);
-  return attempts.map((item) => item.entry);
 }
 
 /** The strings a form list is matched and highlighted with. */
@@ -747,7 +665,6 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     answer?: unknown;
     explanation?: unknown;
     extra?: unknown;
-    gem?: unknown;
     example?: unknown;
     forms?: unknown;
     before?: unknown;
@@ -847,8 +764,6 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   };
   if (explanation) entry.explanation = explanation;
   if (source.extra === true && source.game === 'definition' && score > 0) entry.extra = true;
-  const gem = storedGem(source);
-  if (gem && source.game === 'definition' && answer.trim()) entry.gem = gem;
   const snapshot = normalizeSnapshot(source.snapshot);
   if (snapshot) entry.snapshot = snapshot;
   return entry;

@@ -10,24 +10,17 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { displayTitle, languageDisplayName, type GemTier } from 'collection';
+import { displayTitle, languageDisplayName } from 'collection';
 import {
   emptyDailyGoals,
   readDailyGoals,
   readGoalInput,
   writeDailyGoals,
   type DailyGoals,
-} from './gem-stats-goals';
-import { GemStatsJob } from './gem-stats-job';
-import { ignoreMissingToken, readMissingBlacklist, restoreMissingToken } from './gem-stats-missing';
-import { GemIcon } from './gem-icon';
-import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
-
-const GEM_ROWS: readonly { tier: GemTier; label: string }[] = [
-  { tier: 'red', label: 'Red' },
-  { tier: 'orange', label: 'Orange' },
-  { tier: 'green', label: 'Green' },
-];
+} from './stats-goals';
+import { StatsJob } from './stats-job';
+import { ignoreMissingToken, readMissingBlacklist, restoreMissingToken } from './stats-missing';
+import type { DayStats, ElementDayStats, MissingToken } from './stats.worker';
 
 type ActivityKey = 'added' | 'revealed';
 
@@ -39,8 +32,7 @@ const ACTIVITIES: readonly {
   { key: 'revealed', label: 'Translated' },
 ];
 
-type ElementSort =
-  { kind: 'exercises' } | { kind: 'differential' } | { kind: 'translated' } | { kind: 'gems' };
+type ElementSort = { kind: 'exercises' } | { kind: 'differential' } | { kind: 'translated' };
 
 type GoalKind = keyof DailyGoals;
 
@@ -49,7 +41,6 @@ const LOADING_ROWS = [0, 1, 2, 3];
 
 const EMPTY_DAY: DayStats = {
   day: '',
-  gems: { red: 0, orange: 0, green: 0 },
   added: 0,
   revealed: 0,
   exercises: 0,
@@ -58,8 +49,8 @@ const EMPTY_DAY: DayStats = {
 };
 
 @Component({
-  selector: 'app-gem-stats',
-  imports: [NgTemplateOutlet, GemIcon],
+  selector: 'app-stats',
+  imports: [NgTemplateOutlet],
   template: `
     <div
       class="backdrop"
@@ -178,26 +169,12 @@ const EMPTY_DAY: DayStats = {
               </section>
               <section class="block">
                 <div class="block-head">
-                  <h3>Gems</h3>
-                </div>
-                <ul class="gems">
-                  @for (row of gemRows; track row.tier) {
-                    <li class="loading-card">
-                      <span class="bone bone-stone"></span>
-                      <span class="bone bone-count"></span>
-                      <span class="bone bone-caption"></span>
-                    </li>
-                  }
-                </ul>
-              </section>
-              <section class="block">
-                <div class="block-head">
                   <h3>Activity</h3>
                 </div>
                 <ul class="activity">
                   @for (item of loadingActivity; track item) {
                     <li class="loading-card">
-                      <span class="bone bone-stone"></span>
+                      <span class="bone bone-well"></span>
                       <span class="bone bone-count"></span>
                       <span class="bone bone-caption"></span>
                     </li>
@@ -229,73 +206,6 @@ const EMPTY_DAY: DayStats = {
                   <span class="count">{{ formatDiff(shown().differential) }}</span>
                   <span class="caption">Score</span>
                 </li>
-              </ul>
-            </section>
-            <section class="block">
-              <div class="block-head">
-                <h3>Gems</h3>
-              </div>
-              <ul class="gems">
-                @for (row of gemRows; track row.tier) {
-                  <li
-                    [attr.data-gem]="row.tier"
-                    [attr.aria-label]="
-                      gemCardLabel(row.label, gemTotals()[row.tier], shown().gems[row.tier])
-                    "
-                    [attr.title]="
-                      gemCardLabel(row.label, gemTotals()[row.tier], shown().gems[row.tier])
-                    "
-                  >
-                    <span class="stone" aria-hidden="true">
-                      <app-gem-icon class="stone-icon" [tier]="row.tier" />
-                    </span>
-                    <span class="count">{{ formatCount(gemTotals()[row.tier]) }}</span>
-                    <span class="caption">{{ row.label }}</span>
-                    @if (shown().gems[row.tier] > 0) {
-                      <span class="delta">
-                        +{{ formatCount(shown().gems[row.tier]) }}
-                        @if (dayBadge()) {
-                          {{ dayBadge() }}
-                        }
-                      </span>
-                    }
-                    @if (goalsOpen() || goals()[row.tier] !== null) {
-                      <div class="card-foot">
-                        @if (goalsOpen()) {
-                          <span class="card-goal-label">Goal</span>
-                          <ng-container
-                            *ngTemplateOutlet="
-                              goalStepper;
-                              context: { kind: row.tier, label: row.label.toLowerCase() }
-                            "
-                          />
-                        }
-                        @if (goals()[row.tier]; as goal) {
-                          <div
-                            class="meter"
-                            role="progressbar"
-                            aria-valuemin="0"
-                            [attr.aria-valuenow]="meterNow(shown().gems[row.tier], goal)"
-                            [attr.aria-valuemax]="goal"
-                            [attr.aria-label]="
-                              gemMeterLabel(row.label, shown().gems[row.tier], goal)
-                            "
-                          >
-                            <span class="meter-track">
-                              <span
-                                class="meter-fill"
-                                [style.width.%]="meterPercent(shown().gems[row.tier], goal)"
-                              ></span>
-                            </span>
-                            <span class="meter-label">{{
-                              meterText(shown().gems[row.tier], goal)
-                            }}</span>
-                          </div>
-                        }
-                      </div>
-                    }
-                  </li>
-                }
               </ul>
             </section>
             <section class="block">
@@ -497,20 +407,6 @@ const EMPTY_DAY: DayStats = {
                                     "
                                   />
                                   <span>{{ element[activity.key] }}</span>
-                                </span>
-                              }
-                            }
-                            @for (game of gemRows; track game.tier) {
-                              @if (element.gems[game.tier] > 0) {
-                                <span
-                                  class="bit"
-                                  [class.on]="isSort(gemsSort)"
-                                  [attr.data-gem]="game.tier"
-                                  [attr.aria-label]="gemsLabel(game.label, element.gems[game.tier])"
-                                  [attr.title]="gemsLabel(game.label, element.gems[game.tier])"
-                                >
-                                  <app-gem-icon class="stone-icon" [tier]="game.tier" />
-                                  <span>{{ element.gems[game.tier] }}</span>
                                 </span>
                               }
                             }
@@ -1132,7 +1028,6 @@ const EMPTY_DAY: DayStats = {
     }
 
     .score,
-    .gems,
     .activity,
     .elements {
       margin: 0;
@@ -1141,14 +1036,9 @@ const EMPTY_DAY: DayStats = {
     }
 
     .score,
-    .gems,
     .activity {
       display: grid;
       gap: 0.45rem;
-    }
-
-    .gems {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .activity {
@@ -1156,7 +1046,6 @@ const EMPTY_DAY: DayStats = {
     }
 
     .score li,
-    .gems li,
     .activity li {
       min-width: 0;
     }
@@ -1187,33 +1076,6 @@ const EMPTY_DAY: DayStats = {
 
     .score li.down .count {
       color: var(--score-1);
-    }
-
-    .gems li {
-      --goal: var(--exercise-gem);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.15rem;
-      padding: 0.85rem 0.55rem 0.7rem;
-      border: 1px solid color-mix(in srgb, var(--exercise-gem) 32%, transparent);
-      border-radius: 1rem;
-      background: color-mix(in srgb, var(--exercise-gem) 13%, rgba(8, 10, 18, 0.55));
-    }
-
-    .gems li[data-gem='red'],
-    .bit[data-gem='red'] {
-      --exercise-gem: var(--gem-red);
-    }
-
-    .gems li[data-gem='orange'],
-    .bit[data-gem='orange'] {
-      --exercise-gem: var(--gem-orange);
-    }
-
-    .gems li[data-gem='green'],
-    .bit[data-gem='green'] {
-      --exercise-gem: var(--gem-green);
     }
 
     .card-foot {
@@ -1267,30 +1129,13 @@ const EMPTY_DAY: DayStats = {
       color: color-mix(in srgb, var(--goal, var(--text)) 50%, transparent);
     }
 
-    .gems .meter {
-      align-self: stretch;
-      width: 100%;
-    }
-
-    .gems .stone,
     .activity .well {
       display: grid;
       place-items: center;
+      width: 2.35rem;
+      height: 2.35rem;
       margin-bottom: 0.28rem;
       border-radius: 0.7rem;
-    }
-
-    .gems .stone {
-      width: 2.35rem;
-      height: 2.35rem;
-      background: color-mix(in srgb, var(--exercise-gem) 16%, rgba(6, 8, 16, 0.82));
-      color: var(--exercise-gem);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--exercise-gem) 38%, transparent);
-    }
-
-    .activity .well {
-      width: 2.35rem;
-      height: 2.35rem;
       background: rgba(8, 10, 18, 0.45);
       color: var(--text-muted);
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
@@ -1301,29 +1146,7 @@ const EMPTY_DAY: DayStats = {
       height: 1.45rem;
     }
 
-    .stone-icon {
-      display: block;
-      width: 1.45rem;
-      height: 1.45rem;
-      flex: none;
-    }
-
-    .bit .stone-icon {
-      width: 0.82rem;
-      height: 0.82rem;
-    }
-
-    .gems .count {
-      color: var(--text);
-      font-size: 1.65rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.03em;
-      line-height: 1;
-    }
-
     .score .caption,
-    .gems .caption,
     .activity .caption {
       max-width: 100%;
       color: var(--text-muted);
@@ -1333,21 +1156,6 @@ const EMPTY_DAY: DayStats = {
       line-height: 1.2;
       text-align: center;
       text-transform: uppercase;
-      overflow-wrap: anywhere;
-    }
-
-    .gems .delta {
-      max-width: 100%;
-      margin-top: 0.35rem;
-      padding: 0.2rem 0.5rem;
-      border-radius: 999px;
-      background: rgba(0, 0, 0, 0.32);
-      color: var(--exercise-gem);
-      font-size: 0.68rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
-      line-height: 1.2;
-      text-align: center;
       overflow-wrap: anywhere;
     }
 
@@ -1498,16 +1306,11 @@ const EMPTY_DAY: DayStats = {
       line-height: 1;
     }
 
-    .bit[data-gem] {
-      color: var(--exercise-gem);
-    }
-
     .bits.focused .bit:not(.on) {
       opacity: 0.32;
     }
 
-    .bit.on,
-    .bit.on[data-gem] {
+    .bit.on {
       color: var(--accent-text);
     }
 
@@ -1682,8 +1485,7 @@ const EMPTY_DAY: DayStats = {
       text-transform: uppercase;
     }
 
-    .bit .mark,
-    .bit .stone-icon {
+    .bit .mark {
       display: block;
       width: 0.92rem;
       height: 0.92rem;
@@ -1704,13 +1506,12 @@ const EMPTY_DAY: DayStats = {
     }
 
     .score li.loading-card,
-    .gems li.loading-card,
     .activity li.loading-card {
       border-color: var(--border);
       background: rgba(255, 255, 255, 0.03);
     }
 
-    .bone-stone {
+    .bone-well {
       width: 2.35rem;
       height: 2.35rem;
       margin-bottom: 0.28rem;
@@ -1750,14 +1551,13 @@ const EMPTY_DAY: DayStats = {
     }
   `,
 })
-export class GemStatsModal {
+export class StatsModal {
   readonly language = input.required<string>();
   readonly asking = input(false);
   readonly askError = input('');
   readonly closed = output<void>();
   readonly opened = output<string>();
   readonly askMissing = output<string>();
-  readonly gemRows = GEM_ROWS;
   readonly activities = ACTIVITIES;
   readonly loadingActivity = LOADING_ACTIVITY;
   readonly loadingRows = LOADING_ROWS;
@@ -1775,15 +1575,13 @@ export class GemStatsModal {
   readonly exerciseSort: ElementSort = { kind: 'exercises' };
   readonly differentialSort: ElementSort = { kind: 'differential' };
   readonly translatedSort: ElementSort = { kind: 'translated' };
-  readonly gemsSort: ElementSort = { kind: 'gems' };
   readonly elementSortOptions: readonly { id: string; sort: ElementSort; label: string }[] = [
     { id: 'differential', sort: this.differentialSort, label: 'By score gained' },
     { id: 'exercises', sort: this.exerciseSort, label: 'By most exercised' },
     { id: 'translated', sort: this.translatedSort, label: 'By most translated' },
-    { id: 'gems', sort: this.gemsSort, label: 'By most gems' },
   ];
 
-  private readonly job = inject(GemStatsJob);
+  private readonly job = inject(StatsJob);
 
   readonly stats = computed(() => this.job.view(this.language()));
   readonly pending = computed(() => {
@@ -1818,15 +1616,6 @@ export class GemStatsModal {
     const elements = [...(this.day()?.elements ?? [])];
     elements.sort((left, right) => compareElements(left, right, sort, language));
     return elements;
-  });
-  readonly gemTotals = computed(() => {
-    const totals: GemCounts = { red: 0, orange: 0, green: 0 };
-    for (const day of this.snapshot()?.days ?? []) {
-      totals.red += day.gems.red;
-      totals.orange += day.gems.orange;
-      totals.green += day.gems.green;
-    }
-    return totals;
   });
   readonly canGoOlder = computed(() => this.dayIndex() < this.days().length - 1);
   readonly canGoNewer = computed(() => this.dayIndex() > 0);
@@ -1977,29 +1766,12 @@ export class GemStatsModal {
     return `Added ${this.meterText(this.shown().added, goal)}`;
   }
 
-  gemMeterLabel(label: string, gain: number, goal: number): string {
-    return `${label} gems gained ${this.meterText(gain, goal)}`;
-  }
-
   titleOf(element: ElementDayStats): string {
     return displayTitle(element.title, this.language());
   }
 
   languageName(): string {
     return languageDisplayName(this.language());
-  }
-
-  gemsLabel(game: string, count: number): string {
-    const amount = count === 1 ? '1 gem' : `${count} gems`;
-    return `${amount}, ${game.toLowerCase()}`;
-  }
-
-  gemCardLabel(game: string, total: number, day: number): string {
-    const name = game.toLowerCase();
-    const overall = total === 1 ? '1 gem' : `${total} gems`;
-    const gained = day === 1 ? '1 gem' : `${day} gems`;
-    const when = this.dayBadge() || 'this day';
-    return `${overall} ${name} in total, ${gained} ${when}`;
   }
 
   formatCount(count: number): string {
@@ -2069,7 +1841,6 @@ function sameElementSort(current: ElementSort | null, sort: ElementSort): boolea
 function metricCount(element: ElementDayStats, sort: ElementSort): number {
   if (sort.kind === 'exercises') return element.exercises;
   if (sort.kind === 'translated') return element.revealed;
-  if (sort.kind === 'gems') return gemTotal(element);
   return element.differential ?? Number.NEGATIVE_INFINITY;
 }
 
@@ -2090,15 +1861,8 @@ function compareElements(
 }
 
 function compareElementsDefault(left: ElementDayStats, right: ElementDayStats): number {
-  const gems = gemTotal(right) - gemTotal(left);
-  if (gems) return gems;
   if (right.exercises !== left.exercises) return right.exercises - left.exercises;
   return activityTotal(right) - activityTotal(left);
-}
-
-function gemTotal(element: ElementDayStats): number {
-  const gems = element.gems;
-  return gems.red + gems.orange + gems.green;
 }
 
 function activityTotal(element: ElementDayStats): number {
@@ -2174,7 +1938,6 @@ function daysWithToday(days: readonly DayStats[]): readonly DayStats[] {
   return [
     {
       day: today,
-      gems: { red: 0, orange: 0, green: 0 },
       added: 0,
       revealed: 0,
       exercises: 0,

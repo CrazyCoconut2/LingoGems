@@ -13,7 +13,7 @@ import {
   languageDisplayName,
   replaceCollection,
 } from 'collection';
-import { GemStatsJob } from '../elements/gem-stats-job';
+import { StatsJob } from '../elements/stats-job';
 import { supportSettings, writeGeneralSupportLanguage } from '../languages/translation-language';
 import { LanguageAiSettings } from '../languages/language-ai-settings';
 import { buildDataFile, downloadDataFile, readDataFile } from './data-file';
@@ -647,7 +647,7 @@ export class Settings {
   readonly changed = output<void>();
   readonly expanded = signal<string | null>(null);
   private readonly stored = readStoredAiCredentials().keys[0];
-  private readonly job = inject(GemStatsJob);
+  private readonly job = inject(StatsJob);
   private importFile: File | null = null;
 
   readonly providers = AI_PROVIDERS;

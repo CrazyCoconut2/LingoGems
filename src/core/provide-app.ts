@@ -6,7 +6,7 @@ import {
   provideZoneChangeDetection,
 } from '@angular/core';
 import { setElementWriteListener, setPhraseTranslationListener } from 'collection';
-import { GemStatsJob } from './elements/gem-stats-job';
+import { StatsJob } from './elements/stats-job';
 import { applyScoreColors } from './settings/score-colors';
 
 export function provideApp(): ApplicationConfig['providers'] {
@@ -18,7 +18,7 @@ export function provideApp(): ApplicationConfig['providers'] {
       multi: true,
       useValue: () => {
         applyScoreColors();
-        const job = inject(GemStatsJob);
+        const job = inject(StatsJob);
         setElementWriteListener((language) => job.invalidate(language));
         setPhraseTranslationListener((language) => job.invalidate(language));
         job.resumePending();
