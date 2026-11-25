@@ -40,7 +40,14 @@ import {
   isLearnableLanguage,
   isValidForm,
   LEARNABLE_LANGUAGES,
+  deleteGrammarMistake,
+  grammarMistakeOpen,
+  grammarSentenceMarks,
   languageDisplayName,
+  type GrammarMark,
+  type GrammarOccurrence,
+  readGrammarMistakes,
+  type GrammarMistake,
   mergeMetadataVariability,
   metadataFilterSize,
   parseMetadataFilter,
@@ -182,6 +189,25 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               </svg>
               @if (filterCount() > 0) {
                 <span class="toolbar-filter-count">{{ filterCount() }}</span>
+              }
+            </button>
+            <button
+              type="button"
+              class="toolbar-icon-btn"
+              [class.active]="grammarOpen()"
+              [attr.aria-expanded]="grammarOpen()"
+              aria-label="Grammar"
+              title="Grammar"
+              [disabled]="!code()"
+              (click)="openGrammar($event)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 16 6-12 6 12" />
+                <path d="M8 12h8" />
+                <path d="m16 20 2 2 4-4" />
+              </svg>
+              @if (openGrammarCount() > 0) {
+                <span class="toolbar-filter-count">{{ openGrammarCount() }}</span>
               }
             </button>
           </div>
@@ -422,6 +448,112 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           (added)="reloadElements()"
           (open)="openElement($event)"
         />
+      }
+
+      @if (grammarOpen()) {
+        <div
+          class="filter-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Grammar"
+          (click)="closeGrammarOnBackdrop($event)"
+        >
+          <div class="filter-panel" (click)="$event.stopPropagation()">
+            <header class="filter-header">
+              <div>
+                <h2 class="filter-title">Grammar</h2>
+                <p class="filter-subtitle">
+                  Rules broken in this language. Pick a mark to see that time. A broken word is red
+                  and crossed, with the right form in green beside it.
+                </p>
+              </div>
+              <button type="button" class="icon-btn" aria-label="Close" (click)="closeGrammar()">
+                <svg viewBox="0 0 24 24">
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </header>
+            <div class="filter-body">
+              @if (grammarMistakes().length) {
+                <ul class="grammar-list">
+                  @for (mistake of grammarMistakes(); track mistake.id) {
+                    <li [class.corrected]="!mistakeOpen(mistake)">
+                      <div class="grammar-change">
+                        <p class="grammar-rule">{{ mistake.rule }}</p>
+                        <button
+                          type="button"
+                          class="icon-btn"
+                          aria-label="Delete mistake"
+                          title="Delete mistake"
+                          (click)="deleteMistake(mistake.id)"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                            <path d="M10 11v6" />
+                            <path d="M14 11v6" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div class="grammar-marks" role="tablist">
+                        @for (
+                          occurrence of mistake.occurrences;
+                          track occurrence.at + occurrence.outcome;
+                          let index = $index
+                        ) {
+                          <button
+                            type="button"
+                            class="grammar-mark"
+                            role="tab"
+                            [class.committed]="occurrence.outcome === 'committed'"
+                            [class.resolved]="occurrence.outcome === 'resolved'"
+                            [class.selected]="grammarIndex(mistake) === index"
+                            [attr.aria-selected]="grammarIndex(mistake) === index"
+                            [attr.aria-label]="grammarMarkLabel(occurrence)"
+                            [title]="grammarTime(occurrence.at)"
+                            (click)="selectGrammarOccurrence(mistake.id, index)"
+                          >
+                            @if (occurrence.outcome === 'committed') {
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M18 6 6 18" />
+                                <path d="m6 6 12 12" />
+                              </svg>
+                            } @else {
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M20 6 9 17l-5-5" />
+                              </svg>
+                            }
+                          </button>
+                        }
+                      </div>
+                      @if (grammarOccurrence(mistake); as occurrence) {
+                        <p class="grammar-sentence">
+                          @for (part of grammarParts(occurrence); track $index) {
+                            @if (part.kind === 'fix') {
+                              <span class="grammar-mistake">{{ part.wrote }}</span>
+                              <span class="grammar-fix">{{ part.correction }}</span>
+                            } @else if (part.kind === 'good') {
+                              <span class="grammar-good">{{ part.text }}</span>
+                            } @else {
+                              <span>{{ part.text }}</span>
+                            }
+                          }
+                        </p>
+                      }
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="empty">No grammar mistakes yet.</p>
+              }
+            </div>
+            <footer class="filter-footer">
+              <button type="button" class="done-btn" (click)="closeGrammar()">Done</button>
+            </footer>
+          </div>
+        </div>
       }
 
       @if (filtersOpen()) {
@@ -1787,6 +1919,111 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       padding: 1rem 1.15rem 1.15rem;
     }
 
+    .grammar-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .grammar-list li {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: 0.75rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-2);
+    }
+
+    .grammar-list li.corrected {
+      opacity: 0.72;
+    }
+
+    .grammar-change {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .grammar-rule {
+      margin: 0;
+      font-weight: 650;
+      line-height: 1.35;
+    }
+
+    .grammar-change .icon-btn {
+      flex: none;
+    }
+
+    .grammar-marks {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .grammar-mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.1rem;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      background: transparent;
+      line-height: 0;
+      cursor: pointer;
+    }
+
+    .grammar-mark svg {
+      display: block;
+      width: 0.72rem;
+      height: 0.72rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .grammar-mark.committed {
+      color: var(--danger);
+    }
+
+    .grammar-mark.resolved {
+      color: var(--gem-green);
+    }
+
+    .grammar-mark.selected {
+      border-color: currentColor;
+    }
+
+    .grammar-sentence {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .grammar-mistake {
+      color: var(--danger);
+      font-weight: 650;
+      text-decoration: line-through;
+    }
+
+    .grammar-fix {
+      margin-left: 0.28rem;
+      color: var(--gem-green);
+      font-weight: 650;
+    }
+
+    .grammar-good {
+      color: var(--gem-green);
+      font-weight: 650;
+    }
+
     .panel-toolbar {
       display: flex;
       flex-shrink: 0;
@@ -2238,6 +2475,12 @@ export class LanguagePage {
   readonly recomputing = signal(false);
   readonly recomputeError = signal('');
   readonly filtersOpen = signal(false);
+  readonly grammarOpen = signal(false);
+  readonly grammarMistakes = signal<GrammarMistake[]>([]);
+  readonly grammarSelection = signal<Record<string, number>>({});
+  readonly openGrammarCount = computed(
+    () => this.grammarMistakes().filter((mistake) => grammarMistakeOpen(mistake)).length,
+  );
   readonly settingsOpen = signal(false);
   readonly statsOpen = signal(false);
   readonly expanded = signal<FilterSection | null>('definitions');
@@ -2344,6 +2587,10 @@ export class LanguagePage {
     }
     if (this.discoverOpen()) {
       if (!this.elementId()) this.closeDiscover();
+      return;
+    }
+    if (this.grammarOpen()) {
+      this.closeGrammar();
       return;
     }
     if (this.filtersOpen()) {
@@ -2781,6 +3028,7 @@ export class LanguagePage {
     if (!this.elementId()) return;
     this.trail.set([]);
     this.showElement(null);
+    void this.refreshGrammar();
   }
 
   private showElement(id: string | null): void {
@@ -2934,6 +3182,7 @@ export class LanguagePage {
     event.stopPropagation();
     if (!this.code()) return;
     if (this.filtersOpen()) this.closeFilters();
+    if (this.grammarOpen()) this.closeGrammar();
     if (this.settingsOpen()) this.closeSettings();
     if (this.statsOpen()) this.closeStats();
     if (this.discoverOpen()) return;
@@ -2961,9 +3210,85 @@ export class LanguagePage {
     this.applyCatalog(catalog);
   }
 
+  mistakeOpen(mistake: GrammarMistake): boolean {
+    return grammarMistakeOpen(mistake);
+  }
+
+  grammarIndex(mistake: GrammarMistake): number {
+    const last = mistake.occurrences.length - 1;
+    const picked = this.grammarSelection()[mistake.id];
+    if (picked == null || picked < 0 || picked > last) return Math.max(last, 0);
+    return picked;
+  }
+
+  grammarOccurrence(mistake: GrammarMistake): GrammarOccurrence | null {
+    return mistake.occurrences[this.grammarIndex(mistake)] ?? null;
+  }
+
+  selectGrammarOccurrence(id: string, index: number): void {
+    this.grammarSelection.update((current) => ({ ...current, [id]: index }));
+  }
+
+  grammarMarkLabel(occurrence: GrammarOccurrence): string {
+    const when = this.grammarTime(occurrence.at);
+    return occurrence.outcome === 'committed' ? `Error committed ${when}` : `Corrected ${when}`;
+  }
+
+  grammarParts(occurrence: GrammarOccurrence): GrammarMark[] {
+    return grammarSentenceMarks(
+      occurrence.after,
+      occurrence.instances,
+      occurrence.outcome === 'resolved' ? 'right' : 'wrong',
+    );
+  }
+
+  async deleteMistake(id: string): Promise<void> {
+    const key = id.trim();
+    if (!key) return;
+    await deleteGrammarMistake(key);
+    this.grammarMistakes.update((rows) => rows.filter((row) => row.id !== key));
+    this.grammarSelection.update((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  grammarTime(at: number): string {
+    return new Date(at).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }
+
+  openGrammar(event: Event): void {
+    event.stopPropagation();
+    if (!this.code()) return;
+    if (this.discoverOpen()) this.closeDiscover();
+    if (this.settingsOpen()) this.closeSettings();
+    if (this.statsOpen()) this.closeStats();
+    if (this.filtersOpen()) this.closeFilters();
+    this.grammarOpen.set(true);
+    this.lockScroll();
+    void this.refreshGrammar();
+  }
+
+  closeGrammar(): void {
+    if (!this.grammarOpen()) return;
+    this.grammarOpen.set(false);
+    this.unlockScroll();
+  }
+
+  closeGrammarOnBackdrop(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeGrammar();
+  }
+
   openFilters(event: Event): void {
     event.stopPropagation();
     if (this.discoverOpen()) this.closeDiscover();
+    if (this.grammarOpen()) this.closeGrammar();
     if (this.settingsOpen()) this.closeSettings();
     if (this.statsOpen()) this.closeStats();
     this.expanded.set(this.code() ? 'definitions' : 'language');
@@ -3106,6 +3431,7 @@ export class LanguagePage {
 
   openSettings(): void {
     if (this.filtersOpen()) this.closeFilters();
+    if (this.grammarOpen()) this.closeGrammar();
     if (this.discoverOpen()) this.closeDiscover();
     if (this.statsOpen()) this.closeStats();
     if (this.settingsOpen()) return;
@@ -3128,6 +3454,7 @@ export class LanguagePage {
 
   openStats(): void {
     if (this.filtersOpen()) this.closeFilters();
+    if (this.grammarOpen()) this.closeGrammar();
     if (this.discoverOpen()) this.closeDiscover();
     if (this.settingsOpen()) this.closeSettings();
     if (this.statsOpen()) return;
@@ -3237,6 +3564,7 @@ export class LanguagePage {
     const code = language.trim().toLowerCase();
     this.clearSelection();
     if (this.discoverOpen()) this.closeDiscover();
+    if (this.grammarOpen()) this.closeGrammar();
     this.elementId.set('');
     this.trail.set([]);
     if (!isLearnableLanguage(code)) {
@@ -3244,6 +3572,7 @@ export class LanguagePage {
       this.name.set('');
       this.elements.set([]);
       this.removed.set([]);
+      this.grammarMistakes.set([]);
       this.ready.set(true);
       if (!this.promptedLanguage) {
         this.promptedLanguage = true;
@@ -3255,11 +3584,17 @@ export class LanguagePage {
     }
     this.code.set(code);
     this.name.set(languageDisplayName(code));
+    this.grammarMistakes.set([]);
     this.ready.set(false);
-    const [elements, removed] = await Promise.all([readElements(code), readRemovedElements(code)]);
+    const [elements, removed, grammar] = await Promise.all([
+      readElements(code),
+      readRemovedElements(code),
+      readGrammarMistakes(code).catch(() => [] as GrammarMistake[]),
+    ]);
     if (seq !== this.loadId) return;
     this.elements.set(elements);
     this.removed.set(removed);
+    this.grammarMistakes.set(grammar);
     this.ready.set(true);
   }
 
@@ -3267,8 +3602,29 @@ export class LanguagePage {
     this.leadFieldKey.set(readDefinitionMetadataFields()[0]?.key ?? '');
   }
 
+  private async refreshGrammar(): Promise<void> {
+    const code = this.code();
+    if (!isLearnableLanguage(code)) {
+      this.grammarMistakes.set([]);
+      return;
+    }
+    try {
+      const rows = await readGrammarMistakes(code);
+      if (this.code() !== code) return;
+      this.grammarMistakes.set(rows);
+    } catch {
+      if (this.code() === code) this.grammarMistakes.set([]);
+    }
+  }
+
   private overlayOpen(): boolean {
-    return this.filtersOpen() || this.settingsOpen() || this.statsOpen() || this.discoverOpen();
+    return (
+      this.filtersOpen() ||
+      this.grammarOpen() ||
+      this.settingsOpen() ||
+      this.statsOpen() ||
+      this.discoverOpen()
+    );
   }
 
   private lockScroll(): void {

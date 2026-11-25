@@ -68,9 +68,12 @@ export {
 export {
   correctRecallAnswer,
   evaluateRecallAnswer,
+  type RecallCommittedMistake,
   type RecallCorrection,
   type RecallEvaluation,
   type RecallExtra,
   type RecallMistake,
+  type RecallPriorMistake,
+  type RecallResolvedMistake,
   type RecallSense,
 } from './recall';

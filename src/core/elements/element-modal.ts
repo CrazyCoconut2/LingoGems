@@ -33,6 +33,8 @@ import {
   highlightDefinitionPassage,
   isValidForm,
   languageDisplayName,
+  readOpenGrammarMistakes,
+  type GrammarMistake,
   restoreElement,
   saveElement,
   sensesWithEquivalents,
@@ -303,6 +305,8 @@ type EngineerDraft = { instruction: string; forms: string[] };
 type ExampleEngineer = EngineerDraft & {
   definitionIndex: number;
   formsOpen: boolean;
+  grammarOpen: boolean;
+  grammarId: string;
 };
 
 type ExampleFieldKind = 'saved' | 'addition' | 'draft';
@@ -312,7 +316,11 @@ type ExampleFieldEngineer = {
   kind: ExampleFieldKind;
   index: number | null;
   instruction: string;
+  grammarOpen: boolean;
+  grammarId: string;
 };
+
+type GrammarSurface = 'new' | 'field';
 
 type DefinitionEngineerDraft = {
   instruction: string;
@@ -516,6 +524,49 @@ function writeExampleSuggestions(
         [class.removed]="!!element().deletedAt"
         [style.--score-color]="scoreColorVar()"
       >
+        <ng-template #grammarPick let-surface="surface">
+          @if (grammarChoices().length) {
+            <button
+              type="button"
+              class="forms-toggle"
+              [attr.aria-expanded]="grammarPickerOpen(surface)"
+              [disabled]="askingExamples() !== null"
+              (click)="toggleGrammarPicker(surface)"
+            >
+              <span>Grammar</span>
+              <span class="forms-toggle-side">
+                @if (!grammarPickerOpen(surface) && grammarPickerLabel(surface); as label) {
+                  <span>{{ label }}</span>
+                }
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  [class.open]="grammarPickerOpen(surface)"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </span>
+            </button>
+            @if (grammarPickerOpen(surface)) {
+              <ul class="grammar-picks">
+                @for (mistake of grammarChoices(); track mistake.id) {
+                  <li>
+                    <button
+                      type="button"
+                      [class.selected]="grammarMistakeChosen(surface, mistake.id)"
+                      [attr.aria-pressed]="grammarMistakeChosen(surface, mistake.id)"
+                      [disabled]="askingExamples() !== null"
+                      (click)="pickGrammarMistake(surface, mistake.id)"
+                    >
+                      <span class="grammar-change">{{ mistake.rule }}</span>
+                      <span class="grammar-before">{{ grammarSentence(mistake) }}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        </ng-template>
         <ng-template #hearButton let-key="key" let-text="text" let-label="label" let-off="off">
           @if (canHear(text)) {
             <button
@@ -1956,6 +2007,10 @@ function writeExampleSuggestions(
                             }
                           }
                         }
+                        <ng-container
+                          [ngTemplateOutlet]="grammarPick"
+                          [ngTemplateOutletContext]="{ surface: 'new' }"
+                        />
                         @if (exampleError()) {
                           <p class="error">{{ exampleError() }}</p>
                         }
@@ -2259,6 +2314,10 @@ function writeExampleSuggestions(
                               </svg>
                             </button>
                           </div>
+                          <ng-container
+                            [ngTemplateOutlet]="grammarPick"
+                            [ngTemplateOutletContext]="{ surface: 'field' }"
+                          />
                         </div>
                       }
                       <div class="draft-field square">
@@ -4962,6 +5021,65 @@ function writeExampleSuggestions(
       border-color: white;
     }
 
+    .definition-ai .grammar-picks {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .definition-ai .grammar-picks button {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.12rem;
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 0.75rem;
+      background: rgba(255, 255, 255, 0.12);
+      color: white;
+      font: inherit;
+      font-size: 0.8125rem;
+      line-height: 1.35;
+      text-align: left;
+      padding: 0.45rem 0.65rem;
+      cursor: pointer;
+    }
+
+    .definition-ai .grammar-picks button.selected {
+      background: white;
+      color: var(--accent);
+      border-color: white;
+    }
+
+    .definition-ai .grammar-picks button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .definition-ai .grammar-change {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.35rem;
+    }
+
+    .definition-ai .grammar-picks .wrote {
+      text-decoration: line-through;
+      opacity: 0.75;
+    }
+
+    .definition-ai .grammar-before {
+      font-size: 0.75rem;
+      opacity: 0.8;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
     .definition-ai .example-actions .generate-main {
       background: white;
       color: var(--accent);
@@ -5861,6 +5979,7 @@ export class ElementModal {
   readonly newGlosses = signal<ReadonlySet<string>>(new Set());
   readonly exampleSuggestions = signal<Record<string, ExampleSuggestion[]>>({});
   readonly exampleEngineer = signal<ExampleEngineer | null>(null);
+  readonly grammarChoices = signal<GrammarMistake[]>([]);
   /** Instruction panel open on one example row in the work sheet. */
   readonly exampleFieldEngineer = signal<ExampleFieldEngineer | null>(null);
   readonly definitionEngineer = signal<DefinitionEngineer | null>(null);
@@ -5930,6 +6049,7 @@ export class ElementModal {
       this.askingWording.set(null);
       this.exampleEngineer.set(null);
       this.exampleFieldEngineer.set(null);
+      this.grammarChoices.set([]);
       this.definitionEngineer.set(null);
       this.senseStages.set(new Map());
       this.straightOpen.set(!!this.element().deletedAt);
@@ -6966,7 +7086,10 @@ export class ElementModal {
       instruction: draft.instruction,
       forms: draft.forms.filter((form) => available.has(form.toLowerCase())),
       formsOpen: false,
+      grammarOpen: false,
+      grammarId: '',
     });
+    void this.loadGrammarChoices();
   }
 
   openExampleEngineer(index: number): void {
@@ -6987,7 +7110,10 @@ export class ElementModal {
       instruction: draft.instruction,
       forms: draft.forms.filter((form) => available.has(form.toLowerCase())),
       formsOpen: false,
+      grammarOpen: false,
+      grammarId: '',
     });
+    void this.loadGrammarChoices();
   }
 
   closeExampleEngineer(event?: MouseEvent): void {
@@ -7184,6 +7310,100 @@ export class ElementModal {
     }
   }
 
+  grammarPickerOpen(surface: GrammarSurface): boolean {
+    return surface === 'new'
+      ? !!this.exampleEngineer()?.grammarOpen
+      : !!this.exampleFieldEngineer()?.grammarOpen;
+  }
+
+  grammarPickerLabel(surface: GrammarSurface): string {
+    const id =
+      surface === 'new'
+        ? this.exampleEngineer()?.grammarId
+        : this.exampleFieldEngineer()?.grammarId;
+    const mistake = this.grammarTarget(id ?? '');
+    return mistake?.rule ?? '';
+  }
+
+  grammarMistakeChosen(surface: GrammarSurface, id: string): boolean {
+    const current =
+      surface === 'new'
+        ? this.exampleEngineer()?.grammarId
+        : this.exampleFieldEngineer()?.grammarId;
+    return current === id;
+  }
+
+  toggleGrammarPicker(surface: GrammarSurface): void {
+    if (this.askingExamples() !== null) return;
+    if (surface === 'new') {
+      const engineer = this.exampleEngineer();
+      if (!engineer) return;
+      const grammarOpen = !engineer.grammarOpen;
+      this.exampleEngineer.set({ ...engineer, grammarOpen });
+      if (grammarOpen) void this.loadGrammarChoices();
+      return;
+    }
+    const engineer = this.exampleFieldEngineer();
+    if (!engineer) return;
+    const grammarOpen = !engineer.grammarOpen;
+    this.exampleFieldEngineer.set({ ...engineer, grammarOpen });
+    if (grammarOpen) void this.loadGrammarChoices();
+  }
+
+  grammarSentence(mistake: GrammarMistake): string {
+    let latest = mistake.occurrences[0];
+    for (const occurrence of mistake.occurrences) {
+      if (!latest || occurrence.at >= latest.at) latest = occurrence;
+    }
+    return latest?.after ?? '';
+  }
+
+  pickGrammarMistake(surface: GrammarSurface, id: string): void {
+    if (this.askingExamples() !== null) return;
+    if (surface === 'new') {
+      const engineer = this.exampleEngineer();
+      if (!engineer) return;
+      this.exampleEngineer.set({
+        ...engineer,
+        grammarId: engineer.grammarId === id ? '' : id,
+      });
+      return;
+    }
+    const engineer = this.exampleFieldEngineer();
+    if (!engineer) return;
+    this.exampleFieldEngineer.set({
+      ...engineer,
+      grammarId: engineer.grammarId === id ? '' : id,
+    });
+  }
+
+  private grammarTarget(id: string): GrammarMistake | undefined {
+    const key = id.trim();
+    if (!key) return undefined;
+    return this.grammarChoices().find((mistake) => mistake.id === key);
+  }
+
+  private grammarRequest(id: string): { grammarMistake?: { rule: string } } {
+    const mistake = this.grammarTarget(id);
+    return mistake ? { grammarMistake: { rule: mistake.rule } } : {};
+  }
+
+  private grammarChoicesTicket = 0;
+
+  private async loadGrammarChoices(): Promise<void> {
+    const language = this.element().language;
+    const ticket = ++this.grammarChoicesTicket;
+    try {
+      const rows = await readOpenGrammarMistakes(language);
+      if (ticket !== this.grammarChoicesTicket || this.element().language !== language) return;
+      this.grammarChoices.set(rows);
+    } catch {
+      if (ticket === this.grammarChoicesTicket && this.element().language === language) {
+        this.grammarChoices.set([]);
+      }
+    }
+  }
+
   toggleEngineerForms(): void {
     const engineer = this.exampleEngineer();
     if (!engineer || this.askingExamples() !== null) return;
@@ -7251,6 +7471,7 @@ export class ElementModal {
         exampleWords: [],
         exampleInstruction: engineer.instruction,
         ...(required ? { requiredForm: required } : {}),
+        ...this.grammarRequest(engineer.grammarId),
       });
       const sentence = examples[0];
       const showing = this.element().id === element.id;
@@ -7460,7 +7681,9 @@ export class ElementModal {
   }
 
   exampleFieldGenerateDisabled(): boolean {
-    return this.askingExamples() !== null || !this.exampleFieldEngineer()?.instruction.trim();
+    const engineer = this.exampleFieldEngineer();
+    const grammar = engineer ? this.grammarTarget(engineer.grammarId) : undefined;
+    return this.askingExamples() !== null || (!engineer?.instruction.trim() && !grammar);
   }
 
   toggleExampleField(definitionIndex: number, kind: ExampleFieldKind, index: number | null): void {
@@ -7471,7 +7694,15 @@ export class ElementModal {
     }
     if (this.aiBusy()) return;
     this.exampleError.set('');
-    this.exampleFieldEngineer.set({ definitionIndex, kind, index, instruction: '' });
+    this.exampleFieldEngineer.set({
+      definitionIndex,
+      kind,
+      index,
+      instruction: '',
+      grammarOpen: false,
+      grammarId: '',
+    });
+    void this.loadGrammarChoices();
   }
 
   onExampleFieldInstruction(event: Event): void {
@@ -7498,7 +7729,8 @@ export class ElementModal {
   async generateExampleField(): Promise<void> {
     const engineer = this.exampleFieldEngineer();
     const instruction = engineer?.instruction.trim() ?? '';
-    if (!engineer || this.aiBusy() || !instruction) return;
+    const grammar = engineer ? this.grammarTarget(engineer.grammarId) : undefined;
+    if (!engineer || this.aiBusy() || (!instruction && !grammar)) return;
     const element = this.currentElement();
     const definition = element.definitions[engineer.definitionIndex];
     const gloss = parsePassage(definition?.text ?? '').text.trim();
@@ -7524,6 +7756,7 @@ export class ElementModal {
         exampleWords: [],
         exampleInstruction: instruction,
         ...(current ? { currentExample: current } : {}),
+        ...this.grammarRequest(engineer.grammarId),
       });
       const sentence = parsePassage(examples[0]?.text ?? '').text;
       const showing = this.element().id === element.id;

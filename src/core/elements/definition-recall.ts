@@ -1,5 +1,10 @@
 import { Component, computed, effect, input, output, signal } from '@angular/core';
-import { definitionScoreStep, languageDisplayName } from 'collection';
+import {
+  applyGrammarOutcome,
+  definitionScoreStep,
+  languageDisplayName,
+  readGrammarMistakes,
+} from 'collection';
 import { UpwardQuotePipe } from '../text/upward-quote.pipe';
 import { FeedbackTranslation } from '../translate/feedback-translation';
 import {
@@ -12,6 +17,7 @@ import {
 } from 'ai';
 
 const ANSWER_MAX = 1000;
+const PRIOR_MAX = 20;
 
 export type RecallFinish = {
   score: number;
@@ -179,11 +185,7 @@ type RecallView = {
             @if (found.length) {
               <ul>
                 @for (mistake of found; track $index) {
-                  <li>
-                    <span class="wrote">{{ mistake.wrote }}</span>
-                    <span class="arrow" aria-hidden="true">→</span>
-                    <span>{{ mistake.correction }}</span>
-                  </li>
+                  <li>{{ mistake.rule }}</li>
                 }
               </ul>
             } @else {
@@ -194,6 +196,10 @@ type RecallView = {
         <form (submit)="submit($event)">
           <textarea
             rows="3"
+            autocorrect="off"
+            autocapitalize="off"
+            autocomplete="off"
+            spellcheck="false"
             [attr.maxlength]="answerMax"
             [disabled]="busy() !== null"
             [value]="draft()"
@@ -595,6 +601,8 @@ export class DefinitionRecall {
 
   private correctTicket = 0;
   private scoreTicket = 0;
+  /** Corrected sentence last written into the draft. Empty once the learner edits it. */
+  private appliedCorrection = '';
 
   constructor() {
     effect(() => {
@@ -602,6 +610,7 @@ export class DefinitionRecall {
       this.correctTicket += 1;
       this.scoreTicket += 1;
       this.draft.set('');
+      this.appliedCorrection = '';
       this.answerSide.set('support');
       this.hintStep.set(0);
       this.mistakes.set(null);
@@ -646,6 +655,7 @@ export class DefinitionRecall {
     const target = event.target;
     if (!(target instanceof HTMLTextAreaElement)) return;
     this.draft.set(target.value);
+    if (target.value.trim() !== this.appliedCorrection.trim()) this.appliedCorrection = '';
   }
 
   scoreLabel(scored: RecallView): string {
@@ -692,16 +702,53 @@ export class DefinitionRecall {
     }
     const ticket = ++this.correctTicket;
     const elementId = this.elementId();
+    const text = this.draft();
+    const language = this.learningLanguage();
+    const untouched =
+      this.appliedCorrection !== '' && text.trim() === this.appliedCorrection.trim();
     this.busy.set('correct');
     this.error.set('');
     try {
+      const prior = untouched ? [] : (await readGrammarMistakes(language)).slice(0, PRIOR_MAX);
+      if (ticket !== this.correctTicket || this.elementId() !== elementId) return;
       const correction = await correctRecallAnswer({
-        language: this.learningLanguage(),
-        text: this.draft(),
+        language,
+        text,
+        ...(prior.length
+          ? {
+              priorMistakes: prior.map((mistake) => ({
+                id: mistake.id,
+                rule: mistake.rule,
+              })),
+            }
+          : {}),
       });
+      if (ticket !== this.correctTicket || this.elementId() !== elementId) return;
+      const before = text.replace(/\s+/g, ' ').trim();
+      const after = correction.corrected.replace(/\s+/g, ' ').trim();
+      if (!untouched && (correction.committed.length || correction.resolved.length)) {
+        try {
+          await applyGrammarOutcome({
+            language,
+            before,
+            after,
+            at: Date.now(),
+            committed: correction.committed.map((mistake) => ({
+              ...(mistake.id ? { id: mistake.id } : {}),
+              rule: mistake.rule,
+              wrote: mistake.wrote,
+              correction: mistake.correction,
+            })),
+            resolved: correction.resolved.map((item) => ({ id: item.id, wrote: item.wrote })),
+          });
+        } catch {
+          // The sentence is still shown. A later sentence can record these times.
+        }
+      }
       if (ticket !== this.correctTicket || this.elementId() !== elementId) return;
       this.draft.set(correction.corrected);
       this.mistakes.set(correction.mistakes);
+      this.appliedCorrection = correction.corrected;
     } catch {
       if (ticket !== this.correctTicket || this.elementId() !== elementId) return;
       this.error.set('Could not correct this.');

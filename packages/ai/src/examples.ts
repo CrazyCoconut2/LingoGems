@@ -38,6 +38,7 @@ function examplesSystemPrompt(fields: readonly AiMetadataField[], extra = false)
     "- metadata, when present, is that sense's metadata. The sentence must agree with it",
     '- Write the sentence so the meaning of the lemma is obvious from the rest of the sentence. A learner who knows the other words should be able to tell what the lemma means immediately',
     '- exampleWords, when present, are words the learner chose to include. Use as many as fit naturally. Do not pull in other collection words. The array order is not an order to use in the sentence',
+    '- grammarMistake, when present, is a grammar rule the learner breaks. rule is that rule. The sentence MUST follow it and make the correct pattern clear. The gloss, the lemma, and requiredForm still apply. Do not explain the rule',
     "- exampleInstruction, when present, is the learner's note about the subject or the wording. Follow it. It does not override the other rules",
     '- currentExample, when present, is the sentence to revise. Return that sentence changed to follow exampleInstruction. Do not write a different example',
     '- Do not add citations or bracket tags such as [en: …]',
@@ -64,6 +65,8 @@ type GenerateExamplesInput = {
   currentExample?: string;
   requiredForm?: string;
   translation?: string;
+  /** One stored rule. The sentence must follow it. */
+  grammarMistake?: { rule: string };
 };
 
 type GeneratedExample = { text: string; metadata: ElementMetadata };
@@ -77,6 +80,7 @@ function buildExamplesUserMessage(input: GenerateExamplesInput): string {
   const words = exampleWords(title, input.exampleWords);
   const instruction = (input.exampleInstruction ?? '').trim().slice(0, MAX_EXAMPLE_INSTRUCTION);
   const currentExample = (input.currentExample ?? '').trim().slice(0, MAX_EXAMPLE_LENGTH);
+  const grammarMistake = grammarMistakeOf(input.grammarMistake);
   const metadata = senseMetadata(input.metadata);
   return JSON.stringify({
     language,
@@ -88,6 +92,7 @@ function buildExamplesUserMessage(input: GenerateExamplesInput): string {
     exampleCount: 1,
     ...(words.length ? { exampleWords: words } : {}),
     ...(instruction ? { exampleInstruction: instruction } : {}),
+    ...(grammarMistake ? { grammarMistake } : {}),
     ...(currentExample ? { currentExample } : {}),
     ...(requiredForm ? { requiredForm } : {}),
     ...(forms.length ? { forms } : {}),
@@ -264,6 +269,11 @@ export async function generateDerivedExample(
   } catch (err) {
     throw attachAiPrompt(err, input);
   }
+}
+
+function grammarMistakeOf(mistake: { rule: string } | undefined): { rule: string } | null {
+  const rule = (mistake?.rule ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  return rule ? { rule } : null;
 }
 
 function exampleWords(title: string, words: readonly string[]): string[] {

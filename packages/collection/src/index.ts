@@ -118,6 +118,21 @@ export {
   type StoredPhraseTranslation,
 } from './translations/phrase-store';
 
+export {
+  applyGrammarOutcome,
+  deleteGrammarMistake,
+  grammarMistakeOpen,
+  grammarSentenceMarks,
+  readGrammarMistakes,
+  readOpenGrammarMistakes,
+  type GrammarCommit,
+  type GrammarInstance,
+  type GrammarMark,
+  type GrammarMistake,
+  type GrammarOccurrence,
+  type GrammarResolution,
+} from './grammar/grammar-store';
+
 export { requestPersistentStorage, storageIsPersistent } from './persistent-storage';
 
 export {

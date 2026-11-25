@@ -1,11 +1,12 @@
 import { requestPersistentStorage } from './persistent-storage';
 
 const DB_NAME = 'lingogem';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 export const ELEMENTS_STORE = 'elements';
 export const CATALOG_STORE = 'catalog';
 export const TRANSLATIONS_STORE = 'translations';
+export const GRAMMAR_STORE = 'grammar';
 export const CATALOG_ID = 'app';
 
 let database: Promise<IDBDatabase> | null = null;
@@ -33,6 +34,15 @@ export function openDatabase(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(TRANSLATIONS_STORE)) {
         db.createObjectStore(TRANSLATIONS_STORE, { keyPath: ['source', 'target', 'phrase'] });
+      }
+      if (!db.objectStoreNames.contains(GRAMMAR_STORE)) {
+        const grammar = db.createObjectStore(GRAMMAR_STORE, { keyPath: 'id' });
+        grammar.createIndex('language', 'language', { unique: false });
+      } else if (tx) {
+        const grammar = tx.objectStore(GRAMMAR_STORE);
+        if (!grammar.indexNames.contains('language')) {
+          grammar.createIndex('language', 'language', { unique: false });
+        }
       }
     };
     request.onsuccess = () => {
