@@ -461,19 +461,18 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         >
           <div class="filter-panel" (click)="$event.stopPropagation()">
             <header class="filter-header">
-              <div>
+              <div class="filter-heading">
                 <h2 class="filter-title">Grammar</h2>
-                <p class="filter-subtitle">
-                  Corrected sentences, newest first. Open one, then pick the rules whose words
-                  you want to see.
-                </p>
+                <button type="button" class="icon-btn" aria-label="Close" (click)="closeGrammar()">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
               </div>
-              <button type="button" class="icon-btn" aria-label="Close" (click)="closeGrammar()">
-                <svg viewBox="0 0 24 24">
-                  <path d="M18 6 6 18" />
-                  <path d="m6 6 12 12" />
-                </svg>
-              </button>
+              <p class="filter-subtitle">
+                Corrected sentences, newest first. Pick the rules whose words you want to see.
+              </p>
             </header>
             <div class="filter-body">
               <section class="grammar-section">
@@ -503,65 +502,53 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   <ul class="grammar-list">
                     @for (input of visibleGrammarInputs(); track input.id) {
                       <li>
-                        <button
-                          type="button"
-                          class="grammar-input"
-                          [attr.aria-expanded]="grammarExpanded() === input.id"
-                          (click)="toggleGrammarInput(input.id)"
-                        >
-                          <span class="grammar-when">{{ grammarTime(input.at) }}</span>
-                          @if (grammarExpanded() !== input.id) {
-                            <span class="grammar-preview">{{ input.after }}</span>
-                          }
-                        </button>
-                        @if (grammarExpanded() === input.id) {
-                          <div class="grammar-detail">
-                            <p class="grammar-sentence">
-                              @for (part of grammarParts(input); track $index) {
-                                @if (part.kind === 'fix') {
-                                  <span class="grammar-mistake" [class.colored]="part.colored">{{
-                                    part.wrote
-                                  }}</span>
-                                  <span class="grammar-fix" [class.colored]="part.colored">{{
-                                    part.correction
-                                  }}</span>
-                                } @else if (part.kind === 'good') {
-                                  <span class="grammar-good">{{ part.text }}</span>
-                                } @else {
-                                  <span>{{ part.text }}</span>
-                                }
+                        <span class="grammar-when">{{ grammarTime(input.at) }}</span>
+                        <div class="grammar-detail">
+                          <p class="grammar-sentence">
+                            @for (part of grammarParts(input); track $index) {
+                              @if (part.kind === 'fix') {
+                                <span class="grammar-mistake" [class.colored]="part.colored">{{
+                                  part.wrote
+                                }}</span>
+                                <span class="grammar-fix" [class.colored]="part.colored">{{
+                                  part.correction
+                                }}</span>
+                              } @else if (part.kind === 'good') {
+                                <span class="grammar-good">{{ part.text }}</span>
+                              } @else {
+                                <span>{{ part.text }}</span>
                               }
-                            </p>
-                            @if (input.rules.length) {
-                              <div class="grammar-rules">
-                                @for (rule of input.rules; track rule.id) {
-                                  <button
-                                    type="button"
-                                    class="grammar-rule-btn"
-                                    [class.committed]="rule.outcome === 'committed'"
-                                    [class.resolved]="rule.outcome === 'resolved'"
-                                    [class.selected]="grammarRuleSelected(input.id, rule.id)"
-                                    [attr.aria-pressed]="grammarRuleSelected(input.id, rule.id)"
-                                    [attr.aria-label]="grammarRuleLabel(rule)"
-                                    (click)="toggleGrammarColor(input.id, rule.id)"
-                                  >
-                                    @if (rule.outcome === 'committed') {
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <path d="M18 6 6 18" />
-                                        <path d="m6 6 12 12" />
-                                      </svg>
-                                    } @else {
-                                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                                        <path d="M20 6 9 17l-5-5" />
-                                      </svg>
-                                    }
-                                    <span>{{ rule.rule }}</span>
-                                  </button>
-                                }
-                              </div>
                             }
-                          </div>
-                        }
+                          </p>
+                          @if (input.rules.length) {
+                            <div class="grammar-rules">
+                              @for (rule of input.rules; track rule.id) {
+                                <button
+                                  type="button"
+                                  class="grammar-rule-btn"
+                                  [class.committed]="rule.outcome === 'committed'"
+                                  [class.resolved]="rule.outcome === 'resolved'"
+                                  [class.selected]="grammarRuleSelected(input.id, rule.id)"
+                                  [attr.aria-pressed]="grammarRuleSelected(input.id, rule.id)"
+                                  [attr.aria-label]="grammarRuleLabel(rule)"
+                                  (click)="toggleGrammarColor(input.id, rule.id)"
+                                >
+                                  @if (rule.outcome === 'committed') {
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                      <path d="M18 6 6 18" />
+                                      <path d="m6 6 12 12" />
+                                    </svg>
+                                  } @else {
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                      <path d="M20 6 9 17l-5-5" />
+                                    </svg>
+                                  }
+                                  <span>{{ rule.rule }}</span>
+                                </button>
+                              }
+                            </div>
+                          }
+                        </div>
                       </li>
                     }
                   </ul>
@@ -593,18 +580,18 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         >
           <div class="filter-panel" (click)="$event.stopPropagation()">
             <header class="filter-header">
-              <div>
+              <div class="filter-heading">
                 <h2 class="filter-title">Filter and sort</h2>
-                <p class="filter-subtitle">
-                  Order the list, and keep elements by language, status, score, or metadata.
-                </p>
+                <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
               </div>
-              <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
-                <svg viewBox="0 0 24 24">
-                  <path d="M18 6 6 18" />
-                  <path d="m6 6 12 12" />
-                </svg>
-              </button>
+              <p class="filter-subtitle">
+                Order the list, and keep elements by language, status, score, or metadata.
+              </p>
             </header>
 
             <div class="filter-body">
@@ -631,20 +618,22 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               }
 
               <section class="filter-section" [class.expanded]="expanded() === 'sort'">
-                <button
-                  type="button"
-                  class="section-header"
-                  [attr.aria-expanded]="expanded() === 'sort'"
-                  (click)="toggleSection('sort')"
-                >
-                  <span class="section-title">
-                    Sort
-                    <span class="section-count">{{ sortLabel() }}</span>
-                  </span>
-                  <svg class="section-chevron" viewBox="0 0 24 24">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
+                <div class="section-header">
+                  <button
+                    type="button"
+                    class="section-toggle"
+                    [attr.aria-expanded]="expanded() === 'sort'"
+                    (click)="toggleSection('sort')"
+                  >
+                    <span class="section-title">
+                      Sort
+                      <span class="section-count">{{ sortLabel() }}</span>
+                    </span>
+                    <svg class="section-chevron" viewBox="0 0 24 24">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                </div>
                 @if (expanded() === 'sort') {
                   <div class="section-body">
                     <div class="sort-options" role="listbox" aria-label="Sort">
@@ -666,22 +655,24 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               </section>
 
               <section class="filter-section" [class.expanded]="expanded() === 'language'">
-                <button
-                  type="button"
-                  class="section-header"
-                  [attr.aria-expanded]="expanded() === 'language'"
-                  (click)="toggleSection('language')"
-                >
-                  <span class="section-title">
-                    Language
-                    @if (code()) {
-                      <span class="section-count">{{ name() }}</span>
-                    }
-                  </span>
-                  <svg class="section-chevron" viewBox="0 0 24 24">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
+                <div class="section-header">
+                  <button
+                    type="button"
+                    class="section-toggle"
+                    [attr.aria-expanded]="expanded() === 'language'"
+                    (click)="toggleSection('language')"
+                  >
+                    <span class="section-title">
+                      Language
+                      @if (code()) {
+                        <span class="section-count">{{ name() }}</span>
+                      }
+                    </span>
+                    <svg class="section-chevron" viewBox="0 0 24 24">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                </div>
                 @if (expanded() === 'language') {
                   <div class="section-body">
                     <p class="section-hint">Choose one language to continue.</p>
@@ -722,20 +713,24 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               </section>
 
               <section class="filter-section" [class.expanded]="expanded() === 'status'">
-                <button
-                  type="button"
-                  class="section-header"
-                  [attr.aria-expanded]="expanded() === 'status'"
-                  (click)="toggleSection('status')"
-                >
-                  <span class="section-title">
-                    Status
-                    <span class="section-count">{{ deletedFilter() ? 'Deleted' : 'Active' }}</span>
-                  </span>
-                  <svg class="section-chevron" viewBox="0 0 24 24">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
+                <div class="section-header">
+                  <button
+                    type="button"
+                    class="section-toggle"
+                    [attr.aria-expanded]="expanded() === 'status'"
+                    (click)="toggleSection('status')"
+                  >
+                    <span class="section-title">
+                      Status
+                      <span class="section-count">{{
+                        deletedFilter() ? 'Deleted' : 'Active'
+                      }}</span>
+                    </span>
+                    <svg class="section-chevron" viewBox="0 0 24 24">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                </div>
                 @if (expanded() === 'status') {
                   <div class="section-body">
                     <div class="status-choices" role="group" aria-label="Status">
@@ -763,34 +758,31 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               </section>
 
               <section class="filter-section" [class.expanded]="expanded() === 'score'">
-                <button
-                  type="button"
-                  class="section-header"
-                  [attr.aria-expanded]="expanded() === 'score'"
-                  (click)="toggleSection('score')"
-                >
-                  <span class="section-title">
-                    Score
-                    @if (scoreFilterActive()) {
-                      <span class="section-count">{{ scoreSummary() }}</span>
-                    }
-                  </span>
-                  <svg class="section-chevron" viewBox="0 0 24 24">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
+                <div class="section-header">
+                  <button
+                    type="button"
+                    class="section-toggle"
+                    [attr.aria-expanded]="expanded() === 'score'"
+                    (click)="toggleSection('score')"
+                  >
+                    <span class="section-title">
+                      Score
+                      @if (scoreFilterActive()) {
+                        <span class="section-count">{{ scoreSummary() }}</span>
+                      }
+                    </span>
+                    <svg class="section-chevron" viewBox="0 0 24 24">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                  @if (scoreFilterActive()) {
+                    <button type="button" class="link-btn section-clear" (click)="clearScore()">
+                      Clear
+                    </button>
+                  }
+                </div>
                 @if (expanded() === 'score') {
                   <div class="section-body">
-                    <div class="section-actions">
-                      <button
-                        type="button"
-                        class="link-btn"
-                        [disabled]="!scoreFilterActive()"
-                        (click)="clearScore()"
-                      >
-                        Clear
-                      </button>
-                    </div>
                     <div class="score-values" role="group" aria-label="Score">
                       @for (step of scoreSteps; track step) {
                         <button
@@ -827,34 +819,35 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
               @for (section of contentSections; track section.id) {
                 <section class="filter-section" [class.expanded]="expanded() === section.id">
-                  <button
-                    type="button"
-                    class="section-header"
-                    [attr.aria-expanded]="expanded() === section.id"
-                    (click)="toggleSection(section.id)"
-                  >
-                    <span class="section-title">
-                      {{ section.title }}
-                      @if (metadataValueCount(section.kind); as selected) {
-                        <span class="section-count">{{ selected }}</span>
-                      }
-                    </span>
-                    <svg class="section-chevron" viewBox="0 0 24 24">
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
-                  </button>
+                  <div class="section-header">
+                    <button
+                      type="button"
+                      class="section-toggle"
+                      [attr.aria-expanded]="expanded() === section.id"
+                      (click)="toggleSection(section.id)"
+                    >
+                      <span class="section-title">
+                        {{ section.title }}
+                        @if (metadataValueCount(section.kind); as selected) {
+                          <span class="section-count">{{ selected }}</span>
+                        }
+                      </span>
+                      <svg class="section-chevron" viewBox="0 0 24 24">
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+                    @if (sectionActive(section)) {
+                      <button
+                        type="button"
+                        class="link-btn section-clear"
+                        (click)="clearSection(section)"
+                      >
+                        Clear
+                      </button>
+                    }
+                  </div>
                   @if (expanded() === section.id) {
                     <div class="section-body">
-                      <div class="section-actions">
-                        <button
-                          type="button"
-                          class="link-btn"
-                          [disabled]="!sectionActive(section)"
-                          (click)="clearSection(section)"
-                        >
-                          Clear
-                        </button>
-                      </div>
                       @if (metadataEntries(section.kind); as entries) {
                         @if (entries.length) {
                           @for (entry of entries; track entry.key) {
@@ -1895,14 +1888,22 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .filter-header {
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 1rem;
-      padding: 0.9rem 1.15rem;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.3rem;
+      padding: 0.75rem 1.15rem 0.7rem;
       border-bottom: 1px solid var(--border);
     }
 
+    .filter-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
     .filter-title {
+      margin: 0;
       font-size: 1.25rem;
       font-weight: 600;
       letter-spacing: -0.02em;
@@ -1910,8 +1911,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .filter-subtitle {
-      margin: 0.4rem 0 0;
-      max-width: 28rem;
+      margin: 0;
       color: var(--text-muted);
       font-size: 0.84rem;
       line-height: 1.45;
@@ -2005,7 +2005,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       box-shadow: inset 0 0 0 1.5px var(--accent-border);
     }
 
-    .grammar-input,
     .grammar-rule-btn {
       border: 0;
       background: transparent;
@@ -2015,31 +2014,12 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       cursor: pointer;
     }
 
-    .grammar-input {
-      display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
-      padding: 0;
-    }
-
     .grammar-when {
       color: var(--text-muted);
       font-size: 0.72rem;
       font-weight: 650;
       letter-spacing: 0.02em;
       text-transform: uppercase;
-    }
-
-    .grammar-preview {
-      margin: 0;
-    }
-
-    .grammar-preview {
-      display: -webkit-box;
-      overflow: hidden;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      line-height: 1.4;
     }
 
     .grammar-detail {
@@ -2176,6 +2156,12 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .section-header {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .section-toggle {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -2188,6 +2174,18 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       font: inherit;
       text-align: left;
       cursor: pointer;
+    }
+
+    .section-clear {
+      position: absolute;
+      top: 50%;
+      right: 2.35rem;
+      z-index: 1;
+      transform: translateY(-50%);
+    }
+
+    .section-header:has(.section-clear) .section-title {
+      padding-right: 3rem;
     }
 
     .section-title {
@@ -2231,11 +2229,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       flex-direction: column;
       gap: 0.45rem;
       padding: 0 0.75rem 0.85rem;
-    }
-
-    .section-actions {
-      display: flex;
-      justify-content: flex-end;
     }
 
     .section-hint {
@@ -2606,7 +2599,6 @@ export class LanguagePage {
   readonly grammarOpen = signal(false);
   readonly grammarInputs = signal<GrammarInput[]>([]);
   readonly grammarFilter = signal<string[]>([]);
-  readonly grammarExpanded = signal('');
   readonly grammarColor = signal<{ inputId: string; ruleIds: string[] } | null>(null);
   readonly grammarMistakes = computed(() => grammarRules(this.grammarInputs()));
   readonly visibleGrammarInputs = computed(() => {
@@ -3361,16 +3353,6 @@ export class LanguagePage {
     return `${status}: ${rule.rule}`;
   }
 
-  toggleGrammarInput(id: string): void {
-    if (this.grammarExpanded() === id) {
-      this.grammarExpanded.set('');
-      this.grammarColor.set(null);
-      return;
-    }
-    this.grammarExpanded.set(id);
-    this.grammarColor.set(null);
-  }
-
   toggleGrammarColor(inputId: string, ruleId: string): void {
     const current = this.grammarColor();
     const ids = current?.inputId === inputId ? current.ruleIds : [];
@@ -3386,9 +3368,8 @@ export class LanguagePage {
     const current = this.grammarFilter();
     const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
     this.grammarFilter.set(next);
-    const expanded = this.grammarExpanded();
-    if (expanded && !this.visibleGrammarInputs().some((input) => input.id === expanded)) {
-      this.grammarExpanded.set('');
+    const color = this.grammarColor();
+    if (color && !this.visibleGrammarInputs().some((input) => input.id === color.inputId)) {
       this.grammarColor.set(null);
     }
   }
@@ -3759,7 +3740,6 @@ export class LanguagePage {
   private clearGrammar(): void {
     this.grammarInputs.set([]);
     this.grammarFilter.set([]);
-    this.grammarExpanded.set('');
     this.grammarColor.set(null);
   }
 
@@ -3773,9 +3753,8 @@ export class LanguagePage {
       const rows = await readGrammarInputs(code);
       if (this.code() !== code) return;
       this.grammarInputs.set(rows);
-      const expanded = this.grammarExpanded();
-      if (expanded && !rows.some((input) => input.id === expanded)) {
-        this.grammarExpanded.set('');
+      const color = this.grammarColor();
+      if (color && !rows.some((input) => input.id === color.inputId)) {
         this.grammarColor.set(null);
       }
     } catch {

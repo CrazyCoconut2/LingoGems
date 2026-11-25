@@ -1,13 +1,14 @@
+import { rememberCatalogRecord } from './elements/metadata-catalog';
 import { requestPersistentStorage } from './persistent-storage';
 
 const DB_NAME = 'lingogem';
-const DB_VERSION = 6;
+const DB_VERSION = 7;
+const RETIRED_CATALOG_STORE = 'catalog';
+const RETIRED_CATALOG_ID = 'app';
 
 export const ELEMENTS_STORE = 'elements';
-export const CATALOG_STORE = 'catalog';
 export const TRANSLATIONS_STORE = 'translations';
 export const GRAMMAR_STORE = 'grammar';
-export const CATALOG_ID = 'app';
 
 let database: Promise<IDBDatabase> | null = null;
 
@@ -29,8 +30,8 @@ export function openDatabase(): Promise<IDBDatabase> {
           elements.createIndex('language', 'language', { unique: false });
         }
       }
-      if (!db.objectStoreNames.contains(CATALOG_STORE)) {
-        db.createObjectStore(CATALOG_STORE, { keyPath: 'id' });
+      if (db.objectStoreNames.contains(RETIRED_CATALOG_STORE) && tx) {
+        retireCatalogStore(db, tx);
       }
       if (!db.objectStoreNames.contains(TRANSLATIONS_STORE)) {
         db.createObjectStore(TRANSLATIONS_STORE, { keyPath: ['source', 'target', 'phrase'] });
@@ -59,6 +60,23 @@ export function openDatabase(): Promise<IDBDatabase> {
     };
   });
   return database;
+}
+
+function retireCatalogStore(db: IDBDatabase, tx: IDBTransaction): void {
+  const request = tx.objectStore(RETIRED_CATALOG_STORE).get(RETIRED_CATALOG_ID);
+  const drop = () => {
+    if (db.objectStoreNames.contains(RETIRED_CATALOG_STORE)) {
+      db.deleteObjectStore(RETIRED_CATALOG_STORE);
+    }
+  };
+  request.onsuccess = () => {
+    rememberCatalogRecord(request.result);
+    drop();
+  };
+  request.onerror = (event) => {
+    event.preventDefault();
+    drop();
+  };
 }
 
 export function idbRequest<T>(request: IDBRequest<T>): Promise<T> {

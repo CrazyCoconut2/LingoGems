@@ -30,11 +30,6 @@ function elementDefinitionCount(element: StoredElement): number {
   return element.definitions.length;
 }
 
-/** Keep an element in one of the chosen colors. An empty list keeps every element. */
-export function elementMatchesColor(element: StoredElement, colors: readonly string[]): boolean {
-  return colors.length === 0 || (element.color != null && colors.includes(element.color));
-}
-
 /** Mean definition-recall coverage, or null when this element has not been scored. */
 export function definitionScoreAverage(element: StoredElement): number | null {
   let total = 0;
@@ -61,16 +56,25 @@ export function elementScoreStep(element: StoredElement): number | null {
   return average == null ? null : definitionScoreStep(average);
 }
 
-/** Keep an element on one of the chosen scores. An empty list with unscored off keeps every element. */
+/**
+ * Keep an element on one of the chosen scores.
+ * The average is rounded down, so 2.9 matches 2. A coverage of 0 matches 1.
+ * An empty list with unscored off keeps every element.
+ */
 export function elementMatchesScore(
   element: StoredElement,
   steps: readonly number[],
   unscored = false,
 ): boolean {
   if (!steps.length && !unscored) return true;
-  const step = elementScoreStep(element);
-  if (step == null) return unscored;
-  return steps.includes(step);
+  const average = definitionScoreAverage(element);
+  if (average == null) return unscored;
+  return steps.includes(scoreFilterStep(average));
+}
+
+function scoreFilterStep(average: number): number {
+  if (!Number.isFinite(average)) return 1;
+  return Math.min(10, Math.max(1, Math.floor(average)));
 }
 
 /** `definitionMeta`, `exampleMeta`, and `formMeta` query values. Empty means no constraint. */

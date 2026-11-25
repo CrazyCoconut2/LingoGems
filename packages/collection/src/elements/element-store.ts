@@ -1,11 +1,4 @@
-import {
-  CATALOG_ID,
-  CATALOG_STORE,
-  ELEMENTS_STORE,
-  TRANSLATIONS_STORE,
-  idbRequest,
-  openDatabase,
-} from '../database';
+import { ELEMENTS_STORE, TRANSLATIONS_STORE, idbRequest, openDatabase } from '../database';
 import {
   isLearnableLanguage,
   languageCodeFromLabel,
@@ -477,7 +470,7 @@ export async function saveElement(
   };
   await putElement(saved);
   if (options?.syncCatalog !== false && !metadataIndexesEmpty(indexes)) {
-    await enqueueCatalogColorWrite(() => mergeMetadataCatalog(indexes));
+    await enqueueCatalogWrite(() => mergeMetadataCatalog(indexes));
   }
   return saved;
 }
@@ -495,7 +488,7 @@ export function replaceCollection(
   catalog: unknown,
   translations: readonly unknown[],
 ): Promise<string[]> {
-  return enqueueCatalogColorWrite(() =>
+  return enqueueCatalogWrite(() =>
     withPhraseTranslationWrite(() => writeCollection(elements, catalog, translations)),
   );
 }
@@ -516,17 +509,18 @@ async function writeCollection(
   const next = normalizeElementCatalog(catalog);
   if (typeof indexedDB === 'undefined') {
     adoptPhraseTranslations(normalizeStoredPhraseTranslations(translations));
+    await replaceMetadataCatalog(next);
     return [];
   }
   const db = await openDatabase();
-  const tx = db.transaction([ELEMENTS_STORE, CATALOG_STORE, TRANSLATIONS_STORE], 'readwrite');
+  const tx = db.transaction([ELEMENTS_STORE, TRANSLATIONS_STORE], 'readwrite');
   const done = transactionDone(tx);
   const store = tx.objectStore(ELEMENTS_STORE);
   store.clear();
   for (const element of saved) store.put(element);
-  tx.objectStore(CATALOG_STORE).put({ id: CATALOG_ID, ...next });
   const phrases = stagePhraseTranslations(tx, translations);
   await done;
+  await replaceMetadataCatalog(next);
   adoptPhraseTranslations(phrases);
   const languages = [...new Set(saved.map((element) => element.language))];
   for (const language of languages) elementWriteListener?.(language);
@@ -575,11 +569,11 @@ async function readStoredElement(id: string): Promise<StoredElement | null> {
   return normalizeElement(raw);
 }
 
-let catalogColorWrite: Promise<void> = Promise.resolve();
+let catalogWrite: Promise<void> = Promise.resolve();
 
-function enqueueCatalogColorWrite<T>(work: () => Promise<T>): Promise<T> {
-  const run = catalogColorWrite.then(work, work);
-  catalogColorWrite = run.then(
+function enqueueCatalogWrite<T>(work: () => Promise<T>): Promise<T> {
+  const run = catalogWrite.then(work, work);
+  catalogWrite = run.then(
     () => undefined,
     () => undefined,
   );
@@ -590,7 +584,7 @@ function enqueueCatalogColorWrite<T>(work: () => Promise<T>): Promise<T> {
 export function commitElementCatalog(
   indexes: Parameters<typeof replaceMetadataCatalog>[0],
 ): Promise<ElementCatalog> {
-  return enqueueCatalogColorWrite(() => replaceMetadataCatalog(indexes));
+  return enqueueCatalogWrite(() => replaceMetadataCatalog(indexes));
 }
 
 function transactionDone(tx: IDBTransaction): Promise<void> {

@@ -1,5 +1,3 @@
-import { CATALOG_ID, CATALOG_STORE, idbRequest, openDatabase } from '../database';
-import { mergeElementColors, normalizeElementColors } from './element-color';
 import {
   emptyMetadataIndexes,
   mergeMetadataIndexes,
@@ -9,20 +7,18 @@ import {
   type ElementMetadataIndexes,
 } from './metadata-variability';
 
-/** Metadata lists plus the colors still stored on elements. */
-export type ElementCatalog = ElementMetadataIndexes & {
-  colors: string[];
-};
+const STORAGE_KEY = 'lingogem.metadata-catalog.v1';
 
-export type CatalogInput = ElementMetadataIndexes & {
-  colors?: readonly unknown[];
-};
+/** Distinct metadata keys and values for definitions, examples, and forms. */
+export type ElementCatalog = ElementMetadataIndexes;
+
+export type CatalogInput = ElementMetadataIndexes;
 
 export function emptyElementCatalog(): ElementCatalog {
-  return { ...emptyMetadataIndexes(), colors: [] };
+  return emptyMetadataIndexes();
 }
 
-/** Keeps metadata lists and element colors, in their saved order. */
+/** Keeps metadata lists in their saved order. */
 export function normalizeElementCatalog(raw: unknown): ElementCatalog {
   if (!raw || typeof raw !== 'object') return emptyElementCatalog();
   const source = raw as Partial<CatalogInput>;
@@ -30,25 +26,19 @@ export function normalizeElementCatalog(raw: unknown): ElementCatalog {
     definitionMetadata: normalizeMetadataVariability(source.definitionMetadata),
     exampleMetadata: normalizeMetadataVariability(source.exampleMetadata),
     formMetadata: normalizeMetadataVariability(source.formMetadata),
-    colors: normalizeElementColors(source.colors),
   };
 }
 
-/** Adds this element's metadata and color. Colors already present stay in place. */
+/** Adds this element's metadata. Values already present stay in place. */
 export function absorbSavedElement(
   catalog: ElementCatalog,
-  element: ElementMetadataIndexes & { color?: string | null },
+  element: ElementMetadataIndexes,
 ): ElementCatalog {
-  return {
-    ...mergeMetadataIndexes(catalog, element),
-    colors: mergeElementColors(catalog.colors, element.color ? [element.color] : []),
-  };
+  return mergeMetadataIndexes(catalog, element);
 }
 
-/** Metadata and colors that still appear on these elements. */
-export function catalogFromElements(
-  elements: readonly (ElementMetadataIndexes & { color?: string | null })[],
-): ElementCatalog {
+/** Metadata that still appears on these elements. */
+export function catalogFromElements(elements: readonly ElementMetadataIndexes[]): ElementCatalog {
   return elements.reduce(
     (catalog, element) => absorbSavedElement(catalog, element),
     emptyElementCatalog(),
@@ -56,56 +46,53 @@ export function catalogFromElements(
 }
 
 export async function readMetadataCatalog(): Promise<ElementCatalog> {
-  if (typeof indexedDB === 'undefined') return emptyElementCatalog();
-  const db = await openDatabase();
-  return normalizeElementCatalog(
-    await idbRequest(
-      db.transaction(CATALOG_STORE, 'readonly').objectStore(CATALOG_STORE).get(CATALOG_ID),
-    ),
-  );
+  return readStoredCatalog();
 }
 
-/** Adds these keys, values, and colors to the app catalog. Existing colors stay in place. */
-export async function mergeMetadataCatalog(indexes: CatalogInput): Promise<ElementCatalog> {
-  const colors = normalizeElementColors(indexes.colors);
-  if ((metadataIndexesEmpty(indexes) && colors.length === 0) || typeof indexedDB === 'undefined') {
-    return readMetadataCatalog();
+/** Keeps a catalog copied out of the retired IndexedDB store. An existing cache stays. */
+export function rememberCatalogRecord(raw: unknown): void {
+  try {
+    if (readStoredRaw() != null) return;
+    const catalog = normalizeElementCatalog(raw);
+    if (metadataIndexesEmpty(catalog)) return;
+    writeStoredCatalog(catalog);
+  } catch {
+    // The lists can be compiled again from the elements.
   }
+}
+
+/** Adds these keys and values to the app catalog. Values already present stay in place. */
+export async function mergeMetadataCatalog(indexes: CatalogInput): Promise<ElementCatalog> {
+  if (metadataIndexesEmpty(indexes)) return readMetadataCatalog();
   const current = await readMetadataCatalog();
-  const next: ElementCatalog = {
-    ...mergeMetadataIndexes(current, indexes),
-    colors: mergeElementColors(current.colors, colors),
-  };
-  if (sameElementCatalog(current, next)) return current;
-  await putCatalog(next);
+  const next = mergeMetadataIndexes(current, indexes);
+  if (sameMetadataIndexes(current, next)) return current;
+  writeStoredCatalog(next);
   return next;
 }
 
 /** Replaces the app catalog with this union of values. */
 export async function replaceMetadataCatalog(indexes: CatalogInput): Promise<ElementCatalog> {
   const next = normalizeElementCatalog(indexes);
-  if (typeof indexedDB === 'undefined') return next;
-  await putCatalog(next);
+  writeStoredCatalog(next);
   return next;
 }
 
-function sameElementCatalog(left: ElementCatalog, right: ElementCatalog): boolean {
-  return (
-    sameMetadataIndexes(left, right) &&
-    left.colors.length === right.colors.length &&
-    left.colors.every((color, index) => color === right.colors[index])
-  );
+function readStoredCatalog(): ElementCatalog {
+  return normalizeElementCatalog(readStoredRaw());
 }
 
-async function putCatalog(indexes: ElementCatalog): Promise<void> {
-  const db = await openDatabase();
-  await idbRequest(
-    db
-      .transaction(CATALOG_STORE, 'readwrite')
-      .objectStore(CATALOG_STORE)
-      .put({
-        id: CATALOG_ID,
-        ...indexes,
-      }),
-  );
+function readStoredRaw(): unknown {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredCatalog(catalog: ElementCatalog): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(catalog));
 }

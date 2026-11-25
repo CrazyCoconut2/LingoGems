@@ -93,7 +93,6 @@ export {
   definitionScoreAverage,
   definitionScoreStep,
   elementMatchesMetadata,
-  elementMatchesColor,
   elementMatchesScore,
   elementScoreStep,
   formatMetadataFilter,
