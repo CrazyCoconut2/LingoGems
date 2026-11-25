@@ -5298,13 +5298,13 @@ function writeExampleSuggestions(
     }
 
     .log-row > .score-readout {
-      margin-top: 0.02rem;
+      margin-top: 0;
     }
 
     .log-open {
       display: flex;
       flex: 1 1 auto;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
       gap: 0.75rem;
       min-width: 0;
@@ -5406,10 +5406,6 @@ function writeExampleSuggestions(
 
     .log-open .log-edit-line {
       flex: 1 1 auto;
-    }
-
-    .log-open > .log-chevron {
-      margin-top: 0.12rem;
     }
 
     .log-edit-copies {
