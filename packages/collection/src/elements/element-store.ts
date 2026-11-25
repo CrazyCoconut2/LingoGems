@@ -175,11 +175,12 @@ export function definitionCoverage(entry: { score: number; extra?: boolean }): n
 /**
  * The gem for one finished recall compared with the mean of earlier coverages.
  * The first recall has no average, and a score under the average earns nothing.
+ * A coverage of 0 earns nothing.
  * A gap of 0 up to 1.5 is red, 1.5 up to 3 is orange, and 3 or more is green.
  * Giving up is not a finished exercise, so it earns nothing.
  */
 function gemTierForScore(priorSum: number, priorCount: number, score: number): GemTier | null {
-  if (priorCount <= 0 || !Number.isFinite(score)) return null;
+  if (priorCount <= 0 || !Number.isFinite(score) || score <= 0) return null;
   const gap = score - priorSum / priorCount;
   if (!(gap >= 0)) return null;
   if (gap < 1.5) return 'red';
@@ -192,9 +193,19 @@ function recallFinished(entry: { answer?: string }): boolean {
   return !!entry.answer?.trim();
 }
 
-/** The gem stored on this recall when it was finished, or null. */
-export function storedGem(entry: { gem?: unknown }): GemTier | null {
+/** The gem stored on this recall when it was finished, or null. A coverage of 0 keeps none. */
+export function storedGem(entry: {
+  gem?: unknown;
+  score?: unknown;
+  extra?: unknown;
+}): GemTier | null {
+  if (coverageIsZero(entry)) return null;
   return entry.gem === 'red' || entry.gem === 'orange' || entry.gem === 'green' ? entry.gem : null;
+}
+
+function coverageIsZero(entry: { score?: unknown; extra?: unknown }): boolean {
+  if (typeof entry.score !== 'number' || !Number.isFinite(entry.score)) return false;
+  return definitionCoverage({ score: entry.score, extra: entry.extra === true }) <= 0;
 }
 
 /**
