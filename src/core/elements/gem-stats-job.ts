@@ -1,5 +1,7 @@
 import { Injectable, NgZone, inject, signal } from '@angular/core';
+import { readAllElements, readAllPhraseTranslations } from 'collection';
 import {
+  cachedStatsLanguages,
   clearStatsCache,
   pendingStatsLanguages,
   readStatsView,

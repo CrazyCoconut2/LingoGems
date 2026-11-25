@@ -2,14 +2,18 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   HostListener,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ElementModal } from '../elements/element-modal';
+import { GemStatsJob } from '../elements/gem-stats-job';
 import { GemStatsModal } from '../elements/gem-stats-modal';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
+import { RevealIcon } from '../elements/reveal-icon';
 import { DiscoverModal } from './discover-modal';
 import { ensureSelectedLanguage, writeSelectedLanguage } from './selected-language';
 import { supportLanguageFor, writeSupportLanguage } from './translation-language';
@@ -119,13 +123,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
 @Component({
   selector: 'app-language-page',
-  imports: [
-    FormsModule,
-    ElementModal,
-    DiscoverModal,
-    Settings,
-    GemStatsModal,
-  ],
+  imports: [FormsModule, ElementModal, DiscoverModal, Settings, GemStatsModal, RevealIcon],
   template: `
     <main>
       <div class="page-top">
@@ -356,6 +354,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 (pointerleave)="onCardPointerUp()"
               >
                 @let activity = activityTotals(element);
+                @let translated = translationCount(element);
                 @let pills = leadPills(element);
                 <button
                   type="button"
@@ -418,13 +417,30 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                         <span>{{ activity.reworked }}</span>
                       </span>
                     }
+                    @if (translated > 0) {
+                      <span
+                        class="stat"
+                        [attr.aria-label]="translatedLabel(translated)"
+                        [attr.title]="translatedLabel(translated)"
+                      >
+                        <app-reveal-icon />
+                        <span>{{ translated }}</span>
+                      </span>
+                    }
                   </span>
                   @if (scoreLabel(element); as score) {
-                    <span class="stat-score" [attr.aria-label]="'Score average ' + score + ' out of 10'">
+                    <span
+                      class="stat-score"
+                      [attr.aria-label]="'Score average ' + score + ' out of 10'"
+                    >
                       {{ score }}<span class="stat-score-max">/10</span>
                     </span>
                   } @else {
-                    <span class="stat-score unscored" aria-label="Score not available" title="Score not available">
+                    <span
+                      class="stat-score unscored"
+                      aria-label="Score not available"
+                      title="Score not available"
+                    >
                       NA
                     </span>
                   }
@@ -645,9 +661,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                         [attr.aria-pressed]="unscoredFilter()"
                         aria-label="No score"
                         [style.--step-color]="'var(--text-muted)'"
-                        [style.--step-bg]="
-                          'color-mix(in srgb, var(--text-muted) 14%, transparent)'
-                        "
+                        [style.--step-bg]="'color-mix(in srgb, var(--text-muted) 14%, transparent)'"
                         (click)="toggleUnscored()"
                       >
                         No score
@@ -1623,6 +1637,12 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       color: var(--card-accent, #94a3b8);
     }
 
+    .stat app-reveal-icon {
+      width: 1.35rem;
+      height: 0.7rem;
+      color: var(--card-accent, #94a3b8);
+    }
+
     .stat-score {
       flex: none;
       margin-left: auto;
@@ -2154,6 +2174,7 @@ export class LanguagePage {
   private scrollLock = '';
   private scrollLocked = false;
   private promptedLanguage = false;
+  private readonly statsJob = inject(GemStatsJob);
 
   readonly languageOptions = LEARNABLE_LANGUAGES;
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
@@ -2178,6 +2199,25 @@ export class LanguagePage {
     { value: 'gems-asc', label: 'Least gems' },
   ];
   readonly code = signal('');
+  private translationLanguage = '';
+  private translationCache = new Map<string, number>();
+  /** Lifetime translation unveils per element, from the compiled stats snapshot. */
+  private readonly translationTotals = computed(() => {
+    const language = this.code();
+    const view = this.statsJob.view(language);
+    const snapshot = view.phase === 'ready' ? view.snapshot : null;
+    if (!snapshot) return language === this.translationLanguage ? this.translationCache : new Map();
+    const totals = new Map<string, number>();
+    for (const day of snapshot.days) {
+      for (const element of day.elements) {
+        if (!element.revealed) continue;
+        totals.set(element.id, (totals.get(element.id) ?? 0) + element.revealed);
+      }
+    }
+    this.translationLanguage = language;
+    this.translationCache = totals;
+    return totals;
+  });
   readonly name = signal('');
   readonly ready = signal(false);
   readonly elements = signal<StoredElement[]>([]);
@@ -2291,6 +2331,12 @@ export class LanguagePage {
   });
 
   constructor() {
+    effect(() => {
+      const language = this.code();
+      untracked(() => {
+        if (language) this.statsJob.ensure(language);
+      });
+    });
     inject(DestroyRef).onDestroy(() => {
       if (this.searchTimer) clearTimeout(this.searchTimer);
       this.clearPressTimer();
@@ -2812,6 +2858,16 @@ export class LanguagePage {
   reworkedLabel(count: number): string {
     if (count === 0) return 'Not reworked';
     return count === 1 ? 'Reworked once' : `Reworked ${count} times`;
+  }
+
+  /** Lifetime unveils of this element or one of its forms. */
+  translationCount(element: StoredElement): number {
+    return this.translationTotals().get(element.id) ?? 0;
+  }
+
+  translatedLabel(count: number): string {
+    if (count === 0) return 'Not translated';
+    return count === 1 ? 'Translated once' : `Translated ${count} times`;
   }
 
   inputValue(event: Event): string {

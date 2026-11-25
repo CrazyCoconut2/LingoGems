@@ -1,6 +1,6 @@
 import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
 
-const KEY_PREFIX = 'lingogem.stats.v17.';
+const KEY_PREFIX = 'lingogem.stats.v18.';
 const STALE_STATS_ROOT = 'lingogem.stats.v';
 
 export type StatsPhase = 'empty' | 'pending' | 'ready' | 'error';
@@ -46,8 +46,8 @@ export function writeStatsError(language: string): void {
   writeRecord(language, { status: 'error' });
 }
 
-/** Languages left pending when a compile was still running. */
-export function pendingStatsLanguages(): string[] {
+/** Languages that already have a compiled snapshot, including a run left pending. */
+export function cachedStatsLanguages(): string[] {
   if (typeof localStorage === 'undefined') return [];
   const languages: string[] = [];
   try {
@@ -55,12 +55,17 @@ export function pendingStatsLanguages(): string[] {
       const key = localStorage.key(index);
       if (!key?.startsWith(KEY_PREFIX)) continue;
       const language = key.slice(KEY_PREFIX.length);
-      if (readStatsView(language).phase === 'pending') languages.push(language);
+      if (language) languages.push(language);
     }
   } catch {
     return languages;
   }
   return languages;
+}
+
+/** Languages left pending when a compile was still running. */
+export function pendingStatsLanguages(): string[] {
+  return cachedStatsLanguages().filter((language) => readStatsView(language).phase === 'pending');
 }
 
 /** Removes compiled stats only. Goals and other settings stay. */

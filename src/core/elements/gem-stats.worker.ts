@@ -1,5 +1,6 @@
 import {
   ELEMENTS_STORE,
+  TRANSLATIONS_STORE,
   compileFormMatcher,
   definitionCoverage,
   displayTitle,
@@ -35,7 +36,7 @@ export type DayStats = {
   elements: ElementDayStats[];
 };
 
-/** A word from revealed phrases that is not an element title or a live form. */
+/** A word from an unveiled translation that is not an element title or a live form. */
 export type MissingToken = {
   key: string;
   title: string;
@@ -68,7 +69,14 @@ async function compile(language: string): Promise<void> {
     const records = await idbRequest(
       db.transaction(ELEMENTS_STORE, 'readonly').objectStore(ELEMENTS_STORE).getAll(),
     );
-    const result = tally(Array.isArray(records) ? records : [], language);
+    const translations = await idbRequest(
+      db.transaction(TRANSLATIONS_STORE, 'readonly').objectStore(TRANSLATIONS_STORE).getAll(),
+    );
+    const result = tally(
+      Array.isArray(records) ? records : [],
+      Array.isArray(translations) ? translations : [],
+      language,
+    );
     postMessage({
       ok: true,
       days: result.days,
@@ -81,13 +89,14 @@ async function compile(language: string): Promise<void> {
 
 function tally(
   records: unknown[],
+  translations: unknown[],
   language: string,
 ): { days: DayStats[]; missing: MissingToken[] } {
   const code = language.trim().toLowerCase();
   const days = new Map<string, MutableDay>();
   const attempts = new Map<string, CoverageAttempt[]>();
-  const phrases: string[] = [];
-  const coverage = emptyCoverage();
+  const exactIndex = new Map<string, ElementClaim[]>();
+  const patterned: ElementClaim[] = [];
   if (!code) return { days: [], missing: [] };
 
   for (const record of records) {
@@ -110,12 +119,14 @@ function tally(
     const title = String(source.title ?? '').trim();
     if (!id || !title) continue;
 
-    addCoverage(coverage, title, code);
+    const claim: ElementClaim = { id, title, exact: new Set(), patterns: [] };
+    claimSurface(claim, title, code);
     if (Array.isArray(source.definitions)) {
       for (const definition of source.definitions) {
-        for (const form of definitionForms(definition)) addCoverage(coverage, form, code);
+        for (const form of definitionForms(definition)) claimSurface(claim, form, code);
       }
     }
+    indexClaim(claim, exactIndex, patterned);
 
     const createdAt = source.createdAt;
     if (typeof createdAt === 'number' && Number.isFinite(createdAt) && createdAt > 0) {
@@ -129,16 +140,9 @@ function tally(
     const entries = Array.isArray(source.log) ? source.log : [];
     for (const entry of entries) {
       if (!isRecord(entry)) continue;
-      if (entry.event === 'view' || entry.event === 'rework') continue;
+      if (entry.event === 'view' || entry.event === 'rework' || entry.event === 'reveal') continue;
       const day = bucket(days, entry.at);
       if (!day) continue;
-      if (entry.event === 'reveal') {
-        day.revealed += 1;
-        elementOf(day, id, title).revealed += 1;
-        const phrase = (entry as { phrase?: unknown }).phrase;
-        if (typeof phrase === 'string' && phrase.trim()) phrases.push(phrase);
-        continue;
-      }
       if (entry.event === 'game' && isRecall(entry.game)) {
         day.exercises += 1;
         elementOf(day, id, title).exercises += 1;
@@ -157,6 +161,7 @@ function tally(
     }
   }
 
+  const unmatched = tallyUnveils(translations, code, days, exactIndex, patterned);
   applyDifferentials(days, attempts);
 
   const result: DayStats[] = [];
@@ -176,7 +181,7 @@ function tally(
     });
   }
   result.sort((left, right) => (left.day < right.day ? 1 : left.day > right.day ? -1 : 0));
-  return { days: result, missing: missingTokens(phrases, coverage, code) };
+  return { days: result, missing: missingTokens(unmatched, code) };
 }
 
 function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {
@@ -305,23 +310,110 @@ function isRecall(game: unknown): game is 'definition' {
 
 const PATTERN_MARK = /[*()|]/;
 
-type Coverage = {
+/** Title and live forms that a translated word can belong to. */
+type ElementClaim = {
+  id: string;
+  title: string;
   exact: Set<string>;
-  patterns: string[];
+  patterns: Array<(term: string) => boolean>;
 };
 
-function emptyCoverage(): Coverage {
-  return { exact: new Set(), patterns: [] };
-}
-
-function addCoverage(coverage: Coverage, raw: string, language: string): void {
+function claimSurface(claim: ElementClaim, raw: string, language: string): void {
   const text = foldApostrophes(raw.trim());
   if (!text || !isValidForm(text)) return;
   if (PATTERN_MARK.test(text)) {
-    if (!coverage.patterns.includes(text)) coverage.patterns.push(text);
+    const matcher = compileFormMatcher(text);
+    if (matcher) claim.patterns.push(matcher);
     return;
   }
-  coverage.exact.add(tokenKey(text, language));
+  claim.exact.add(tokenKey(text, language));
+}
+
+function indexClaim(
+  claim: ElementClaim,
+  exactIndex: Map<string, ElementClaim[]>,
+  patterned: ElementClaim[],
+): void {
+  for (const key of claim.exact) {
+    const owners = exactIndex.get(key);
+    if (owners) owners.push(claim);
+    else exactIndex.set(key, [claim]);
+  }
+  if (claim.patterns.length) patterned.push(claim);
+}
+
+function claimsFor(
+  key: string,
+  exactIndex: Map<string, ElementClaim[]>,
+  patterned: readonly ElementClaim[],
+): ElementClaim[] {
+  const found: ElementClaim[] = [];
+  const seen = new Set<ElementClaim>();
+  for (const claim of exactIndex.get(key) ?? []) {
+    if (seen.has(claim)) continue;
+    seen.add(claim);
+    found.push(claim);
+  }
+  for (const claim of patterned) {
+    if (seen.has(claim) || !claim.patterns.some((matcher) => matcher(key))) continue;
+    seen.add(claim);
+    found.push(claim);
+  }
+  return found;
+}
+
+/** Each unveil date counts every word in the phrase. A stored wording with no date does not. */
+function tallyUnveils(
+  translations: readonly unknown[],
+  language: string,
+  days: Map<string, MutableDay>,
+  exactIndex: Map<string, ElementClaim[]>,
+  patterned: readonly ElementClaim[],
+): Map<string, number> {
+  const missing = new Map<string, number>();
+  for (const record of translations) {
+    const phrase = translationPhrase(record, language);
+    if (!phrase) continue;
+    const tokens = phraseTokens(phrase.phrase);
+    if (!tokens.length) continue;
+    for (const date of phrase.dates) {
+      const at = Date.parse(date);
+      if (!Number.isFinite(at)) continue;
+      for (const token of tokens) {
+        const key = tokenKey(token, language);
+        if (!key) continue;
+        const matched = claimsFor(key, exactIndex, patterned);
+        if (!matched.length) {
+          missing.set(key, (missing.get(key) ?? 0) + 1);
+          continue;
+        }
+        const day = bucket(days, at);
+        if (!day) continue;
+        for (const claim of matched) {
+          day.revealed += 1;
+          elementOf(day, claim.id, claim.title).revealed += 1;
+        }
+      }
+    }
+  }
+  return missing;
+}
+
+function translationPhrase(
+  value: unknown,
+  language: string,
+): { phrase: string; dates: string[] } | null {
+  if (!value || typeof value !== 'object') return null;
+  const source = value as { source?: unknown; phrase?: unknown; dates?: unknown };
+  if (
+    String(source.source ?? '')
+      .trim()
+      .toLowerCase() !== language
+  )
+    return null;
+  if (typeof source.phrase !== 'string' || !Array.isArray(source.dates)) return null;
+  const dates = source.dates.filter((item): item is string => typeof item === 'string' && !!item);
+  return dates.length ? { phrase: source.phrase, dates } : null;
 }
 
 function definitionForms(definition: unknown): string[] {
@@ -339,27 +431,10 @@ function definitionForms(definition: unknown): string[] {
   return texts;
 }
 
-function missingTokens(
-  phrases: readonly string[],
-  coverage: Coverage,
-  language: string,
-): MissingToken[] {
-  const counts = new Map<string, number>();
-  for (const phrase of phrases) {
-    for (const token of phraseTokens(phrase)) {
-      const key = tokenKey(token, language);
-      if (!key) continue;
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-  const patterns: Array<(term: string) => boolean> = [];
-  for (const form of coverage.patterns) {
-    const matcher = compileFormMatcher(form);
-    if (matcher) patterns.push(matcher);
-  }
+function missingTokens(counts: ReadonlyMap<string, number>, language: string): MissingToken[] {
   const missing: MissingToken[] = [];
   for (const [key, seen] of counts) {
-    if (seen <= 0 || coverage.exact.has(key) || patterns.some((matcher) => matcher(key))) continue;
+    if (seen <= 0) continue;
     const title = displayTitle(key, language);
     if (!title) continue;
     missing.push({ key, title, seen });

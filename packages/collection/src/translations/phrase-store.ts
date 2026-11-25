@@ -23,6 +23,12 @@ const memory = new Map<string, Map<string, Map<string, PhraseTranslation>>>();
 
 let chain: Promise<void> = Promise.resolve();
 let loading: Promise<void> | null = null;
+let phraseTranslationListener: ((language: string) => void) | null = null;
+
+/** Notified with the learning language after a translation write commits. */
+export function setPhraseTranslationListener(listener: ((language: string) => void) | null): void {
+  phraseTranslationListener = listener;
+}
 
 /** Runs after any in-flight translation write, so a replace cannot land under a stale put. */
 export function withPhraseTranslationWrite<T>(work: () => Promise<T>): Promise<T> {
@@ -162,12 +168,15 @@ export function stagePhraseTranslations(
 
 /** Points the in-memory mirror at these records. Call after the replacement transaction commits. */
 export function adoptPhraseTranslations(records: readonly StoredPhraseTranslation[]): void {
+  const sources = new Set(memory.keys());
   memory.clear();
   for (const record of records) {
     const key = phraseKey(record.source, record.target, record.phrase);
     if (!key) continue;
     writeMemory(key, { text: record.text, dates: record.dates });
+    sources.add(key.source);
   }
+  for (const source of sources) phraseTranslationListener?.(source);
 }
 
 async function hydrate(): Promise<void> {
@@ -183,20 +192,21 @@ async function flush(key: PhraseKey): Promise<void> {
   if (typeof indexedDB === 'undefined') return;
   const current = readMemory(key);
   const db = await openDatabase();
-  const store = db.transaction(TRANSLATIONS_STORE, 'readwrite').objectStore(TRANSLATIONS_STORE);
-  if (!current) {
-    await idbRequest(store.delete([key.source, key.target, key.phrase]));
-    return;
-  }
-  await idbRequest(
+  const tx = db.transaction(TRANSLATIONS_STORE, 'readwrite');
+  const done = transactionDone(tx);
+  const store = tx.objectStore(TRANSLATIONS_STORE);
+  if (!current) store.delete([key.source, key.target, key.phrase]);
+  else {
     store.put({
       source: key.source,
       target: key.target,
       phrase: key.phrase,
       text: current.text,
       dates: [...current.dates],
-    }),
-  );
+    });
+  }
+  await done;
+  phraseTranslationListener?.(key.source);
 }
 
 async function readDatabase(): Promise<StoredPhraseTranslation[]> {

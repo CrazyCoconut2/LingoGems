@@ -102,12 +102,13 @@ export {
   type ElementSort,
 } from './elements/browse';
 
-export { ELEMENTS_STORE, idbRequest, openDatabase } from './database';
+export { ELEMENTS_STORE, TRANSLATIONS_STORE, idbRequest, openDatabase } from './database';
 
 export {
   loadPhraseTranslations,
   normalizeStoredPhraseTranslations,
   notePhraseUnveil,
+  setPhraseTranslationListener,
   readAllPhraseTranslations,
   readPhraseTranslation,
   recordPhraseTranslation,

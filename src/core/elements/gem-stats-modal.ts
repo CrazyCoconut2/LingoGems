@@ -89,6 +89,20 @@ const EMPTY_DAY: DayStats = {
               <button
                 type="button"
                 class="icon-btn"
+                aria-label="Recompile stats"
+                title="Recompile stats"
+                (click)="recompile()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                  <path d="M16 16h5v5" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
                 [class.on]="goalsOpen()"
                 aria-label="Daily goals"
                 [attr.aria-expanded]="goalsOpen()"
@@ -458,35 +472,27 @@ const EMPTY_DAY: DayStats = {
                           }}</span>
                           @if (hasBits(element) || elementSort()) {
                             <span class="bits">
-                              <span
-                                class="bit"
-                                [class.reserved]="element.exercises === 0"
-                                [class.on]="isSort(exerciseSort)"
-                                [attr.aria-label]="
-                                  element.exercises === 0 ? null : exerciseLabel(element.exercises)
-                                "
-                                [attr.title]="
-                                  element.exercises === 0 ? null : exerciseLabel(element.exercises)
-                                "
-                              >
-                                <ng-container *ngTemplateOutlet="exerciseIcon" />
-                                <span>{{ formatCount(element.exercises) }}</span>
-                              </span>
+                              @if (element.exercises > 0) {
+                                <span
+                                  class="bit"
+                                  [class.on]="isSort(exerciseSort)"
+                                  [attr.aria-label]="exerciseLabel(element.exercises)"
+                                  [attr.title]="exerciseLabel(element.exercises)"
+                                >
+                                  <ng-container *ngTemplateOutlet="exerciseIcon" />
+                                  <span>{{ formatCount(element.exercises) }}</span>
+                                </span>
+                              }
                               @for (activity of activities; track activity.key) {
-                                @if (activity.key !== 'added') {
+                                @if (activity.key !== 'added' && element[activity.key] > 0) {
                                   <span
                                     class="bit"
-                                    [class.reserved]="element[activity.key] === 0"
                                     [class.on]="isSort(activitySort(activity.key))"
                                     [attr.aria-label]="
-                                      element[activity.key] === 0
-                                        ? null
-                                        : activityLabel(activity.label, element[activity.key])
+                                      activityLabel(activity.label, element[activity.key])
                                     "
                                     [attr.title]="
-                                      element[activity.key] === 0
-                                        ? null
-                                        : activityLabel(activity.label, element[activity.key])
+                                      activityLabel(activity.label, element[activity.key])
                                     "
                                   >
                                     <ng-container
@@ -500,22 +506,15 @@ const EMPTY_DAY: DayStats = {
                                 }
                               }
                               @for (game of gemRows; track game.tier) {
-                                @if (showsMetric(element.gems[game.tier], gemSort(game.tier))) {
+                                @if (element.gems[game.tier] > 0) {
                                   <span
                                     class="bit"
-                                    [class.reserved]="element.gems[game.tier] === 0"
                                     [class.on]="isSort(gemSort(game.tier))"
                                     [attr.data-gem]="game.tier"
                                     [attr.aria-label]="
-                                      element.gems[game.tier] === 0
-                                        ? null
-                                        : gemsLabel(game.label, element.gems[game.tier])
+                                      gemsLabel(game.label, element.gems[game.tier])
                                     "
-                                    [attr.title]="
-                                      element.gems[game.tier] === 0
-                                        ? null
-                                        : gemsLabel(game.label, element.gems[game.tier])
-                                    "
+                                    [attr.title]="gemsLabel(game.label, element.gems[game.tier])"
                                   >
                                     <app-gem-icon class="stone-icon" [tier]="game.tier" />
                                     <span>{{ element.gems[game.tier] }}</span>
@@ -1466,7 +1465,7 @@ const EMPTY_DAY: DayStats = {
       overflow: hidden;
       font-size: 0.92rem;
       font-weight: 680;
-      line-height: 1;
+      line-height: 1.25;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -1497,10 +1496,6 @@ const EMPTY_DAY: DayStats = {
 
     .bit[data-gem] {
       color: var(--exercise-gem);
-    }
-
-    .bit.reserved {
-      visibility: hidden;
     }
 
     .bit.on {
@@ -1930,12 +1925,13 @@ export class GemStatsModal {
     this.elementSort.update((current) => (sameElementSort(current, sort) ? null : sort));
   }
 
-  showsMetric(count: number, sort: ElementSort): boolean {
-    return count > 0 || this.isSort(sort);
-  }
-
   toggleGoals(): void {
     this.goalsOpen.update((open) => !open);
+  }
+
+  /** Compile this language again from the stored elements and translations. */
+  recompile(): void {
+    this.job.invalidate(this.language());
   }
 
   goalSet(kind: GoalKind): boolean {
