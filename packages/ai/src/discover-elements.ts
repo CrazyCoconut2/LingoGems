@@ -5,14 +5,7 @@ import {
   type ElementMetadataVariability,
 } from 'collection';
 import { completeJson, runWithKeyFallback } from './complete';
-import {
-  ensureSenseEquivalents,
-  parseGeneratedDefinitions,
-  SENSE_EQUIVALENT,
-  SENSE_EQUIVALENT_FIELD,
-  SENSE_EXAMPLE,
-  type GeneratedDefinition,
-} from './definitions';
+import { parseGeneratedDefinitions, SENSE_EXAMPLE, type GeneratedDefinition } from './definitions';
 import { AI_ERROR, aiError, attachAiPrompt } from './errors';
 import {
   METADATA_VALUE_LANGUAGE_RULE,
@@ -22,7 +15,6 @@ import {
   readDefinitionMetadataFields,
 } from './metadata-fields';
 import { readStoredAiCredentials } from './storage';
-import { translationLanguage } from './translation-settings';
 import type { CompleteJsonInput } from './types';
 
 const DISCOVER_COUNT = 5;
@@ -54,7 +46,6 @@ export type DiscoveredElement = {
 function buildDiscoverElementsUserMessage(input: DiscoverElementsInput): string {
   const language = input.language.trim().toLowerCase();
   const writeFieldsIn = languageDisplayName(language) || language;
-  const translateFieldsIn = translationLanguage(language, input.translation);
   const instruction = (input.instruction ?? '').trim().slice(0, MAX_DISCOVER_INSTRUCTION);
   const metadata = metadataPayload(input.metadata);
   const excludeTitles = uniqueTitles(input.excludeTitles ?? [], MAX_DISCOVER_EXCLUDE);
@@ -63,7 +54,6 @@ function buildDiscoverElementsUserMessage(input: DiscoverElementsInput): string 
     writeFieldsIn,
     count: DISCOVER_COUNT,
     senses: DISCOVER_SENSE_COUNT,
-    ...(translateFieldsIn ? { translateFieldsIn } : {}),
     ...(instruction ? { instruction } : {}),
     ...(metadata ? { metadata } : {}),
     ...(excludeTitles.length ? { excludeTitles } : {}),
@@ -71,11 +61,7 @@ function buildDiscoverElementsUserMessage(input: DiscoverElementsInput): string 
 }
 
 /** Elements from a reply, or null when elements is missing or none of them can be used. */
-function parseDiscoveredElements(
-  parsed: unknown,
-  language: string,
-  translation = '',
-): DiscoveredElement[] | null {
+function parseDiscoveredElements(parsed: unknown, language: string): DiscoveredElement[] | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
@@ -93,7 +79,6 @@ function parseDiscoveredElements(
       language,
       title,
       existingDefinitions: [],
-      translation,
     });
     if (!senses?.length) continue;
     elements.push({
@@ -101,7 +86,6 @@ function parseDiscoveredElements(
       senses: senses.slice(0, DISCOVER_SENSE_COUNT).map((sense) => ({
         text: sense.text,
         metadata: { ...sense.metadata },
-        ...(sense.equivalent ? { equivalent: sense.equivalent } : {}),
         ...(sense.example ? { example: sense.example } : {}),
       })),
     });
@@ -125,16 +109,10 @@ export async function discoverElements(input: DiscoverElementsInput): Promise<Di
       completeJson(provider, request, credentials),
     );
   try {
-    const translation = input.translation ?? '';
-    let elements = parseDiscoveredElements(await complete(), language, translation);
-    if (!elements) elements = parseDiscoveredElements(await complete(), language, translation);
+    let elements = parseDiscoveredElements(await complete(), language);
+    if (!elements) elements = parseDiscoveredElements(await complete(), language);
     if (!elements) aiError(AI_ERROR.RESPONSE_INVALID);
-    return Promise.all(
-      elements.map(async (element) => ({
-        ...element,
-        senses: await ensureSenseEquivalents(element.title, language, translation, element.senses),
-      })),
-    );
+    return elements;
   } catch (err) {
     throw attachAiPrompt(err, request);
   }
@@ -166,15 +144,14 @@ function discoverSystemPrompt(): string {
     '- A gloss MUST NOT contain the lemma or any inflected form of the lemma',
     '- Do not include forms',
     '- Do not add bracket tags such as [en:…]',
-    '- Spelling MUST be correct in every title, gloss, example, and translation',
+    '- Spelling MUST be correct in every title, gloss, and example',
+    '- Do not translate a title, gloss, or example, and do not include an equivalent',
     SENSE_EXAMPLE,
     '- Return at most count elements',
     '- Omit a title you cannot define',
     ...metadataRuleLines('definition', fields, extra),
-    SENSE_EQUIVALENT,
     'Return JSON only with this shape:',
     `{"elements":[{"title":"<citation form>","senses":[${sense}]}]}`,
-    SENSE_EQUIVALENT_FIELD,
   ]
     .filter((line) => line !== '')
     .join('\n');

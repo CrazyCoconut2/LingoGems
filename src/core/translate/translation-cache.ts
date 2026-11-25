@@ -36,37 +36,37 @@ function requestKey(sourceLang: string, targetLang: string, phrase: string): str
 
 /**
  * The translation for one request.
- * A stored phrase is returned as it is, with no new unveil.
- * A passage that still has an embedded translation is stored without an unveil.
- * Otherwise the model is asked. Seeing that new translation counts as an unveil.
+ * A stored wording is kept. Otherwise the model is asked.
+ * Every request that returns a wording counts as an unveil.
  * A failed query writes nothing.
  */
 export async function requestPhraseTranslation(
   sourceLang: string,
   targetLang: string,
   phrase: string,
-  seeded = '',
 ): Promise<string> {
   const key = requestKey(sourceLang, targetLang, phrase);
   if (!key || key.startsWith('\0') || key.endsWith('\0')) throw new Error('translate_failed');
   const cached = readPhraseTranslation(sourceLang, targetLang, phrase);
-  if (cached?.text) return cached.text;
+  if (cached?.text) {
+    notePhraseUnveil(sourceLang, targetLang, phrase, cached.text);
+    return cached.text;
+  }
 
-  const missing = !seeded.trim();
   const running = pending.get(key);
   if (running) {
     const text = await running;
     const stored = recordPhraseTranslation(sourceLang, targetLang, phrase, text);
-    if (missing) notePhraseUnveil(sourceLang, targetLang, phrase, stored);
+    notePhraseUnveil(sourceLang, targetLang, phrase, stored);
     return stored;
   }
 
-  const job = resolvePhrase(sourceLang, targetLang, phrase, seeded);
+  const job = translatePhrase(phrase, sourceLang, targetLang);
   pending.set(key, job);
   try {
     const text = await job;
     const stored = recordPhraseTranslation(sourceLang, targetLang, phrase, text);
-    if (missing) notePhraseUnveil(sourceLang, targetLang, phrase, stored);
+    notePhraseUnveil(sourceLang, targetLang, phrase, stored);
     return stored;
   } finally {
     if (pending.get(key) === job) pending.delete(key);
@@ -80,30 +80,28 @@ export type DefinitionTranslationResult = {
 
 /**
  * The translation and headword equivalent for one definition.
- * A phrase that already has both is not queried.
+ * A phrase that already has both is not sent to the model.
  * An existing translation or equivalent is kept; the model fills only what is missing.
- * A new translation is stored the same way as a phrase translation. A failed query writes nothing.
+ * Every request that returns a wording counts as an unveil, the same as a phrase request.
+ * A failed query writes nothing.
  */
 export async function requestDefinitionTranslation(
   sourceLang: string,
   targetLang: string,
   phrase: string,
   lemma: string,
-  seeded = '',
   equivalent = '',
 ): Promise<DefinitionTranslationResult> {
   const key = requestKey(sourceLang, targetLang, phrase);
   if (!key || key.startsWith('\0') || key.endsWith('\0')) throw new Error('translate_failed');
   const knownTranslation = (
-    readPhraseTranslation(sourceLang, targetLang, phrase)?.text || seeded.trim()
+    readPhraseTranslation(sourceLang, targetLang, phrase)?.text ?? ''
   ).trim();
   const knownEquivalent = equivalent.trim().slice(0, EQUIVALENT_MAX);
-  const missing = !knownTranslation;
   if (knownTranslation && knownEquivalent) {
-    return {
-      translation: recordPhraseTranslation(sourceLang, targetLang, phrase, knownTranslation),
-      equivalent: knownEquivalent,
-    };
+    const stored = recordPhraseTranslation(sourceLang, targetLang, phrase, knownTranslation);
+    notePhraseUnveil(sourceLang, targetLang, phrase, stored);
+    return { translation: stored, equivalent: knownEquivalent };
   }
 
   const running = definitionPending.get(key);
@@ -118,26 +116,16 @@ export async function requestDefinitionTranslation(
     );
     if (!translation) throw new Error('translate_failed');
     const stored = recordPhraseTranslation(sourceLang, targetLang, phrase, translation);
-    if (missing) notePhraseUnveil(sourceLang, targetLang, phrase, stored);
+    notePhraseUnveil(sourceLang, targetLang, phrase, stored);
     return {
       translation: stored,
       equivalent: nextEquivalent,
     };
   } catch (err) {
     if (!knownTranslation) throw err;
+    notePhraseUnveil(sourceLang, targetLang, phrase, knownTranslation);
     return { translation: knownTranslation, equivalent: knownEquivalent };
   } finally {
     if (!running && definitionPending.get(key) === job) definitionPending.delete(key);
   }
-}
-
-async function resolvePhrase(
-  sourceLang: string,
-  targetLang: string,
-  phrase: string,
-  seeded: string,
-): Promise<string> {
-  const seed = seeded.trim();
-  if (seed) return seed;
-  return translatePhrase(phrase, sourceLang, targetLang);
 }

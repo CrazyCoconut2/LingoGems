@@ -105,7 +105,7 @@ export function recordPhraseTranslation(
   return next.text;
 }
 
-/** One click that revealed a translation which was already stored. */
+/** One time the user asked to see this translation. */
 export function notePhraseUnveil(
   sourceLang: string,
   targetLang: string,

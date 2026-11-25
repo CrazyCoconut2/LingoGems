@@ -12,12 +12,12 @@ import {
   template: `
     @if (stored(); as text) {
       @if (revealed()) {
-        <span class="translation shown">
+        <button type="button" class="translation shown" (click)="reveal($event)">
           {{ text }}
           @if (shownEquivalent(); as gloss) {
             <span class="equivalent">{{ gloss }}</span>
           }
-        </span>
+        </button>
       } @else {
         <button
           type="button"
@@ -115,7 +115,7 @@ import {
 
     .translation.shown {
       filter: none;
-      cursor: text;
+      cursor: pointer;
       user-select: text;
     }
 
@@ -138,8 +138,6 @@ export class PhraseTranslation {
   readonly phrase = input.required<string>();
   readonly sourceLang = input.required<string>();
   readonly targetLang = input.required<string>();
-  /** Translation already embedded on this passage. Used only when the cache has no text. */
-  readonly seeded = input('');
   /** Support-language gloss shown after the unveiled translation. */
   readonly equivalent = input('');
   /** Headword. When set, this definition click also asks for the sense equivalent. */
@@ -156,10 +154,9 @@ export class PhraseTranslation {
   constructor() {
     effect(() => {
       const phrase = this.phrase().trim();
-      const seeded = this.seeded().trim();
       const cached =
         readPhraseTranslation(this.sourceLang(), this.targetLang(), phrase)?.text.trim() ?? '';
-      this.stored.set(cached || seeded);
+      this.stored.set(cached);
       this.revealed.set(false);
       this.foundEquivalent.set('');
       this.failed.set(false);
@@ -193,7 +190,7 @@ export class PhraseTranslation {
       const lemma = this.lemma().trim();
       const text = lemma
         ? await this.translateDefinition(sourceLang, targetLang, phrase, lemma)
-        : await requestPhraseTranslation(sourceLang, targetLang, phrase, this.seeded());
+        : await requestPhraseTranslation(sourceLang, targetLang, phrase);
       if (this.phrase().trim() !== phrase) return;
       this.stored.set(text);
       this.revealed.set(true);
@@ -216,7 +213,6 @@ export class PhraseTranslation {
       targetLang,
       phrase,
       lemma,
-      this.seeded(),
       this.equivalent(),
     );
     const equivalent = result.equivalent.trim();

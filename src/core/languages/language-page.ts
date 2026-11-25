@@ -62,7 +62,8 @@ import {
 
 type ElementTrailStop = { id: string; definition: number; example?: string; guide?: string };
 
-type FilterSection = 'language' | 'status' | 'score' | 'definitions' | 'examples' | 'forms';
+type FilterSection =
+  'sort' | 'language' | 'status' | 'score' | 'definitions' | 'examples' | 'forms';
 
 type MetadataKind = 'definitions' | 'examples' | 'forms';
 
@@ -170,10 +171,10 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             <button
               type="button"
               class="toolbar-icon-btn"
-              [class.active]="filtersOpen() || filterCount() > 0"
+              [class.active]="filtersOpen() || filterCount() > 0 || sortActive()"
               [attr.aria-expanded]="filtersOpen()"
-              aria-label="Filter collection"
-              title="Filter"
+              aria-label="Filter and sort"
+              title="Filter and sort"
               (click)="openFilters($event)"
             >
               <svg viewBox="0 0 24 24">
@@ -183,47 +184,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 <span class="toolbar-filter-count">{{ filterCount() }}</span>
               }
             </button>
-
-            <div class="toolbar-menu">
-              <button
-                type="button"
-                class="toolbar-icon-btn"
-                [class.active]="sortOpen() || sortActive()"
-                [attr.aria-expanded]="sortOpen()"
-                [disabled]="!code()"
-                aria-label="Sort collection"
-                title="Sort"
-                (click)="toggleSort($event)"
-              >
-                <svg viewBox="0 0 24 24">
-                  <path d="m3 8 4-4 4 4" />
-                  <path d="M7 4v16" />
-                  <path d="m21 16-4 4-4-4" />
-                  <path d="M17 20V4" />
-                </svg>
-              </button>
-              @if (sortOpen()) {
-                <div
-                  class="toolbar-popover"
-                  role="listbox"
-                  aria-label="Sort collection"
-                  (click)="$event.stopPropagation()"
-                >
-                  @for (option of sortOptions; track option.value) {
-                    <button
-                      type="button"
-                      class="popover-option"
-                      role="option"
-                      [class.selected]="sort() === option.value"
-                      [attr.aria-selected]="sort() === option.value"
-                      (click)="chooseSort(option.value)"
-                    >
-                      {{ option.label }}
-                    </button>
-                  }
-                </div>
-              }
-            </div>
           </div>
         </section>
 
@@ -469,15 +429,15 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           class="filter-backdrop"
           role="dialog"
           aria-modal="true"
-          aria-label="Filters"
+          aria-label="Filter and sort"
           (click)="closeFiltersOnBackdrop($event)"
         >
           <div class="filter-panel" (click)="$event.stopPropagation()">
             <header class="filter-header">
               <div>
-                <h2 class="filter-title">Filters</h2>
+                <h2 class="filter-title">Filter and sort</h2>
                 <p class="filter-subtitle">
-                  Keep elements by language, status, score, counts, or metadata.
+                  Order the list, and keep elements by language, status, score, or metadata.
                 </p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
@@ -510,6 +470,41 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               @if (recomputeError()) {
                 <p class="recompute-error">{{ recomputeError() }}</p>
               }
+
+              <section class="filter-section" [class.expanded]="expanded() === 'sort'">
+                <button
+                  type="button"
+                  class="section-header"
+                  [attr.aria-expanded]="expanded() === 'sort'"
+                  (click)="toggleSection('sort')"
+                >
+                  <span class="section-title">
+                    Sort
+                    <span class="section-count">{{ sortLabel() }}</span>
+                  </span>
+                  <svg class="section-chevron" viewBox="0 0 24 24">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+                @if (expanded() === 'sort') {
+                  <div class="section-body">
+                    <div class="sort-options" role="listbox" aria-label="Sort">
+                      @for (option of sortOptions; track option.value) {
+                        <button
+                          type="button"
+                          class="sort-option"
+                          role="option"
+                          [class.selected]="sort() === option.value"
+                          [attr.aria-selected]="sort() === option.value"
+                          (click)="chooseSort(option.value)"
+                        >
+                          {{ option.label }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              </section>
 
               <section class="filter-section" [class.expanded]="expanded() === 'language'">
                 <button
@@ -1020,10 +1015,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       flex-shrink: 0;
     }
 
-    .toolbar-menu {
-      position: relative;
-    }
-
     .toolbar-icon-btn {
       position: relative;
       display: grid;
@@ -1090,23 +1081,13 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       pointer-events: none;
     }
 
-    .toolbar-popover {
-      position: absolute;
-      top: calc(100% + 0.35rem);
-      right: 0;
-      z-index: 30;
+    .sort-options {
       display: flex;
       flex-direction: column;
-      gap: 0.2rem;
-      min-width: 14.5rem;
-      padding: 0.55rem;
-      border: 1px solid var(--border);
-      border-radius: 0.65rem;
-      background: var(--surface);
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+      gap: 0.15rem;
     }
 
-    .popover-option {
+    .sort-option {
       display: block;
       width: 100%;
       text-align: left;
@@ -1120,11 +1101,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       cursor: pointer;
     }
 
-    .popover-option:hover {
+    .sort-option:hover {
       background: var(--surface-2);
     }
 
-    .popover-option.selected {
+    .sort-option.selected {
       background: rgba(var(--accent-rgb), 0.14);
       color: var(--accent-text);
       font-weight: 650;
@@ -2256,7 +2237,6 @@ export class LanguagePage {
   readonly metadataCatalog = signal<ElementCatalog>(emptyElementCatalog());
   readonly recomputing = signal(false);
   readonly recomputeError = signal('');
-  readonly sortOpen = signal(false);
   readonly filtersOpen = signal(false);
   readonly settingsOpen = signal(false);
   readonly statsOpen = signal(false);
@@ -2347,9 +2327,8 @@ export class LanguagePage {
   }
 
   @HostListener('document:click', ['$event'])
-  closeSortFromDocument(event: MouseEvent): void {
+  dismissSelectionFromDocument(event: MouseEvent): void {
     const target = event.target instanceof Element ? event.target : null;
-    if (!target?.closest('.toolbar-menu')) this.sortOpen.set(false);
     this.dismissSelectionFromOutside(target);
   }
 
@@ -2378,9 +2357,7 @@ export class LanguagePage {
     }
     if (this.selecting()) {
       this.clearSelection();
-      return;
     }
-    this.sortOpen.set(false);
   }
 
   openElement(id: string): void {
@@ -2945,22 +2922,17 @@ export class LanguagePage {
     this.search.set(elementPrefixSearch(''));
   }
 
-  toggleSort(event: Event): void {
-    event.stopPropagation();
-    if (!this.code()) return;
-    this.sortOpen.update((open) => !open);
+  sortLabel(): string {
+    return this.sortOptions.find((option) => option.value === this.sort())?.label ?? 'None';
   }
 
   chooseSort(sort: ElementSort): void {
-    if (!this.code()) return;
-    this.sortOpen.set(false);
     this.sort.set(this.sort() === sort ? 'none' : sort);
   }
 
   openDiscover(event: Event): void {
     event.stopPropagation();
     if (!this.code()) return;
-    this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.settingsOpen()) this.closeSettings();
     if (this.statsOpen()) this.closeStats();
@@ -2991,7 +2963,6 @@ export class LanguagePage {
 
   openFilters(event: Event): void {
     event.stopPropagation();
-    this.sortOpen.set(false);
     if (this.discoverOpen()) this.closeDiscover();
     if (this.settingsOpen()) this.closeSettings();
     if (this.statsOpen()) this.closeStats();
@@ -3134,7 +3105,6 @@ export class LanguagePage {
   }
 
   openSettings(): void {
-    this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.discoverOpen()) this.closeDiscover();
     if (this.statsOpen()) this.closeStats();
@@ -3157,7 +3127,6 @@ export class LanguagePage {
   }
 
   openStats(): void {
-    this.sortOpen.set(false);
     if (this.filtersOpen()) this.closeFilters();
     if (this.discoverOpen()) this.closeDiscover();
     if (this.settingsOpen()) this.closeSettings();
@@ -3267,7 +3236,6 @@ export class LanguagePage {
     const seq = ++this.loadId;
     const code = language.trim().toLowerCase();
     this.clearSelection();
-    this.sortOpen.set(false);
     if (this.discoverOpen()) this.closeDiscover();
     this.elementId.set('');
     this.trail.set([]);

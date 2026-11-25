@@ -969,7 +969,6 @@ function writeExampleSuggestions(
                                           [phrase]="passage.text"
                                           [sourceLang]="element().language"
                                           [targetLang]="translationTarget()"
-                                          [seeded]="seededTranslation(passage)"
                                           [equivalent]="labeledEquivalent(equivalent)"
                                           [lemma]="element().title"
                                         />
@@ -1031,7 +1030,6 @@ function writeExampleSuggestions(
                                                   [phrase]="examplePassage.text"
                                                   [sourceLang]="element().language"
                                                   [targetLang]="translationTarget()"
-                                                  [seeded]="seededTranslation(examplePassage)"
                                                 />
                                               }
                                             </p>
@@ -1133,7 +1131,6 @@ function writeExampleSuggestions(
                                           [phrase]="passage.text"
                                           [sourceLang]="element().language"
                                           [targetLang]="translationTarget()"
-                                          [seeded]="seededTranslation(passage)"
                                           [equivalent]="labeledEquivalent(equivalent)"
                                           [lemma]="element().title"
                                         />
@@ -1367,7 +1364,6 @@ function writeExampleSuggestions(
                                             [phrase]="passage.text"
                                             [sourceLang]="element().language"
                                             [targetLang]="translationTarget()"
-                                            [seeded]="seededTranslation(passage)"
                                             [equivalent]="labeledEquivalent(equivalent)"
                                             [lemma]="element().title"
                                             (equivalentFound)="noteEquivalent(index, $event)"
@@ -1503,7 +1499,6 @@ function writeExampleSuggestions(
                                                 [phrase]="passage.text"
                                                 [sourceLang]="element().language"
                                                 [targetLang]="translationTarget()"
-                                                [seeded]="seededTranslation(passage)"
                                               />
                                             }
                                           </p>
@@ -1618,7 +1613,6 @@ function writeExampleSuggestions(
                             [phrase]="passage.text"
                             [sourceLang]="element().language"
                             [targetLang]="translationTarget()"
-                            [seeded]="seededTranslation(passage)"
                           />
                         }
                       </p>
@@ -2197,8 +2191,8 @@ function writeExampleSuggestions(
                           "
                           [attr.title]="translatingExample() === key ? 'Translating…' : 'Translate'"
                           [attr.aria-busy]="translatingExample() === key ? true : null"
-                          [disabled]="!canTranslateListedExample(phrase, raw, key)"
-                          (click)="translateListedExample(phrase, raw, key)"
+                          [disabled]="!canTranslateListedExample(phrase, key)"
+                          (click)="translateListedExample(phrase, key)"
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="m5 8 6 6" />
@@ -2282,11 +2276,11 @@ function writeExampleSuggestions(
                             <textarea
                               class="line-edit"
                               rows="1"
-                              [value]="exampleTranslationField(phrase, raw)"
+                              [value]="exampleTranslationField(phrase)"
                               placeholder="Translation"
                               aria-label="Translation"
                               (input)="onExampleTranslationInput(phrase, $event)"
-                              (blur)="commitExampleTranslation(phrase, raw)"
+                              (blur)="commitExampleTranslation(phrase)"
                               (keydown.enter)="$event.preventDefault()"
                             ></textarea>
                           </p>
@@ -5746,20 +5740,8 @@ export class ElementModal {
 
   readonly supportAvailable = computed(() => this.translationTarget() !== '');
 
-  /** Stored gloss and example translations, hidden when this language has no support language. */
-  shownTranslations(passage: ParsedPassage): ParsedPassage['translations'] {
-    const target = this.translationTarget();
-    if (!target) return [];
-    return passage.translations.filter((item) => item.language === target);
-  }
-
   labeledTranslation(translation: { text: string }): string {
     return translation.text.trim();
-  }
-
-  /** A translation already stored on this passage, used only when the cache has none. */
-  seededTranslation(passage: ParsedPassage): string {
-    return this.shownTranslations(passage)[0]?.text ?? '';
   }
 
   labeledEquivalent(text: string): string {
@@ -7384,7 +7366,7 @@ export class ElementModal {
   }
 
   /** Stored translation for this example wording, the same way a definition draft shows one. */
-  listedExampleTranslation(phrase: string, raw: string): string {
+  listedExampleTranslation(phrase: string): string {
     this.exampleTranslationVersion();
     const text = plainPassage(phrase).trim();
     if (!text || !this.supportAvailable()) return '';
@@ -7392,18 +7374,16 @@ export class ElementModal {
       readPhraseTranslation(this.element().language, this.translationTarget(), text)?.text.trim() ??
       '';
     if (cached) return cached;
-    const passage = parsePassage(raw);
-    if (passage.text.trim() !== text) return '';
-    return this.shownTranslations(passage)[0]?.text.trim() ?? '';
+    return '';
   }
 
   /** Translation shown under an example, including an unsaved edit or a clear. */
-  exampleTranslationField(phrase: string, raw: string): string {
+  exampleTranslationField(phrase: string): string {
     const text = plainPassage(phrase).trim();
     const edit = this.exampleTranslationEdit();
     if (edit?.phrase === text) return edit.text;
     if (text && this.exampleTranslationCleared() === text) return '';
-    return this.listedExampleTranslation(phrase, raw);
+    return this.listedExampleTranslation(phrase);
   }
 
   onExampleTranslationInput(phrase: string, event: Event): void {
@@ -7412,49 +7392,41 @@ export class ElementModal {
     this.exampleTranslationEdit.set({ phrase: text, text: this.inputValue(event) });
   }
 
-  commitExampleTranslation(phrase: string, raw: string): void {
+  commitExampleTranslation(phrase: string): void {
     const text = plainPassage(phrase).trim();
     const edit = this.exampleTranslationEdit();
     if (!text || !edit || edit.phrase !== text) return;
     const next = edit.text.trim();
     this.exampleTranslationEdit.set(null);
-    const current = this.listedExampleTranslation(phrase, raw).trim();
+    const current = this.listedExampleTranslation(phrase).trim();
     if (next === current && this.exampleTranslationCleared() !== text) return;
     replacePhraseTranslation(this.element().language, this.translationTarget(), text, next);
     this.exampleTranslationCleared.set(next ? '' : text);
     this.exampleTranslationVersion.update((version) => version + 1);
   }
 
-  canTranslateListedExample(phrase: string, raw: string, key: string): boolean {
+  canTranslateListedExample(phrase: string, key: string): boolean {
     return (
       this.supportAvailable() &&
       !!plainPassage(phrase).trim() &&
-      !this.exampleTranslationField(phrase, raw).trim() &&
+      !this.exampleTranslationField(phrase).trim() &&
       this.translatingExample() !== key &&
       !this.aiBusy() &&
       !this.translating()
     );
   }
 
-  async translateListedExample(phrase: string, raw: string, key: string): Promise<void> {
+  async translateListedExample(phrase: string, key: string): Promise<void> {
     const text = plainPassage(phrase).trim();
-    if (!this.canTranslateListedExample(phrase, raw, key)) return;
+    if (!this.canTranslateListedExample(phrase, key)) return;
     if (!readStoredAiCredentials().keys.length) {
       this.exampleError.set('Save an API key first.');
       return;
     }
-    const passage = parsePassage(raw);
-    const seeded =
-      passage.text.trim() === text ? (this.shownTranslations(passage)[0]?.text ?? '') : '';
     this.translatingExample.set(key);
     this.exampleError.set('');
     try {
-      await requestPhraseTranslation(
-        this.element().language,
-        this.translationTarget(),
-        text,
-        seeded,
-      );
+      await requestPhraseTranslation(this.element().language, this.translationTarget(), text);
       if (this.exampleTranslationCleared() === text) this.exampleTranslationCleared.set('');
       this.exampleTranslationVersion.update((version) => version + 1);
     } catch {
@@ -8299,12 +8271,7 @@ export class ElementModal {
       const translated =
         editor?.kind === 'definition'
           ? await this.translateDefinitionDraft(editor.index, source, target, text)
-          : await requestPhraseTranslation(
-              source,
-              target,
-              text,
-              this.embeddedDraftTranslation(text),
-            );
+          : await requestPhraseTranslation(source, target, text);
       if (ticket !== this.translateTicket) return;
       this.translationEdit.set(null);
       this.translationCleared.set('');
@@ -8328,7 +8295,6 @@ export class ElementModal {
       target,
       text,
       this.element().title,
-      this.embeddedDraftTranslation(text),
       this.sheetEquivalent(),
     );
     if (result.equivalent.trim() && !this.sheetEquivalent()) {
@@ -9098,25 +9064,7 @@ export class ElementModal {
         phrase,
       )?.text.trim() ?? '';
     if (cached) return cached;
-    return this.embeddedDraftTranslation(phrase);
-  }
-
-  /** An old marker for this exact draft, so the first click can skip the model. */
-  private embeddedDraftTranslation(phrase: string): string {
-    const editor = this.editor();
-    const target = this.translationTarget();
-    if (!editor || !target || !phrase) return '';
-    const element = this.currentElement();
-    const raw =
-      editor.kind === 'definition'
-        ? (element.definitions[editor.index]?.text ?? '')
-        : editor.exampleIndex == null
-          ? ''
-          : (element.definitions[editor.definitionIndex]?.examples[editor.exampleIndex]?.text ??
-            '');
-    const passage = parsePassage(raw);
-    if (passage.text.trim() !== phrase) return '';
-    return passage.translations.find((item) => item.language === target)?.text ?? '';
+    return '';
   }
 
   private focusDraft(): void {

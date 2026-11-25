@@ -1,10 +1,6 @@
 import { Component, computed, effect, input, signal } from '@angular/core';
 import { readStoredAiCredentials } from 'ai';
-import {
-  notePhraseUnveil,
-  readPhraseTranslation,
-  requestPhraseTranslation,
-} from './translation-cache';
+import { readPhraseTranslation, requestPhraseTranslation } from './translation-cache';
 
 /** Translate one learning-language comment into the support language. */
 @Component({
@@ -130,17 +126,12 @@ export class FeedbackTranslation {
     this.failed.set(false);
     this.problem.set('');
     const cached = readPhraseTranslation(sourceLang, targetLang, text)?.text.trim() ?? '';
-    if (cached) {
-      this.shown.set(cached);
-      notePhraseUnveil(sourceLang, targetLang, text);
-      return;
-    }
-    if (!readStoredAiCredentials().keys.length) {
+    if (!cached && !readStoredAiCredentials().keys.length) {
       this.failed.set(true);
       this.problem.set('Save an API key first.');
       return;
     }
-    this.busy.set(true);
+    if (!cached) this.busy.set(true);
     try {
       const translated = await requestPhraseTranslation(sourceLang, targetLang, text);
       if (ticket !== this.ticket || this.text().trim() !== text) return;

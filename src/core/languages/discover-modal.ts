@@ -245,7 +245,6 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                                       [phrase]="passage.text"
                                       [sourceLang]="language()"
                                       [targetLang]="supportLanguage()"
-                                      [seeded]="seededTranslation(passage)"
                                       [equivalent]="sense.equivalent ?? ''"
                                     />
                                   }
@@ -261,7 +260,6 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                                           [phrase]="example.text"
                                           [sourceLang]="language()"
                                           [targetLang]="supportLanguage()"
-                                          [seeded]="seededTranslation(example)"
                                         />
                                       }
                                     </p>
@@ -1613,18 +1611,6 @@ export class DiscoverModal implements OnInit {
 
   supportLanguage(): string {
     return supportLanguageFor(this.language());
-  }
-
-  /** A translation already stored on this passage, used only when the cache has none. */
-  seededTranslation(passage: ParsedPassage): string {
-    return this.shownTranslations(passage)[0]?.text ?? '';
-  }
-
-  /** Sense translations for the current support language, or none. */
-  shownTranslations(passage: ParsedPassage): ParsedPassage['translations'] {
-    const target = this.supportLanguage();
-    if (!target) return [];
-    return passage.translations.filter((item) => item.language === target);
   }
 
   canClear(): boolean {

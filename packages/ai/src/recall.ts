@@ -33,10 +33,10 @@ Give 0 when none of the stored senses are present.
 extra is present only when the answer clearly states a real additional sense of this lemma. A paraphrase of a stored sense is not extra. Do not invent a sense the answer did not state.
 extra.gloss is a short dictionary definition of that new sense, written in learningLang.
 extra.example is one sentence in learningLang that uses the lemma and makes that new sense obvious.
-When answerLang differs from learningLang, extra.equivalent is the headword's equivalent for that new sense in answerLang. Otherwise omit equivalent.
+When answerLang differs from learningLang, do not include a translation or an equivalent. The learner asks for those separately.
 Omit extra entirely when there is no additional sense.
 feedback comments on what was covered and how close it was. Write it in learningLang, as a natural sentence. Do not quote the stored definition, the learner's wording, or any phrase, and do not use quotation marks. Do not put the numeric score in feedback.
-JSON only: {"coverage":0,"feedback":"<comment>","extra":{"gloss":"<definition>","example":"<sentence>","equivalent":"<headword>"}}`;
+JSON only: {"coverage":0,"feedback":"<comment>","extra":{"gloss":"<definition>","example":"<sentence>"}}`;
 
 export type RecallSense = {
   gloss: string;
@@ -136,11 +136,7 @@ function parseCorrection(parsed: unknown): RecallCorrection | null {
   return { corrected, mistakes };
 }
 
-function parseExtra(
-  value: unknown,
-  senses: readonly RecallSense[],
-  sameLanguage: boolean,
-): RecallExtra | null {
+function parseExtra(value: unknown, senses: readonly RecallSense[]): RecallExtra | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const source = value as Record<string, unknown>;
   const gloss = clip(source['gloss'], GLOSS_MAX);
@@ -148,15 +144,10 @@ function parseExtra(
   const known = gloss.toLowerCase();
   if (senses.some((sense) => sense.gloss.trim().toLowerCase() === known)) return null;
   const example = clip(source['example'], EXAMPLE_MAX);
-  const equivalent = sameLanguage ? '' : clip(source['equivalent'], EQUIVALENT_MAX);
-  return { gloss, example, equivalent };
+  return { gloss, example, equivalent: '' };
 }
 
-function parseEvaluation(
-  parsed: unknown,
-  senses: readonly RecallSense[],
-  sameLanguage: boolean,
-): RecallEvaluation | null {
+function parseEvaluation(parsed: unknown, senses: readonly RecallSense[]): RecallEvaluation | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
@@ -169,7 +160,7 @@ function parseEvaluation(
   return {
     coverage,
     feedback,
-    extra: parseExtra(source['extra'], senses, sameLanguage),
+    extra: parseExtra(source['extra'], senses),
   };
 }
 
@@ -210,8 +201,6 @@ export async function evaluateRecallAnswer(
   if (!answer || !senses.length) {
     return { coverage: 0, feedback: '', extra: null };
   }
-  const sameLanguage =
-    request.learningLanguage.trim().toLowerCase() === request.answerLanguage.trim().toLowerCase();
   const input: CompleteJsonInput = {
     system: EVALUATE_SYSTEM_PROMPT,
     user: buildEvaluateUserMessage({ ...request, answer, senses }),
@@ -220,8 +209,8 @@ export async function evaluateRecallAnswer(
   };
   try {
     const complete = () => completeRecall(input);
-    let evaluation = parseEvaluation(await complete(), senses, sameLanguage);
-    if (!evaluation) evaluation = parseEvaluation(await complete(), senses, sameLanguage);
+    let evaluation = parseEvaluation(await complete(), senses);
+    if (!evaluation) evaluation = parseEvaluation(await complete(), senses);
     if (!evaluation) aiError(AI_ERROR.RESPONSE_INVALID);
     return evaluation;
   } catch (err) {
