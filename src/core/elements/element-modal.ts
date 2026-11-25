@@ -867,9 +867,6 @@ function writeExampleSuggestions(
                                   </svg>
                                   <span class="log-edit-copies">
                                     <span class="log-game">Exercise</span>
-                                    @if (entry.event === 'game' && entry.answer.trim()) {
-                                      <span class="log-wrote">{{ entry.answer }}</span>
-                                    }
                                     <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                                   </span>
                                 </span>
@@ -5495,18 +5492,6 @@ function writeExampleSuggestions(
       justify-content: space-between;
       align-self: stretch;
       gap: 0.75rem;
-    }
-
-    .log-wrote {
-      display: -webkit-box;
-      max-width: 100%;
-      overflow: hidden;
-      color: var(--text);
-      font-size: 0.84rem;
-      font-weight: 500;
-      line-height: 1.35;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
     }
 
     .log-answer {
