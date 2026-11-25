@@ -54,21 +54,13 @@ export type ElementForm = {
   metadata: ElementMetadata;
 };
 
-/** Highest score a translation or example answer can receive. */
-export const TRANSLATION_GEM_MAX = 5;
-
-/** A definition recall is scored out of 10, plus 1 when the answer adds a sense. */
+/** Highest stored score for a recall, including the extra sense point. */
 export const DEFINITION_COVERAGE_MAX = 10;
 export const DEFINITION_SCORE_MAX = 11;
 
 export type DefinitionLogBy = 'user' | 'ai';
 
-export type DefinitionGame = 'translation' | 'example' | 'definition';
-
-/** Highest stored score for one game. */
-export function gameScoreCeiling(game: DefinitionGame): number {
-  return game === 'definition' ? DEFINITION_SCORE_MAX : TRANSLATION_GEM_MAX;
-}
+export type DefinitionGame = 'definition';
 
 /** The definition passage, equivalent wording, and metadata at one moment. */
 export type DefinitionSnapshot = {
@@ -81,7 +73,7 @@ export type DefinitionSnapshot = {
 export type DefinitionGameLog = {
   event: 'game';
   game: DefinitionGame;
-  /** Score from 0 to {@link gameScoreCeiling}. */
+  /** Score from 0 to {@link DEFINITION_SCORE_MAX}. */
   score: number;
   by: DefinitionLogBy;
   at: number;
@@ -91,6 +83,8 @@ export type DefinitionGameLog = {
   extra?: true;
   /** Definition when this attempt was first scored. */
   snapshot?: DefinitionSnapshot;
+  /** Set when this recall was finished and earned a gem. Older logs have none. */
+  gem?: GemTier;
 };
 
 /** A change to the definition passage, its equivalent, or its metadata. */
@@ -165,45 +159,73 @@ export type ElementDefinition = {
 /** A definition taken out of the editor. */
 export type RemovedDefinition = ElementDefinition & { deletedAt: number };
 
-const GEM_GAMES: readonly DefinitionGame[] = ['translation', 'example', 'definition'];
+const GEM_TIERS = ['red', 'orange', 'green'] as const;
 
-/** Gems earned from scored exercises. One count per game. */
-export type ElementGemCounts = Record<DefinitionGame, number>;
+export type GemTier = (typeof GEM_TIERS)[number];
+
+/** Gems earned from recall exercises. One count per color. */
+export type ElementGemCounts = Record<GemTier, number>;
+
+/** Coverage out of 10 for a recall. The extra sense point is not part of it. */
+export function definitionCoverage(entry: { score: number; extra?: boolean }): number {
+  const coverage = entry.extra ? entry.score - 1 : entry.score;
+  return Math.min(DEFINITION_COVERAGE_MAX, Math.max(0, coverage));
+}
 
 /**
- * A score above 0 earns one gem when it meets the average of earlier scores.
- * `priorCount` of 0 is the first attempt, so any score above 0 earns.
+ * The gem for one finished recall compared with the mean of earlier coverages.
+ * The first recall has no average, and a score under the average earns nothing.
+ * A gap of 0 up to 1.5 is red, 1.5 up to 3 is orange, and 3 or more is green.
+ * Giving up is not a finished exercise, so it earns nothing.
  */
-export function earnsGem(priorSum: number, priorCount: number, score: number): boolean {
-  if (!(score > 0)) return false;
-  if (priorCount <= 0) return true;
-  return score * priorCount >= priorSum;
+function gemTierForScore(priorSum: number, priorCount: number, score: number): GemTier | null {
+  if (priorCount <= 0 || !Number.isFinite(score)) return null;
+  const gap = score - priorSum / priorCount;
+  if (!(gap >= 0)) return null;
+  if (gap < 1.5) return 'red';
+  if (gap < 3) return 'orange';
+  return 'green';
 }
 
-/** Whether this stored attempt earned its game's gem. Earlier attempts come first in time. */
-export function gameEarnedGem(log: readonly ElementLogEntry[], entry: DefinitionGameLog): boolean {
+/** A recall was finished when an answer was kept. Giving up stores an empty answer. */
+function recallFinished(entry: { answer?: string }): boolean {
+  return !!entry.answer?.trim();
+}
+
+/** The gem stored on this recall when it was finished, or null. */
+export function storedGem(entry: { gem?: unknown }): GemTier | null {
+  return entry.gem === 'red' || entry.gem === 'orange' || entry.gem === 'green' ? entry.gem : null;
+}
+
+/**
+ * The gem a finished recall earns against earlier coverages.
+ * Written onto the log entry when the exercise is finished. It is not applied to older entries.
+ */
+export function attributeGem(
+  log: readonly ElementLogEntry[],
+  entry: DefinitionGameLog,
+): GemTier | null {
+  if (entry.game !== 'definition' || !recallFinished(entry) || !Number.isFinite(entry.score)) {
+    return null;
+  }
   let priorSum = 0;
   let priorCount = 0;
-  for (const attempt of orderedGameAttempts(log, entry.game)) {
-    if (attempt === entry) return earnsGem(priorSum, priorCount, entry.score);
-    priorSum += attempt.score;
+  for (const attempt of orderedGameAttempts(log, 'definition')) {
+    if (attempt === entry || attempt.at > entry.at) continue;
+    if (!Number.isFinite(attempt.score)) continue;
+    priorSum += definitionCoverage(attempt);
     priorCount += 1;
   }
-  return false;
+  return gemTierForScore(priorSum, priorCount, definitionCoverage(entry));
 }
 
-/** Gems earned from this element's log. */
+/** Gems stored on this element's finished recalls. */
 export function elementGemCounts(element: { log?: readonly ElementLogEntry[] }): ElementGemCounts {
-  const counts: ElementGemCounts = { translation: 0, example: 0, definition: 0 };
-  const log = element.log ?? [];
-  for (const game of GEM_GAMES) {
-    let priorSum = 0;
-    let priorCount = 0;
-    for (const attempt of orderedGameAttempts(log, game)) {
-      if (earnsGem(priorSum, priorCount, attempt.score)) counts[game] += 1;
-      priorSum += attempt.score;
-      priorCount += 1;
-    }
+  const counts: ElementGemCounts = { red: 0, orange: 0, green: 0 };
+  for (const entry of element.log ?? []) {
+    if (entry.event !== 'game') continue;
+    const gem = storedGem(entry);
+    if (gem) counts[gem] += 1;
   }
   return counts;
 }
@@ -225,19 +247,6 @@ function orderedGameAttempts(
 /** The strings a form list is matched and highlighted with. */
 export function formTexts(forms: readonly ElementForm[]): string[] {
   return forms.map((form) => form.text);
-}
-
-/** 1 is Translation, 2 is Example, and 3 is Definition. */
-export type ElementMode = 1 | 2 | 3;
-
-const ELEMENT_MODE_LABELS: Record<ElementMode, string> = {
-  1: 'Translation',
-  2: 'Example',
-  3: 'Definition',
-};
-
-export function elementModeLabel(mode: ElementMode): string {
-  return ELEMENT_MODE_LABELS[mode];
 }
 
 export type StoredElement = {
@@ -645,9 +654,7 @@ function removedRecord(record: unknown): RemovedRecord | null {
   const deletedAt = deletedAtOf(record);
   if (!record || typeof record !== 'object' || deletedAt == null) return null;
   const id =
-    typeof (record as { id?: unknown }).id === 'string'
-      ? (record as { id: string }).id.trim()
-      : '';
+    typeof (record as { id?: unknown }).id === 'string' ? (record as { id: string }).id.trim() : '';
   if (!id) return null;
   return { id, language: languageOf(record) };
 }
@@ -819,6 +826,7 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     answer?: unknown;
     explanation?: unknown;
     extra?: unknown;
+    gem?: unknown;
     example?: unknown;
     forms?: unknown;
     before?: unknown;
@@ -900,11 +908,9 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     };
   }
   if (source.event != null && source.event !== 'game') return null;
-  if (source.game !== 'translation' && source.game !== 'example' && source.game !== 'definition') {
-    return null;
-  }
+  if (source.game !== 'definition') return null;
   const score = Math.round(Number(source.score));
-  if (!Number.isInteger(score) || score < 0 || score > gameScoreCeiling(source.game)) return null;
+  if (!Number.isInteger(score) || score < 0 || score > DEFINITION_SCORE_MAX) return null;
   if (source.by !== 'user' && source.by !== 'ai') return null;
   if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
   const answer = typeof source.answer === 'string' ? source.answer : '';
@@ -912,7 +918,7 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     typeof source.explanation === 'string' ? source.explanation.replace(/\s+/g, ' ').trim() : '';
   const entry: DefinitionGameLog = {
     event: 'game',
-    game: source.game,
+    game: 'definition',
     score,
     by: source.by,
     at: source.at,
@@ -920,6 +926,8 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
   };
   if (explanation) entry.explanation = explanation;
   if (source.extra === true && source.game === 'definition' && score > 0) entry.extra = true;
+  const gem = storedGem(source);
+  if (gem && source.game === 'definition' && answer.trim()) entry.gem = gem;
   const snapshot = normalizeSnapshot(source.snapshot);
   if (snapshot) entry.snapshot = snapshot;
   return entry;
@@ -1134,7 +1142,8 @@ function normalizeEquivalentCopies(value: unknown): { language: string; text: st
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') continue;
     const source = raw as { language?: unknown; text?: unknown };
-    const language = typeof source.language === 'string' ? source.language.trim().toLowerCase() : '';
+    const language =
+      typeof source.language === 'string' ? source.language.trim().toLowerCase() : '';
     const text = typeof source.text === 'string' ? source.text.trim() : '';
     if (!language || !text) continue;
     copies.push({ language, text });

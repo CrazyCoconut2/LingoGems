@@ -22,12 +22,13 @@ import {
   definitionScoreAverage,
   definitionScoreStep,
   displayTitle,
+  attributeGem,
+  storedGem,
   equivalentTextFor,
   linkEquivalent,
   parsePassage,
   type ParsedPassage,
-  elementModeLabel,
-  type ElementMode,
+  type GemTier,
   formTexts,
   highlightDefinitionPassage,
   isValidForm,
@@ -74,6 +75,7 @@ import {
   type RelatedWord,
 } from 'ai';
 import { DefinitionRecall, type RecallFinish } from './definition-recall';
+import { GemIcon } from './gem-icon';
 import { ShowText } from './show-text';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { supportLanguageFor } from '../languages/translation-language';
@@ -497,6 +499,7 @@ function writeExampleSuggestions(
     PhraseTranslation,
     ShowText,
     DefinitionRecall,
+    GemIcon,
     CdkScrollable,
   ],
   template: `
@@ -791,7 +794,9 @@ function writeExampleSuggestions(
                                   <path
                                     d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
                                   />
-                                  <path d="M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
+                                  <path
+                                    d="M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"
+                                  />
                                   <path d="m9 14 2 2 4-4" />
                                 </svg>
                                 <span class="log-edit-copies">
@@ -834,15 +839,33 @@ function writeExampleSuggestions(
                               </svg>
                             </button>
                           }
+                          @if (entry.event === 'game' && exerciseGem(entry); as tier) {
+                            <span
+                              class="gem-gain"
+                              role="img"
+                              [attr.data-gem]="tier"
+                              [attr.aria-label]="earnedGemLabel(tier)"
+                            >
+                              <app-gem-icon class="gem-gain-stone" [tier]="tier" />
+                            </span>
+                          }
                           @if (entry.event === 'game' && gaveUp(entry)) {
-                            <span class="score-readout score-plain" aria-label="Score 0 out of 10">
+                            <span
+                              class="score-readout score-plain"
+                              [attr.data-gem]="exerciseGem(entry)"
+                              aria-label="Score 0 out of 10"
+                            >
                               <span>0</span>
                               <span class="score-max">/10</span>
                             </span>
                           } @else if (entry.event === 'game' && element().deletedAt) {
-                            <span class="score-readout score-plain" [attr.aria-label]="scoreAria(entry)">
+                            <span
+                              class="score-readout score-plain"
+                              [attr.data-gem]="exerciseGem(entry)"
+                              [attr.aria-label]="scoreAria(entry)"
+                            >
                               <span>{{ shownGameScore(entry) }}</span>
-                              <span class="score-max">{{ gameScoreMaxLabel(entry.game) }}</span>
+                              <span class="score-max">/{{ scoreMax }}</span>
                               @if (entry.extra) {
                                 <span class="score-max">+1</span>
                               }
@@ -850,7 +873,7 @@ function writeExampleSuggestions(
                           } @else if (entry.event === 'game') {
                             <label
                               class="score-readout"
-                              [attr.data-game]="entry.game"
+                              [attr.data-gem]="exerciseGem(entry)"
                               [attr.aria-label]="scoreAria(entry)"
                             >
                               <input
@@ -858,13 +881,13 @@ function writeExampleSuggestions(
                                 type="number"
                                 inputmode="numeric"
                                 [attr.min]="0"
-                                [attr.max]="gameScoreOutOf(entry.game)"
+                                [attr.max]="scoreMax"
                                 [value]="shownGameScore(entry)"
                                 [disabled]="busy()"
                                 (change)="updateGameScore(entry, $event)"
                                 (click)="$event.stopPropagation()"
                               />
-                              <span class="score-max">{{ gameScoreMaxLabel(entry.game) }}</span>
+                              <span class="score-max">/{{ scoreMax }}</span>
                               @if (entry.extra) {
                                 <span class="score-max">+1</span>
                               }
@@ -964,7 +987,9 @@ function writeExampleSuggestions(
                                 </div>
                               }
                               @let meta = entries(entry.definition?.metadata ?? {});
-                              @if ((supportAvailable() && equivalent && !passage.text) || meta.length) {
+                              @if (
+                                (supportAvailable() && equivalent && !passage.text) || meta.length
+                              ) {
                                 <ul class="sense-meta">
                                   @if (supportAvailable() && equivalent && !passage.text) {
                                     <li class="sense-equivalent">
@@ -997,7 +1022,9 @@ function writeExampleSuggestions(
                                             <p class="passage">
                                               <ng-container
                                                 [ngTemplateOutlet]="loggedWords"
-                                                [ngTemplateOutletContext]="{ text: examplePassage.text }"
+                                                [ngTemplateOutletContext]="{
+                                                  text: examplePassage.text,
+                                                }"
                                               />
                                               @if (supportAvailable()) {
                                                 <app-phrase-translation
@@ -1024,10 +1051,17 @@ function writeExampleSuggestions(
                                           <ul class="pills">
                                             @for (field of exampleMeta; track field.key) {
                                               @let color = metaColor('examples', field.key);
-                                              <li [class.colored]="color" [style.--meta-color]="color">
+                                              <li
+                                                [class.colored]="color"
+                                                [style.--meta-color]="color"
+                                              >
                                                 <span>
-                                                  <span class="sense-meta-key">{{ label(field.key) }}</span>
-                                                  <span class="sense-meta-value">{{ label(field.value) }}</span>
+                                                  <span class="sense-meta-key">{{
+                                                    label(field.key)
+                                                  }}</span>
+                                                  <span class="sense-meta-value">{{
+                                                    label(field.value)
+                                                  }}</span>
                                                 </span>
                                               </li>
                                             }
@@ -1060,7 +1094,9 @@ function writeExampleSuggestions(
                             }
                           </div>
                         }
-                        @if (entry.event === 'game' && !gaveUp(entry) && exerciseEntry() === $index) {
+                        @if (
+                          entry.event === 'game' && !gaveUp(entry) && exerciseEntry() === $index
+                        ) {
                           <div class="log-detail feedback-note">
                             <div class="log-detail-head">
                               <span class="log-game">Feedback</span>
@@ -1071,9 +1107,9 @@ function writeExampleSuggestions(
                                 [targetLang]="translationTarget()"
                               />
                             </div>
-                            <p class="log-feedback">{{
-                              (entry.explanation || entry.answer) | upwardQuote
-                            }}</p>
+                            <p class="log-feedback">
+                              {{ entry.explanation || entry.answer | upwardQuote }}
+                            </p>
                             @if (note.shown(); as text) {
                               <p class="log-translation">{{ text | upwardQuote }}</p>
                             }
@@ -1115,7 +1151,10 @@ function writeExampleSuggestions(
                                 </div>
                               }
                               @let meta = entries(snapshot?.metadata ?? {});
-                              @if ((supportAvailable() && equivalent.trim() && !passage.text) || meta.length) {
+                              @if (
+                                (supportAvailable() && equivalent.trim() && !passage.text) ||
+                                meta.length
+                              ) {
                                 <ul class="sense-meta">
                                   @if (supportAvailable() && equivalent.trim() && !passage.text) {
                                     <li class="sense-equivalent">
@@ -1154,7 +1193,9 @@ function writeExampleSuggestions(
                                 class="linguagem-highlighted"
                                 [style.--score-color]="part.color || null"
                                 [textContent]="part.text"
-                                (click)="openFromDefinition(part.matches[0].elementId, -1, part.text)"
+                                (click)="
+                                  openFromDefinition(part.matches[0].elementId, -1, part.text)
+                                "
                               ></button>
                             } @else if (part.current) {
                               <span
@@ -1177,375 +1218,385 @@ function writeExampleSuggestions(
             </div>
           }
           <div class="element-view" [class.offstage]="historyOpen()">
-          @if (element().definitions.length && !recallSkipped()) {
-            <app-definition-recall
-              [elementId]="element().id"
-              [lemma]="shownTitle()"
-              [learningLanguage]="element().language"
-              [supportLanguage]="translationTarget()"
-              [senses]="recallSenses()"
-              [examples]="recallExamples()"
-              [settled]="recallSettled()"
-              (finished)="finishRecall($event)"
-              (acceptExtra)="acceptRecallExtra($event)"
-            />
-          }
-          @if (element().definitions.length && !recallPending()) {
-            @let definitions = shownDefinitions();
-            <ol class="definitions">
-              @for (definition of definitions; track $index) {
-                @let index = $index;
-                <li
-                  class="sense"
-                  [class.open]="senseStage(index) === 'open'"
-                  [attr.id]="'sense-' + index"
-                  (click)="onSenseClick($event, index)"
-                >
-                  @if (senseStage(index) !== 'open') {
-                    <div class="sense-row" [class.actionable]="true">
-                      <span class="sense-index">Definition {{ index + 1 }}</span>
-                      <div class="sense-rail">
-                        <div class="sense-actions">
-                          @if (senseStage(index) === 'closed') {
-                            <button
-                              type="button"
-                              class="icon-btn"
-                              aria-label="Show examples"
-                              title="Show examples"
-                              (click)="unveilExamples(index)"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path
-                                  d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                                />
-                                <path
-                                  d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                                />
-                              </svg>
-                            </button>
-                          } @else {
-                            <button
-                              type="button"
-                              class="icon-btn"
-                              aria-label="Show definition"
-                              title="Show definition"
-                              (click)="unveilDefinitionText(index)"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path
-                                  d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
-                                />
-                                <path d="m8 13 4-7 4 7" />
-                                <path d="M9.1 11h5.7" />
-                              </svg>
-                            </button>
-                          }
-                        </div>
-                      </div>
-                    </div>
-                  }
-                  @if (senseStage(index) !== 'closed') {
-                    <div class="sense-body">
-                      @if (senseStage(index) === 'open') {
-                        <div class="sense-main">
-                          <div class="sense-copy">
-                            @let passage = parsePassage(definition.text);
-                            @let equivalent = equivalentText(definition);
-                            <ng-container [ngTemplateOutlet]="definitionPassage" />
-                            <ng-template #definitionPencil>
+            @if (element().definitions.length && !recallSkipped()) {
+              <app-definition-recall
+                [elementId]="element().id"
+                [lemma]="shownTitle()"
+                [learningLanguage]="element().language"
+                [supportLanguage]="translationTarget()"
+                [senses]="recallSenses()"
+                [examples]="recallExamples()"
+                [settled]="recallSettled()"
+                (finished)="finishRecall($event)"
+                (acceptExtra)="acceptRecallExtra($event)"
+              />
+            }
+            @if (element().definitions.length && !recallPending()) {
+              @let definitions = shownDefinitions();
+              <ol class="definitions">
+                @for (definition of definitions; track $index) {
+                  @let index = $index;
+                  <li
+                    class="sense"
+                    [class.open]="senseStage(index) === 'open'"
+                    [attr.id]="'sense-' + index"
+                    (click)="onSenseClick($event, index)"
+                  >
+                    @if (senseStage(index) !== 'open') {
+                      <div class="sense-row" [class.actionable]="true">
+                        <span class="sense-index">Definition {{ index + 1 }}</span>
+                        <div class="sense-rail">
+                          <div class="sense-actions">
+                            @if (senseStage(index) === 'closed') {
                               <button
                                 type="button"
-                                class="inline-pencil"
-                                aria-label="Edit definition"
-                                title="Edit definition"
-                                [disabled]="aiBusy()"
-                                (click)="openDefinition(index); $event.stopPropagation()"
+                                class="icon-btn"
+                                aria-label="Show examples"
+                                title="Show examples"
+                                (click)="unveilExamples(index)"
                               >
                                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                  <path
+                                    d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                                  />
+                                  <path
+                                    d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                                  />
                                 </svg>
                               </button>
-                            </ng-template>
-                            <ng-template #definitionPassage>
-                              @if (passage.text) {
-                                <div class="spoken">
-                                  <div class="spoken-copy">
-                                    <p
-                                      class="passage sense-selectable"
-                                      [attr.data-definition-index]="index"
-                                    >
-                                      @for (part of highlightPassage(passage.text); track $index) {
-                                        @if (part.matches.length > 1) {
-                                          <button
-                                            type="button"
-                                            class="linguagem-highlighted"
-                                            [style.--score-color]="part.color || null"
-                                            [textContent]="part.text"
-                                            (click)="
-                                              showCollision(
-                                                $event,
-                                                part.matches,
-                                                index,
-                                                '',
-                                                part.text
-                                              )
-                                            "
-                                          ></button>
-                                        } @else if (part.matches.length === 1 && !part.current) {
-                                          <button
-                                            type="button"
-                                            class="linguagem-highlighted"
-                                            [style.--score-color]="part.color || null"
-                                            [textContent]="part.text"
-                                            (click)="
-                                              openFromDefinition(
-                                                part.matches[0].elementId,
-                                                index,
-                                                part.text
-                                              )
-                                            "
-                                          ></button>
-                                        } @else if (part.current) {
-                                          <span
-                                            class="linguagem-highlighted linguagem-highlighted--current"
-                                            [style.--score-color]="part.color || null"
-                                            [textContent]="part.text"
-                                          ></span>
-                                        } @else {
-                                          <span [textContent]="part.text"></span>
-                                        }
-                                      }
-                                      @if (!element().deletedAt) {
-                                        <ng-container [ngTemplateOutlet]="definitionPencil" />
-                                      }
-                                      @if (supportAvailable() && passage.text) {
-                                        <app-phrase-translation
-                                          [phrase]="passage.text"
-                                          [sourceLang]="element().language"
-                                          [targetLang]="translationTarget()"
-                                          [seeded]="seededTranslation(passage)"
-                                          [equivalent]="labeledEquivalent(equivalent)"
-                                          [lemma]="element().title"
-                                          (equivalentFound)="noteEquivalent(index, $event)"
-                                        />
-                                      }
-                                    </p>
-                                  </div>
-                                  <ng-container
-                                    [ngTemplateOutlet]="hearButton"
-                                    [ngTemplateOutletContext]="{
-                                      key: 'definition:' + index,
-                                      text: definition.text,
-                                      label: 'definition',
-                                    }"
+                            } @else {
+                              <button
+                                type="button"
+                                class="icon-btn"
+                                aria-label="Show definition"
+                                title="Show definition"
+                                (click)="unveilDefinitionText(index)"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path
+                                    d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
                                   />
-                                </div>
-                              } @else if (!element().deletedAt) {
-                                <ng-container [ngTemplateOutlet]="definitionPencil" />
-                              }
-                            </ng-template>
-                            @let meta = entries(definition.metadata);
-                            @if (
-                              (supportAvailable() && equivalent && !passage.text) || meta.length
-                            ) {
-                              <ul class="sense-meta">
-                                @if (supportAvailable() && equivalent && !passage.text) {
-                                  <li class="sense-equivalent">
-                                    <ng-container [ngTemplateOutlet]="translationIcon" />
-                                    <app-show-text
-                                      [text]="labeledEquivalent(equivalent)"
-                                      label="Show equivalent"
-                                    />
-                                  </li>
-                                }
-                                @for (entry of meta; track entry.key) {
-                                  @let color = metaColor('definitions', entry.key);
-                                  <li [class.colored]="color" [style.--meta-color]="color">
-                                    <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                                    <span class="sense-meta-value">{{ label(entry.value) }}</span>
-                                  </li>
-                                }
-                              </ul>
+                                  <path d="m8 13 4-7 4 7" />
+                                  <path d="M9.1 11h5.7" />
+                                </svg>
+                              </button>
                             }
                           </div>
                         </div>
-                      }
-                      <section class="group examples-region">
-                        @if (definition.examples.length) {
-                          <ul class="examples" aria-label="Examples">
-                            @for (
-                              exampleIndex of exampleIndexesNewestFirst(definition.examples.length);
-                              track exampleIndex
-                            ) {
-                              @let example = definition.examples[exampleIndex];
-                              <li class="saved-example">
-                                <div class="example-quote">
-                                  @let passage = parsePassage(example.text);
-                                  @if (passage.text) {
-                                    <div class="spoken">
-                                      <div class="spoken-copy">
-                                        <p
-                                          class="passage sense-selectable"
-                                          [attr.data-definition-index]="index"
-                                          [attr.data-example-index]="exampleIndex"
-                                        >
-                                          @for (
-                                            part of highlightPassage(passage.text);
-                                            track $index
-                                          ) {
-                                            @if (part.matches.length > 1) {
-                                              <button
-                                                type="button"
-                                                class="linguagem-highlighted"
-                                                [style.--score-color]="part.color || null"
-                                                [textContent]="part.text"
-                                                (click)="
-                                                  showCollision(
-                                                    $event,
-                                                    part.matches,
-                                                    index,
-                                                    example.text
-                                                  )
-                                                "
-                                              ></button>
-                                            } @else if (
-                                              part.matches.length === 1 && !part.current
-                                            ) {
-                                              <button
-                                                type="button"
-                                                class="linguagem-highlighted"
-                                                [style.--score-color]="part.color || null"
-                                                [textContent]="part.text"
-                                                (click)="
-                                                  visitHighlight(
-                                                    part.matches[0].elementId,
-                                                    index,
-                                                    example.text
-                                                  )
-                                                "
-                                              ></button>
-                                            } @else if (part.current) {
-                                              <span
-                                                class="linguagem-highlighted linguagem-highlighted--current"
-                                                [style.--score-color]="part.color || null"
-                                                [textContent]="part.text"
-                                              ></span>
-                                            } @else {
-                                              <span [textContent]="part.text"></span>
-                                            }
+                      </div>
+                    }
+                    @if (senseStage(index) !== 'closed') {
+                      <div class="sense-body">
+                        @if (senseStage(index) === 'open') {
+                          <div class="sense-main">
+                            <div class="sense-copy">
+                              @let passage = parsePassage(definition.text);
+                              @let equivalent = equivalentText(definition);
+                              <ng-container [ngTemplateOutlet]="definitionPassage" />
+                              <ng-template #definitionPencil>
+                                <button
+                                  type="button"
+                                  class="inline-pencil"
+                                  aria-label="Edit definition"
+                                  title="Edit definition"
+                                  [disabled]="aiBusy()"
+                                  (click)="openDefinition(index); $event.stopPropagation()"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                  </svg>
+                                </button>
+                              </ng-template>
+                              <ng-template #definitionPassage>
+                                @if (passage.text) {
+                                  <div class="spoken">
+                                    <div class="spoken-copy">
+                                      <p
+                                        class="passage sense-selectable"
+                                        [attr.data-definition-index]="index"
+                                      >
+                                        @for (
+                                          part of highlightPassage(passage.text);
+                                          track $index
+                                        ) {
+                                          @if (part.matches.length > 1) {
+                                            <button
+                                              type="button"
+                                              class="linguagem-highlighted"
+                                              [style.--score-color]="part.color || null"
+                                              [textContent]="part.text"
+                                              (click)="
+                                                showCollision(
+                                                  $event,
+                                                  part.matches,
+                                                  index,
+                                                  '',
+                                                  part.text
+                                                )
+                                              "
+                                            ></button>
+                                          } @else if (part.matches.length === 1 && !part.current) {
+                                            <button
+                                              type="button"
+                                              class="linguagem-highlighted"
+                                              [style.--score-color]="part.color || null"
+                                              [textContent]="part.text"
+                                              (click)="
+                                                openFromDefinition(
+                                                  part.matches[0].elementId,
+                                                  index,
+                                                  part.text
+                                                )
+                                              "
+                                            ></button>
+                                          } @else if (part.current) {
+                                            <span
+                                              class="linguagem-highlighted linguagem-highlighted--current"
+                                              [style.--score-color]="part.color || null"
+                                              [textContent]="part.text"
+                                            ></span>
+                                          } @else {
+                                            <span [textContent]="part.text"></span>
                                           }
-                                          @if (!element().deletedAt) {
-                                          <button
-                                            type="button"
-                                            class="inline-pencil"
-                                            aria-label="Edit examples"
-                                            title="Edit examples"
-                                            [disabled]="aiBusy()"
-                                            (click)="openExamples(index); $event.stopPropagation()"
-                                          >
-                                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                              <path
-                                                d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
-                                              />
-                                            </svg>
-                                          </button>
-                                          }
-                                          @if (supportAvailable() && passage.text) {
-                                            <app-phrase-translation
-                                              [phrase]="passage.text"
-                                              [sourceLang]="element().language"
-                                              [targetLang]="translationTarget()"
-                                              [seeded]="seededTranslation(passage)"
-                                            />
-                                          }
-                                        </p>
-                                      </div>
-                                      <ng-container
-                                        [ngTemplateOutlet]="hearButton"
-                                        [ngTemplateOutletContext]="{
-                                          key: 'example:' + index + ':' + exampleIndex,
-                                          text: example.text,
-                                          label: 'example',
-                                        }"
-                                      />
-                                    </div>
-                                  }
-                                  @if (entries(example.metadata); as meta) {
-                                    @if (meta.length) {
-                                      <ul class="pills">
-                                        @for (entry of meta; track entry.key) {
-                                          @let color = metaColor('examples', entry.key);
-                                          <li [class.colored]="color" [style.--meta-color]="color">
-                                            <span>
-                                              <span class="sense-meta-key">{{
-                                                label(entry.key)
-                                              }}</span>
-                                              <span class="sense-meta-value">{{
-                                                label(entry.value)
-                                              }}</span>
-                                            </span>
-                                          </li>
                                         }
-                                      </ul>
-                                    }
+                                        @if (!element().deletedAt) {
+                                          <ng-container [ngTemplateOutlet]="definitionPencil" />
+                                        }
+                                        @if (supportAvailable() && passage.text) {
+                                          <app-phrase-translation
+                                            [phrase]="passage.text"
+                                            [sourceLang]="element().language"
+                                            [targetLang]="translationTarget()"
+                                            [seeded]="seededTranslation(passage)"
+                                            [equivalent]="labeledEquivalent(equivalent)"
+                                            [lemma]="element().title"
+                                            (equivalentFound)="noteEquivalent(index, $event)"
+                                          />
+                                        }
+                                      </p>
+                                    </div>
+                                    <ng-container
+                                      [ngTemplateOutlet]="hearButton"
+                                      [ngTemplateOutletContext]="{
+                                        key: 'definition:' + index,
+                                        text: definition.text,
+                                        label: 'definition',
+                                      }"
+                                    />
+                                  </div>
+                                } @else if (!element().deletedAt) {
+                                  <ng-container [ngTemplateOutlet]="definitionPencil" />
+                                }
+                              </ng-template>
+                              @let meta = entries(definition.metadata);
+                              @if (
+                                (supportAvailable() && equivalent && !passage.text) || meta.length
+                              ) {
+                                <ul class="sense-meta">
+                                  @if (supportAvailable() && equivalent && !passage.text) {
+                                    <li class="sense-equivalent">
+                                      <ng-container [ngTemplateOutlet]="translationIcon" />
+                                      <app-show-text
+                                        [text]="labeledEquivalent(equivalent)"
+                                        label="Show equivalent"
+                                      />
+                                    </li>
                                   }
-                                </div>
-                              </li>
-                            }
-                          </ul>
-                        } @else if (!element().deletedAt) {
-                          <button
-                            type="button"
-                            class="example-cta"
-                            [disabled]="aiBusy()"
-                            (click)="addExampleManually(index)"
-                          >
-                            Add an example
-                          </button>
+                                  @for (entry of meta; track entry.key) {
+                                    @let color = metaColor('definitions', entry.key);
+                                    <li [class.colored]="color" [style.--meta-color]="color">
+                                      <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                                      <span class="sense-meta-value">{{ label(entry.value) }}</span>
+                                    </li>
+                                  }
+                                </ul>
+                              }
+                            </div>
+                          </div>
                         }
-                      </section>
-                      @if (senseStage(index) === 'open') {
-                        <section class="group forms-region" (click)="onFormsClick($event, index)">
-                          <ul class="forms" aria-label="Forms">
-                            @if (definition.forms.length) {
-                              @for (form of definition.forms; track form.text) {
-                                @let chip = formChipColor(form);
+                        <section class="group examples-region">
+                          @if (definition.examples.length) {
+                            <ul class="examples" aria-label="Examples">
+                              @for (
+                                exampleIndex of exampleIndexesNewestFirst(
+                                  definition.examples.length
+                                );
+                                track exampleIndex
+                              ) {
+                                @let example = definition.examples[exampleIndex];
+                                <li class="saved-example">
+                                  <div class="example-quote">
+                                    @let passage = parsePassage(example.text);
+                                    @if (passage.text) {
+                                      <div class="spoken">
+                                        <div class="spoken-copy">
+                                          <p
+                                            class="passage sense-selectable"
+                                            [attr.data-definition-index]="index"
+                                            [attr.data-example-index]="exampleIndex"
+                                          >
+                                            @for (
+                                              part of highlightPassage(passage.text);
+                                              track $index
+                                            ) {
+                                              @if (part.matches.length > 1) {
+                                                <button
+                                                  type="button"
+                                                  class="linguagem-highlighted"
+                                                  [style.--score-color]="part.color || null"
+                                                  [textContent]="part.text"
+                                                  (click)="
+                                                    showCollision(
+                                                      $event,
+                                                      part.matches,
+                                                      index,
+                                                      example.text
+                                                    )
+                                                  "
+                                                ></button>
+                                              } @else if (
+                                                part.matches.length === 1 && !part.current
+                                              ) {
+                                                <button
+                                                  type="button"
+                                                  class="linguagem-highlighted"
+                                                  [style.--score-color]="part.color || null"
+                                                  [textContent]="part.text"
+                                                  (click)="
+                                                    visitHighlight(
+                                                      part.matches[0].elementId,
+                                                      index,
+                                                      example.text
+                                                    )
+                                                  "
+                                                ></button>
+                                              } @else if (part.current) {
+                                                <span
+                                                  class="linguagem-highlighted linguagem-highlighted--current"
+                                                  [style.--score-color]="part.color || null"
+                                                  [textContent]="part.text"
+                                                ></span>
+                                              } @else {
+                                                <span [textContent]="part.text"></span>
+                                              }
+                                            }
+                                            @if (!element().deletedAt) {
+                                              <button
+                                                type="button"
+                                                class="inline-pencil"
+                                                aria-label="Edit examples"
+                                                title="Edit examples"
+                                                [disabled]="aiBusy()"
+                                                (click)="
+                                                  openExamples(index); $event.stopPropagation()
+                                                "
+                                              >
+                                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                                  <path
+                                                    d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
+                                                  />
+                                                </svg>
+                                              </button>
+                                            }
+                                            @if (supportAvailable() && passage.text) {
+                                              <app-phrase-translation
+                                                [phrase]="passage.text"
+                                                [sourceLang]="element().language"
+                                                [targetLang]="translationTarget()"
+                                                [seeded]="seededTranslation(passage)"
+                                              />
+                                            }
+                                          </p>
+                                        </div>
+                                        <ng-container
+                                          [ngTemplateOutlet]="hearButton"
+                                          [ngTemplateOutletContext]="{
+                                            key: 'example:' + index + ':' + exampleIndex,
+                                            text: example.text,
+                                            label: 'example',
+                                          }"
+                                        />
+                                      </div>
+                                    }
+                                    @if (entries(example.metadata); as meta) {
+                                      @if (meta.length) {
+                                        <ul class="pills">
+                                          @for (entry of meta; track entry.key) {
+                                            @let color = metaColor('examples', entry.key);
+                                            <li
+                                              [class.colored]="color"
+                                              [style.--meta-color]="color"
+                                            >
+                                              <span>
+                                                <span class="sense-meta-key">{{
+                                                  label(entry.key)
+                                                }}</span>
+                                                <span class="sense-meta-value">{{
+                                                  label(entry.value)
+                                                }}</span>
+                                              </span>
+                                            </li>
+                                          }
+                                        </ul>
+                                      }
+                                    }
+                                  </div>
+                                </li>
+                              }
+                            </ul>
+                          } @else if (!element().deletedAt) {
+                            <button
+                              type="button"
+                              class="example-cta"
+                              [disabled]="aiBusy()"
+                              (click)="addExampleManually(index)"
+                            >
+                              Add an example
+                            </button>
+                          }
+                        </section>
+                        @if (senseStage(index) === 'open') {
+                          <section class="group forms-region" (click)="onFormsClick($event, index)">
+                            <ul class="forms" aria-label="Forms">
+                              @if (definition.forms.length) {
+                                @for (form of definition.forms; track form.text) {
+                                  @let chip = formChipColor(form);
+                                  <li>
+                                    <button
+                                      type="button"
+                                      class="form-chip readonly"
+                                      [class.tinted]="!!chip"
+                                      [style.--form-color]="chip"
+                                      [attr.aria-label]="'Attributes for ' + form.text"
+                                      (click)="showFormAttributes(form)"
+                                    >
+                                      {{ form.text }}
+                                    </button>
+                                  </li>
+                                }
+                              } @else if (!element().deletedAt) {
                                 <li>
                                   <button
                                     type="button"
-                                    class="form-chip readonly"
-                                    [class.tinted]="!!chip"
-                                    [style.--form-color]="chip"
-                                    [attr.aria-label]="'Attributes for ' + form.text"
-                                    (click)="showFormAttributes(form)"
+                                    class="form-chip readonly form-cta"
+                                    [disabled]="aiBusy()"
+                                    (click)="openForms(index)"
                                   >
-                                    {{ form.text }}
+                                    Add forms
                                   </button>
                                 </li>
                               }
-                            } @else if (!element().deletedAt) {
-                              <li>
-                                <button
-                                  type="button"
-                                  class="form-chip readonly form-cta"
-                                  [disabled]="aiBusy()"
-                                  (click)="openForms(index)"
-                                >
-                                  Add forms
-                                </button>
-                              </li>
-                            }
-                          </ul>
-                        </section>
-                      }
-                    </div>
-                  }
-                </li>
-              }
-            </ol>
-          } @else if (!element().definitions.length) {
-            <p class="empty">No definitions yet.</p>
-          }
+                            </ul>
+                          </section>
+                        }
+                      </div>
+                    }
+                  </li>
+                }
+              </ol>
+            } @else if (!element().definitions.length) {
+              <p class="empty">No definitions yet.</p>
+            }
           </div>
         </div>
         @if (!element().deletedAt && !recallPending() && !historyOpen()) {
@@ -1710,14 +1761,14 @@ function writeExampleSuggestions(
                       [disabled]="!canTranslate()"
                       (click)="translateDraft()"
                     >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="m5 8 6 6" />
-                          <path d="m4 14 6-6 2-3" />
-                          <path d="M2 5h12" />
-                          <path d="M7 2h1" />
-                          <path d="m22 22-5-10-5 10" />
-                          <path d="M14 18h6" />
-                        </svg>
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m5 8 6 6" />
+                        <path d="m4 14 6-6 2-3" />
+                        <path d="M2 5h12" />
+                        <path d="M7 2h1" />
+                        <path d="m22 22-5-10-5 10" />
+                        <path d="M14 18h6" />
+                      </svg>
                     </button>
                   }
                   @if (current.kind === 'definition') {
@@ -2144,21 +2195,19 @@ function writeExampleSuggestions(
                           [attr.aria-label]="
                             translatingExample() === key ? 'Translating…' : 'Translate'
                           "
-                          [attr.title]="
-                            translatingExample() === key ? 'Translating…' : 'Translate'
-                          "
+                          [attr.title]="translatingExample() === key ? 'Translating…' : 'Translate'"
                           [attr.aria-busy]="translatingExample() === key ? true : null"
                           [disabled]="!canTranslateListedExample(phrase, raw, key)"
                           (click)="translateListedExample(phrase, raw, key)"
                         >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="m5 8 6 6" />
-                              <path d="m4 14 6-6 2-3" />
-                              <path d="M2 5h12" />
-                              <path d="M7 2h1" />
-                              <path d="m22 22-5-10-5 10" />
-                              <path d="M14 18h6" />
-                            </svg>
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 8 6 6" />
+                            <path d="m4 14 6-6 2-3" />
+                            <path d="M2 5h12" />
+                            <path d="M7 2h1" />
+                            <path d="m22 22-5-10-5 10" />
+                            <path d="M14 18h6" />
+                          </svg>
                         </button>
                       }
                     </ng-template>
@@ -2914,7 +2963,6 @@ function writeExampleSuggestions(
             </form>
           </div>
         }
-
 
         @if (confirm(); as pending) {
           <div class="sheet-backdrop" (click)="closeSheet($event)">
@@ -5236,37 +5284,31 @@ function writeExampleSuggestions(
       margin: 0;
     }
 
-    .gem-pick,
     .gem-gain {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 0.35rem;
-    }
-
-    [data-game='translation'] {
-      --exercise-gem: var(--gem-translation);
-    }
-
-    [data-game='example'] {
-      --exercise-gem: var(--gem-example);
-    }
-
-    [data-game='definition'] {
-      --exercise-gem: var(--gem-definition);
-    }
-
-    .gem-gain {
       flex: none;
     }
 
-    button.gem-gain {
-      border: 0;
-      padding: 0;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      cursor: pointer;
+    .score-readout[data-gem='red'],
+    .gem-gain[data-gem='red'] {
+      --exercise-gem: var(--gem-red);
+    }
+
+    .score-readout[data-gem='orange'],
+    .gem-gain[data-gem='orange'] {
+      --exercise-gem: var(--gem-orange);
+    }
+
+    .score-readout[data-gem='green'],
+    .gem-gain[data-gem='green'] {
+      --exercise-gem: var(--gem-green);
+    }
+
+    .gem-gain-stone {
+      --gem-size: 0.85rem;
     }
 
     .log-row {
@@ -5312,6 +5354,10 @@ function writeExampleSuggestions(
 
     .log-row > .score-readout {
       margin-top: 0.02rem;
+    }
+
+    .log-row > .gem-gain {
+      margin-top: 0.28rem;
     }
 
     .log-open {
@@ -5475,58 +5521,6 @@ function writeExampleSuggestions(
       line-height: 1.2;
       white-space: nowrap;
       text-overflow: ellipsis;
-    }
-
-    .log-open .gem-pick {
-      flex: none;
-      flex-wrap: nowrap;
-      gap: 0.12rem;
-    }
-
-    .log-open .gem-pick-stone {
-      width: 1.05rem;
-      height: 1.05rem;
-      cursor: inherit;
-    }
-
-    .log-open .gem-gain-stone {
-      --gem-size: 0.72rem;
-    }
-
-    .gem-gain-count {
-      color: var(--exercise-gem);
-      font-size: 0.8125rem;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-    }
-
-    .gem-gain-stone {
-      --gem-size: 0.85rem;
-    }
-
-    .gem-pick-stone {
-      display: inline-flex;
-      width: 1.7rem;
-      height: 1.7rem;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      cursor: pointer;
-    }
-
-    .gem-pick-stone .gem-gain-stone {
-      opacity: 0.28;
-    }
-
-    .gem-pick-stone.on .gem-gain-stone {
-      opacity: 1;
-    }
-
-    .gem-pick .btn.on {
-      background: var(--exercise-gem);
-      border-color: var(--exercise-gem);
-      color: white;
     }
 
     .score-readout {
@@ -5777,7 +5771,6 @@ export class ElementModal {
   readonly metaKeyMaxLength = META_KEY_MAX_LENGTH;
   readonly metaValueMaxLength = META_VALUE_MAX_LENGTH;
   readonly exampleInstructionMax = MAX_EXAMPLE_INSTRUCTION;
-  readonly modeLabel = elementModeLabel;
   readonly exampleLengthMax = MAX_EXAMPLE_LENGTH;
   readonly equivalentMax = EQUIVALENT_MAX;
   readonly definitionInstructionMax = MAX_DEFINITION_INSTRUCTION;
@@ -6112,10 +6105,7 @@ export class ElementModal {
       : current.definitions;
     const editing = this.formEdit();
     this.titleError.set('');
-    const saved = await this.commit(
-      { ...current, title: name, definitions },
-      { report: false },
-    );
+    const saved = await this.commit({ ...current, title: name, definitions }, { report: false });
     if (!this.alive || this.element().id !== element.id) return;
     if (!saved) {
       this.titleError.set('Could not save this element.');
@@ -6169,6 +6159,8 @@ export class ElementModal {
       ...(result.extra ? { extra: true } : {}),
       ...(glosses.length ? { snapshot: { text: glosses.join('\n'), equivalent: '' } } : {}),
     };
+    const gem = attributeGem(element.log, entry);
+    if (gem) entry.gem = gem;
     this.appendLog(entry);
     this.revealRecallDefinitions(element);
     this.recallSettled.set(true);
@@ -7472,11 +7464,7 @@ export class ElementModal {
     }
   }
 
-  exampleFieldOpen(
-    definitionIndex: number,
-    kind: ExampleFieldKind,
-    index: number | null,
-  ): boolean {
+  exampleFieldOpen(definitionIndex: number, kind: ExampleFieldKind, index: number | null): boolean {
     const engineer = this.exampleFieldEngineer();
     return (
       !!engineer &&
@@ -7486,11 +7474,7 @@ export class ElementModal {
     );
   }
 
-  exampleFieldBusy(
-    definitionIndex: number,
-    kind: ExampleFieldKind,
-    index: number | null,
-  ): boolean {
+  exampleFieldBusy(definitionIndex: number, kind: ExampleFieldKind, index: number | null): boolean {
     return (
       this.askingExamples() === definitionIndex &&
       this.exampleFieldOpen(definitionIndex, kind, index)
@@ -7507,11 +7491,7 @@ export class ElementModal {
     return this.askingExamples() !== null || !this.exampleFieldEngineer()?.instruction.trim();
   }
 
-  toggleExampleField(
-    definitionIndex: number,
-    kind: ExampleFieldKind,
-    index: number | null,
-  ): void {
+  toggleExampleField(definitionIndex: number, kind: ExampleFieldKind, index: number | null): void {
     if (this.exampleFieldOpen(definitionIndex, kind, index)) {
       if (this.askingExamples() !== null) return;
       this.exampleFieldEngineer.set(null);
@@ -8614,7 +8594,7 @@ export class ElementModal {
     ) {
       return;
     }
-    const max = this.gameScoreOutOf(entry.game);
+    const max = this.scoreMax;
     const typed = Math.round(Number(target.value));
     const shown = Number.isInteger(typed) ? Math.min(max, Math.max(0, typed)) : null;
     if (shown == null) {
@@ -8627,11 +8607,18 @@ export class ElementModal {
     const current = this.currentElement();
     const logIndex = current.log.indexOf(entry);
     if (logIndex < 0) return;
+    const scored: DefinitionGameLog = { ...entry, score };
+    if (storedGem(entry)) {
+      const gem = attributeGem(
+        current.log.filter((item) => item !== entry),
+        scored,
+      );
+      if (gem) scored.gem = gem;
+      else delete scored.gem;
+    }
     this.written = {
       ...current,
-      log: current.log.map((item, index) =>
-        index === logIndex && item.event === 'game' ? { ...item, score } : item,
-      ),
+      log: current.log.map((item, index) => (index === logIndex ? scored : item)),
     };
     void this.persist(this.copyDefinitions(), this.currentElement().equivalents, { busy: false });
   }
@@ -9113,8 +9100,11 @@ export class ElementModal {
 
   private storedDraftTranslation(phrase: string): string {
     const cached =
-      readPhraseTranslation(this.element().language, this.translationTarget(), phrase)?.text.trim() ??
-      '';
+      readPhraseTranslation(
+        this.element().language,
+        this.translationTarget(),
+        phrase,
+      )?.text.trim() ?? '';
     if (cached) return cached;
     return this.embeddedDraftTranslation(phrase);
   }
@@ -9165,24 +9155,26 @@ export class ElementModal {
     return `var(--score-${definitionScoreStep(average)})`;
   }
 
-  /** Coverage out of 10 for a definition recall. Other games keep their stored score. */
+  /** Coverage out of 10 for a recall. The extra sense point is not part of it. */
   shownGameScore(entry: DefinitionGameLog): number {
     return definitionCoverage(entry);
   }
 
-  gameScoreMaxLabel(game: DefinitionGameLog['game']): string {
-    return `/${this.gameScoreOutOf(game)}`;
+  /** The gem this recall earned, from how far its coverage sits above earlier ones. */
+  exerciseGem(
+    entry: DefinitionGameLog | DefinitionReworkLog | DefinitionDeleteLog,
+  ): GemTier | null {
+    if (entry.event !== 'game') return null;
+    return storedGem(entry);
   }
 
-  private gameScoreOutOf(game: DefinitionGameLog['game']): number {
-    return game === 'definition' ? DEFINITION_COVERAGE_MAX : 5;
+  earnedGemLabel(tier: GemTier): string {
+    if (tier === 'red') return 'Red gem';
+    if (tier === 'orange') return 'Orange gem';
+    return 'Green gem';
   }
 
-  logMode(game: DefinitionGameLog['game']): ElementMode {
-    if (game === 'example') return 2;
-    if (game === 'definition') return 3;
-    return 1;
-  }
+  readonly scoreMax = DEFINITION_COVERAGE_MAX;
 
   /** Recall attempts, definition edits, and definition deletions, newest first. */
   shownHistory(): Array<DefinitionGameLog | DefinitionReworkLog | DefinitionDeleteLog> {
@@ -9194,9 +9186,7 @@ export class ElementModal {
 
   /** The deleted sense can be put back when its wording, an example, or a form was kept. */
   canRestoreDefinition(entry: DefinitionDeleteLog): boolean {
-    return (
-      !!entry.definition?.text.trim() || !!entry.examples?.length || !!entry.forms?.length
-    );
+    return !!entry.definition?.text.trim() || !!entry.examples?.length || !!entry.forms?.length;
   }
 
   /** Put the deleted definition, its equivalent, examples, and forms back on the element. */
@@ -9250,7 +9240,12 @@ export class ElementModal {
   deletedEquivalent(entry: DefinitionDeleteLog): string {
     const target = this.translationTarget();
     const match = entry.equivalents?.find((item) => item.language === target);
-    return (match?.text || entry.equivalents?.[0]?.text || entry.definition?.equivalent || '').trim();
+    return (
+      match?.text ||
+      entry.equivalents?.[0]?.text ||
+      entry.definition?.equivalent ||
+      ''
+    ).trim();
   }
 
   /** Definition or example wording, without an embedded translation marker. */
@@ -9284,14 +9279,14 @@ export class ElementModal {
     if (entry.event === 'example') return 'Example';
     if (entry.event === 'form') return 'Forms';
     if (entry.event === 'reveal') return 'Revealed';
-    return this.modeLabel(this.logMode(entry.game));
+    return 'Exercise';
   }
 
   historyAria(entry: DefinitionHistoryEntry): string {
     const when = this.exerciseWhen(entry.at);
     if (entry.event === 'game') {
       const bonus = entry.extra ? ', plus 1' : '';
-      return `${this.historyTitle(entry)}, score ${this.shownGameScore(entry)} out of ${this.gameScoreOutOf(entry.game)}${bonus}, ${when}`;
+      return `${this.historyTitle(entry)}, score ${this.shownGameScore(entry)} out of ${this.scoreMax}${bonus}, ${when}`;
     }
     if (entry.event === 'rework') {
       return `Reworked, before ${this.logWording(entry.before)}, after ${this.logWording(entry.after)}, ${when}`;
@@ -9304,7 +9299,7 @@ export class ElementModal {
 
   scoreAria(entry: DefinitionGameLog): string {
     const bonus = entry.extra ? ', plus 1' : '';
-    return `Score ${this.shownGameScore(entry)} out of ${this.gameScoreOutOf(entry.game)}${bonus}`;
+    return `Score ${this.shownGameScore(entry)} out of ${this.scoreMax}${bonus}`;
   }
 
   private listedHistory(entry: ElementLogEntry): entry is DefinitionHistoryEntry {

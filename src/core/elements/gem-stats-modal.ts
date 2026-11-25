@@ -10,8 +10,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { displayTitle, languageDisplayName } from 'collection';
-import { supportLanguageFor } from '../languages/translation-language';
+import { displayTitle, languageDisplayName, type GemTier } from 'collection';
 import {
   emptyDailyGoals,
   readDailyGoals,
@@ -25,12 +24,10 @@ import { GemIcon } from './gem-icon';
 import { RevealIcon } from './reveal-icon';
 import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
 
-type GemGame = keyof GemCounts;
-
-const GAMES: readonly { game: GemGame; label: string }[] = [
-  { game: 'translation', label: 'Translation' },
-  { game: 'example', label: 'Example' },
-  { game: 'definition', label: 'Definition' },
+const GEM_ROWS: readonly { tier: GemTier; label: string }[] = [
+  { tier: 'red', label: 'Red' },
+  { tier: 'orange', label: 'Orange' },
+  { tier: 'green', label: 'Green' },
 ];
 
 type ActivityKey = 'added' | 'revealed';
@@ -44,7 +41,7 @@ const ACTIVITIES: readonly {
 ];
 
 type ElementSort =
-  { kind: 'exercises' } | { kind: 'gem'; game: GemGame } | { kind: 'activity'; key: ActivityKey };
+  { kind: 'exercises' } | { kind: 'gem'; tier: GemTier } | { kind: 'activity'; key: ActivityKey };
 
 type GoalKind = keyof DailyGoals;
 
@@ -53,7 +50,7 @@ const LOADING_ROWS = [0, 1, 2, 3];
 
 const EMPTY_DAY: DayStats = {
   day: '',
-  gems: { translation: 0, example: 0, definition: 0 },
+  gems: { red: 0, orange: 0, green: 0 },
   added: 0,
   revealed: 0,
   exercises: 0,
@@ -123,7 +120,23 @@ const EMPTY_DAY: DayStats = {
             @if (pending()) {
               <p class="day"><span class="bone bone-day"></span></p>
             } @else {
-              <p class="day">{{ dayLabel() || '—' }}</p>
+              <div class="day-center">
+                <p class="day">{{ dayLabel() || '—' }}</p>
+                @if (viewingToday()) {
+                  <span
+                    class="streak"
+                    [attr.aria-label]="streakLabel()"
+                    [attr.title]="streakLabel()"
+                  >
+                    <svg class="flame" viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M12 12c2-2.96 0-7-1-8 0 3.038-1.773 4.741-3 6-1.226 1.26-2 3.24-2 5a6 6 0 1 0 12 0c0-1.532-1.056-3.94-2-5-1.786 3-3 3-4 2z"
+                      />
+                    </svg>
+                    <span class="streak-count">{{ formatCount(streak()) }}</span>
+                  </span>
+                }
+              </div>
             }
             <button
               type="button"
@@ -146,7 +159,7 @@ const EMPTY_DAY: DayStats = {
                   <h3>Gems</h3>
                 </div>
                 <ul class="gems">
-                  @for (row of games(); track row.game) {
+                  @for (row of gemRows; track row.tier) {
                     <li class="loading-card">
                       <span class="bone bone-stone"></span>
                       <span class="bone bone-count"></span>
@@ -183,83 +196,64 @@ const EMPTY_DAY: DayStats = {
               </section>
             </div>
           } @else if (ready()) {
-            @if (viewingToday()) {
-              <div class="lead">
-                <div
-                  class="streak-card"
-                  [attr.aria-label]="streakLabel()"
-                  [attr.title]="streakLabel()"
-                >
-                  <span class="well" aria-hidden="true">
-                    <svg class="flame" viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M12 12c2-2.96 0-7-1-8 0 3.038-1.773 4.741-3 6-1.226 1.26-2 3.24-2 5a6 6 0 1 0 12 0c0-1.532-1.056-3.94-2-5-1.786 3-3 3-4 2z"
-                      />
-                    </svg>
-                  </span>
-                  <span class="count">{{ formatCount(streak()) }}</span>
-                  <span class="caption">Streak</span>
-                </div>
-              </div>
-            }
             <section class="block">
               <div class="block-head">
                 <h3>Gems</h3>
               </div>
               <ul class="gems">
-                @for (row of games(); track row.game) {
+                @for (row of gemRows; track row.tier) {
                   <li
-                    [attr.data-game]="row.game"
+                    [attr.data-gem]="row.tier"
                     [attr.aria-label]="
-                      gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
+                      gemCardLabel(row.label, gemTotals()[row.tier], shown().gems[row.tier])
                     "
                     [attr.title]="
-                      gemCardLabel(row.label, gemTotals()[row.game], shown().gems[row.game])
+                      gemCardLabel(row.label, gemTotals()[row.tier], shown().gems[row.tier])
                     "
                   >
                     <span class="stone" aria-hidden="true">
-                      <app-gem-icon class="stone-icon" [game]="row.game" />
+                      <app-gem-icon class="stone-icon" [tier]="row.tier" />
                     </span>
-                    <span class="count">{{ formatCount(gemTotals()[row.game]) }}</span>
+                    <span class="count">{{ formatCount(gemTotals()[row.tier]) }}</span>
                     <span class="caption">{{ row.label }}</span>
-                    @if (shown().gems[row.game] > 0) {
+                    @if (shown().gems[row.tier] > 0) {
                       <span class="delta">
-                        +{{ formatCount(shown().gems[row.game]) }}
+                        +{{ formatCount(shown().gems[row.tier]) }}
                         @if (dayBadge()) {
                           {{ dayBadge() }}
                         }
                       </span>
                     }
-                    @if (goalsOpen() || goals()[row.game] !== null) {
+                    @if (goalsOpen() || goals()[row.tier] !== null) {
                       <div class="card-foot">
                         @if (goalsOpen()) {
                           <span class="card-goal-label">Goal</span>
                           <ng-container
                             *ngTemplateOutlet="
                               goalStepper;
-                              context: { kind: row.game, label: row.label.toLowerCase() }
+                              context: { kind: row.tier, label: row.label.toLowerCase() }
                             "
                           />
                         }
-                        @if (goals()[row.game]; as goal) {
+                        @if (goals()[row.tier]; as goal) {
                           <div
                             class="meter"
                             role="progressbar"
                             aria-valuemin="0"
-                            [attr.aria-valuenow]="meterNow(shown().gems[row.game], goal)"
+                            [attr.aria-valuenow]="meterNow(shown().gems[row.tier], goal)"
                             [attr.aria-valuemax]="goal"
                             [attr.aria-label]="
-                              gemMeterLabel(row.label, shown().gems[row.game], goal)
+                              gemMeterLabel(row.label, shown().gems[row.tier], goal)
                             "
                           >
                             <span class="meter-track">
                               <span
                                 class="meter-fill"
-                                [style.width.%]="meterPercent(shown().gems[row.game], goal)"
+                                [style.width.%]="meterPercent(shown().gems[row.tier], goal)"
                               ></span>
                             </span>
                             <span class="meter-label">{{
-                              meterText(shown().gems[row.game], goal)
+                              meterText(shown().gems[row.tier], goal)
                             }}</span>
                           </div>
                         }
@@ -473,19 +467,19 @@ const EMPTY_DAY: DayStats = {
                                   </span>
                                 }
                               }
-                              @for (game of games(); track game.game) {
-                                @if (showsMetric(element.gems[game.game], gemSort(game.game))) {
+                              @for (game of gemRows; track game.tier) {
+                                @if (showsMetric(element.gems[game.tier], gemSort(game.tier))) {
                                   <span
                                     class="bit"
-                                    [class.on]="isSort(gemSort(game.game))"
-                                    [attr.data-game]="game.game"
+                                    [class.on]="isSort(gemSort(game.tier))"
+                                    [attr.data-gem]="game.tier"
                                     [attr.aria-label]="
-                                      gemsLabel(game.label, element.gems[game.game])
+                                      gemsLabel(game.label, element.gems[game.tier])
                                     "
-                                    [attr.title]="gemsLabel(game.label, element.gems[game.game])"
+                                    [attr.title]="gemsLabel(game.label, element.gems[game.tier])"
                                   >
-                                    <app-gem-icon class="stone-icon" [game]="game.game" />
-                                    <span>{{ element.gems[game.game] }}</span>
+                                    <app-gem-icon class="stone-icon" [tier]="game.tier" />
+                                    <span>{{ element.gems[game.tier] }}</span>
                                   </span>
                                 }
                               }
@@ -531,9 +525,10 @@ const EMPTY_DAY: DayStats = {
                             <span class="bits">
                               <span
                                 class="bit"
-                                [attr.aria-label]="appearedLabel(token.seen)"
-                                [attr.title]="appearedLabel(token.seen)"
+                                [attr.aria-label]="translatedLabel(token.seen)"
+                                [attr.title]="translatedLabel(token.seen)"
                               >
+                                <app-reveal-icon />
                                 <span>{{ formatCount(token.seen) }}</span>
                               </span>
                             </span>
@@ -597,9 +592,10 @@ const EMPTY_DAY: DayStats = {
                                   <span class="bits">
                                     <span
                                       class="bit"
-                                      [attr.aria-label]="appearedLabel(token.seen)"
-                                      [attr.title]="appearedLabel(token.seen)"
+                                      [attr.aria-label]="translatedLabel(token.seen)"
+                                      [attr.title]="translatedLabel(token.seen)"
                                     >
+                                      <app-reveal-icon />
                                       <span>{{ formatCount(token.seen) }}</span>
                                     </span>
                                   </span>
@@ -856,6 +852,47 @@ const EMPTY_DAY: DayStats = {
       letter-spacing: -0.02em;
     }
 
+    .day-center {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+
+    .day-center .day {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .streak {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.22rem;
+      flex: none;
+      padding: 0.16rem 0.42rem 0.16rem 0.28rem;
+      border-radius: 999px;
+      background: rgba(255, 122, 26, 0.14);
+      color: #ff7a1a;
+      box-shadow: inset 0 0 0 1px rgba(255, 122, 26, 0.38);
+    }
+
+    .streak .flame {
+      width: 0.92rem;
+      height: 0.92rem;
+    }
+
+    .streak-count {
+      color: #ffc49a;
+      font-size: 0.84rem;
+      font-weight: 720;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
     .count-stepper {
       display: flex;
       align-items: center;
@@ -910,65 +947,6 @@ const EMPTY_DAY: DayStats = {
       outline: 2px solid rgba(var(--accent-rgb), 0.55);
       outline-offset: 2px;
       border-radius: 0.2rem;
-    }
-
-    .lead {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.45rem;
-      margin: 0.7rem 1rem 0;
-    }
-
-    .streak-card {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 0.12rem;
-      min-width: 0;
-      padding: 0.8rem 0.55rem;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 1rem;
-      background: var(--surface-2);
-      color: var(--text-muted);
-    }
-
-    .streak-card .well {
-      display: grid;
-      place-items: center;
-      width: 2.35rem;
-      height: 2.35rem;
-      margin-bottom: 0.28rem;
-      border-radius: 0.7rem;
-      background: rgba(255, 122, 26, 0.16);
-      color: #ff7a1a;
-      box-shadow: inset 0 0 0 1px rgba(255, 122, 26, 0.45);
-    }
-
-    .streak-card .well .mark,
-    .streak-card .flame {
-      width: 1.45rem;
-      height: 1.45rem;
-    }
-
-    .streak-card .count {
-      color: var(--text);
-      font-size: 1.55rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.03em;
-      line-height: 1;
-    }
-
-    .streak-card .caption {
-      max-width: 100%;
-      color: var(--text-muted);
-      font-size: 0.6rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      line-height: 1.2;
-      text-align: center;
-      text-transform: uppercase;
     }
 
     .activity app-reveal-icon {
@@ -1149,19 +1127,19 @@ const EMPTY_DAY: DayStats = {
       background: color-mix(in srgb, var(--exercise-gem) 13%, rgba(8, 10, 18, 0.55));
     }
 
-    .gems li[data-game='translation'],
-    .bit[data-game='translation'] {
-      --exercise-gem: var(--gem-translation);
+    .gems li[data-gem='red'],
+    .bit[data-gem='red'] {
+      --exercise-gem: var(--gem-red);
     }
 
-    .gems li[data-game='example'],
-    .bit[data-game='example'] {
-      --exercise-gem: var(--gem-example);
+    .gems li[data-gem='orange'],
+    .bit[data-gem='orange'] {
+      --exercise-gem: var(--gem-orange);
     }
 
-    .gems li[data-game='definition'],
-    .bit[data-game='definition'] {
-      --exercise-gem: var(--gem-definition);
+    .gems li[data-gem='green'],
+    .bit[data-gem='green'] {
+      --exercise-gem: var(--gem-green);
     }
 
     .card-foot {
@@ -1449,7 +1427,7 @@ const EMPTY_DAY: DayStats = {
       line-height: 1;
     }
 
-    .bit[data-game] {
+    .bit[data-gem] {
       color: var(--exercise-gem);
     }
 
@@ -1457,7 +1435,7 @@ const EMPTY_DAY: DayStats = {
       font-weight: 750;
     }
 
-    .bit.on:not([data-game]) {
+    .bit.on:not([data-gem]) {
       color: var(--text);
     }
 
@@ -1679,9 +1657,7 @@ export class GemStatsModal {
   readonly closed = output<void>();
   readonly opened = output<string>();
   readonly askMissing = output<string>();
-  readonly games = computed(() =>
-    supportLanguageFor(this.language()) ? GAMES : GAMES.filter((row) => row.game !== 'translation'),
-  );
+  readonly gemRows = GEM_ROWS;
   readonly activities = ACTIVITIES;
   readonly loadingActivity = LOADING_ACTIVITY;
   readonly loadingRows = LOADING_ROWS;
@@ -1701,10 +1677,10 @@ export class GemStatsModal {
     const options: { id: string; sort: ElementSort; label: string }[] = [
       { id: 'exercises', sort: this.exerciseSort, label: 'Most exercises' },
     ];
-    for (const row of this.games()) {
+    for (const row of this.gemRows) {
       options.push({
-        id: row.game,
-        sort: { kind: 'gem', game: row.game },
+        id: row.tier,
+        sort: { kind: 'gem', tier: row.tier },
         label: `Most ${row.label.toLowerCase()} gems`,
       });
     }
@@ -1755,11 +1731,11 @@ export class GemStatsModal {
     return elements;
   });
   readonly gemTotals = computed(() => {
-    const totals: GemCounts = { translation: 0, example: 0, definition: 0 };
+    const totals: GemCounts = { red: 0, orange: 0, green: 0 };
     for (const day of this.snapshot()?.days ?? []) {
-      totals.translation += day.gems.translation;
-      totals.example += day.gems.example;
-      totals.definition += day.gems.definition;
+      totals.red += day.gems.red;
+      totals.orange += day.gems.orange;
+      totals.green += day.gems.green;
     }
     return totals;
   });
@@ -1840,8 +1816,8 @@ export class GemStatsModal {
     this.dayIndex.update((index) => index - 1);
   }
 
-  gemSort(game: GemGame): ElementSort {
-    return { kind: 'gem', game };
+  gemSort(tier: GemTier): ElementSort {
+    return { kind: 'gem', tier };
   }
 
   activitySort(key: ActivityKey): ElementSort {
@@ -1921,7 +1897,7 @@ export class GemStatsModal {
   }
 
   hasBits(element: ElementDayStats): boolean {
-    const gems = this.games().reduce((sum, row) => sum + element.gems[row.game], 0);
+    const gems = this.gemRows.reduce((sum, row) => sum + element.gems[row.tier], 0);
     const activity = element.added + element.revealed;
     return gems + element.exercises + activity > 0;
   }
@@ -1956,9 +1932,9 @@ export class GemStatsModal {
     return `${count} ${label.toLowerCase()}`;
   }
 
-  appearedLabel(count: number): string {
+  translatedLabel(count: number): string {
     const amount = this.formatCount(count);
-    return count === 1 ? `Appeared ${amount} time` : `Appeared ${amount} times`;
+    return count === 1 ? `Translated ${amount} time` : `Translated ${amount} times`;
   }
 
   hideMissing(token: MissingToken): void {
@@ -1997,7 +1973,7 @@ function sameElementSort(current: ElementSort | null, sort: ElementSort): boolea
     case 'exercises':
       return true;
     case 'gem':
-      return current.kind === 'gem' && current.game === sort.game;
+      return current.kind === 'gem' && current.tier === sort.tier;
     case 'activity':
       return current.kind === 'activity' && current.key === sort.key;
   }
@@ -2005,7 +1981,7 @@ function sameElementSort(current: ElementSort | null, sort: ElementSort): boolea
 
 function metricCount(element: ElementDayStats, sort: ElementSort): number {
   if (sort.kind === 'exercises') return element.exercises;
-  if (sort.kind === 'gem') return element.gems[sort.game];
+  if (sort.kind === 'gem') return element.gems[sort.tier];
   return element[sort.key];
 }
 
@@ -2034,7 +2010,7 @@ function compareElementsDefault(left: ElementDayStats, right: ElementDayStats): 
 
 function gemTotal(element: ElementDayStats): number {
   const gems = element.gems;
-  return gems.translation + gems.example + gems.definition;
+  return gems.red + gems.orange + gems.green;
 }
 
 function activityTotal(element: ElementDayStats): number {
@@ -2110,7 +2086,7 @@ function daysWithToday(days: readonly DayStats[]): readonly DayStats[] {
   return [
     {
       day: today,
-      gems: { translation: 0, example: 0, definition: 0 },
+      gems: { red: 0, orange: 0, green: 0 },
       added: 0,
       revealed: 0,
       exercises: 0,

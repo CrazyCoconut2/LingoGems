@@ -1,6 +1,6 @@
 import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
 
-const KEY_PREFIX = 'lingogem.stats.v13.';
+const KEY_PREFIX = 'lingogem.stats.v16.';
 
 export type StatsPhase = 'empty' | 'pending' | 'ready' | 'error';
 
@@ -170,7 +170,7 @@ function isElementDay(value: unknown): value is ElementDayStats {
 function isGemCounts(value: unknown): value is GemCounts {
   if (!value || typeof value !== 'object') return false;
   const source = value as GemCounts;
-  return isCount(source.translation) && isCount(source.example) && isCount(source.definition);
+  return isCount(source.red) && isCount(source.orange) && isCount(source.green);
 }
 
 function isMissingToken(value: unknown): value is MissingToken {

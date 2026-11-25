@@ -1,9 +1,6 @@
-import {
-  DEFINITION_COVERAGE_MAX,
-  elementGemCounts,
-  type DefinitionGameLog,
-  type StoredElement,
-} from './element-store';
+import { definitionCoverage, elementGemCounts, type StoredElement } from './element-store';
+
+export { definitionCoverage };
 import {
   normalizeMetadataVariability,
   type ElementMetadataVariability,
@@ -34,18 +31,8 @@ function elementDefinitionCount(element: StoredElement): number {
 }
 
 /** Keep an element in one of the chosen colors. An empty list keeps every element. */
-export function elementMatchesColor(
-  element: StoredElement,
-  colors: readonly string[],
-): boolean {
+export function elementMatchesColor(element: StoredElement, colors: readonly string[]): boolean {
   return colors.length === 0 || (element.color != null && colors.includes(element.color));
-}
-
-/** Coverage out of 10 for a definition recall. Other games keep their stored score. */
-export function definitionCoverage(entry: DefinitionGameLog): number {
-  if (entry.game !== 'definition') return entry.score;
-  const coverage = entry.extra ? entry.score - 1 : entry.score;
-  return Math.min(DEFINITION_COVERAGE_MAX, Math.max(0, coverage));
 }
 
 /** Mean definition-recall coverage, or null when this element has not been scored. */
@@ -138,7 +125,7 @@ function variabilityMatches(
 
 function elementGems(element: StoredElement): number {
   const counts = elementGemCounts(element);
-  return counts.translation + counts.example + counts.definition;
+  return counts.red + counts.orange + counts.green;
 }
 
 export function compareElements(

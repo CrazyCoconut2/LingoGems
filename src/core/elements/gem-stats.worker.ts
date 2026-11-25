@@ -1,21 +1,16 @@
 import {
   ELEMENTS_STORE,
-  DEFINITION_SCORE_MAX,
-  TRANSLATION_GEM_MAX,
   compileFormMatcher,
   displayTitle,
-  earnsGem,
   idbRequest,
   isValidForm,
   openDatabase,
   phraseTokens,
+  storedGem,
+  type ElementGemCounts,
 } from 'collection';
 
-export type GemCounts = {
-  translation: number;
-  example: number;
-  definition: number;
-};
+export type GemCounts = ElementGemCounts;
 
 export type ElementDayStats = {
   id: string;
@@ -41,10 +36,6 @@ export type MissingToken = {
   title: string;
   seen: number;
 };
-
-type GemGame = keyof GemCounts;
-
-type GameAttempt = { game: GemGame; score: number; at: number; index: number };
 
 type CompileMessage = { type?: string; language?: unknown };
 
@@ -128,9 +119,7 @@ function tally(
     }
 
     const entries = Array.isArray(source.log) ? source.log : [];
-    const attempts: GameAttempt[] = [];
-    for (let index = 0; index < entries.length; index += 1) {
-      const entry = entries[index];
+    for (const entry of entries) {
       if (!isRecord(entry)) continue;
       if (entry.event === 'view' || entry.event === 'rework') continue;
       const day = bucket(days, entry.at);
@@ -142,16 +131,16 @@ function tally(
         if (typeof phrase === 'string' && phrase.trim()) phrases.push(phrase);
         continue;
       }
-      if (entry.event === 'game' && isGame(entry.game)) {
+      if (entry.event === 'game' && isRecall(entry.game)) {
         day.exercises += 1;
         elementOf(day, id, title).exercises += 1;
-        const score = gameScore(entry);
-        if (score != null && typeof entry.at === 'number') {
-          attempts.push({ game: entry.game, score, at: entry.at, index });
+        const gem = storedGem(entry);
+        if (gem) {
+          day.gems[gem] += 1;
+          elementOf(day, id, title).gems[gem] += 1;
         }
       }
     }
-    awardGems(days, id, title, attempts);
   }
 
   const result: DayStats[] = [];
@@ -179,7 +168,7 @@ function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {
   let day = days.get(key);
   if (!day) {
     day = {
-      gems: { translation: 0, example: 0, definition: 0 },
+      gems: emptyGems(),
       added: 0,
       revealed: 0,
       exercises: 0,
@@ -196,7 +185,7 @@ function elementOf(day: MutableDay, id: string, title: string): MutableElement {
     element = {
       id,
       title,
-      gems: { translation: 0, example: 0, definition: 0 },
+      gems: emptyGems(),
       added: 0,
       revealed: 0,
       exercises: 0,
@@ -215,9 +204,7 @@ function dayKey(at: number): string {
 
 function hasActivity(element: ElementDayStats): boolean {
   return (
-    gemTotal(element.gems) > 0 ||
-    element.added + element.revealed > 0 ||
-    element.exercises > 0
+    gemTotal(element.gems) > 0 || element.added + element.revealed > 0 || element.exercises > 0
   );
 }
 
@@ -226,48 +213,17 @@ function compareElements(left: ElementDayStats, right: ElementDayStats, language
   if (gems) return gems;
   const exercises = right.exercises - left.exercises;
   if (exercises) return exercises;
-  const activity =
-    right.added + right.revealed - (left.added + left.revealed);
+  const activity = right.added + right.revealed - (left.added + left.revealed);
   if (activity) return activity;
   return left.title.localeCompare(right.title, language);
 }
 
-function awardGems(
-  days: Map<string, MutableDay>,
-  id: string,
-  title: string,
-  attempts: readonly GameAttempt[],
-): void {
-  const games: GemGame[] = ['translation', 'example', 'definition'];
-  for (const game of games) {
-    const played = attempts
-      .filter((attempt) => attempt.game === game)
-      .sort((left, right) => left.at - right.at || left.index - right.index);
-    let priorSum = 0;
-    let priorCount = 0;
-    for (const attempt of played) {
-      if (earnsGem(priorSum, priorCount, attempt.score)) {
-        const day = bucket(days, attempt.at);
-        if (day) {
-          day.gems[game] += 1;
-          elementOf(day, id, title).gems[game] += 1;
-        }
-      }
-      priorSum += attempt.score;
-      priorCount += 1;
-    }
-  }
-}
-
-function gameScore(entry: { game?: unknown; score?: unknown }): number | null {
-  const score = Math.round(Number(entry.score));
-  const max = entry.game === 'definition' ? DEFINITION_SCORE_MAX : TRANSLATION_GEM_MAX;
-  if (!Number.isInteger(score) || score < 0 || score > max) return null;
-  return score;
+function emptyGems(): GemCounts {
+  return { red: 0, orange: 0, green: 0 };
 }
 
 function gemTotal(gems: GemCounts): number {
-  return gems.translation + gems.example + gems.definition;
+  return gems.red + gems.orange + gems.green;
 }
 
 function isRecord(value: unknown): value is {
@@ -275,12 +231,15 @@ function isRecord(value: unknown): value is {
   at?: unknown;
   game?: unknown;
   score?: unknown;
+  extra?: unknown;
+  answer?: unknown;
+  gem?: unknown;
 } {
   return !!value && typeof value === 'object';
 }
 
-function isGame(game: unknown): game is GemGame {
-  return game === 'translation' || game === 'example' || game === 'definition';
+function isRecall(game: unknown): game is 'definition' {
+  return game === 'definition';
 }
 
 const PATTERN_MARK = /[*()|]/;

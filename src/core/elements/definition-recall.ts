@@ -206,7 +206,10 @@ type RecallView = {
               <ul class="examples" aria-label="Examples">
                 @for (example of examples(); track $index) {
                   <li>
-                    <span class="example-index" [attr.aria-label]="'Definition ' + example.definition">
+                    <span
+                      class="example-index"
+                      [attr.aria-label]="'Definition ' + example.definition"
+                    >
                       {{ example.definition }}
                     </span>
                     <span>{{ example.text }}</span>
@@ -521,7 +524,7 @@ type RecallView = {
 
     .bonus {
       margin-left: 0.35rem;
-      color: var(--gem-definition);
+      color: var(--gem-green);
     }
 
     .feedback,

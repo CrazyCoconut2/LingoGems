@@ -1,11 +1,11 @@
-const KEY_PREFIX = 'lingogem.stats.goals.v1.';
+const KEY_PREFIX = 'lingogem.stats.goals.v2.';
 
-const GOAL_KINDS = ['translation', 'example', 'definition', 'exercises', 'added'] as const;
+const GOAL_KINDS = ['red', 'orange', 'green', 'exercises', 'added'] as const;
 
 export type DailyGoals = Record<(typeof GOAL_KINDS)[number], number | null>;
 
 export function emptyDailyGoals(): DailyGoals {
-  return { translation: null, example: null, definition: null, exercises: null, added: null };
+  return { red: null, orange: null, green: null, exercises: null, added: null };
 }
 
 export function readDailyGoals(language: string): DailyGoals {
