@@ -157,35 +157,11 @@ async function readLanguage(language: LearnableLanguage): Promise<GrammarInput[]
   await done;
   if (!Array.isArray(result)) return [];
   const inputs: GrammarInput[] = [];
-  const legacy: LegacyRule[] = [];
   for (const item of result) {
     const input = normalizeInput(item);
-    if (input && input.language === language) {
-      inputs.push(input);
-      continue;
-    }
-    const rule = normalizeLegacy(item);
-    if (rule && rule.language === language) legacy.push(rule);
+    if (input && input.language === language) inputs.push(input);
   }
-  if (!legacy.length) return inputs;
-  const folded = foldLegacy(legacy);
-  await replaceLegacy(legacy, folded);
-  const byId = new Map(inputs.map((input) => [input.id, input]));
-  for (const input of folded) byId.set(input.id, input);
-  return [...byId.values()];
-}
-
-async function replaceLegacy(
-  legacy: readonly LegacyRule[],
-  folded: readonly GrammarInput[],
-): Promise<void> {
-  const db = await openDatabase();
-  const tx = db.transaction(GRAMMAR_STORE, 'readwrite');
-  const done = transactionDone(tx);
-  const store = tx.objectStore(GRAMMAR_STORE);
-  for (const rule of legacy) store.delete(rule.id);
-  for (const input of folded) store.put(stored(input));
-  await done;
+  return inputs;
 }
 
 function rulesForOutcome(
@@ -448,74 +424,6 @@ function rulesOf(value: unknown): GrammarInputRule[] {
   return rules;
 }
 
-type LegacyOccurrence = {
-  at: number;
-  outcome: 'committed' | 'resolved';
-  before: string;
-  after: string;
-  instances: GrammarInstance[];
-};
-
-type LegacyRule = {
-  id: string;
-  language: LearnableLanguage;
-  rule: string;
-  occurrences: LegacyOccurrence[];
-};
-
-/** Rows saved as one rule with a list of sentences become one correction per sentence. */
-function normalizeLegacy(value: unknown): LegacyRule | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const source = value as Record<string, unknown>;
-  if (Array.isArray(source['rules'])) return null;
-  const id = clip(source['id'], ID_MAX);
-  const language = languageCode(String(source['language'] ?? ''));
-  const rule = clip(source['rule'], RULE_MAX) || legacyRule(source);
-  const occurrences = occurrencesOf(source);
-  if (!id || !language || !rule || !occurrences.length) return null;
-  return { id, language, rule, occurrences };
-}
-
-function foldLegacy(rules: readonly LegacyRule[]): GrammarInput[] {
-  const groups = new Map<string, GrammarInput>();
-  for (const rule of rules) {
-    for (const occurrence of rule.occurrences) {
-      const id = legacyInputId(rule.language, occurrence);
-      const group = groups.get(id) ?? {
-        id,
-        language: rule.language,
-        at: occurrence.at,
-        before: occurrence.before,
-        after: occurrence.after,
-        rules: [],
-      };
-      placeRule(group.rules, {
-        id: rule.id,
-        rule: rule.rule,
-        outcome: occurrence.outcome,
-        instances: occurrence.instances,
-      });
-      groups.set(id, group);
-    }
-  }
-  return [...groups.values()];
-}
-
-function legacyInputId(language: LearnableLanguage, occurrence: LegacyOccurrence): string {
-  const hash = djb2(
-    `${language}\n${occurrence.at}\n${occurrence.before}\n${occurrence.after}`,
-  ).toString(16);
-  return clip(`in-${occurrence.at}-${hash}`, ID_MAX);
-}
-
-function djb2(value: string): number {
-  let hash = 5381;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = ((hash << 5) + hash + value.charCodeAt(index)) >>> 0;
-  }
-  return hash;
-}
-
 function placeRule(rules: GrammarInputRule[], entry: GrammarInputRule): void {
   const index = rules.findIndex((rule) => rule.id === entry.id);
   if (index < 0) {
@@ -529,56 +437,6 @@ function placeRule(rules: GrammarInputRule[], entry: GrammarInputRule): void {
     return;
   }
   rules[index] = entry;
-}
-
-function occurrencesOf(source: Record<string, unknown>): LegacyOccurrence[] {
-  if (Array.isArray(source['occurrences'])) {
-    const rows: LegacyOccurrence[] = [];
-    for (const item of source['occurrences']) {
-      const occurrence = occurrenceOf(item);
-      if (occurrence) rows.push(occurrence);
-    }
-    if (rows.length) return rows.sort((left, right) => left.at - right.at);
-  }
-  return legacyOccurrences(source);
-}
-
-function occurrenceOf(value: unknown): LegacyOccurrence | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const source = value as Record<string, unknown>;
-  const at = finiteTime(source['at']);
-  const outcome =
-    source['outcome'] === 'resolved'
-      ? 'resolved'
-      : source['outcome'] === 'committed'
-        ? 'committed'
-        : null;
-  const before = clip(source['before'], BEFORE_MAX);
-  const after = clip(source['after'], BEFORE_MAX);
-  if (!at || !outcome || !before || !after) return null;
-  return {
-    at,
-    outcome,
-    before,
-    after,
-    instances: outcome === 'resolved' ? followedInstances(source) : instancesOf(source),
-  };
-}
-
-/** Rows saved before each occasion kept its own sentence share one before and after across every time. */
-function legacyOccurrences(source: Record<string, unknown>): LegacyOccurrence[] {
-  const before = clip(source['before'], BEFORE_MAX);
-  const after = clip(source['after'], BEFORE_MAX);
-  if (!before || !after) return [];
-  const instances = instancesOf(source);
-  const committedAt = Array.isArray(source['committedAt'])
-    ? timesOf(source['committedAt'])
-    : timesOf(source['createdAt']);
-  const resolvedAt = timesOf(source['resolvedAt']);
-  const rows: LegacyOccurrence[] = [];
-  for (const at of committedAt) rows.push({ at, outcome: 'committed', before, after, instances });
-  for (const at of resolvedAt) rows.push({ at, outcome: 'resolved', before, after, instances: [] });
-  return rows.sort((left, right) => left.at - right.at);
 }
 
 function instancesOf(source: Record<string, unknown>): GrammarInstance[] {
@@ -684,28 +542,6 @@ function bounded(text: string, start: number, end: number): boolean {
 
 function isWordChar(char: string): boolean {
   return char !== '' && /[\p{L}\p{N}'’\-]/u.test(char);
-}
-
-/** Older rows stored the corrected span. Keep them visible so they can be deleted. */
-function legacyRule(source: Record<string, unknown>): string {
-  const wrote = clip(source['wrote'], SPAN_MAX);
-  const correction = clip(source['correction'], SPAN_MAX);
-  if (!wrote || !correction || wrote.toLowerCase() === correction.toLowerCase()) return '';
-  return clip(`${wrote} → ${correction}`, RULE_MAX);
-}
-
-function timesOf(value: unknown): number[] {
-  const list = Array.isArray(value) ? value : value == null ? [] : [value];
-  const seen = new Set<number>();
-  const times: number[] = [];
-  for (const item of list) {
-    const time = finiteTime(item);
-    if (!time || seen.has(time)) continue;
-    seen.add(time);
-    times.push(time);
-  }
-  times.sort((left, right) => left - right);
-  return times;
 }
 
 function languageCode(language: string): LearnableLanguage | null {

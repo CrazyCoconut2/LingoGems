@@ -11,7 +11,6 @@ import {
   stagePhraseTranslations,
   withPhraseTranslationWrite,
 } from '../translations/phrase-store';
-import { sanitizeElementColor } from './element-color';
 import {
   mergeMetadataCatalog,
   normalizeElementCatalog,
@@ -251,12 +250,8 @@ export type StoredElement = {
   definitions: ElementDefinition[];
   /** Definitions removed from the editor. */
   removedDefinitions: RemovedDefinition[];
-  /** Optional swatch. Missing or invalid values are unset. */
-  color: string | null;
   /** Times this card was opened from the edition list. Missing values are 0. */
   clicks: number;
-  /** Set when the element is removed from the list. The record stays so its stats remain. */
-  deletedAt?: number;
   /** Opens and activity. Missing values are an empty log. */
   log: ElementLogEntry[];
   /** Distinct metadata values across this element's definitions. */
@@ -365,35 +360,17 @@ export async function readElements(language: string): Promise<StoredElement[]> {
   return materializeElements(await readLanguageRecords(code), code);
 }
 
-/** Soft-deleted elements for one language. The live list leaves these out. */
-export async function readRemovedElements(language: string): Promise<StoredElement[]> {
-  const code = language.trim().toLowerCase();
-  if (!isLearnableLanguage(code) || typeof indexedDB === 'undefined') return [];
-  return materializeElements(await readLanguageRecords(code), code, 'only');
-}
-
 export async function readAllElements(): Promise<StoredElement[]> {
   if (typeof indexedDB === 'undefined') return [];
   const db = await openDatabase();
   const result = await idbRequest(
     db.transaction(ELEMENTS_STORE, 'readonly').objectStore(ELEMENTS_STORE).getAll(),
   );
-  return materializeElements(Array.isArray(result) ? result : [], undefined, 'include');
+  return materializeElements(Array.isArray(result) ? result : []);
 }
 
-type RemovedVisibility = 'hide' | 'include' | 'only';
-
-function materializeElements(
-  records: unknown[],
-  language?: LearnableLanguage,
-  removed: RemovedVisibility = 'hide',
-): StoredElement[] {
-  const visible = records.filter((record) => {
-    if (removed === 'include') return true;
-    const gone = !!removedRecord(record);
-    return removed === 'only' ? gone : !gone;
-  });
-  return visible
+function materializeElements(records: unknown[], language?: LearnableLanguage): StoredElement[] {
+  return records
     .map(normalizeElement)
     .filter(
       (element): element is StoredElement =>
@@ -420,7 +397,6 @@ export async function addElement(language: string, title: string): Promise<Store
     equivalents: [],
     definitions: [],
     removedDefinitions: [],
-    color: null,
     clicks: 0,
     log: [],
     ...emptyMetadataIndexes(),
@@ -452,7 +428,6 @@ export async function saveElement(
     content.equivalents,
   ).map(presentDefinition);
   const indexes = collectMetadataIndexes(definitions);
-  const deletedAt = deletedAtOf(element);
   const saved: StoredElement = {
     id,
     language,
@@ -460,13 +435,11 @@ export async function saveElement(
     equivalents: content.equivalents,
     definitions,
     removedDefinitions,
-    color: normalizeColor(element?.color),
     clicks: normalizeClicks(element?.clicks),
     log: readElementLog(element),
     ...indexes,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
-    ...(deletedAt ? { deletedAt } : {}),
   };
   await putElement(saved);
   if (options?.syncCatalog !== false && !metadataIndexesEmpty(indexes)) {
@@ -529,22 +502,12 @@ async function writeCollection(
 
 export async function deleteElement(id: string): Promise<void> {
   const element = await readStoredElement(id);
-  if (!element || element.deletedAt) return;
-  await putElement({ ...element, deletedAt: Date.now() });
-}
-
-/** Clears `deletedAt` and returns the element to the live list. */
-export async function restoreElement(id: string): Promise<StoredElement> {
-  const element = await readStoredElement(id);
-  if (!element) throw new Error('Element not found');
-  if (!element.deletedAt) return element;
-  const live = await readElements(element.language);
-  if (live.some((item) => sameTitle(item.title, element.title))) {
-    throw new Error('That title is already there.');
-  }
-  const restored: StoredElement = { ...element };
-  delete restored.deletedAt;
-  return saveElement(restored);
+  if (!element || typeof indexedDB === 'undefined') return;
+  const db = await openDatabase();
+  await idbRequest(
+    db.transaction(ELEMENTS_STORE, 'readwrite').objectStore(ELEMENTS_STORE).delete(element.id),
+  );
+  elementWriteListener?.(element.language);
 }
 
 async function readLanguageRecords(language: string): Promise<unknown[]> {
@@ -624,7 +587,6 @@ function normalizeElement(raw: unknown): StoredElement | null {
   if (!title || !id) return null;
   const createdAtValue = source.createdAt;
   const content = normalizeContent(source.equivalents, source.definitions);
-  const deletedAt = deletedAtOf(source);
   return {
     id,
     language,
@@ -632,43 +594,12 @@ function normalizeElement(raw: unknown): StoredElement | null {
     equivalents: content.equivalents,
     definitions: content.definitions,
     removedDefinitions: normalizeRemovedDefinitions(source.removedDefinitions, content.equivalents),
-    color: normalizeColor(source.color),
     clicks: normalizeClicks(source.clicks),
     log: readElementLog(source),
     ...collectMetadataIndexes(content.definitions),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
-    ...(deletedAt ? { deletedAt } : {}),
   };
-}
-
-type RemovedRecord = { id: string; language: string };
-
-/** A removed element stays in the store. Lists hide it, and its stats still count. */
-function removedRecord(record: unknown): RemovedRecord | null {
-  const deletedAt = deletedAtOf(record);
-  if (!record || typeof record !== 'object' || deletedAt == null) return null;
-  const id =
-    typeof (record as { id?: unknown }).id === 'string' ? (record as { id: string }).id.trim() : '';
-  if (!id) return null;
-  return { id, language: languageOf(record) };
-}
-
-function deletedAtOf(record: unknown): number | undefined {
-  if (!record || typeof record !== 'object') return undefined;
-  const deletedAt = (record as { deletedAt?: unknown }).deletedAt;
-  if (typeof deletedAt !== 'number' || !Number.isFinite(deletedAt) || deletedAt <= 0) {
-    return undefined;
-  }
-  return deletedAt;
-}
-
-function languageOf(record: unknown): string {
-  if (!record || typeof record !== 'object') return '';
-  const language = String((record as { language?: unknown }).language ?? '')
-    .trim()
-    .toLowerCase();
-  return isLearnableLanguage(language) ? language : '';
 }
 
 function readElementLog(raw: unknown): ElementLogEntry[] {
@@ -701,11 +632,6 @@ function normalizeClicks(value: unknown): number {
   const clicks = Math.round(Number(value));
   if (!Number.isInteger(clicks) || clicks < 0) return 0;
   return clicks;
-}
-
-/** Missing or invalid values are unset. */
-function normalizeColor(value: unknown): string | null {
-  return sanitizeElementColor(value);
 }
 
 function normalizeContent(

@@ -55,8 +55,6 @@ import {
   readAllElements,
   readElements,
   readMetadataCatalog,
-  readRemovedElements,
-  restoreElement,
   saveElement,
   sensesWithEquivalents,
   type ElementCatalog,
@@ -70,8 +68,7 @@ import {
 
 type ElementTrailStop = { id: string; definition: number; example?: string; guide?: string };
 
-type FilterSection =
-  'sort' | 'language' | 'status' | 'score' | 'definitions' | 'examples' | 'forms';
+type FilterSection = 'sort' | 'language' | 'score' | 'definitions' | 'examples' | 'forms';
 
 type MetadataKind = 'definitions' | 'examples' | 'forms';
 
@@ -229,38 +226,22 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             @if (selecting()) {
               <div class="list-toolbar-actions">
                 @if (selectedIds().size) {
-                  @if (deletedFilter()) {
-                    <button
-                      type="button"
-                      class="list-action"
-                      aria-label="Restore selected"
-                      title="Restore selected"
-                      [disabled]="selectionBusy()"
-                      (click)="askDeleteSelection()"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M9 14 4 9l5-5" />
-                        <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
-                      </svg>
-                    </button>
-                  } @else {
-                    <button
-                      type="button"
-                      class="list-action danger"
-                      aria-label="Delete selected"
-                      title="Delete selected"
-                      [disabled]="selectionBusy()"
-                      (click)="askDeleteSelection()"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M3 6h18" />
-                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                        <path d="M10 11v6" />
-                        <path d="M14 11v6" />
-                      </svg>
-                    </button>
-                  }
+                  <button
+                    type="button"
+                    class="list-action danger"
+                    aria-label="Delete selected"
+                    title="Delete selected"
+                    [disabled]="selectionBusy()"
+                    (click)="askDeleteSelection()"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
+                  </button>
                 }
                 <button
                   type="button"
@@ -328,7 +309,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               @let color = scoreColor(element);
               <li
                 class="card"
-                [class.removed]="!!element.deletedAt"
                 [class.selected]="isSelected(element.id)"
                 [class.colored]="!!color"
                 [style.--score-color]="color"
@@ -590,7 +570,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 </button>
               </div>
               <p class="filter-subtitle">
-                Order the list, and keep elements by language, status, score, or metadata.
+                Order the list, and keep elements by language, score, or metadata.
               </p>
             </header>
 
@@ -708,51 +688,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                         Uses the language from Settings, unless you choose another one or none.
                       </p>
                     }
-                  </div>
-                }
-              </section>
-
-              <section class="filter-section" [class.expanded]="expanded() === 'status'">
-                <div class="section-header">
-                  <button
-                    type="button"
-                    class="section-toggle"
-                    [attr.aria-expanded]="expanded() === 'status'"
-                    (click)="toggleSection('status')"
-                  >
-                    <span class="section-title">
-                      Status
-                      <span class="section-count">{{
-                        deletedFilter() ? 'Deleted' : 'Active'
-                      }}</span>
-                    </span>
-                    <svg class="section-chevron" viewBox="0 0 24 24">
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
-                  </button>
-                </div>
-                @if (expanded() === 'status') {
-                  <div class="section-body">
-                    <div class="status-choices" role="group" aria-label="Status">
-                      <button
-                        type="button"
-                        class="status-choice"
-                        [class.selected]="!deletedFilter()"
-                        [attr.aria-pressed]="!deletedFilter()"
-                        (click)="chooseStatus('active')"
-                      >
-                        Active
-                      </button>
-                      <button
-                        type="button"
-                        class="status-choice deleted"
-                        [class.selected]="deletedFilter()"
-                        [attr.aria-pressed]="deletedFilter()"
-                        (click)="chooseStatus('deleted')"
-                      >
-                        Deleted
-                      </button>
-                    </div>
                   </div>
                 }
               </section>
@@ -931,25 +866,14 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               >
                 Cancel
               </button>
-              @if (deletedFilter()) {
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  [disabled]="selectionBusy()"
-                  (click)="confirmRestoreSelection()"
-                >
-                  Restore
-                </button>
-              } @else {
-                <button
-                  type="button"
-                  class="btn btn-danger"
-                  [disabled]="selectionBusy()"
-                  (click)="confirmDeleteSelection()"
-                >
-                  Delete
-                </button>
-              }
+              <button
+                type="button"
+                class="btn btn-danger"
+                [disabled]="selectionBusy()"
+                (click)="confirmDeleteSelection()"
+              >
+                Delete
+              </button>
             </div>
             @if (selectionError()) {
               <p class="selection-error">{{ selectionError() }}</p>
@@ -985,7 +909,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
           (deleted)="onElementDeleted()"
-          (restored)="onElementRestored($event)"
           (visit)="visitElement($event)"
           (back)="backElement()"
           (addSelection)="addFromSelection($event)"
@@ -1669,29 +1592,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       color: var(--card-accent);
     }
 
-    .card.removed {
-      border-style: dashed;
-      background: color-mix(in srgb, #151928 70%, transparent);
-    }
-
-    .card.removed .title {
-      color: #94a3b8;
-    }
-
-    .card.removed.colored {
-      box-shadow: none;
-      border-color: color-mix(in srgb, var(--card-accent) 32%, transparent);
-    }
-
-    .card.removed.colored:hover .title {
-      color: color-mix(in srgb, var(--card-accent) 65%, #94a3b8);
-    }
-
-    .card.removed .stat,
-    .card.removed .stat-score {
-      opacity: 0.62;
-    }
-
     .pills {
       display: flex;
       align-items: center;
@@ -1965,27 +1865,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       background: var(--surface-2);
     }
 
-    .grammar-list li.corrected {
-      opacity: 0.72;
-    }
-
-    .grammar-change {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 0.5rem;
-    }
-
-    .grammar-rule {
-      margin: 0;
-      font-weight: 650;
-      line-height: 1.35;
-    }
-
-    .grammar-change .icon-btn {
-      flex: none;
-    }
-
     .grammar-section {
       display: flex;
       flex-direction: column;
@@ -1999,10 +1878,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       font-weight: 650;
       letter-spacing: 0.02em;
       text-transform: uppercase;
-    }
-
-    .grammar-list li.selected {
-      box-shadow: inset 0 0 0 1.5px var(--accent-border);
     }
 
     .grammar-rule-btn {
@@ -2271,45 +2146,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       font-weight: 650;
     }
 
-    .status-choices {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.35rem;
-    }
-
-    .status-choice {
-      border: 0;
-      border-radius: 0.65rem;
-      background: color-mix(in srgb, var(--surface) 80%, transparent);
-      padding: 0.55rem 0.4rem;
-      color: var(--text-muted);
-      font: inherit;
-      font-size: 0.78rem;
-      font-weight: 650;
-      cursor: pointer;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
-    }
-
-    .status-choice:hover {
-      color: var(--text);
-    }
-
-    .status-choice.deleted:hover {
-      color: var(--danger);
-    }
-
-    .status-choice.selected {
-      color: var(--text);
-      background: color-mix(in srgb, var(--text) 8%, transparent);
-      box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 42%, var(--border));
-    }
-
-    .status-choice.deleted.selected {
-      color: var(--danger);
-      background: color-mix(in srgb, var(--danger) 12%, transparent);
-      box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--danger) 55%, transparent);
-    }
-
     .score-values {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -2560,8 +2396,6 @@ export class LanguagePage {
   readonly name = signal('');
   readonly ready = signal(false);
   readonly elements = signal<StoredElement[]>([]);
-  readonly removed = signal<StoredElement[]>([]);
-  readonly deletedFilter = signal(false);
   readonly leadFieldKey = signal(readDefinitionMetadataFields()[0]?.key ?? '');
   readonly query = signal('');
   readonly search = signal<ElementSearch>({ mode: 'browse', value: '' });
@@ -2624,15 +2458,10 @@ export class LanguagePage {
   readonly opened = computed(() => {
     const id = this.elementId();
     if (!id) return null;
-    return (
-      this.elements().find((element) => element.id === id) ??
-      this.removed().find((element) => element.id === id) ??
-      null
-    );
+    return this.elements().find((element) => element.id === id) ?? null;
   });
   readonly optionalFilterCount = computed(
     () =>
-      (this.deletedFilter() ? 1 : 0) +
       this.scoreFilter().length +
       (this.unscoredFilter() ? 1 : 0) +
       metadataFilterSize(this.definitionMetaFilter()) +
@@ -2651,7 +2480,7 @@ export class LanguagePage {
     const definitionMeta = this.definitionMetaFilter();
     const exampleMeta = this.exampleMetaFilter();
     const formMeta = this.formMetaFilter();
-    const source = this.deletedFilter() ? this.removed() : this.elements();
+    const source = this.elements();
     const matched = source.filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
       if (!elementMatchesScore(element, score, unscored)) return false;
@@ -2666,7 +2495,6 @@ export class LanguagePage {
       return count === 1 ? '1 selected' : `${count} selected`;
     }
     const count = this.shown().length;
-    if (this.deletedFilter()) return count === 1 ? '1 deleted' : `${count} deleted`;
     return count === 1 ? '1 element' : `${count} elements`;
   });
   readonly allShownSelected = computed(() => {
@@ -2677,8 +2505,7 @@ export class LanguagePage {
   });
   readonly emptyMessage = computed(() => {
     if (!this.code()) return 'Select a language to continue.';
-    const source = this.deletedFilter() ? this.removed() : this.elements();
-    if (!source.length) return this.deletedFilter() ? 'No deleted elements.' : 'No elements yet.';
+    if (!this.elements().length) return 'No elements yet.';
     return 'No matching elements.';
   });
 
@@ -2829,22 +2656,13 @@ export class LanguagePage {
 
   deleteSelectionTitle(): string {
     const count = this.selectedIds().size;
-    if (this.deletedFilter()) {
-      return count === 1 ? 'Restore this element?' : `Restore ${count} elements?`;
-    }
     return count === 1 ? 'Delete this element?' : `Delete ${count} elements?`;
   }
 
   selectionConfirmHint(): string {
-    const one = this.selectedIds().size === 1;
-    if (this.deletedFilter()) {
-      return one
-        ? 'This element will return to the list.'
-        : 'These elements will return to the list.';
-    }
-    return one
-      ? 'This element will be removed. Its stats stay.'
-      : 'These elements will be removed. Their stats stay.';
+    return this.selectedIds().size === 1
+      ? 'If you delete all the history, this element is lost. Stats are recomputed.'
+      : 'If you delete all the history, these elements are lost. Stats are recomputed.';
   }
 
   async confirmDeleteSelection(): Promise<void> {
@@ -2857,59 +2675,10 @@ export class LanguagePage {
       this.applyCatalog(await readMetadataCatalog());
       const gone = new Set(ids);
       this.elements.update((list) => list.filter((item) => !gone.has(item.id)));
-      await this.refreshRemoved();
       if (gone.has(this.elementId())) this.closeElement();
       this.clearSelection();
     } catch {
       this.selectionError.set('Could not delete these elements.');
-    } finally {
-      this.selectionBusy.set(false);
-    }
-  }
-
-  async confirmRestoreSelection(): Promise<void> {
-    const ids = [...this.selectedIds()];
-    if (!ids.length || this.selectionBusy()) return;
-    this.selectionBusy.set(true);
-    this.selectionError.set('');
-    try {
-      const restored: StoredElement[] = [];
-      let blocked = 0;
-      let failed = 0;
-      for (const id of ids) {
-        try {
-          restored.push(await restoreElement(id));
-        } catch (error) {
-          if (error instanceof Error && error.message === 'That title is already there.') {
-            blocked += 1;
-          } else failed += 1;
-        }
-      }
-      const done = new Set(restored.map((item) => item.id));
-      if (done.size) {
-        this.removed.update((list) => list.filter((item) => !done.has(item.id)));
-        this.elements.update((list) => {
-          const rest = list.filter((item) => !done.has(item.id));
-          return [...rest, ...restored];
-        });
-        this.applyCatalog(await readMetadataCatalog());
-      }
-      const remaining = ids.filter((id) => !done.has(id));
-      if (!remaining.length) {
-        this.clearSelection();
-        return;
-      }
-      this.selectedIds.set(new Set(remaining));
-      this.deleteConfirm.set(false);
-      if (blocked && failed) {
-        this.selectionError.set('That title is already there. Could not restore these elements.');
-      } else if (blocked) {
-        this.selectionError.set('That title is already there.');
-      } else {
-        this.selectionError.set('Could not restore these elements.');
-      }
-    } catch {
-      this.selectionError.set('Could not restore these elements.');
     } finally {
       this.selectionBusy.set(false);
     }
@@ -3114,21 +2883,11 @@ export class LanguagePage {
   }
 
   replaceElement(saved: StoredElement): void {
-    if (saved.deletedAt) {
-      this.removed.update((list) =>
-        list.some((item) => item.id === saved.id)
-          ? list.map((item) => (item.id === saved.id ? saved : item))
-          : [...list, saved],
-      );
-      this.elements.update((list) => list.filter((item) => item.id !== saved.id));
-    } else {
-      this.elements.update((list) =>
-        list.some((item) => item.id === saved.id)
-          ? list.map((item) => (item.id === saved.id ? saved : item))
-          : [...list, saved],
-      );
-      this.removed.update((list) => list.filter((item) => item.id !== saved.id));
-    }
+    this.elements.update((list) =>
+      list.some((item) => item.id === saved.id)
+        ? list.map((item) => (item.id === saved.id ? saved : item))
+        : [...list, saved],
+    );
     void this.refreshCatalog();
   }
 
@@ -3137,20 +2896,9 @@ export class LanguagePage {
     if (id) {
       this.elements.update((list) => list.filter((item) => item.id !== id));
       this.dropSelected(id);
-      void this.refreshRemoved();
     }
     void this.refreshCatalog();
     this.closeElement();
-  }
-
-  onElementRestored(saved: StoredElement): void {
-    this.removed.update((list) => list.filter((item) => item.id !== saved.id));
-    this.elements.update((list) => {
-      const rest = list.filter((item) => item.id !== saved.id);
-      return [...rest, saved];
-    });
-    this.dropSelected(saved.id);
-    void this.refreshCatalog();
   }
 
   closeElement(): void {
@@ -3328,14 +3076,9 @@ export class LanguagePage {
   async reloadElements(): Promise<void> {
     const code = this.code();
     if (!code) return;
-    const [elements, removed, catalog] = await Promise.all([
-      readElements(code),
-      readRemovedElements(code),
-      readMetadataCatalog(),
-    ]);
+    const [elements, catalog] = await Promise.all([readElements(code), readMetadataCatalog()]);
     if (this.code() !== code) return;
     this.elements.set(elements);
-    this.removed.set(removed);
     this.applyCatalog(catalog);
   }
 
@@ -3474,23 +3217,12 @@ export class LanguagePage {
     this.unscoredFilter.set(false);
   }
 
-  chooseStatus(status: 'active' | 'deleted'): void {
-    const deleted = status === 'deleted';
-    if (deleted === this.deletedFilter()) return;
-    this.deletedFilter.set(deleted);
-    this.clearSelection();
-  }
-
   clearFilters(): void {
     this.scoreFilter.set([]);
     this.unscoredFilter.set(false);
     this.definitionMetaFilter.set({});
     this.exampleMetaFilter.set({});
     this.formMetaFilter.set({});
-    if (this.deletedFilter()) {
-      this.deletedFilter.set(false);
-      this.clearSelection();
-    }
   }
 
   metadataEntries(kind: MetadataKind): { key: string; values: string[] }[] {
@@ -3655,14 +3387,9 @@ export class LanguagePage {
       for (const element of all) {
         next.push(await saveElement(element, { syncCatalog: false }));
       }
-      const live = next.filter((element) => !element.deletedAt);
-      const gone = next.filter((element) => element.deletedAt);
-      const catalog = await commitElementCatalog(catalogFromElements(live));
+      const catalog = await commitElementCatalog(catalogFromElements(next));
       const code = this.code();
-      if (code) {
-        this.elements.set(live.filter((element) => element.language === code));
-        this.removed.set(gone.filter((element) => element.language === code));
-      }
+      if (code) this.elements.set(next.filter((element) => element.language === code));
       this.applyCatalog(catalog);
     } catch {
       this.recomputeError.set('Could not recompute metadata.');
@@ -3677,17 +3404,6 @@ export class LanguagePage {
 
   private async refreshCatalog(): Promise<void> {
     this.applyCatalog(await readMetadataCatalog());
-  }
-
-  private async refreshRemoved(): Promise<void> {
-    const code = this.code();
-    if (!code) {
-      this.removed.set([]);
-      return;
-    }
-    const removed = await readRemovedElements(code);
-    if (this.code() !== code) return;
-    this.removed.set(removed);
   }
 
   private applyCatalog(catalog: ElementCatalog): void {
@@ -3706,7 +3422,6 @@ export class LanguagePage {
       this.code.set('');
       this.name.set('');
       this.elements.set([]);
-      this.removed.set([]);
       this.clearGrammar();
       this.ready.set(true);
       if (!this.promptedLanguage) {
@@ -3721,14 +3436,12 @@ export class LanguagePage {
     this.name.set(languageDisplayName(code));
     this.clearGrammar();
     this.ready.set(false);
-    const [elements, removed, grammar] = await Promise.all([
+    const [elements, grammar] = await Promise.all([
       readElements(code),
-      readRemovedElements(code),
       readGrammarInputs(code).catch(() => [] as GrammarInput[]),
     ]);
     if (seq !== this.loadId) return;
     this.elements.set(elements);
-    this.removed.set(removed);
     this.grammarInputs.set(grammar);
     this.ready.set(true);
   }

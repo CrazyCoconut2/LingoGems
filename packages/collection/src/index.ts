@@ -14,8 +14,6 @@ export {
   type ElementCatalog,
 } from './elements/metadata-catalog';
 
-export { sanitizeElementColor } from './elements/element-color';
-
 export {
   addElement,
   commitElementCatalog,
@@ -23,8 +21,6 @@ export {
   displayTitle,
   readAllElements,
   readElements,
-  readRemovedElements,
-  restoreElement,
   replaceCollection,
   assignEquivalent,
   sensesWithEquivalents,
