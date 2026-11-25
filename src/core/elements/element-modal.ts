@@ -559,7 +559,6 @@ function writeExampleSuggestions(
                       (click)="pickGrammarMistake(surface, mistake.id)"
                     >
                       <span class="grammar-change">{{ mistake.rule }}</span>
-                      <span class="grammar-before">{{ grammarSentence(mistake) }}</span>
                     </button>
                   </li>
                 }
@@ -5071,15 +5070,6 @@ function writeExampleSuggestions(
       opacity: 0.75;
     }
 
-    .definition-ai .grammar-before {
-      font-size: 0.75rem;
-      opacity: 0.8;
-      overflow: hidden;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-    }
-
     .definition-ai .example-actions .generate-main {
       background: white;
       color: var(--accent);
@@ -7348,14 +7338,6 @@ export class ElementModal {
     const grammarOpen = !engineer.grammarOpen;
     this.exampleFieldEngineer.set({ ...engineer, grammarOpen });
     if (grammarOpen) void this.loadGrammarChoices();
-  }
-
-  grammarSentence(mistake: GrammarMistake): string {
-    let latest = mistake.occurrences[0];
-    for (const occurrence of mistake.occurrences) {
-      if (!latest || occurrence.at >= latest.at) latest = occurrence;
-    }
-    return latest?.after ?? '';
   }
 
   pickGrammarMistake(surface: GrammarSurface, id: string): void {

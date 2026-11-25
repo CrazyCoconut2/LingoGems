@@ -6,32 +6,36 @@ const RULE_MAX = 300;
 const SPAN_MAX = 200;
 const ID_MAX = 80;
 
+/** One correction. The rules are what that sentence violated or followed. */
+export type GrammarInput = {
+  id: string;
+  language: LearnableLanguage;
+  at: number;
+  before: string;
+  after: string;
+  rules: GrammarInputRule[];
+};
+
+/** A rule on one correction. The id is stable across sentences. */
+export type GrammarInputRule = {
+  id: string;
+  rule: string;
+  outcome: 'committed' | 'resolved';
+  instances: GrammarInstance[];
+};
+
 /**
- * One grammatical rule. Each time it is broken or followed is its own sentence,
- * because a later sentence can repeat the error or get it right somewhere else.
+ * A rule gathered from every correction that mentioned it.
+ * `before` and `after` are the newest sentence that did.
  */
 export type GrammarMistake = {
   id: string;
   language: LearnableLanguage;
-  /** The general rule that was broken, not the words from one sentence. */
   rule: string;
-  /** Every time this rule was broken or followed, oldest first. */
-  occurrences: GrammarOccurrence[];
-};
-
-/** One sentence in which this rule was broken, or a later sentence that followed it. */
-export type GrammarOccurrence = {
+  before: string;
+  after: string;
   at: number;
   outcome: 'committed' | 'resolved';
-  /** The sentence the learner wrote. */
-  before: string;
-  /** That sentence after the fixes. */
-  after: string;
-  /**
-   * A commit stores each span that broke this rule.
-   * A resolution stores the span that followed it. `correction` then equals `wrote`.
-   */
-  instances: GrammarInstance[];
 };
 
 /** The words in one sentence that broke a rule, and what those words should be. */
@@ -42,7 +46,7 @@ export type GrammarInstance = {
 
 export type GrammarMark =
   | { kind: 'text'; text: string }
-  | { kind: 'fix'; wrote: string; correction: string }
+  | { kind: 'fix'; wrote: string; correction: string; colored: boolean }
   | { kind: 'good'; text: string };
 
 export type GrammarCommit = {
@@ -58,29 +62,56 @@ export type GrammarResolution = {
   wrote: string;
 };
 
-/** True when the latest event for this error is a commit, not a sentence that avoided it. */
+/** True when the newest mention of this rule is a violation. */
 export function grammarMistakeOpen(mistake: GrammarMistake): boolean {
-  return latestOccurrence(mistake)?.outcome === 'committed';
+  return mistake.outcome === 'committed';
 }
 
-/** Every stored mistake for this language, most recently active first. */
-export async function readGrammarMistakes(language: string): Promise<GrammarMistake[]> {
+/** Every correction for this language, newest first. */
+export async function readGrammarInputs(language: string): Promise<GrammarInput[]> {
   const code = languageCode(language);
   if (!code || typeof indexedDB === 'undefined') return [];
   const rows = await readLanguage(code);
-  return rows.sort(newestFirst);
+  return rows.sort(newestInput);
 }
 
-/** Mistakes whose latest event is still a commit, most recently active first. */
+/** Every rule mentioned in this language, newest mention first. */
+export async function readGrammarMistakes(language: string): Promise<GrammarMistake[]> {
+  return grammarRules(await readGrammarInputs(language));
+}
+
+/** Rules whose newest mention is still a violation, newest first. */
 export async function readOpenGrammarMistakes(language: string): Promise<GrammarMistake[]> {
   const rows = await readGrammarMistakes(language);
   return rows.filter(grammarMistakeOpen);
 }
 
+/** One rule per id. A later correction replaces an earlier mention of that rule. */
+export function grammarRules(inputs: readonly GrammarInput[]): GrammarMistake[] {
+  const rules = new Map<string, GrammarMistake>();
+  for (const input of inputs) {
+    for (const entry of input.rules) {
+      const current = rules.get(entry.id);
+      if (current && current.at > input.at) continue;
+      if (current && current.at === input.at && current.outcome === 'committed') continue;
+      rules.set(entry.id, {
+        id: entry.id,
+        language: input.language,
+        rule: entry.rule,
+        before: input.before,
+        after: input.after,
+        at: input.at,
+        outcome: entry.outcome,
+      });
+    }
+  }
+  return [...rules.values()].sort(newestMistake);
+}
+
 /**
- * Records this sentence against known errors.
- * A committed rule appends this sentence and the spans that broke it.
- * A resolved rule appends this sentence and the span that followed it.
+ * Records this sentence as one correction.
+ * A rule the sentence breaks is stored as committed. A prior rule it follows is stored as resolved.
+ * The same rule in another sentence reuses that rule's id.
  */
 export async function applyGrammarOutcome(input: {
   language: string;
@@ -99,82 +130,54 @@ export async function applyGrammarOutcome(input: {
   const resolved = resolutionsOf(input.resolved);
   if (!committed.length && !resolved.length) return;
 
+  const existing = await readGrammarInputs(language);
+  const rules = rulesForOutcome(existing, committed, resolved);
+  if (!rules.length) return;
+  const row: GrammarInput = {
+    id: crypto.randomUUID(),
+    language,
+    at,
+    before,
+    after,
+    rules,
+  };
   const db = await openDatabase();
   const tx = db.transaction(GRAMMAR_STORE, 'readwrite');
   const done = transactionDone(tx);
-  const store = tx.objectStore(GRAMMAR_STORE);
-  const existing = await idbRequest(store.index('language').getAll(language));
-  const rows = new Map<string, GrammarMistake>();
-  const byRule = new Map<string, GrammarMistake>();
-  if (Array.isArray(existing)) {
-    for (const item of existing) {
-      const row = normalize(item);
-      if (!row || row.language !== language) continue;
-      rows.set(row.id, row);
-      byRule.set(ruleKey(row.rule), row);
-    }
-  }
-  const touchedIds = new Set<string>();
-  const touchedRules = new Set<string>();
-  for (const bucket of groupCommits(committed)) {
-    const known = (bucket.id && rows.get(bucket.id)) || byRule.get(ruleKey(bucket.rule));
-    const occurrence: GrammarOccurrence = {
-      at,
-      outcome: 'committed',
-      before,
-      after,
-      instances: bucket.instances,
-    };
-    if (known) {
-      const next = appendOccurrence(known, occurrence);
-      touchedIds.add(next.id);
-      touchedRules.add(ruleKey(next.rule));
-      rows.set(next.id, next);
-      byRule.set(ruleKey(next.rule), next);
-      continue;
-    }
-    const id = crypto.randomUUID();
-    const created: GrammarMistake = {
-      id,
-      language,
-      rule: bucket.rule,
-      occurrences: [occurrence],
-    };
-    touchedIds.add(id);
-    touchedRules.add(ruleKey(created.rule));
-    rows.set(id, created);
-    byRule.set(ruleKey(created.rule), created);
-  }
-  for (const item of resolved) {
-    const known = rows.get(item.id);
-    if (!known || touchedIds.has(known.id) || touchedRules.has(ruleKey(known.rule))) continue;
-    const followed = clip(item.wrote, SPAN_MAX);
-    const next = appendOccurrence(known, {
-      at,
-      outcome: 'resolved',
-      before,
-      after,
-      instances: followed ? [{ wrote: followed, correction: followed }] : [],
-    });
-    rows.set(next.id, next);
-    byRule.set(ruleKey(next.rule), next);
-  }
-  for (const row of rows.values()) store.put(stored(row));
+  tx.objectStore(GRAMMAR_STORE).put(stored(row));
   await done;
 }
 
-/** Removes one stored mistake. An unknown id does nothing. */
+/** Removes one rule from every correction. A correction left with no rules is removed. */
 export async function deleteGrammarMistake(id: string): Promise<void> {
   const key = clip(id, ID_MAX);
   if (!key || typeof indexedDB === 'undefined') return;
   const db = await openDatabase();
   const tx = db.transaction(GRAMMAR_STORE, 'readwrite');
   const done = transactionDone(tx);
-  tx.objectStore(GRAMMAR_STORE).delete(key);
+  const store = tx.objectStore(GRAMMAR_STORE);
+  const result = await idbRequest(store.getAll());
+  if (Array.isArray(result)) {
+    for (const item of result) {
+      if (!item || typeof item !== 'object') continue;
+      const source = item as Record<string, unknown>;
+      const rowId = clip(source['id'], ID_MAX);
+      if (!rowId) continue;
+      const input = normalizeInput(source);
+      if (!input) {
+        if (rowId === key) store.delete(rowId);
+        continue;
+      }
+      if (!input.rules.some((rule) => rule.id === key)) continue;
+      const rules = input.rules.filter((rule) => rule.id !== key);
+      if (!rules.length) store.delete(input.id);
+      else store.put(stored({ ...input, rules }));
+    }
+  }
   await done;
 }
 
-async function readLanguage(language: LearnableLanguage): Promise<GrammarMistake[]> {
+async function readLanguage(language: LearnableLanguage): Promise<GrammarInput[]> {
   const db = await openDatabase();
   const tx = db.transaction(GRAMMAR_STORE, 'readonly');
   const done = transactionDone(tx);
@@ -182,12 +185,85 @@ async function readLanguage(language: LearnableLanguage): Promise<GrammarMistake
   const result = await idbRequest(request);
   await done;
   if (!Array.isArray(result)) return [];
-  const rows: GrammarMistake[] = [];
+  const inputs: GrammarInput[] = [];
+  const legacy: LegacyRule[] = [];
   for (const item of result) {
-    const row = normalize(item);
-    if (row && row.language === language) rows.push(row);
+    const input = normalizeInput(item);
+    if (input && input.language === language) {
+      inputs.push(input);
+      continue;
+    }
+    const rule = normalizeLegacy(item);
+    if (rule && rule.language === language) legacy.push(rule);
   }
-  return rows;
+  if (!legacy.length) return inputs;
+  const folded = foldLegacy(legacy);
+  await replaceLegacy(legacy, folded);
+  const byId = new Map(inputs.map((input) => [input.id, input]));
+  for (const input of folded) byId.set(input.id, input);
+  return [...byId.values()];
+}
+
+async function replaceLegacy(
+  legacy: readonly LegacyRule[],
+  folded: readonly GrammarInput[],
+): Promise<void> {
+  const db = await openDatabase();
+  const tx = db.transaction(GRAMMAR_STORE, 'readwrite');
+  const done = transactionDone(tx);
+  const store = tx.objectStore(GRAMMAR_STORE);
+  for (const rule of legacy) store.delete(rule.id);
+  for (const input of folded) store.put(stored(input));
+  await done;
+}
+
+function rulesForOutcome(
+  existing: readonly GrammarInput[],
+  committed: readonly GrammarCommit[],
+  resolved: readonly GrammarResolution[],
+): GrammarInputRule[] {
+  const byId = new Map<string, { id: string; rule: string }>();
+  const byText = new Map<string, { id: string; rule: string }>();
+  for (const input of existing) {
+    for (const entry of input.rules) {
+      const known = { id: entry.id, rule: entry.rule };
+      if (!byId.has(entry.id)) byId.set(entry.id, known);
+      const key = ruleKey(entry.rule);
+      if (!byText.has(key)) byText.set(key, known);
+    }
+  }
+  const rules: GrammarInputRule[] = [];
+  const committedIds = new Set<string>();
+  for (const bucket of groupCommits(committed)) {
+    const known = (bucket.id && byId.get(bucket.id)) || byText.get(ruleKey(bucket.rule));
+    const id = known?.id ?? crypto.randomUUID();
+    const rule = known?.rule ?? bucket.rule;
+    if (committedIds.has(id)) {
+      const current = rules.find((entry) => entry.id === id);
+      if (current && bucket.instances.length) {
+        current.instances = mergeInstances(current.instances, bucket.instances);
+      }
+      continue;
+    }
+    committedIds.add(id);
+    const knownRule = { id, rule };
+    byId.set(id, knownRule);
+    byText.set(ruleKey(rule), knownRule);
+    byText.set(ruleKey(bucket.rule), knownRule);
+    rules.push({ id, rule, outcome: 'committed', instances: bucket.instances });
+  }
+  for (const item of resolved) {
+    const known = byId.get(item.id);
+    if (!known || committedIds.has(known.id)) continue;
+    const followed = clip(item.wrote, SPAN_MAX);
+    rules.push({
+      id: known.id,
+      rule: known.rule,
+      outcome: 'resolved',
+      instances: followed ? [{ wrote: followed, correction: followed }] : [],
+    });
+  }
+  return rules;
 }
 
 function groupCommits(
@@ -242,40 +318,82 @@ function resolutionsOf(items: readonly GrammarResolution[]): GrammarResolution[]
   return rows;
 }
 
-function appendOccurrence(row: GrammarMistake, occurrence: GrammarOccurrence): GrammarMistake {
-  const index = row.occurrences.findIndex(
-    (item) => item.at === occurrence.at && item.outcome === occurrence.outcome,
-  );
-  if (index < 0) {
-    return {
-      ...row,
-      occurrences: [...row.occurrences, occurrence].sort((left, right) => left.at - right.at),
-    };
-  }
-  const current = row.occurrences[index];
-  const next = [...row.occurrences];
-  next[index] = {
-    ...current,
-    before: occurrence.before,
-    after: occurrence.after,
-    instances: mergeInstances(current.instances, occurrence.instances),
-  };
-  return { ...row, occurrences: next };
-}
-
-function stored(row: GrammarMistake): GrammarMistake {
+function stored(row: GrammarInput): GrammarInput {
   return {
     id: row.id,
     language: row.language,
-    rule: row.rule,
-    occurrences: row.occurrences.map((occurrence) => ({
-      at: occurrence.at,
-      outcome: occurrence.outcome,
-      before: occurrence.before,
-      after: occurrence.after,
-      instances: occurrence.instances.map((instance) => ({ ...instance })),
+    at: row.at,
+    before: row.before,
+    after: row.after,
+    rules: row.rules.map((rule) => ({
+      id: rule.id,
+      rule: rule.rule,
+      outcome: rule.outcome,
+      instances: rule.instances.map((instance) => ({ ...instance })),
     })),
   };
+}
+
+/**
+ * The corrected sentence, with every violated span shown as the words that were written
+ * beside the fix. `colored` is the span that belongs to the rule the learner picked.
+ */
+export function grammarCorrectionMarks(
+  sentence: string,
+  groups: readonly {
+    instances: readonly GrammarInstance[];
+    colored: boolean;
+    followed?: boolean;
+  }[],
+): GrammarMark[] {
+  const text = sentence;
+  if (!text) return [];
+  const ranges: {
+    start: number;
+    end: number;
+    wrote: string;
+    colored: boolean;
+    followed: boolean;
+  }[] = [];
+  const spans: { needle: string; wrote: string; colored: boolean; followed: boolean }[] = [];
+  for (const group of groups) {
+    for (const instance of group.instances) {
+      const wrote = instance.wrote.trim();
+      const correction = instance.correction.trim();
+      const followed = group.followed === true;
+      if (!wrote || !correction) continue;
+      if (!followed && wrote.toLowerCase() === correction.toLowerCase()) continue;
+      if (followed && !group.colored) continue;
+      spans.push({
+        needle: followed ? wrote : correction,
+        wrote,
+        colored: group.colored,
+        followed,
+      });
+    }
+  }
+  spans.sort((left, right) => right.needle.length - left.needle.length);
+  for (const span of spans) {
+    const found = findSpan(text, span.needle, ranges);
+    if (found)
+      ranges.push({ ...found, wrote: span.wrote, colored: span.colored, followed: span.followed });
+  }
+  ranges.sort((left, right) => left.start - right.start);
+  const marks: GrammarMark[] = [];
+  let cursor = 0;
+  for (const range of ranges) {
+    if (range.start < cursor) continue;
+    if (range.start > cursor) marks.push({ kind: 'text', text: text.slice(cursor, range.start) });
+    const slice = text.slice(range.start, range.end);
+    marks.push(
+      range.followed
+        ? { kind: 'good', text: slice }
+        : { kind: 'fix', wrote: range.wrote, correction: slice, colored: range.colored },
+    );
+    cursor = range.end;
+  }
+  if (cursor < text.length) marks.push({ kind: 'text', text: text.slice(cursor) });
+  return marks.length ? marks : [{ kind: 'text', text }];
 }
 
 /**
@@ -316,7 +434,7 @@ export function grammarSentenceMarks(
     marks.push(
       tone === 'right'
         ? { kind: 'good', text: slice }
-        : { kind: 'fix', wrote: range.wrote, correction: slice },
+        : { kind: 'fix', wrote: range.wrote, correction: slice, colored: true },
     );
     cursor = range.end;
   }
@@ -324,9 +442,61 @@ export function grammarSentenceMarks(
   return marks.length ? marks : [{ kind: 'text', text }];
 }
 
-function normalize(value: unknown): GrammarMistake | null {
+function normalizeInput(value: unknown): GrammarInput | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const source = value as Record<string, unknown>;
+  if (!Array.isArray(source['rules'])) return null;
+  const id = clip(source['id'], ID_MAX);
+  const language = languageCode(String(source['language'] ?? ''));
+  const at = finiteTime(source['at']);
+  const before = clip(source['before'], BEFORE_MAX);
+  const after = clip(source['after'], BEFORE_MAX);
+  const rules = rulesOf(source['rules']);
+  if (!id || !language || !at || !before || !after || !rules.length) return null;
+  return { id, language, at, before, after, rules };
+}
+
+function rulesOf(value: unknown): GrammarInputRule[] {
+  if (!Array.isArray(value)) return [];
+  const rules: GrammarInputRule[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const source = item as Record<string, unknown>;
+    const id = clip(source['id'], ID_MAX);
+    const rule = clip(source['rule'], RULE_MAX);
+    const outcome =
+      source['outcome'] === 'resolved'
+        ? 'resolved'
+        : source['outcome'] === 'committed'
+          ? 'committed'
+          : null;
+    if (!id || !rule || !outcome) continue;
+    const instances = outcome === 'resolved' ? followedInstances(source) : instancesOf(source);
+    placeRule(rules, { id, rule, outcome, instances });
+  }
+  return rules;
+}
+
+type LegacyOccurrence = {
+  at: number;
+  outcome: 'committed' | 'resolved';
+  before: string;
+  after: string;
+  instances: GrammarInstance[];
+};
+
+type LegacyRule = {
+  id: string;
+  language: LearnableLanguage;
+  rule: string;
+  occurrences: LegacyOccurrence[];
+};
+
+/** Rows saved as one rule with a list of sentences become one correction per sentence. */
+function normalizeLegacy(value: unknown): LegacyRule | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  if (Array.isArray(source['rules'])) return null;
   const id = clip(source['id'], ID_MAX);
   const language = languageCode(String(source['language'] ?? ''));
   const rule = clip(source['rule'], RULE_MAX) || legacyRule(source);
@@ -335,9 +505,64 @@ function normalize(value: unknown): GrammarMistake | null {
   return { id, language, rule, occurrences };
 }
 
-function occurrencesOf(source: Record<string, unknown>): GrammarOccurrence[] {
+function foldLegacy(rules: readonly LegacyRule[]): GrammarInput[] {
+  const groups = new Map<string, GrammarInput>();
+  for (const rule of rules) {
+    for (const occurrence of rule.occurrences) {
+      const id = legacyInputId(rule.language, occurrence);
+      const group = groups.get(id) ?? {
+        id,
+        language: rule.language,
+        at: occurrence.at,
+        before: occurrence.before,
+        after: occurrence.after,
+        rules: [],
+      };
+      placeRule(group.rules, {
+        id: rule.id,
+        rule: rule.rule,
+        outcome: occurrence.outcome,
+        instances: occurrence.instances,
+      });
+      groups.set(id, group);
+    }
+  }
+  return [...groups.values()];
+}
+
+function legacyInputId(language: LearnableLanguage, occurrence: LegacyOccurrence): string {
+  const hash = djb2(
+    `${language}\n${occurrence.at}\n${occurrence.before}\n${occurrence.after}`,
+  ).toString(16);
+  return clip(`in-${occurrence.at}-${hash}`, ID_MAX);
+}
+
+function djb2(value: string): number {
+  let hash = 5381;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) + hash + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function placeRule(rules: GrammarInputRule[], entry: GrammarInputRule): void {
+  const index = rules.findIndex((rule) => rule.id === entry.id);
+  if (index < 0) {
+    rules.push(entry);
+    return;
+  }
+  const current = rules[index];
+  if (current.outcome === 'committed' && entry.outcome === 'resolved') return;
+  if (current.outcome === 'committed' && entry.outcome === 'committed') {
+    rules[index] = { ...entry, instances: mergeInstances(current.instances, entry.instances) };
+    return;
+  }
+  rules[index] = entry;
+}
+
+function occurrencesOf(source: Record<string, unknown>): LegacyOccurrence[] {
   if (Array.isArray(source['occurrences'])) {
-    const rows: GrammarOccurrence[] = [];
+    const rows: LegacyOccurrence[] = [];
     for (const item of source['occurrences']) {
       const occurrence = occurrenceOf(item);
       if (occurrence) rows.push(occurrence);
@@ -347,7 +572,7 @@ function occurrencesOf(source: Record<string, unknown>): GrammarOccurrence[] {
   return legacyOccurrences(source);
 }
 
-function occurrenceOf(value: unknown): GrammarOccurrence | null {
+function occurrenceOf(value: unknown): LegacyOccurrence | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const source = value as Record<string, unknown>;
   const at = finiteTime(source['at']);
@@ -370,7 +595,7 @@ function occurrenceOf(value: unknown): GrammarOccurrence | null {
 }
 
 /** Rows saved before each occasion kept its own sentence share one before and after across every time. */
-function legacyOccurrences(source: Record<string, unknown>): GrammarOccurrence[] {
+function legacyOccurrences(source: Record<string, unknown>): LegacyOccurrence[] {
   const before = clip(source['before'], BEFORE_MAX);
   const after = clip(source['after'], BEFORE_MAX);
   if (!before || !after) return [];
@@ -379,13 +604,9 @@ function legacyOccurrences(source: Record<string, unknown>): GrammarOccurrence[]
     ? timesOf(source['committedAt'])
     : timesOf(source['createdAt']);
   const resolvedAt = timesOf(source['resolvedAt']);
-  const rows: GrammarOccurrence[] = [];
-  for (const at of committedAt) {
-    rows.push({ at, outcome: 'committed', before, after, instances });
-  }
-  for (const at of resolvedAt) {
-    rows.push({ at, outcome: 'resolved', before, after, instances: [] });
-  }
+  const rows: LegacyOccurrence[] = [];
+  for (const at of committedAt) rows.push({ at, outcome: 'committed', before, after, instances });
+  for (const at of resolvedAt) rows.push({ at, outcome: 'resolved', before, after, instances: [] });
   return rows.sort((left, right) => left.at - right.at);
 }
 
@@ -538,18 +759,12 @@ function finiteTime(value: unknown): number | null {
   return time;
 }
 
-function latestOccurrence(mistake: GrammarMistake): GrammarOccurrence | null {
-  let latest: GrammarOccurrence | null = null;
-  for (const occurrence of mistake.occurrences) {
-    if (!latest || occurrence.at > latest.at) latest = occurrence;
-  }
-  return latest;
+function newestInput(left: GrammarInput, right: GrammarInput): number {
+  return right.at - left.at || left.id.localeCompare(right.id);
 }
 
-function newestFirst(left: GrammarMistake, right: GrammarMistake): number {
-  const activity = latestOccurrence(right)?.at ?? 0;
-  const other = latestOccurrence(left)?.at ?? 0;
-  return activity - other || left.id.localeCompare(right.id);
+function newestMistake(left: GrammarMistake, right: GrammarMistake): number {
+  return right.at - left.at || left.id.localeCompare(right.id);
 }
 
 function transactionDone(tx: IDBTransaction): Promise<void> {

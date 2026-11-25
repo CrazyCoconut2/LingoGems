@@ -121,15 +121,19 @@ export {
 export {
   applyGrammarOutcome,
   deleteGrammarMistake,
+  grammarCorrectionMarks,
   grammarMistakeOpen,
+  grammarRules,
   grammarSentenceMarks,
+  readGrammarInputs,
   readGrammarMistakes,
   readOpenGrammarMistakes,
   type GrammarCommit,
+  type GrammarInput,
+  type GrammarInputRule,
   type GrammarInstance,
   type GrammarMark,
   type GrammarMistake,
-  type GrammarOccurrence,
   type GrammarResolution,
 } from './grammar/grammar-store';
 

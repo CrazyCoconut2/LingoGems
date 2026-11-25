@@ -41,12 +41,14 @@ import {
   isValidForm,
   LEARNABLE_LANGUAGES,
   deleteGrammarMistake,
+  grammarCorrectionMarks,
   grammarMistakeOpen,
-  grammarSentenceMarks,
+  grammarRules,
   languageDisplayName,
+  type GrammarInput,
+  type GrammarInputRule,
   type GrammarMark,
-  type GrammarOccurrence,
-  readGrammarMistakes,
+  readGrammarInputs,
   type GrammarMistake,
   mergeMetadataVariability,
   metadataFilterSize,
@@ -463,8 +465,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               <div>
                 <h2 class="filter-title">Grammar</h2>
                 <p class="filter-subtitle">
-                  Rules broken in this language. Pick a mark to see that time. A broken word is red
-                  and crossed, with the right form in green beside it.
+                  Corrected sentences, newest first. Open one to see each mistake, then pick a rule
+                  to color its words.
                 </p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeGrammar()">
@@ -475,12 +477,24 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               </button>
             </header>
             <div class="filter-body">
-              @if (grammarMistakes().length) {
-                <ul class="grammar-list">
-                  @for (mistake of grammarMistakes(); track mistake.id) {
-                    <li [class.corrected]="!mistakeOpen(mistake)">
-                      <div class="grammar-change">
-                        <p class="grammar-rule">{{ mistake.rule }}</p>
+              <section class="grammar-section">
+                <h3 class="grammar-heading">Rules</h3>
+                @if (grammarMistakes().length) {
+                  <div class="grammar-filter-rules">
+                    @for (mistake of grammarMistakes(); track mistake.id) {
+                      <div
+                        class="grammar-filter-chip"
+                        [class.selected]="grammarFiltered(mistake.id)"
+                        [class.corrected]="!mistakeOpen(mistake)"
+                      >
+                        <button
+                          type="button"
+                          class="grammar-filter"
+                          [attr.aria-pressed]="grammarFiltered(mistake.id)"
+                          (click)="toggleGrammarFilter(mistake.id)"
+                        >
+                          {{ mistake.rule }}
+                        </button>
                         <button
                           type="button"
                           class="icon-btn"
@@ -497,57 +511,90 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                           </svg>
                         </button>
                       </div>
-                      <div class="grammar-marks" role="tablist">
-                        @for (
-                          occurrence of mistake.occurrences;
-                          track occurrence.at + occurrence.outcome;
-                          let index = $index
-                        ) {
-                          <button
-                            type="button"
-                            class="grammar-mark"
-                            role="tab"
-                            [class.committed]="occurrence.outcome === 'committed'"
-                            [class.resolved]="occurrence.outcome === 'resolved'"
-                            [class.selected]="grammarIndex(mistake) === index"
-                            [attr.aria-selected]="grammarIndex(mistake) === index"
-                            [attr.aria-label]="grammarMarkLabel(occurrence)"
-                            [title]="grammarTime(occurrence.at)"
-                            (click)="selectGrammarOccurrence(mistake.id, index)"
-                          >
-                            @if (occurrence.outcome === 'committed') {
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M18 6 6 18" />
-                                <path d="m6 6 12 12" />
-                              </svg>
-                            } @else {
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M20 6 9 17l-5-5" />
-                              </svg>
-                            }
-                          </button>
-                        }
-                      </div>
-                      @if (grammarOccurrence(mistake); as occurrence) {
-                        <p class="grammar-sentence">
-                          @for (part of grammarParts(occurrence); track $index) {
-                            @if (part.kind === 'fix') {
-                              <span class="grammar-mistake">{{ part.wrote }}</span>
-                              <span class="grammar-fix">{{ part.correction }}</span>
-                            } @else if (part.kind === 'good') {
-                              <span class="grammar-good">{{ part.text }}</span>
-                            } @else {
-                              <span>{{ part.text }}</span>
-                            }
+                    }
+                  </div>
+                } @else {
+                  <p class="empty">No grammar mistakes yet.</p>
+                }
+              </section>
+              <section class="grammar-section">
+                <h3 class="grammar-heading">Inputs</h3>
+                @if (visibleGrammarInputs().length) {
+                  <ul class="grammar-list">
+                    @for (input of visibleGrammarInputs(); track input.id) {
+                      <li>
+                        <button
+                          type="button"
+                          class="grammar-input"
+                          [attr.aria-expanded]="grammarExpanded() === input.id"
+                          (click)="toggleGrammarInput(input.id)"
+                        >
+                          <span class="grammar-when">{{ grammarTime(input.at) }}</span>
+                          @if (grammarExpanded() !== input.id) {
+                            <span class="grammar-preview">{{ input.after }}</span>
                           }
-                        </p>
-                      }
-                    </li>
-                  }
-                </ul>
-              } @else {
-                <p class="empty">No grammar mistakes yet.</p>
-              }
+                        </button>
+                        @if (grammarExpanded() === input.id) {
+                          <div class="grammar-detail">
+                            <p class="grammar-sentence">
+                              @for (part of grammarParts(input); track $index) {
+                                @if (part.kind === 'fix') {
+                                  <span class="grammar-mistake" [class.colored]="part.colored">{{
+                                    part.wrote
+                                  }}</span>
+                                  <span class="grammar-fix" [class.colored]="part.colored">{{
+                                    part.correction
+                                  }}</span>
+                                } @else if (part.kind === 'good') {
+                                  <span class="grammar-good">{{ part.text }}</span>
+                                } @else {
+                                  <span>{{ part.text }}</span>
+                                }
+                              }
+                            </p>
+                            @if (input.rules.length) {
+                              <div class="grammar-rules">
+                                @for (rule of input.rules; track rule.id) {
+                                  <button
+                                    type="button"
+                                    class="grammar-rule-btn"
+                                    [class.committed]="rule.outcome === 'committed'"
+                                    [class.resolved]="rule.outcome === 'resolved'"
+                                    [class.selected]="grammarColor()?.ruleId === rule.id"
+                                    [attr.aria-pressed]="grammarColor()?.ruleId === rule.id"
+                                    [attr.aria-label]="grammarRuleLabel(rule)"
+                                    (click)="toggleGrammarColor(input.id, rule.id)"
+                                  >
+                                    @if (rule.outcome === 'committed') {
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M18 6 6 18" />
+                                        <path d="m6 6 12 12" />
+                                      </svg>
+                                    } @else {
+                                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M20 6 9 17l-5-5" />
+                                      </svg>
+                                    }
+                                    <span>{{ rule.rule }}</span>
+                                  </button>
+                                }
+                              </div>
+                            }
+                          </div>
+                        }
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="empty">
+                    {{
+                      grammarFilter().length
+                        ? 'No sentences include a selected rule.'
+                        : 'No corrected sentences yet.'
+                    }}
+                  </p>
+                }
+              </section>
             </div>
             <footer class="filter-footer">
               <button type="button" class="done-btn" (click)="closeGrammar()">Done</button>
@@ -1959,27 +2006,128 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       flex: none;
     }
 
-    .grammar-marks {
+    .grammar-section {
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.45rem;
+      flex-direction: column;
+      gap: 0.55rem;
     }
 
-    .grammar-mark {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0.1rem;
-      border: 1px solid transparent;
-      border-radius: 3px;
+    .grammar-heading {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .grammar-list li.selected {
+      box-shadow: inset 0 0 0 1.5px var(--accent-border);
+    }
+
+    .grammar-input,
+    .grammar-filter,
+    .grammar-rule-btn {
+      border: 0;
       background: transparent;
-      line-height: 0;
+      color: inherit;
+      font: inherit;
+      text-align: left;
       cursor: pointer;
     }
 
-    .grammar-mark svg {
+    .grammar-input {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      padding: 0;
+    }
+
+    .grammar-when {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .grammar-preview {
+      margin: 0;
+    }
+
+    .grammar-preview {
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-height: 1.4;
+    }
+
+    .grammar-detail {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .grammar-filter-rules {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .grammar-filter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-2);
+    }
+
+    .grammar-filter-chip.selected {
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+    }
+
+    .grammar-filter-chip.corrected {
+      opacity: 0.72;
+    }
+
+    .grammar-filter-chip .icon-btn {
+      width: 1.45rem;
+      height: 1.45rem;
+    }
+
+    .grammar-filter {
+      width: auto;
+      padding: 0.28rem 0.15rem 0.28rem 0.5rem;
+      font-weight: 650;
+      line-height: 1.3;
+    }
+
+    .grammar-rules {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0.45rem 0 0;
+    }
+
+    .grammar-rule-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      width: auto;
+      padding: 0.28rem 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      line-height: 1.3;
+    }
+
+    .grammar-rule-btn svg {
       display: block;
+      flex: none;
       width: 0.72rem;
       height: 0.72rem;
       fill: none;
@@ -1989,16 +2137,17 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       stroke-linejoin: round;
     }
 
-    .grammar-mark.committed {
+    .grammar-rule-btn.committed svg {
       color: var(--danger);
     }
 
-    .grammar-mark.resolved {
+    .grammar-rule-btn.resolved svg {
       color: var(--gem-green);
     }
 
-    .grammar-mark.selected {
-      border-color: currentColor;
+    .grammar-rule-btn.selected {
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
     }
 
     .grammar-sentence {
@@ -2008,13 +2157,20 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .grammar-mistake {
+      color: var(--text-muted);
+      text-decoration: line-through;
+    }
+
+    .grammar-mistake.colored {
       color: var(--danger);
       font-weight: 650;
-      text-decoration: line-through;
     }
 
     .grammar-fix {
       margin-left: 0.28rem;
+    }
+
+    .grammar-fix.colored {
       color: var(--gem-green);
       font-weight: 650;
     }
@@ -2476,8 +2632,17 @@ export class LanguagePage {
   readonly recomputeError = signal('');
   readonly filtersOpen = signal(false);
   readonly grammarOpen = signal(false);
-  readonly grammarMistakes = signal<GrammarMistake[]>([]);
-  readonly grammarSelection = signal<Record<string, number>>({});
+  readonly grammarInputs = signal<GrammarInput[]>([]);
+  readonly grammarFilter = signal<string[]>([]);
+  readonly grammarExpanded = signal('');
+  readonly grammarColor = signal<{ inputId: string; ruleId: string } | null>(null);
+  readonly grammarMistakes = computed(() => grammarRules(this.grammarInputs()));
+  readonly visibleGrammarInputs = computed(() => {
+    const filter = this.grammarFilter();
+    const rows = this.grammarInputs();
+    if (!filter.length) return rows;
+    return rows.filter((input) => filter.some((id) => input.rules.some((rule) => rule.id === id)));
+  });
   readonly openGrammarCount = computed(
     () => this.grammarMistakes().filter((mistake) => grammarMistakeOpen(mistake)).length,
   );
@@ -3214,31 +3379,60 @@ export class LanguagePage {
     return grammarMistakeOpen(mistake);
   }
 
-  grammarIndex(mistake: GrammarMistake): number {
-    const last = mistake.occurrences.length - 1;
-    const picked = this.grammarSelection()[mistake.id];
-    if (picked == null || picked < 0 || picked > last) return Math.max(last, 0);
-    return picked;
+  grammarColorFor(input: GrammarInput): GrammarInputRule | null {
+    const color = this.grammarColor();
+    if (!color || color.inputId !== input.id) return null;
+    return input.rules.find((rule) => rule.id === color.ruleId) ?? null;
   }
 
-  grammarOccurrence(mistake: GrammarMistake): GrammarOccurrence | null {
-    return mistake.occurrences[this.grammarIndex(mistake)] ?? null;
+  grammarRuleLabel(rule: GrammarInputRule): string {
+    const status = rule.outcome === 'committed' ? 'Error committed' : 'Corrected';
+    return `${status}: ${rule.rule}`;
   }
 
-  selectGrammarOccurrence(id: string, index: number): void {
-    this.grammarSelection.update((current) => ({ ...current, [id]: index }));
+  toggleGrammarInput(id: string): void {
+    if (this.grammarExpanded() === id) {
+      this.grammarExpanded.set('');
+      this.grammarColor.set(null);
+      return;
+    }
+    this.grammarExpanded.set(id);
+    this.grammarColor.set(null);
   }
 
-  grammarMarkLabel(occurrence: GrammarOccurrence): string {
-    const when = this.grammarTime(occurrence.at);
-    return occurrence.outcome === 'committed' ? `Error committed ${when}` : `Corrected ${when}`;
+  toggleGrammarColor(inputId: string, ruleId: string): void {
+    const current = this.grammarColor();
+    if (current?.inputId === inputId && current.ruleId === ruleId) {
+      this.grammarColor.set(null);
+      return;
+    }
+    this.grammarColor.set({ inputId, ruleId });
   }
 
-  grammarParts(occurrence: GrammarOccurrence): GrammarMark[] {
-    return grammarSentenceMarks(
-      occurrence.after,
-      occurrence.instances,
-      occurrence.outcome === 'resolved' ? 'right' : 'wrong',
+  grammarFiltered(id: string): boolean {
+    return this.grammarFilter().includes(id);
+  }
+
+  toggleGrammarFilter(id: string): void {
+    const current = this.grammarFilter();
+    const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
+    this.grammarFilter.set(next);
+    const expanded = this.grammarExpanded();
+    if (expanded && !this.visibleGrammarInputs().some((input) => input.id === expanded)) {
+      this.grammarExpanded.set('');
+      this.grammarColor.set(null);
+    }
+  }
+
+  grammarParts(input: GrammarInput): GrammarMark[] {
+    const coloredId = this.grammarColorFor(input)?.id ?? '';
+    return grammarCorrectionMarks(
+      input.after,
+      input.rules.map((rule) => ({
+        instances: rule.instances,
+        colored: rule.id === coloredId,
+        followed: rule.outcome === 'resolved',
+      })),
     );
   }
 
@@ -3246,12 +3440,19 @@ export class LanguagePage {
     const key = id.trim();
     if (!key) return;
     await deleteGrammarMistake(key);
-    this.grammarMistakes.update((rows) => rows.filter((row) => row.id !== key));
-    this.grammarSelection.update((current) => {
-      const next = { ...current };
-      delete next[key];
-      return next;
-    });
+    this.grammarInputs.update((rows) =>
+      rows.flatMap((input) => {
+        const rules = input.rules.filter((rule) => rule.id !== key);
+        return rules.length ? [{ ...input, rules }] : [];
+      }),
+    );
+    this.grammarFilter.update((current) => current.filter((item) => item !== key));
+    const color = this.grammarColor();
+    if (color?.ruleId === key) this.grammarColor.set(null);
+    const expanded = this.grammarExpanded();
+    if (expanded && !this.grammarInputs().some((input) => input.id === expanded)) {
+      this.grammarExpanded.set('');
+    }
   }
 
   grammarTime(at: number): string {
@@ -3572,7 +3773,7 @@ export class LanguagePage {
       this.name.set('');
       this.elements.set([]);
       this.removed.set([]);
-      this.grammarMistakes.set([]);
+      this.clearGrammar();
       this.ready.set(true);
       if (!this.promptedLanguage) {
         this.promptedLanguage = true;
@@ -3584,17 +3785,17 @@ export class LanguagePage {
     }
     this.code.set(code);
     this.name.set(languageDisplayName(code));
-    this.grammarMistakes.set([]);
+    this.clearGrammar();
     this.ready.set(false);
     const [elements, removed, grammar] = await Promise.all([
       readElements(code),
       readRemovedElements(code),
-      readGrammarMistakes(code).catch(() => [] as GrammarMistake[]),
+      readGrammarInputs(code).catch(() => [] as GrammarInput[]),
     ]);
     if (seq !== this.loadId) return;
     this.elements.set(elements);
     this.removed.set(removed);
-    this.grammarMistakes.set(grammar);
+    this.grammarInputs.set(grammar);
     this.ready.set(true);
   }
 
@@ -3602,18 +3803,30 @@ export class LanguagePage {
     this.leadFieldKey.set(readDefinitionMetadataFields()[0]?.key ?? '');
   }
 
+  private clearGrammar(): void {
+    this.grammarInputs.set([]);
+    this.grammarFilter.set([]);
+    this.grammarExpanded.set('');
+    this.grammarColor.set(null);
+  }
+
   private async refreshGrammar(): Promise<void> {
     const code = this.code();
     if (!isLearnableLanguage(code)) {
-      this.grammarMistakes.set([]);
+      this.clearGrammar();
       return;
     }
     try {
-      const rows = await readGrammarMistakes(code);
+      const rows = await readGrammarInputs(code);
       if (this.code() !== code) return;
-      this.grammarMistakes.set(rows);
+      this.grammarInputs.set(rows);
+      const expanded = this.grammarExpanded();
+      if (expanded && !rows.some((input) => input.id === expanded)) {
+        this.grammarExpanded.set('');
+        this.grammarColor.set(null);
+      }
     } catch {
-      if (this.code() === code) this.grammarMistakes.set([]);
+      if (this.code() === code) this.clearGrammar();
     }
   }
 
