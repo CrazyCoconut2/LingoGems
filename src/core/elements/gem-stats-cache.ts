@@ -1,6 +1,7 @@
 import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
 
-const KEY_PREFIX = 'lingogem.stats.v18.';
+const KEY_PREFIX = 'lingogem.stats.v17.';
+const STALE_STATS_ROOT = 'lingogem.stats.v';
 
 export type StatsPhase = 'empty' | 'pending' | 'ready' | 'error';
 
@@ -120,6 +121,22 @@ function recordOf(value: unknown): StatsRecord | null {
   };
 }
 
+/** Drops compiled snapshots from earlier stats formats. Goals and other settings stay. */
+function dropStaleStatsKeys(): void {
+  if (typeof localStorage === 'undefined') return;
+  const stale: string[] = [];
+  try {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith(STALE_STATS_ROOT) || key.startsWith(KEY_PREFIX)) continue;
+      stale.push(key);
+    }
+    for (const key of stale) localStorage.removeItem(key);
+  } catch {
+    // The current snapshot still loads.
+  }
+}
+
 function cacheKey(language: string): string {
   const code = language.trim().toLowerCase();
   return code ? KEY_PREFIX + code : '';
@@ -199,3 +216,5 @@ function isSigned(value: unknown): value is number {
 function isOptionalSigned(value: unknown): value is number | null {
   return value === null || isSigned(value);
 }
+
+dropStaleStatsKeys();

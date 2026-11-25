@@ -1030,7 +1030,6 @@ const EMPTY_DAY: DayStats = {
       line-height: 1.2;
     }
 
-    .eyebrow,
     .block h3 {
       margin: 0;
       color: var(--text-muted);
@@ -1114,15 +1113,6 @@ const EMPTY_DAY: DayStats = {
       background: rgba(var(--accent-rgb), 0.14);
       color: var(--accent-text);
       font-weight: 650;
-    }
-
-    .block-note {
-      margin: 0;
-      color: var(--text-muted);
-      font-size: 0.72rem;
-      font-weight: 650;
-      line-height: 1.2;
-      text-align: right;
     }
 
     .score,
@@ -1343,11 +1333,6 @@ const EMPTY_DAY: DayStats = {
       line-height: 1.2;
       text-align: center;
       overflow-wrap: anywhere;
-    }
-
-    .gems .delta.quiet {
-      color: var(--text-muted);
-      font-weight: 650;
     }
 
     .activity li {

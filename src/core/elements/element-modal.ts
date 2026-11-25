@@ -8608,14 +8608,6 @@ export class ElementModal {
     const logIndex = current.log.indexOf(entry);
     if (logIndex < 0) return;
     const scored: DefinitionGameLog = { ...entry, score };
-    if (storedGem(entry)) {
-      const gem = attributeGem(
-        current.log.filter((item) => item !== entry),
-        scored,
-      );
-      if (gem) scored.gem = gem;
-      else delete scored.gem;
-    }
     this.written = {
       ...current,
       log: current.log.map((item, index) => (index === logIndex ? scored : item)),

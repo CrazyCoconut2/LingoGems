@@ -83,7 +83,7 @@ export type DefinitionGameLog = {
   extra?: true;
   /** Definition when this attempt was first scored. */
   snapshot?: DefinitionSnapshot;
-  /** Set when this recall was finished and earned a gem. Older logs have none. */
+  /** Set when this recall was finished and earned a gem. */
   gem?: GemTier;
 };
 
@@ -193,24 +193,14 @@ function recallFinished(entry: { answer?: string }): boolean {
   return !!entry.answer?.trim();
 }
 
-/** The gem stored on this recall when it was finished, or null. A coverage of 0 keeps none. */
-export function storedGem(entry: {
-  gem?: unknown;
-  score?: unknown;
-  extra?: unknown;
-}): GemTier | null {
-  if (coverageIsZero(entry)) return null;
+/** The gem stored on this recall when it was finished, or null. */
+export function storedGem(entry: { gem?: unknown }): GemTier | null {
   return entry.gem === 'red' || entry.gem === 'orange' || entry.gem === 'green' ? entry.gem : null;
-}
-
-function coverageIsZero(entry: { score?: unknown; extra?: unknown }): boolean {
-  if (typeof entry.score !== 'number' || !Number.isFinite(entry.score)) return false;
-  return definitionCoverage({ score: entry.score, extra: entry.extra === true }) <= 0;
 }
 
 /**
  * The gem a finished recall earns against earlier coverages.
- * Written onto the log entry when the exercise is finished. It is not applied to older entries.
+ * Written onto the log entry when the exercise is finished.
  */
 export function attributeGem(
   log: readonly ElementLogEntry[],
