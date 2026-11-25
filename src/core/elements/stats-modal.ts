@@ -10,7 +10,16 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { displayTitle, languageDisplayName } from 'collection';
+import {
+  displayTitle,
+  languageDisplayName,
+  parsePassage,
+  type ElementMetadata,
+  type ParsedPassage,
+} from 'collection';
+import { readFieldColor } from './metadata-colors';
+import { PhraseTranslation } from '../translate/phrase-translation';
+import { supportLanguageFor } from '../languages/translation-language';
 import {
   emptyDailyGoals,
   readDailyGoals,
@@ -39,6 +48,23 @@ type GoalKind = keyof DailyGoals;
 const LOADING_ACTIVITY = [0, 1, 2];
 const LOADING_ROWS = [0, 1, 2, 3];
 
+export type MissingPreviewSense = {
+  text: string;
+  metadata: ElementMetadata;
+  equivalent?: string;
+  example?: string;
+};
+
+/** A generated element waiting in the missing list. */
+export type MissingPreview = {
+  key: string;
+  title: string;
+  lemma: string;
+  senses: MissingPreviewSense[];
+  /** Set once the user adds it, until the row leaves the list. */
+  collectedId: string;
+};
+
 const EMPTY_DAY: DayStats = {
   day: '',
   added: 0,
@@ -50,7 +76,7 @@ const EMPTY_DAY: DayStats = {
 
 @Component({
   selector: 'app-stats',
-  imports: [NgTemplateOutlet],
+  imports: [NgTemplateOutlet, PhraseTranslation],
   template: `
     <div
       class="backdrop"
@@ -457,58 +483,180 @@ const EMPTY_DAY: DayStats = {
                   <ul class="elements">
                     @for (token of visibleMissing(); track token.key) {
                       <li>
-                        <div class="row missing-row">
-                          <div class="row-main">
-                            <span class="title" [attr.title]="token.title">{{ token.title }}</span>
-                            <span class="bits">
-                              <span
-                                class="bit"
-                                [attr.aria-label]="translatedLabel(token.seen)"
-                                [attr.title]="translatedLabel(token.seen)"
+                        @if (previewFor(token); as preview) {
+                          <article class="card" [class.collected]="!!preview.collectedId">
+                            <div class="card-head">
+                              @if (preview.collectedId) {
+                                <button
+                                  type="button"
+                                  class="card-title"
+                                  [attr.aria-label]="'Open ' + label(preview.lemma)"
+                                  (click)="opened.emit(preview.collectedId)"
+                                >
+                                  {{ label(preview.lemma) }}
+                                </button>
+                                <span class="tile-mark" aria-hidden="true">
+                                  <svg viewBox="0 0 24 24">
+                                    <path d="M20 6 9 17l-5-5" />
+                                  </svg>
+                                </span>
+                              } @else {
+                                <span class="card-title">{{ label(preview.lemma) }}</span>
+                                <button
+                                  type="button"
+                                  class="tile-add"
+                                  aria-label="Add"
+                                  title="Add"
+                                  [disabled]="asking()"
+                                  [attr.aria-busy]="busyToken(token.key) ? true : null"
+                                  (click)="addMissing.emit()"
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M5 12h14" />
+                                    <path d="M12 5v14" />
+                                  </svg>
+                                </button>
+                              }
+                              <button
+                                type="button"
+                                class="icon-btn"
+                                aria-label="Remove"
+                                title="Remove"
+                                [disabled]="asking()"
+                                (click)="hideMissing(token)"
                               >
-                                <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="m5 8 6 6" />
-                                  <path d="m4 14 6-6 2-3" />
-                                  <path d="M2 5h12" />
-                                  <path d="M7 2h1" />
-                                  <path d="m22 22-5-10-5 10" />
-                                  <path d="M14 18h6" />
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M18 6 6 18" />
+                                  <path d="m6 6 12 12" />
                                 </svg>
-                                <span>{{ formatCount(token.seen) }}</span>
+                              </button>
+                            </div>
+                            <ol class="senses">
+                              @for (sense of preview.senses; track $index) {
+                                <li>
+                                  @let passage = sensePassage(sense);
+                                  @if (passage.text) {
+                                    <p class="sense-text">
+                                      {{ passage.text }}
+                                      @if (supportLanguage()) {
+                                        <app-phrase-translation
+                                          [phrase]="passage.text"
+                                          [sourceLang]="language()"
+                                          [targetLang]="supportLanguage()"
+                                          [equivalent]="sense.equivalent ?? ''"
+                                        />
+                                      }
+                                    </p>
+                                  }
+                                  @if (examplePassage(sense); as example) {
+                                    <div class="sense-example">
+                                      @if (example.text) {
+                                        <p class="sense-example-text">
+                                          {{ example.text }}
+                                          @if (supportLanguage()) {
+                                            <app-phrase-translation
+                                              [phrase]="example.text"
+                                              [sourceLang]="language()"
+                                              [targetLang]="supportLanguage()"
+                                            />
+                                          }
+                                        </p>
+                                      }
+                                    </div>
+                                  }
+                                  @let meta = senseMeta(sense);
+                                  @let equivalentPill =
+                                    sense.equivalent && (!passage.text || !supportLanguage());
+                                  @if (equivalentPill || meta.length) {
+                                    <ul class="sense-meta">
+                                      @if (equivalentPill) {
+                                        <li class="sense-equivalent">
+                                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="m5 8 6 6" />
+                                            <path d="m4 14 6-6 2-3" />
+                                            <path d="M2 5h12" />
+                                            <path d="M7 2h1" />
+                                            <path d="m22 22-5-10-5 10" />
+                                            <path d="M14 18h6" />
+                                          </svg>
+                                          <span>{{ sense.equivalent }}</span>
+                                        </li>
+                                      }
+                                      @for (entry of meta; track entry.key) {
+                                        <li
+                                          [class.colored]="entry.color"
+                                          [style.--meta-color]="entry.color"
+                                        >
+                                          <span class="sense-meta-key">{{
+                                            metaLabel(entry.key)
+                                          }}</span>
+                                          <span class="sense-meta-value">{{
+                                            metaLabel(entry.value)
+                                          }}</span>
+                                        </li>
+                                      }
+                                    </ul>
+                                  }
+                                </li>
+                              }
+                            </ol>
+                          </article>
+                        } @else {
+                          <div class="row missing-row">
+                            <div class="row-main">
+                              <span class="title" [attr.title]="token.title">{{
+                                token.title
+                              }}</span>
+                              <span class="bits">
+                                <span
+                                  class="bit"
+                                  [attr.aria-label]="translatedLabel(token.seen)"
+                                  [attr.title]="translatedLabel(token.seen)"
+                                >
+                                  <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="m5 8 6 6" />
+                                    <path d="m4 14 6-6 2-3" />
+                                    <path d="M2 5h12" />
+                                    <path d="M7 2h1" />
+                                    <path d="m22 22-5-10-5 10" />
+                                    <path d="M14 18h6" />
+                                  </svg>
+                                  <span>{{ formatCount(token.seen) }}</span>
+                                </span>
                               </span>
-                            </span>
+                            </div>
+                            <div class="missing-actions">
+                              <button
+                                type="button"
+                                class="icon-btn"
+                                aria-label="Ask AI"
+                                title="Ask AI"
+                                [disabled]="asking()"
+                                [attr.aria-busy]="busyToken(token.key) ? true : null"
+                                (click)="askMissing.emit({ key: token.key, title: token.title })"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path
+                                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+                                  />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                class="icon-btn"
+                                aria-label="Remove"
+                                title="Remove"
+                                [disabled]="asking()"
+                                (click)="hideMissing(token)"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M18 6 6 18" />
+                                  <path d="m6 6 12 12" />
+                                </svg>
+                              </button>
+                            </div>
                           </div>
-                          <div class="missing-actions">
-                            <button
-                              type="button"
-                              class="icon-btn"
-                              aria-label="Ask AI"
-                              title="Ask AI"
-                              [disabled]="asking()"
-                              [attr.aria-busy]="asking() ? true : null"
-                              (click)="askMissing.emit(token.title)"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path
-                                  d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                                />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              class="icon-btn"
-                              aria-label="Remove"
-                              title="Remove"
-                              [disabled]="asking()"
-                              (click)="hideMissing(token)"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M18 6 6 18" />
-                                <path d="m6 6 12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
+                        }
                       </li>
                     }
                     @if (hiddenTokens().length) {
@@ -1358,6 +1506,191 @@ const EMPTY_DAY: DayStats = {
       flex-shrink: 0;
     }
 
+    .card {
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      min-width: 0;
+      max-width: 100%;
+      margin: 0;
+      padding: 0.85rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
+    .card.collected {
+      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+      background: var(--surface-2);
+      box-shadow: 0 0 16px -2px color-mix(in srgb, var(--accent) 45%, transparent);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .card-title {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      color: white;
+      padding: 0;
+      font: inherit;
+      font-size: 1.125rem;
+      font-weight: 750;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      text-align: left;
+      overflow-wrap: anywhere;
+    }
+
+    button.card-title {
+      cursor: pointer;
+    }
+
+    .senses {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sense-text {
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .sense-meta li.sense-equivalent {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      max-width: 100%;
+      border-radius: 999px;
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-size: 0.75rem;
+      font-style: normal;
+      font-weight: 600;
+    }
+
+    .sense-meta li.sense-equivalent svg {
+      width: 0.95rem;
+      height: 0.95rem;
+      flex: none;
+      fill: none;
+      stroke: var(--accent-text);
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .sense-example {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      margin-top: 0.45rem;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+      border-radius: 0.75rem;
+      background: color-mix(in srgb, var(--surface-2) 90%, transparent);
+    }
+
+    .sense-example-text {
+      margin: 0;
+      color: #e2e8f0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+
+    .sense-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0.35rem 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sense-meta li {
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+      border-radius: 0.5rem;
+      background: var(--bg);
+      padding: 0.25rem 0.625rem;
+      font-size: 0.6875rem;
+      line-height: 1.2;
+    }
+
+    .sense-meta li.colored {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: color-mix(in srgb, var(--meta-color) 30%, var(--surface-2));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--meta-color) 62%, transparent);
+      color: var(--meta-color);
+    }
+
+    .sense-meta-key {
+      margin-right: 0.25rem;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .sense-meta li.colored .sense-meta-key {
+      margin-right: 0;
+      color: var(--meta-color);
+    }
+
+    .sense-meta-value {
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .tile-add,
+    .tile-mark {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.55rem;
+      height: 1.55rem;
+      color: var(--accent-text);
+    }
+
+    .tile-add {
+      border: 0;
+      border-radius: 999px;
+      padding: 0;
+      background: rgba(var(--accent-rgb), 0.16);
+      cursor: pointer;
+    }
+
+    .tile-add:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .tile-add svg,
+    .tile-mark svg {
+      display: block;
+      width: 0.85rem;
+      height: 0.85rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .hidden-row {
       display: flex;
       flex-direction: column;
@@ -1554,10 +1887,14 @@ const EMPTY_DAY: DayStats = {
 export class StatsModal {
   readonly language = input.required<string>();
   readonly asking = input(false);
+  readonly askingKey = input('');
   readonly askError = input('');
+  readonly preview = input<MissingPreview | null>(null);
   readonly closed = output<void>();
   readonly opened = output<string>();
-  readonly askMissing = output<string>();
+  readonly askMissing = output<{ key: string; title: string }>();
+  readonly addMissing = output<void>();
+  readonly dismissed = output<string>();
   readonly activities = ACTIVITIES;
   readonly loadingActivity = LOADING_ACTIVITY;
   readonly loadingRows = LOADING_ROWS;
@@ -1807,6 +2144,50 @@ export class StatsModal {
   hideMissing(token: MissingToken): void {
     if (this.asking()) return;
     this.blacklist.set(ignoreMissingToken(this.language(), token.key));
+    this.dismissed.emit(token.key);
+  }
+
+  previewFor(token: MissingToken): MissingPreview | null {
+    const preview = this.preview();
+    return preview?.key === token.key ? preview : null;
+  }
+
+  busyToken(key: string): boolean {
+    return this.asking() && this.askingKey() === key;
+  }
+
+  supportLanguage(): string {
+    return supportLanguageFor(this.language());
+  }
+
+  label(title: string): string {
+    return displayTitle(title, this.language());
+  }
+
+  sensePassage(sense: MissingPreviewSense): ParsedPassage {
+    const passage = parsePassage(sense.text);
+    return { ...passage, text: displayTitle(passage.text, this.language()) };
+  }
+
+  examplePassage(sense: MissingPreviewSense): ParsedPassage | null {
+    const raw = sense.example?.trim() ?? '';
+    if (!raw) return null;
+    const passage = parsePassage(raw);
+    const text = displayTitle(passage.text, this.language());
+    if (!text) return null;
+    return { ...passage, text };
+  }
+
+  senseMeta(sense: MissingPreviewSense): { key: string; value: string; color: string | null }[] {
+    return Object.entries(sense.metadata).map(([key, value]) => ({
+      key,
+      value,
+      color: readFieldColor('definitions', key),
+    }));
+  }
+
+  metaLabel(value: string): string {
+    return value.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase());
   }
 
   restoreMissing(key: string): void {

@@ -11,7 +11,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { ElementModal } from '../elements/element-modal';
 import { StatsJob } from '../elements/stats-job';
-import { StatsModal } from '../elements/stats-modal';
+import { StatsModal, type MissingPreview } from '../elements/stats-modal';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { DiscoverModal } from './discover-modal';
 import { ensureSelectedLanguage, writeSelectedLanguage } from './selected-language';
@@ -896,10 +896,14 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         <app-stats
           [language]="code()"
           [asking]="asking()"
+          [askingKey]="askingKey()"
           [askError]="statsAskError()"
+          [preview]="missingPreview()"
           (closed)="closeStats()"
           (opened)="openStatsElement($event)"
           (askMissing)="askMissingElement($event)"
+          (addMissing)="addMissingElement()"
+          (dismissed)="dismissMissingPreview($event)"
         />
       }
 
@@ -2347,11 +2351,14 @@ export class LanguagePage {
   private scrollLock = '';
   private scrollLocked = false;
   private promptedLanguage = false;
+  private missingAsk = 0;
   private readonly statsJob = inject(StatsJob);
 
   readonly languageOptions = LEARNABLE_LANGUAGES;
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly asking = signal(false);
+  readonly askingKey = signal('');
+  readonly missingPreview = signal<MissingPreview | null>(null);
   readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
   readonly statsAskError = signal('');
@@ -2839,27 +2846,10 @@ export class LanguagePage {
     },
     fromSearch = false,
   ): Promise<void> {
-    const name = prepared.title.replace(/\s+/g, ' ').trim();
-    const code = (prepared.language || this.code()).trim().toLowerCase();
-    if (!name || !code) return;
+    const saved = await this.persistPrepared(prepared);
+    if (!saved) return;
+    const { element: created, fresh } = saved;
     const example = prepared.example?.replace(/\s+/g, ' ').trim() ?? '';
-    const started = Date.now();
-    let created = await addElement(code, name);
-    const fresh = created.createdAt >= started;
-    if (!created.definitions.length && prepared.definitions.length) {
-      const attached = sensesWithEquivalents(
-        created.equivalents,
-        supportLanguageFor(code),
-        prepared.definitions,
-      );
-      created = await saveElement({
-        ...created,
-        definitions: attached.senses,
-        equivalents: attached.equivalents,
-      });
-    }
-    if (this.code() === code) this.elements.set(await readElements(code));
-    this.applyCatalog(await readMetadataCatalog());
     if (fromSearch) {
       this.clearSearch();
       this.trail.set([{ id: created.id, definition: 0 }]);
@@ -3014,6 +3004,34 @@ export class LanguagePage {
     } finally {
       this.asking.set(false);
     }
+  }
+
+  private async persistPrepared(prepared: {
+    title: string;
+    language?: string;
+    definitions: Array<ElementDefinition & { equivalent?: string }>;
+  }): Promise<{ element: StoredElement; fresh: boolean } | null> {
+    const name = prepared.title.replace(/\s+/g, ' ').trim();
+    const code = (prepared.language || this.code()).trim().toLowerCase();
+    if (!name || !code) return null;
+    const started = Date.now();
+    let created = await addElement(code, name);
+    const fresh = created.createdAt >= started;
+    if (!created.definitions.length && prepared.definitions.length) {
+      const attached = sensesWithEquivalents(
+        created.equivalents,
+        supportLanguageFor(code),
+        prepared.definitions,
+      );
+      created = await saveElement({
+        ...created,
+        definitions: attached.senses,
+        equivalents: attached.equivalents,
+      });
+    }
+    if (this.code() === code) this.elements.set(await readElements(code));
+    this.applyCatalog(await readMetadataCatalog());
+    return { element: created, fresh };
   }
 
   private async elementFromQuery(language: string, selected: string) {
@@ -3331,6 +3349,7 @@ export class LanguagePage {
     if (!this.statsOpen()) return;
     this.statsOpen.set(false);
     this.statsAskError.set('');
+    this.missingPreview.set(null);
     this.unlockScroll();
   }
 
@@ -3339,39 +3358,88 @@ export class LanguagePage {
     this.openElement(id);
   }
 
-  async askMissingElement(title: string): Promise<void> {
-    const selected = title.replace(/\s+/g, ' ').trim();
+  async askMissingElement(token: { key: string; title: string }): Promise<void> {
+    const selected = token.title.replace(/\s+/g, ' ').trim();
     const code = this.code();
-    if (!selected || !code || this.asking()) return;
+    if (!selected || !token.key || !code || this.asking()) return;
+    const job = ++this.missingAsk;
     this.asking.set(true);
+    this.askingKey.set(token.key);
     this.statsAskError.set('');
+    this.missingPreview.set(null);
     try {
       const generated = await this.elementFromQuery(code, selected);
-      if (!generated) {
-        await this.openBareElement(code, selected);
-        this.closeStats();
+      if (job !== this.missingAsk || !this.statsOpen() || this.code() !== code) return;
+      if (!generated?.definitions.length) {
+        this.statsAskError.set('Could not add that element.');
         return;
       }
-      await this.addPrepared(
-        {
-          title: generated.lemma,
-          definitions: generated.definitions.map((sense) => ({
-            text: sense.text,
-            equivalent: sense.equivalent,
-            equivalentIds: {},
-            forms: searchForms(generated.lemma, selected),
-            examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
-            metadata: { ...sense.metadata },
-          })),
-        },
-        true,
-      );
-      this.closeStats();
+      this.missingPreview.set({
+        key: token.key,
+        title: selected,
+        lemma: generated.lemma,
+        senses: generated.definitions.map((sense) => ({
+          text: sense.text,
+          metadata: { ...sense.metadata },
+          ...(sense.equivalent ? { equivalent: sense.equivalent } : {}),
+          ...(sense.example ? { example: sense.example } : {}),
+        })),
+        collectedId: '',
+      });
     } catch {
-      this.statsAskError.set('Could not add that element.');
+      if (job === this.missingAsk && this.statsOpen()) {
+        this.statsAskError.set('Could not add that element.');
+      }
     } finally {
-      this.asking.set(false);
+      if (job === this.missingAsk) {
+        this.asking.set(false);
+        this.askingKey.set('');
+      }
     }
+  }
+
+  async addMissingElement(): Promise<void> {
+    const preview = this.missingPreview();
+    const code = this.code();
+    if (!preview || preview.collectedId || !code || this.asking()) return;
+    const job = ++this.missingAsk;
+    this.asking.set(true);
+    this.askingKey.set(preview.key);
+    this.statsAskError.set('');
+    try {
+      const saved = await this.persistPrepared({
+        title: preview.lemma,
+        language: code,
+        definitions: preview.senses.map((sense) => ({
+          text: sense.text,
+          equivalent: sense.equivalent,
+          equivalentIds: {},
+          forms: searchForms(preview.lemma, preview.title),
+          examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
+          metadata: { ...sense.metadata },
+        })),
+      });
+      if (job !== this.missingAsk) return;
+      if (!saved) {
+        this.statsAskError.set('Could not add that element.');
+        return;
+      }
+      const current = this.missingPreview();
+      if (current?.key === preview.key) {
+        this.missingPreview.set({ ...current, collectedId: saved.element.id });
+      }
+    } catch {
+      if (job === this.missingAsk) this.statsAskError.set('Could not add that element.');
+    } finally {
+      if (job === this.missingAsk) {
+        this.asking.set(false);
+        this.askingKey.set('');
+      }
+    }
+  }
+
+  dismissMissingPreview(key: string): void {
+    if (this.missingPreview()?.key === key) this.missingPreview.set(null);
   }
 
   async recomputeMetadata(): Promise<void> {
@@ -3410,6 +3478,12 @@ export class LanguagePage {
   private async load(language: string): Promise<void> {
     const seq = ++this.loadId;
     const code = language.trim().toLowerCase();
+    this.missingAsk += 1;
+    if (this.askingKey()) {
+      this.asking.set(false);
+      this.askingKey.set('');
+    }
+    this.missingPreview.set(null);
     this.clearSelection();
     if (this.discoverOpen()) this.closeDiscover();
     if (this.grammarOpen()) this.closeGrammar();
