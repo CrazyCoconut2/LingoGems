@@ -383,43 +383,49 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 </button>
                 <div class="stat-rail">
                   <span class="stat-group">
-                    <span
-                      class="stat"
-                      [class.zero]="activity.worked === 0"
-                      [attr.aria-label]="workedLabel(activity.worked)"
-                      [attr.title]="workedLabel(activity.worked)"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m14 13-8.381 8.38a1 1 0 0 1-3.001-3L11 9.999" />
-                        <path
-                          d="M15.973 4.027A13 13 0 0 0 5.902 2.373c-1.398.342-1.092 2.158.277 2.601a19.9 19.9 0 0 1 5.822 3.024"
-                        />
-                        <path
-                          d="M16.001 11.999a19.9 19.9 0 0 1 3.024 5.824c.444 1.369 2.26 1.676 2.603.278A13 13 0 0 0 20 8.069"
-                        />
-                        <path
-                          d="M18.352 3.352a1.205 1.205 0 0 0-1.704 0l-5.296 5.296a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l5.296-5.296a1.205 1.205 0 0 0 0-1.704z"
-                        />
-                      </svg>
-                      <span>{{ activity.worked }}</span>
-                    </span>
-                    <span
-                      class="stat"
-                      [class.zero]="activity.reworked === 0"
-                      [attr.aria-label]="reworkedLabel(activity.reworked)"
-                      [attr.title]="reworkedLabel(activity.reworked)"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                          d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-                        />
-                      </svg>
-                      <span>{{ activity.reworked }}</span>
-                    </span>
+                    @if (activity.worked > 0) {
+                      <span
+                        class="stat"
+                        [attr.aria-label]="workedLabel(activity.worked)"
+                        [attr.title]="workedLabel(activity.worked)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m14 13-8.381 8.38a1 1 0 0 1-3.001-3L11 9.999" />
+                          <path
+                            d="M15.973 4.027A13 13 0 0 0 5.902 2.373c-1.398.342-1.092 2.158.277 2.601a19.9 19.9 0 0 1 5.822 3.024"
+                          />
+                          <path
+                            d="M16.001 11.999a19.9 19.9 0 0 1 3.024 5.824c.444 1.369 2.26 1.676 2.603.278A13 13 0 0 0 20 8.069"
+                          />
+                          <path
+                            d="M18.352 3.352a1.205 1.205 0 0 0-1.704 0l-5.296 5.296a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l5.296-5.296a1.205 1.205 0 0 0 0-1.704z"
+                          />
+                        </svg>
+                        <span>{{ activity.worked }}</span>
+                      </span>
+                    }
+                    @if (activity.reworked > 0) {
+                      <span
+                        class="stat"
+                        [attr.aria-label]="reworkedLabel(activity.reworked)"
+                        [attr.title]="reworkedLabel(activity.reworked)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+                          />
+                        </svg>
+                        <span>{{ activity.reworked }}</span>
+                      </span>
+                    }
                   </span>
                   @if (scoreLabel(element); as score) {
                     <span class="stat-score" [attr.aria-label]="'Score average ' + score + ' out of 10'">
                       {{ score }}<span class="stat-score-max">/10</span>
+                    </span>
+                  } @else {
+                    <span class="stat-score unscored" aria-label="Score not available" title="Score not available">
+                      NA
                     </span>
                   }
                 </div>
@@ -1572,6 +1578,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       align-items: center;
       justify-content: space-between;
       gap: 0.5rem;
+      min-height: 0.75rem;
       margin-top: 0.7rem;
       padding: 0.55rem 0 0.7rem;
       border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -1603,10 +1610,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       transform: translateY(0.5px);
     }
 
-    .stat.zero {
-      opacity: 0.4;
-    }
-
     .stat svg {
       display: block;
       width: 0.75rem;
@@ -1635,6 +1638,12 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       color: color-mix(in srgb, var(--card-accent) 65%, var(--text-muted));
       font-size: 0.68rem;
       font-weight: 650;
+    }
+
+    .stat-score.unscored {
+      color: var(--text-muted);
+      font-weight: 650;
+      letter-spacing: 0.02em;
     }
 
     .card.skeleton {

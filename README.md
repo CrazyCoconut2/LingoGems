@@ -16,10 +16,6 @@ npm run deploy
 `deploy` bumps the patch version, builds, and publishes with Wrangler.
 
 TODO
-- Points differential now is the feature
-    -> Points differential for every element that was 
-       exercised that day and the total differential for
-       the day.
 - Fix the translation feature. 
 - Decide on the gems and how you get them
 - TODO: We just have to know what happens if a form is not 
@@ -31,6 +27,7 @@ TODO
   is also a useful metric. I think we should see it decrease through the days.
 - The metric for the amount of times you saw the element 
   being translated is important to show too.
+- Optimization for stats : If stats don't exist in localStorage, we compute everything. If they do exist we only compute the stats for the current day.
 
 TODO Later:
 - Edit or delete metadata for all the elements : Example, modify

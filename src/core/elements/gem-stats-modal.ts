@@ -126,7 +126,7 @@ const EMPTY_DAY: DayStats = {
             } @else {
               <div class="day-center">
                 <p class="day">{{ dayLabel() || '—' }}</p>
-                @if (viewingToday()) {
+                @if (viewingToday() && streak() > 0) {
                   <span
                     class="streak"
                     [attr.aria-label]="streakLabel()"
@@ -460,26 +460,33 @@ const EMPTY_DAY: DayStats = {
                             <span class="bits">
                               <span
                                 class="bit"
+                                [class.reserved]="element.exercises === 0"
                                 [class.on]="isSort(exerciseSort)"
-                                [attr.aria-label]="exerciseLabel(element.exercises)"
-                                [attr.title]="exerciseLabel(element.exercises)"
+                                [attr.aria-label]="
+                                  element.exercises === 0 ? null : exerciseLabel(element.exercises)
+                                "
+                                [attr.title]="
+                                  element.exercises === 0 ? null : exerciseLabel(element.exercises)
+                                "
                               >
                                 <ng-container *ngTemplateOutlet="exerciseIcon" />
                                 <span>{{ formatCount(element.exercises) }}</span>
                               </span>
                               @for (activity of activities; track activity.key) {
-                                @if (
-                                  activity.key !== 'added' ||
-                                  showsMetric(element.added, activitySort('added'))
-                                ) {
+                                @if (activity.key !== 'added') {
                                   <span
                                     class="bit"
+                                    [class.reserved]="element[activity.key] === 0"
                                     [class.on]="isSort(activitySort(activity.key))"
                                     [attr.aria-label]="
-                                      activityLabel(activity.label, element[activity.key])
+                                      element[activity.key] === 0
+                                        ? null
+                                        : activityLabel(activity.label, element[activity.key])
                                     "
                                     [attr.title]="
-                                      activityLabel(activity.label, element[activity.key])
+                                      element[activity.key] === 0
+                                        ? null
+                                        : activityLabel(activity.label, element[activity.key])
                                     "
                                   >
                                     <ng-container
@@ -496,12 +503,19 @@ const EMPTY_DAY: DayStats = {
                                 @if (showsMetric(element.gems[game.tier], gemSort(game.tier))) {
                                   <span
                                     class="bit"
+                                    [class.reserved]="element.gems[game.tier] === 0"
                                     [class.on]="isSort(gemSort(game.tier))"
                                     [attr.data-gem]="game.tier"
                                     [attr.aria-label]="
-                                      gemsLabel(game.label, element.gems[game.tier])
+                                      element.gems[game.tier] === 0
+                                        ? null
+                                        : gemsLabel(game.label, element.gems[game.tier])
                                     "
-                                    [attr.title]="gemsLabel(game.label, element.gems[game.tier])"
+                                    [attr.title]="
+                                      element.gems[game.tier] === 0
+                                        ? null
+                                        : gemsLabel(game.label, element.gems[game.tier])
+                                    "
                                   >
                                     <app-gem-icon class="stone-icon" [tier]="game.tier" />
                                     <span>{{ element.gems[game.tier] }}</span>
@@ -1483,6 +1497,10 @@ const EMPTY_DAY: DayStats = {
 
     .bit[data-gem] {
       color: var(--exercise-gem);
+    }
+
+    .bit.reserved {
+      visibility: hidden;
     }
 
     .bit.on {
