@@ -1,6 +1,6 @@
 import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
 
-const KEY_PREFIX = 'lingogem.stats.v16.';
+const KEY_PREFIX = 'lingogem.stats.v17.';
 
 export type StatsPhase = 'empty' | 'pending' | 'ready' | 'error';
 
@@ -147,6 +147,7 @@ function isDay(value: unknown): value is DayStats {
     isCount(source.added) &&
     isCount(source.revealed) &&
     isCount(source.exercises) &&
+    isSigned(source.differential) &&
     Array.isArray(source.elements) &&
     source.elements.every(isElementDay)
   );
@@ -163,7 +164,8 @@ function isElementDay(value: unknown): value is ElementDayStats {
     isGemCounts(source.gems) &&
     isCount(source.added) &&
     isCount(source.revealed) &&
-    isCount(source.exercises)
+    isCount(source.exercises) &&
+    isOptionalSigned(source.differential)
   );
 }
 
@@ -188,4 +190,12 @@ function isMissingToken(value: unknown): value is MissingToken {
 
 function isCount(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isSigned(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isOptionalSigned(value: unknown): value is number | null {
+  return value === null || isSigned(value);
 }

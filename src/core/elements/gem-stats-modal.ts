@@ -41,7 +41,10 @@ const ACTIVITIES: readonly {
 ];
 
 type ElementSort =
-  { kind: 'exercises' } | { kind: 'gem'; tier: GemTier } | { kind: 'activity'; key: ActivityKey };
+  | { kind: 'exercises' }
+  | { kind: 'differential' }
+  | { kind: 'gem'; tier: GemTier }
+  | { kind: 'activity'; key: ActivityKey };
 
 type GoalKind = keyof DailyGoals;
 
@@ -54,6 +57,7 @@ const EMPTY_DAY: DayStats = {
   added: 0,
   revealed: 0,
   exercises: 0,
+  differential: 0,
   elements: [],
 };
 
@@ -155,6 +159,14 @@ const EMPTY_DAY: DayStats = {
           @if (pending()) {
             <div class="loading" aria-hidden="true">
               <section class="block">
+                <ul class="score">
+                  <li class="loading-card">
+                    <span class="bone bone-count"></span>
+                    <span class="bone bone-caption"></span>
+                  </li>
+                </ul>
+              </section>
+              <section class="block">
                 <div class="block-head">
                   <h3>Gems</h3>
                 </div>
@@ -196,6 +208,19 @@ const EMPTY_DAY: DayStats = {
               </section>
             </div>
           } @else if (ready()) {
+            <section class="block">
+              <ul class="score">
+                <li
+                  [class.up]="shown().differential > 0"
+                  [class.down]="shown().differential < 0"
+                  [attr.aria-label]="scoreLabel(shown().differential)"
+                  [attr.title]="scoreLabel(shown().differential)"
+                >
+                  <span class="count">{{ formatDiff(shown().differential) }}</span>
+                  <span class="caption">Score</span>
+                </li>
+              </ul>
+            </section>
             <section class="block">
               <div class="block-head">
                 <h3>Gems</h3>
@@ -486,6 +511,18 @@ const EMPTY_DAY: DayStats = {
                             </span>
                           }
                         </div>
+                        @if (element.differential != null) {
+                          <span
+                            class="row-score"
+                            [class.up]="element.differential > 0"
+                            [class.down]="element.differential < 0"
+                            [class.on]="isSort(differentialSort)"
+                            [attr.aria-label]="scoreLabel(element.differential)"
+                            [attr.title]="scoreLabel(element.differential)"
+                          >
+                            {{ formatDiff(element.differential) }}
+                          </span>
+                        }
                       </button>
                     </li>
                   }
@@ -1088,6 +1125,7 @@ const EMPTY_DAY: DayStats = {
       text-align: right;
     }
 
+    .score,
     .gems,
     .activity,
     .elements {
@@ -1096,6 +1134,7 @@ const EMPTY_DAY: DayStats = {
       list-style: none;
     }
 
+    .score,
     .gems,
     .activity {
       display: grid;
@@ -1110,9 +1149,38 @@ const EMPTY_DAY: DayStats = {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
+    .score li,
     .gems li,
     .activity li {
       min-width: 0;
+    }
+
+    .score li {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.12rem;
+      padding: 0.85rem 0.55rem 0.7rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      background: var(--surface-2);
+    }
+
+    .score .count {
+      color: var(--text-muted);
+      font-size: 1.65rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .score li.up .count {
+      color: var(--score-10);
+    }
+
+    .score li.down .count {
+      color: var(--score-1);
     }
 
     .gems li {
@@ -1248,6 +1316,7 @@ const EMPTY_DAY: DayStats = {
       line-height: 1;
     }
 
+    .score .caption,
     .gems .caption,
     .activity .caption {
       max-width: 100%;
@@ -1439,6 +1508,29 @@ const EMPTY_DAY: DayStats = {
       color: var(--text);
     }
 
+    .row-score {
+      flex: none;
+      margin-left: auto;
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      font-weight: 720;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .row-score.up {
+      color: var(--score-10);
+    }
+
+    .row-score.down {
+      color: var(--score-1);
+    }
+
+    .row-score.on {
+      font-weight: 780;
+    }
+
     .missing-row {
       gap: 0.45rem;
       border-color: rgba(255, 255, 255, 0.04);
@@ -1604,6 +1696,7 @@ const EMPTY_DAY: DayStats = {
       margin-inline: auto;
     }
 
+    .score li.loading-card,
     .gems li.loading-card,
     .activity li.loading-card {
       border-color: var(--border);
@@ -1673,8 +1766,10 @@ export class GemStatsModal {
   readonly sortMenuAbove = signal(false);
   readonly sortMenuMax = signal(280);
   readonly exerciseSort: ElementSort = { kind: 'exercises' };
+  readonly differentialSort: ElementSort = { kind: 'differential' };
   readonly elementSortOptions = computed(() => {
     const options: { id: string; sort: ElementSort; label: string }[] = [
+      { id: 'differential', sort: this.differentialSort, label: 'Biggest score gain' },
       { id: 'exercises', sort: this.exerciseSort, label: 'Most exercises' },
     ];
     for (const row of this.gemRows) {
@@ -1923,6 +2018,18 @@ export class GemStatsModal {
     return new Intl.NumberFormat(undefined).format(count);
   }
 
+  formatDiff(value: number): string {
+    const rounded = Math.round(value * 10) / 10;
+    const text = Math.abs(rounded).toFixed(1);
+    if (rounded > 0) return `+${text}`;
+    if (rounded < 0) return `−${text}`;
+    return '0.0';
+  }
+
+  scoreLabel(value: number): string {
+    return `Score differential ${this.formatDiff(value)}`;
+  }
+
   exerciseLabel(count: number): string {
     const amount = this.formatCount(count);
     return count === 1 ? `${amount} exercise` : `${amount} exercises`;
@@ -1971,6 +2078,7 @@ function sameElementSort(current: ElementSort | null, sort: ElementSort): boolea
   if (!current || current.kind !== sort.kind) return false;
   switch (sort.kind) {
     case 'exercises':
+    case 'differential':
       return true;
     case 'gem':
       return current.kind === 'gem' && current.tier === sort.tier;
@@ -1982,6 +2090,7 @@ function sameElementSort(current: ElementSort | null, sort: ElementSort): boolea
 function metricCount(element: ElementDayStats, sort: ElementSort): number {
   if (sort.kind === 'exercises') return element.exercises;
   if (sort.kind === 'gem') return element.gems[sort.tier];
+  if (sort.kind === 'differential') return element.differential ?? Number.NEGATIVE_INFINITY;
   return element[sort.key];
 }
 
@@ -2090,6 +2199,7 @@ function daysWithToday(days: readonly DayStats[]): readonly DayStats[] {
       added: 0,
       revealed: 0,
       exercises: 0,
+      differential: 0,
       elements: [],
     },
     ...days,

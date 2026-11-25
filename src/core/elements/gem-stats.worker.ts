@@ -1,6 +1,7 @@
 import {
   ELEMENTS_STORE,
   compileFormMatcher,
+  definitionCoverage,
   displayTitle,
   idbRequest,
   isValidForm,
@@ -19,6 +20,8 @@ export type ElementDayStats = {
   added: number;
   revealed: number;
   exercises: number;
+  /** During-day mean minus the mean of earlier days. Null when nothing was scored before that day. */
+  differential: number | null;
 };
 
 export type DayStats = {
@@ -27,6 +30,8 @@ export type DayStats = {
   added: number;
   revealed: number;
   exercises: number;
+  /** Sum of the element differentials that could be compared with an earlier mean. */
+  differential: number;
   elements: ElementDayStats[];
 };
 
@@ -48,6 +53,8 @@ type MutableDay = {
   exercises: number;
   elements: Map<string, MutableElement>;
 };
+
+type CoverageAttempt = { at: number; coverage: number };
 
 addEventListener('message', (event: MessageEvent<CompileMessage>) => {
   if (event.data?.type !== 'compile') return;
@@ -78,6 +85,7 @@ function tally(
 ): { days: DayStats[]; missing: MissingToken[] } {
   const code = language.trim().toLowerCase();
   const days = new Map<string, MutableDay>();
+  const attempts = new Map<string, CoverageAttempt[]>();
   const phrases: string[] = [];
   const coverage = emptyCoverage();
   if (!code) return { days: [], missing: [] };
@@ -134,6 +142,12 @@ function tally(
       if (entry.event === 'game' && isRecall(entry.game)) {
         day.exercises += 1;
         elementOf(day, id, title).exercises += 1;
+        const score = coverageOf(entry);
+        if (score != null && typeof entry.at === 'number') {
+          const prior = attempts.get(id);
+          if (prior) prior.push({ at: entry.at, coverage: score });
+          else attempts.set(id, [{ at: entry.at, coverage: score }]);
+        }
         const gem = storedGem(entry);
         if (gem) {
           day.gems[gem] += 1;
@@ -142,6 +156,8 @@ function tally(
       }
     }
   }
+
+  applyDifferentials(days, attempts);
 
   const result: DayStats[] = [];
   for (const [day, stats] of days) {
@@ -155,6 +171,7 @@ function tally(
       added: stats.added,
       revealed: stats.revealed,
       exercises: stats.exercises,
+      differential: dayDifferential(elements),
       elements,
     });
   }
@@ -189,10 +206,54 @@ function elementOf(day: MutableDay, id: string, title: string): MutableElement {
       added: 0,
       revealed: 0,
       exercises: 0,
+      differential: null,
     };
     day.elements.set(id, element);
   }
   return element;
+}
+
+/** During-day mean minus the mean of every earlier day. The first scored day has no earlier mean. */
+function applyDifferentials(
+  days: Map<string, MutableDay>,
+  attempts: Map<string, CoverageAttempt[]>,
+): void {
+  for (const [id, scores] of attempts) {
+    scores.sort((left, right) => left.at - right.at);
+    let priorSum = 0;
+    let priorCount = 0;
+    let index = 0;
+    while (index < scores.length) {
+      const key = dayKey(scores[index].at);
+      let daySum = 0;
+      let dayCount = 0;
+      while (index < scores.length && dayKey(scores[index].at) === key) {
+        daySum += scores[index].coverage;
+        dayCount += 1;
+        index += 1;
+      }
+      if (priorCount > 0) {
+        const element = days.get(key)?.elements.get(id);
+        if (element) element.differential = daySum / dayCount - priorSum / priorCount;
+      }
+      priorSum += daySum;
+      priorCount += dayCount;
+    }
+  }
+}
+
+function dayDifferential(elements: readonly ElementDayStats[]): number {
+  let total = 0;
+  for (const element of elements) {
+    if (element.differential != null) total += element.differential;
+  }
+  return total;
+}
+
+function coverageOf(entry: { score?: unknown; extra?: unknown }): number | null {
+  const score = entry.score;
+  if (typeof score !== 'number' || !Number.isFinite(score)) return null;
+  return definitionCoverage({ score, extra: entry.extra === true });
 }
 
 function dayKey(at: number): string {
