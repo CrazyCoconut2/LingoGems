@@ -120,7 +120,6 @@ export {
 
 export {
   applyGrammarOutcome,
-  deleteGrammarMistake,
   grammarCorrectionMarks,
   grammarMistakeOpen,
   grammarRules,

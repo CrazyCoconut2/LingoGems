@@ -148,35 +148,6 @@ export async function applyGrammarOutcome(input: {
   await done;
 }
 
-/** Removes one rule from every correction. A correction left with no rules is removed. */
-export async function deleteGrammarMistake(id: string): Promise<void> {
-  const key = clip(id, ID_MAX);
-  if (!key || typeof indexedDB === 'undefined') return;
-  const db = await openDatabase();
-  const tx = db.transaction(GRAMMAR_STORE, 'readwrite');
-  const done = transactionDone(tx);
-  const store = tx.objectStore(GRAMMAR_STORE);
-  const result = await idbRequest(store.getAll());
-  if (Array.isArray(result)) {
-    for (const item of result) {
-      if (!item || typeof item !== 'object') continue;
-      const source = item as Record<string, unknown>;
-      const rowId = clip(source['id'], ID_MAX);
-      if (!rowId) continue;
-      const input = normalizeInput(source);
-      if (!input) {
-        if (rowId === key) store.delete(rowId);
-        continue;
-      }
-      if (!input.rules.some((rule) => rule.id === key)) continue;
-      const rules = input.rules.filter((rule) => rule.id !== key);
-      if (!rules.length) store.delete(input.id);
-      else store.put(stored({ ...input, rules }));
-    }
-  }
-  await done;
-}
-
 async function readLanguage(language: LearnableLanguage): Promise<GrammarInput[]> {
   const db = await openDatabase();
   const tx = db.transaction(GRAMMAR_STORE, 'readonly');

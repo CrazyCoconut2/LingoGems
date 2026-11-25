@@ -40,7 +40,6 @@ import {
   isLearnableLanguage,
   isValidForm,
   LEARNABLE_LANGUAGES,
-  deleteGrammarMistake,
   grammarCorrectionMarks,
   grammarMistakeOpen,
   grammarRules,
@@ -482,35 +481,16 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 @if (grammarMistakes().length) {
                   <div class="grammar-filter-rules">
                     @for (mistake of grammarMistakes(); track mistake.id) {
-                      <div
+                      <button
+                        type="button"
                         class="grammar-filter-chip"
                         [class.selected]="grammarFiltered(mistake.id)"
                         [class.corrected]="!mistakeOpen(mistake)"
+                        [attr.aria-pressed]="grammarFiltered(mistake.id)"
+                        (click)="toggleGrammarFilter(mistake.id)"
                       >
-                        <button
-                          type="button"
-                          class="grammar-filter"
-                          [attr.aria-pressed]="grammarFiltered(mistake.id)"
-                          (click)="toggleGrammarFilter(mistake.id)"
-                        >
-                          {{ mistake.rule }}
-                        </button>
-                        <button
-                          type="button"
-                          class="icon-btn"
-                          aria-label="Delete mistake"
-                          title="Delete mistake"
-                          (click)="deleteMistake(mistake.id)"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M3 6h18" />
-                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                            <path d="M10 11v6" />
-                            <path d="M14 11v6" />
-                          </svg>
-                        </button>
-                      </div>
+                        {{ mistake.rule }}
+                      </button>
                     }
                   </div>
                 } @else {
@@ -2026,7 +2006,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .grammar-input,
-    .grammar-filter,
     .grammar-rule-btn {
       border: 0;
       background: transparent;
@@ -2077,12 +2056,17 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     }
 
     .grammar-filter-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.1rem;
+      width: auto;
+      padding: 0.28rem 0.55rem;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: var(--surface-2);
+      color: inherit;
+      font: inherit;
+      font-weight: 650;
+      line-height: 1.3;
+      text-align: left;
+      cursor: pointer;
     }
 
     .grammar-filter-chip.selected {
@@ -2092,18 +2076,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
     .grammar-filter-chip.corrected {
       opacity: 0.72;
-    }
-
-    .grammar-filter-chip .icon-btn {
-      width: 1.45rem;
-      height: 1.45rem;
-    }
-
-    .grammar-filter {
-      width: auto;
-      padding: 0.28rem 0.15rem 0.28rem 0.5rem;
-      font-weight: 650;
-      line-height: 1.3;
     }
 
     .grammar-rules {
@@ -3434,25 +3406,6 @@ export class LanguagePage {
         followed: rule.outcome === 'resolved',
       })),
     );
-  }
-
-  async deleteMistake(id: string): Promise<void> {
-    const key = id.trim();
-    if (!key) return;
-    await deleteGrammarMistake(key);
-    this.grammarInputs.update((rows) =>
-      rows.flatMap((input) => {
-        const rules = input.rules.filter((rule) => rule.id !== key);
-        return rules.length ? [{ ...input, rules }] : [];
-      }),
-    );
-    this.grammarFilter.update((current) => current.filter((item) => item !== key));
-    const color = this.grammarColor();
-    if (color?.ruleId === key) this.grammarColor.set(null);
-    const expanded = this.grammarExpanded();
-    if (expanded && !this.grammarInputs().some((input) => input.id === expanded)) {
-      this.grammarExpanded.set('');
-    }
   }
 
   grammarTime(at: number): string {
