@@ -21,7 +21,6 @@ import {
 import { GemStatsJob } from './gem-stats-job';
 import { ignoreMissingToken, readMissingBlacklist, restoreMissingToken } from './gem-stats-missing';
 import { GemIcon } from './gem-icon';
-import { RevealIcon } from './reveal-icon';
 import type { DayStats, ElementDayStats, GemCounts, MissingToken } from './gem-stats.worker';
 
 const GEM_ROWS: readonly { tier: GemTier; label: string }[] = [
@@ -37,14 +36,11 @@ const ACTIVITIES: readonly {
   label: string;
 }[] = [
   { key: 'added', label: 'Added' },
-  { key: 'revealed', label: 'Revealed' },
+  { key: 'revealed', label: 'Translated' },
 ];
 
 type ElementSort =
-  | { kind: 'exercises' }
-  | { kind: 'differential' }
-  | { kind: 'gem'; tier: GemTier }
-  | { kind: 'activity'; key: ActivityKey };
+  { kind: 'exercises' } | { kind: 'differential' } | { kind: 'translated' } | { kind: 'gems' };
 
 type GoalKind = keyof DailyGoals;
 
@@ -63,7 +59,7 @@ const EMPTY_DAY: DayStats = {
 
 @Component({
   selector: 'app-gem-stats',
-  imports: [NgTemplateOutlet, GemIcon, RevealIcon],
+  imports: [NgTemplateOutlet, GemIcon],
   template: `
     <div
       class="backdrop"
@@ -436,7 +432,7 @@ const EMPTY_DAY: DayStats = {
                       [style.max-height.px]="sortMenuMax()"
                       (click)="$event.stopPropagation()"
                     >
-                      @for (option of elementSortOptions(); track option.id) {
+                      @for (option of elementSortOptions; track option.id) {
                         <button
                           type="button"
                           class="popover-option"
@@ -470,7 +466,7 @@ const EMPTY_DAY: DayStats = {
                           <span class="title" [attr.title]="titleOf(element)">{{
                             titleOf(element)
                           }}</span>
-                          <span class="bits">
+                          <span class="bits" [class.focused]="!!elementSort()">
                             @if (element.exercises > 0) {
                               <span
                                 class="bit"
@@ -486,7 +482,7 @@ const EMPTY_DAY: DayStats = {
                               @if (activity.key !== 'added' && element[activity.key] > 0) {
                                 <span
                                   class="bit"
-                                  [class.on]="isSort(activitySort(activity.key))"
+                                  [class.on]="isSort(translatedSort)"
                                   [attr.aria-label]="
                                     activityLabel(activity.label, element[activity.key])
                                   "
@@ -508,7 +504,7 @@ const EMPTY_DAY: DayStats = {
                               @if (element.gems[game.tier] > 0) {
                                 <span
                                   class="bit"
-                                  [class.on]="isSort(gemSort(game.tier))"
+                                  [class.on]="isSort(gemsSort)"
                                   [attr.data-gem]="game.tier"
                                   [attr.aria-label]="gemsLabel(game.label, element.gems[game.tier])"
                                   [attr.title]="gemsLabel(game.label, element.gems[game.tier])"
@@ -520,16 +516,16 @@ const EMPTY_DAY: DayStats = {
                             }
                           </span>
                         </div>
-                        @if (element.differential != null) {
+                        @if (visibleDiff(element.differential); as diff) {
                           <span
                             class="row-score"
-                            [class.up]="element.differential > 0"
-                            [class.down]="element.differential < 0"
+                            [class.up]="diff > 0"
+                            [class.down]="diff < 0"
                             [class.on]="isSort(differentialSort)"
-                            [attr.aria-label]="scoreLabel(element.differential)"
-                            [attr.title]="scoreLabel(element.differential)"
+                            [attr.aria-label]="scoreLabel(diff)"
+                            [attr.title]="scoreLabel(diff)"
                           >
-                            {{ formatDiff(element.differential) }}
+                            {{ formatDiff(diff) }}
                           </span>
                         }
                       </button>
@@ -574,7 +570,14 @@ const EMPTY_DAY: DayStats = {
                                 [attr.aria-label]="translatedLabel(token.seen)"
                                 [attr.title]="translatedLabel(token.seen)"
                               >
-                                <app-reveal-icon />
+                                <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="m5 8 6 6" />
+                                  <path d="m4 14 6-6 2-3" />
+                                  <path d="M2 5h12" />
+                                  <path d="M7 2h1" />
+                                  <path d="m22 22-5-10-5 10" />
+                                  <path d="M14 18h6" />
+                                </svg>
                                 <span>{{ formatCount(token.seen) }}</span>
                               </span>
                             </span>
@@ -641,7 +644,14 @@ const EMPTY_DAY: DayStats = {
                                       [attr.aria-label]="translatedLabel(token.seen)"
                                       [attr.title]="translatedLabel(token.seen)"
                                     >
-                                      <app-reveal-icon />
+                                      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m5 8 6 6" />
+                                        <path d="m4 14 6-6 2-3" />
+                                        <path d="M2 5h12" />
+                                        <path d="M7 2h1" />
+                                        <path d="m22 22-5-10-5 10" />
+                                        <path d="M14 18h6" />
+                                      </svg>
                                       <span>{{ formatCount(token.seen) }}</span>
                                     </span>
                                   </span>
@@ -719,7 +729,14 @@ const EMPTY_DAY: DayStats = {
           </svg>
         }
         @case ('revealed') {
-          <app-reveal-icon />
+          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m5 8 6 6" />
+            <path d="m4 14 6-6 2-3" />
+            <path d="M2 5h12" />
+            <path d="M7 2h1" />
+            <path d="m22 22-5-10-5 10" />
+            <path d="M14 18h6" />
+          </svg>
         }
       }
     </ng-template>
@@ -993,16 +1010,6 @@ const EMPTY_DAY: DayStats = {
       outline: 2px solid rgba(var(--accent-rgb), 0.55);
       outline-offset: 2px;
       border-radius: 0.2rem;
-    }
-
-    .activity app-reveal-icon {
-      width: 2.15rem;
-      height: 1.12rem;
-    }
-
-    .bit app-reveal-icon {
-      width: 1.76rem;
-      height: 0.92rem;
     }
 
     .meter {
@@ -1495,12 +1502,13 @@ const EMPTY_DAY: DayStats = {
       color: var(--exercise-gem);
     }
 
-    .bit.on {
-      font-weight: 750;
+    .bits.focused .bit:not(.on) {
+      opacity: 0.32;
     }
 
-    .bit.on:not([data-gem]) {
-      color: var(--text);
+    .bit.on,
+    .bit.on[data-gem] {
+      color: var(--accent-text);
     }
 
     .row-score {
@@ -1522,8 +1530,12 @@ const EMPTY_DAY: DayStats = {
       color: var(--score-1);
     }
 
+    .bits.focused ~ .row-score:not(.on) {
+      opacity: 0.32;
+    }
+
     .row-score.on {
-      font-weight: 780;
+      color: var(--accent-text);
     }
 
     .missing-row {
@@ -1762,27 +1774,14 @@ export class GemStatsModal {
   readonly sortMenuMax = signal(280);
   readonly exerciseSort: ElementSort = { kind: 'exercises' };
   readonly differentialSort: ElementSort = { kind: 'differential' };
-  readonly elementSortOptions = computed(() => {
-    const options: { id: string; sort: ElementSort; label: string }[] = [
-      { id: 'differential', sort: this.differentialSort, label: 'Biggest score gain' },
-      { id: 'exercises', sort: this.exerciseSort, label: 'Most exercises' },
-    ];
-    for (const row of this.gemRows) {
-      options.push({
-        id: row.tier,
-        sort: { kind: 'gem', tier: row.tier },
-        label: `Most ${row.label.toLowerCase()} gems`,
-      });
-    }
-    for (const row of this.activities) {
-      options.push({
-        id: row.key,
-        sort: { kind: 'activity', key: row.key },
-        label: `Most ${row.label.toLowerCase()}`,
-      });
-    }
-    return options;
-  });
+  readonly translatedSort: ElementSort = { kind: 'translated' };
+  readonly gemsSort: ElementSort = { kind: 'gems' };
+  readonly elementSortOptions: readonly { id: string; sort: ElementSort; label: string }[] = [
+    { id: 'differential', sort: this.differentialSort, label: 'By score gained' },
+    { id: 'exercises', sort: this.exerciseSort, label: 'By most exercised' },
+    { id: 'translated', sort: this.translatedSort, label: 'By most translated' },
+    { id: 'gems', sort: this.gemsSort, label: 'By most gems' },
+  ];
 
   private readonly job = inject(GemStatsJob);
 
@@ -1906,16 +1905,15 @@ export class GemStatsModal {
     this.dayIndex.update((index) => index - 1);
   }
 
-  gemSort(tier: GemTier): ElementSort {
-    return { kind: 'gem', tier };
-  }
-
-  activitySort(key: ActivityKey): ElementSort {
-    return { kind: 'activity', key };
-  }
-
   isSort(sort: ElementSort): boolean {
     return sameElementSort(this.elementSort(), sort);
+  }
+
+  /** A gain that still reads as zero stays off the row. */
+  visibleDiff(value: number | null): number | null {
+    if (value == null || !Number.isFinite(value)) return null;
+    const rounded = Math.round(value * 10) / 10;
+    return rounded === 0 ? null : value;
   }
 
   toggleSort(sort: ElementSort): void {
@@ -2065,23 +2063,14 @@ export class GemStatsModal {
 }
 
 function sameElementSort(current: ElementSort | null, sort: ElementSort): boolean {
-  if (!current || current.kind !== sort.kind) return false;
-  switch (sort.kind) {
-    case 'exercises':
-    case 'differential':
-      return true;
-    case 'gem':
-      return current.kind === 'gem' && current.tier === sort.tier;
-    case 'activity':
-      return current.kind === 'activity' && current.key === sort.key;
-  }
+  return current?.kind === sort.kind;
 }
 
 function metricCount(element: ElementDayStats, sort: ElementSort): number {
   if (sort.kind === 'exercises') return element.exercises;
-  if (sort.kind === 'gem') return element.gems[sort.tier];
-  if (sort.kind === 'differential') return element.differential ?? Number.NEGATIVE_INFINITY;
-  return element[sort.key];
+  if (sort.kind === 'translated') return element.revealed;
+  if (sort.kind === 'gems') return gemTotal(element);
+  return element.differential ?? Number.NEGATIVE_INFINITY;
 }
 
 function compareElements(

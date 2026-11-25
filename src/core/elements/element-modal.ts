@@ -211,6 +211,14 @@ function plainPassage(value: string): string {
   return parsePassage(value).text.trim();
 }
 
+function swapIndexMap<T>(map: ReadonlyMap<number, T>, from: number, to: number): Map<number, T> {
+  const next = new Map<number, T>();
+  for (const [index, value] of map) {
+    next.set(index === from ? to : index === to ? from : index, value);
+  }
+  return next;
+}
+
 function dropIndexMap<T>(map: ReadonlyMap<number, T>, index: number): Map<number, T> {
   const next = new Map<number, T>();
   for (const [key, value] of map) {
@@ -1106,6 +1114,7 @@ function writeExampleSuggestions(
                                       [attr.aria-label]="'Attributes for ' + form.text"
                                       (click)="showFormAttributes(form)"
                                     >
+                                      <ng-container [ngTemplateOutlet]="formIcon" />
                                       {{ form.text }}
                                     </button>
                                   </li>
@@ -1261,49 +1270,89 @@ function writeExampleSuggestions(
                     [attr.id]="'sense-' + index"
                     (click)="onSenseClick($event, index)"
                   >
-                    @if (senseStage(index) !== 'open') {
-                      <div class="sense-row" [class.actionable]="true">
-                        <span class="sense-index">Definition {{ index + 1 }}</span>
-                        <div class="sense-rail">
-                          <div class="sense-actions">
-                            @if (senseStage(index) === 'closed') {
-                              <button
-                                type="button"
-                                class="icon-btn"
-                                aria-label="Show examples"
-                                title="Show examples"
-                                (click)="unveilExamples(index)"
-                              >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path
-                                    d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                                  />
-                                  <path
-                                    d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
-                                  />
-                                </svg>
-                              </button>
-                            } @else {
-                              <button
-                                type="button"
-                                class="icon-btn"
-                                aria-label="Show definition"
-                                title="Show definition"
-                                (click)="unveilDefinitionText(index)"
-                              >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path
-                                    d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
-                                  />
-                                  <path d="m8 13 4-7 4 7" />
-                                  <path d="M9.1 11h5.7" />
-                                </svg>
-                              </button>
-                            }
-                          </div>
+                    <div class="sense-row" [class.actionable]="senseStage(index) !== 'open'">
+                      <span class="sense-index">Definition {{ index + 1 }}</span>
+                      <div class="sense-rail">
+                        <div class="sense-actions">
+                          @if (definitions.length > 1) {
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              aria-label="Move definition up"
+                              title="Move up"
+                              [disabled]="busy() || aiBusy() || index === 0"
+                              (click)="moveDefinition(index, -1)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m6 15 6-6 6 6" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              aria-label="Move definition down"
+                              title="Move down"
+                              [disabled]="busy() || aiBusy() || index === definitions.length - 1"
+                              (click)="moveDefinition(index, 1)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m6 9 6 6 6-6" />
+                              </svg>
+                            </button>
+                          }
+                          @if (senseStage(index) === 'closed') {
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              aria-label="Show examples"
+                              title="Show examples"
+                              (click)="unveilExamples(index)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                  d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                                />
+                                <path
+                                  d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"
+                                />
+                              </svg>
+                            </button>
+                          } @else if (senseStage(index) === 'examples') {
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              aria-label="Show definition"
+                              title="Show definition"
+                              (click)="unveilDefinitionText(index)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                  d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"
+                                />
+                                <path d="m8 13 4-7 4 7" />
+                                <path d="M9.1 11h5.7" />
+                              </svg>
+                            </button>
+                          }
+                          <button
+                            type="button"
+                            class="icon-btn danger"
+                            aria-label="Delete definition"
+                            title="Delete definition"
+                            [disabled]="busy() || aiBusy()"
+                            (click)="askDeleteDefinition(index)"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M3 6h18" />
+                              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                              <path d="M10 11v6" />
+                              <path d="M14 11v6" />
+                            </svg>
+                          </button>
                         </div>
                       </div>
-                    }
+                    </div>
                     @if (senseStage(index) !== 'closed') {
                       <div class="sense-body">
                         @if (senseStage(index) === 'open') {
@@ -1583,6 +1632,7 @@ function writeExampleSuggestions(
                                       [attr.aria-label]="'Attributes for ' + form.text"
                                       (click)="showFormAttributes(form)"
                                     >
+                                      <ng-container [ngTemplateOutlet]="formIcon" />
                                       {{ form.text }}
                                     </button>
                                   </li>
@@ -2622,16 +2672,6 @@ function writeExampleSuggestions(
               </div>
               @if (current.kind === 'definition') {
                 <div class="sheet-actions sheet-footer">
-                  @if (workTab() === 'definitions') {
-                    <button
-                      type="button"
-                      class="btn btn-danger"
-                      [disabled]="busy() || aiBusy()"
-                      (click)="askDeleteDefinition(current.index)"
-                    >
-                      Delete
-                    </button>
-                  }
                   <button
                     type="button"
                     class="btn btn-primary"
@@ -4377,26 +4417,42 @@ function writeExampleSuggestions(
       opacity: 0.55;
     }
 
-    .sense > .group > .forms .form-chip.readonly {
+    .forms-region .forms,
+    .log-detail .forms {
+      gap: 0.16rem;
+    }
+
+    .forms-region .form-chip.readonly:not(.form-cta),
+    .log-detail .form-chip.readonly {
+      gap: 0.14rem;
+      min-height: 0;
       border-style: solid;
       border-color: rgba(51, 65, 85, 0.6);
       border-radius: 999px;
       background: color-mix(in srgb, var(--surface-2) 80%, transparent);
       color: #e2e8f0;
-      padding: 0.25rem 0.625rem;
+      padding: 0 0.26rem;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.75rem;
+      font-size: 0.58rem;
       font-weight: 400;
+      line-height: 1.05;
     }
 
-    .sense > .group > .forms .form-chip.readonly.tinted {
+    .forms-region .form-chip.readonly:not(.form-cta) svg,
+    .log-detail .form-chip svg {
+      width: 0.48rem;
+      height: 0.48rem;
+    }
+
+    .forms-region .form-chip.readonly.tinted:not(.form-cta),
+    .log-detail .form-chip.readonly.tinted {
       background: color-mix(in srgb, var(--form-color) 15%, transparent);
       border-color: color-mix(in srgb, var(--form-color) 30%, transparent);
       color: var(--form-color);
       font-weight: 600;
     }
 
-    .sense > .group > .forms .form-chip.readonly.form-cta {
+    .forms-region .form-chip.readonly.form-cta {
       border-style: dashed;
       background: transparent;
       color: var(--text-muted);
@@ -4784,10 +4840,6 @@ function writeExampleSuggestions(
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
-    }
-
-    .editor-sheet > .sheet-footer .btn-danger {
-      margin-right: auto;
     }
 
     .editor-sheet > .sheet-footer {
@@ -6312,6 +6364,21 @@ export class ElementModal {
     });
   }
 
+  async moveDefinition(index: number, direction: -1 | 1): Promise<void> {
+    if (this.busy() || this.aiBusy()) return;
+    const target = index + direction;
+    const definitions = this.copyDefinitions();
+    if (target < 0 || target >= definitions.length) return;
+    const current = definitions[index];
+    const neighbor = definitions[target];
+    if (!current || !neighbor) return;
+    definitions[index] = neighbor;
+    definitions[target] = current;
+    if (!(await this.persist(definitions, this.currentElement().equivalents))) return;
+    if (!this.alive) return;
+    this.swapDefinitionState(index, target);
+  }
+
   /** Second click. The definition text appears, and translations can be unveiled. */
   unveilDefinitionText(index: number): void {
     if (this.senseStage(index) !== 'examples') return;
@@ -6491,6 +6558,7 @@ export class ElementModal {
 
   addExampleManually(index: number): void {
     if (this.aiBusy() || !this.element().definitions[index]) return;
+    this.openExamples(index);
     this.exampleAdditions.update((current) => {
       const next = new Map(current);
       next.set(index, ['', ...(next.get(index) ?? [])]);
@@ -6865,6 +6933,83 @@ export class ElementModal {
 
   private shiftSenseState(by: number): void {
     this.senseStages.update((current) => shiftIndexMap(current, by));
+  }
+
+  private swapDefinitionState(from: number, to: number): void {
+    const swap = (index: number) => (index === from ? to : index === to ? from : index);
+    const editing = this.formEdit();
+    if (editing) this.formEdit.set({ ...editing, definitionIndex: swap(editing.definitionIndex) });
+    const editor = this.editor();
+    if (editor?.kind === 'definition')
+      this.editor.set({ kind: 'definition', index: swap(editor.index) });
+    if (editor?.kind === 'example') {
+      this.editor.set({ ...editor, definitionIndex: swap(editor.definitionIndex) });
+    }
+    const pending = this.confirm();
+    if (pending?.kind === 'definition') {
+      this.confirm.set({ kind: 'definition', index: swap(pending.index) });
+    }
+    if (pending?.kind === 'example') {
+      this.confirm.set({ ...pending, definitionIndex: swap(pending.definitionIndex) });
+    }
+    const asking = this.askingExamples();
+    if (asking != null) this.askingExamples.set(swap(asking));
+    const forms = this.askingForms();
+    if (forms != null) this.askingForms.set(swap(forms));
+    const draft = this.exampleDraft();
+    if (draft) this.exampleDraft.set({ ...draft, definitionIndex: swap(draft.definitionIndex) });
+    const pendingForms = this.pendingForms();
+    if (pendingForms) {
+      this.pendingForms.set({
+        ...pendingForms,
+        definitionIndex: swap(pendingForms.definitionIndex),
+      });
+    }
+    const related = this.askingRelated();
+    if (related != null) this.askingRelated.set(swap(related));
+    const wording = this.askingWording();
+    if (wording != null) this.askingWording.set(swap(wording));
+    const selection = this.passageSelection();
+    if (selection) {
+      this.passageSelection.set({ ...selection, definitionIndex: swap(selection.definitionIndex) });
+    }
+    const engineer = this.exampleEngineer();
+    if (engineer) {
+      this.exampleEngineer.set({ ...engineer, definitionIndex: swap(engineer.definitionIndex) });
+    }
+    const definitionEngineer = this.definitionEngineer();
+    if (definitionEngineer) {
+      this.definitionEngineer.set({
+        ...definitionEngineer,
+        definitionIndex: swap(definitionEngineer.definitionIndex),
+      });
+    }
+    this.senseStages.update((current) => swapIndexMap(current, from, to));
+    this.swapExampleEditDefinitions(from, to);
+  }
+
+  private swapExampleEditDefinitions(from: number, to: number): void {
+    const swap = (index: number) => (index === from ? to : index === to ? from : index);
+    this.exampleEdits.update((current) => {
+      const next = new Map<string, string>();
+      for (const [key, value] of current) {
+        const split = key.indexOf(':');
+        const definitionIndex = swap(Number(key.slice(0, split)));
+        next.set(`${definitionIndex}:${key.slice(split + 1)}`, value);
+      }
+      return next;
+    });
+    this.exampleAdditions.update((current) => swapIndexMap(current, from, to));
+    const field = this.exampleDraftField();
+    if (field)
+      this.exampleDraftField.set({ ...field, definitionIndex: swap(field.definitionIndex) });
+    const engineer = this.exampleFieldEngineer();
+    if (engineer) {
+      this.exampleFieldEngineer.set({
+        ...engineer,
+        definitionIndex: swap(engineer.definitionIndex),
+      });
+    }
   }
 
   private dropSenseState(index: number): void {
@@ -8592,7 +8737,7 @@ export class ElementModal {
       if (entry?.event === 'delete') return 'Delete this deletion?';
       if (entry?.event === 'example') return 'Delete this example?';
       if (entry?.event === 'form') return 'Delete these forms?';
-      if (entry?.event === 'reveal') return 'Delete this revealed event?';
+      if (entry?.event === 'reveal') return 'Delete this translation?';
       return 'Delete this exercise?';
     }
     return 'Delete this example?';
@@ -9312,7 +9457,7 @@ export class ElementModal {
     if (entry.event === 'delete') return 'Deleted';
     if (entry.event === 'example') return 'Example';
     if (entry.event === 'form') return 'Forms';
-    if (entry.event === 'reveal') return 'Revealed';
+    if (entry.event === 'reveal') return 'Translated';
     return 'Exercise';
   }
 

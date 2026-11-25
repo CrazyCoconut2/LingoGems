@@ -13,7 +13,6 @@ import { ElementModal } from '../elements/element-modal';
 import { GemStatsJob } from '../elements/gem-stats-job';
 import { GemStatsModal } from '../elements/gem-stats-modal';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
-import { RevealIcon } from '../elements/reveal-icon';
 import { DiscoverModal } from './discover-modal';
 import { ensureSelectedLanguage, writeSelectedLanguage } from './selected-language';
 import { supportLanguageFor, writeSupportLanguage } from './translation-language';
@@ -129,7 +128,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
 @Component({
   selector: 'app-language-page',
-  imports: [FormsModule, ElementModal, DiscoverModal, Settings, GemStatsModal, RevealIcon],
+  imports: [FormsModule, ElementModal, DiscoverModal, Settings, GemStatsModal],
   template: `
     <main>
       <div class="page-top">
@@ -390,7 +389,14 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                         [attr.aria-label]="translatedLabel(translated)"
                         [attr.title]="translatedLabel(translated)"
                       >
-                        <app-reveal-icon />
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m5 8 6 6" />
+                          <path d="m4 14 6-6 2-3" />
+                          <path d="M2 5h12" />
+                          <path d="M7 2h1" />
+                          <path d="m22 22-5-10-5 10" />
+                          <path d="M14 18h6" />
+                        </svg>
                         <span>{{ translated }}</span>
                       </span>
                     }
@@ -1667,12 +1673,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
-      color: var(--card-accent, #94a3b8);
-    }
-
-    .stat app-reveal-icon {
-      width: 1.35rem;
-      height: 0.7rem;
       color: var(--card-accent, #94a3b8);
     }
 
