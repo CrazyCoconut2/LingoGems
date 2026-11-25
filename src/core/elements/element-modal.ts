@@ -867,6 +867,9 @@ function writeExampleSuggestions(
                                   </svg>
                                   <span class="log-edit-copies">
                                     <span class="log-game">Exercise</span>
+                                    @if (entry.event === 'game' && entry.answer.trim()) {
+                                      <span class="log-wrote">{{ entry.answer }}</span>
+                                    }
                                     <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                                   </span>
                                 </span>
@@ -1127,6 +1130,10 @@ function writeExampleSuggestions(
                           entry.event === 'game' && !gaveUp(entry) && exerciseEntry() === $index
                         ) {
                           <div class="log-detail feedback-note">
+                            <div class="log-detail-head">
+                              <span class="log-game">You wrote</span>
+                            </div>
+                            <p class="log-answer">{{ entry.answer }}</p>
                             <div class="log-detail-head">
                               <span class="log-game">Feedback</span>
                               <app-feedback-translation
@@ -5490,6 +5497,25 @@ function writeExampleSuggestions(
       gap: 0.75rem;
     }
 
+    .log-wrote {
+      display: -webkit-box;
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--text);
+      font-size: 0.84rem;
+      font-weight: 500;
+      line-height: 1.35;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .log-answer {
+      align-self: stretch;
+      margin: 0 0 0.65rem;
+      color: var(--text);
+      line-height: 1.45;
+    }
+
     .log-translation {
       align-self: stretch;
       margin: 0;
@@ -9473,7 +9499,9 @@ export class ElementModal {
     const when = this.exerciseWhen(entry.at);
     if (entry.event === 'game') {
       const bonus = entry.extra ? ', plus 1' : '';
-      return `${this.historyTitle(entry)}, score ${this.shownGameScore(entry)} out of ${this.scoreMax}${bonus}, ${when}`;
+      const wrote = entry.answer.trim();
+      const attempt = wrote ? `${this.historyTitle(entry)}, ${wrote}` : this.historyTitle(entry);
+      return `${attempt}, score ${this.shownGameScore(entry)} out of ${this.scoreMax}${bonus}, ${when}`;
     }
     if (entry.event === 'rework') {
       return `Reworked, before ${this.logWording(entry.before)}, after ${this.logWording(entry.after)}, ${when}`;

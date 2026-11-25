@@ -2366,6 +2366,8 @@ export class LanguagePage {
     { value: 'title-desc', label: 'Title Z–A' },
     { value: 'created-desc', label: 'Most recent' },
     { value: 'created-asc', label: 'Least recent' },
+    { value: 'score-desc', label: 'Highest score' },
+    { value: 'score-asc', label: 'Lowest score' },
     { value: 'translations-desc', label: 'Most translations' },
     { value: 'gems-desc', label: 'Most gems' },
     { value: 'gems-asc', label: 'Least gems' },

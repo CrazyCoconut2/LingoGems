@@ -11,6 +11,8 @@ const ELEMENT_SORTS = [
   'title-desc',
   'created-desc',
   'created-asc',
+  'score-desc',
+  'score-asc',
   'definitions-desc',
   'translations-desc',
   'gems-desc',
@@ -147,6 +149,15 @@ export function compareElements(
   if (sort === 'gems-desc' || sort === 'gems-asc') {
     const diff = elementGems(left) - elementGems(right);
     return (sort === 'gems-desc' ? -diff : diff) || title;
+  }
+  if (sort === 'score-desc' || sort === 'score-asc') {
+    const leftScore = definitionScoreAverage(left);
+    const rightScore = definitionScoreAverage(right);
+    if (leftScore == null && rightScore == null) return title;
+    if (leftScore == null) return 1;
+    if (rightScore == null) return -1;
+    const diff = leftScore - rightScore;
+    return (sort === 'score-desc' ? -diff : diff) || title;
   }
   const count = sort === 'definitions-desc' ? elementDefinitionCount : elementTranslationCount;
   return count(right) - count(left) || title;
