@@ -4989,19 +4989,24 @@ function writeExampleSuggestions(
 
     .definition-ai .grammar-picks {
       display: flex;
-      flex-direction: column;
+      flex-flow: row wrap;
       gap: 0.35rem;
       margin: 0;
       padding: 0;
       list-style: none;
     }
 
+    .definition-ai .grammar-picks li {
+      display: flex;
+      flex: none;
+      max-width: 100%;
+    }
+
     .definition-ai .grammar-picks button {
       display: flex;
-      flex-direction: column;
       align-items: flex-start;
-      gap: 0.12rem;
-      width: 100%;
+      width: auto;
+      max-width: 100%;
       border: 1px solid rgba(255, 255, 255, 0.35);
       border-radius: 0.75rem;
       background: rgba(255, 255, 255, 0.12);
@@ -5010,7 +5015,7 @@ function writeExampleSuggestions(
       font-size: 0.8125rem;
       line-height: 1.35;
       text-align: left;
-      padding: 0.45rem 0.65rem;
+      padding: 0.35rem 0.6rem;
       cursor: pointer;
     }
 
@@ -7708,9 +7713,7 @@ export class ElementModal {
   }
 
   exampleFieldGenerateDisabled(): boolean {
-    const engineer = this.exampleFieldEngineer();
-    const grammar = engineer ? this.grammarTarget(engineer.grammarId) : undefined;
-    return this.askingExamples() !== null || (!engineer?.instruction.trim() && !grammar);
+    return this.askingExamples() !== null || !this.exampleFieldEngineer();
   }
 
   toggleExampleField(definitionIndex: number, kind: ExampleFieldKind, index: number | null): void {
@@ -7756,8 +7759,7 @@ export class ElementModal {
   async generateExampleField(): Promise<void> {
     const engineer = this.exampleFieldEngineer();
     const instruction = engineer?.instruction.trim() ?? '';
-    const grammar = engineer ? this.grammarTarget(engineer.grammarId) : undefined;
-    if (!engineer || this.aiBusy() || (!instruction && !grammar)) return;
+    if (!engineer || this.aiBusy()) return;
     const element = this.currentElement();
     const definition = element.definitions[engineer.definitionIndex];
     const gloss = parsePassage(definition?.text ?? '').text.trim();
@@ -7767,6 +7769,7 @@ export class ElementModal {
       return;
     }
     const current = this.exampleFieldText(engineer);
+    const fresh = !instruction;
     const index = engineer.definitionIndex;
     const job = ++this.exampleJob;
     this.askingExamples.set(index);
@@ -7778,11 +7781,14 @@ export class ElementModal {
         gloss,
         translation: this.translationTarget(),
         metadata: definition.metadata,
-        existingExamples: this.otherExampleTexts(engineer),
+        existingExamples:
+          fresh && current
+            ? [...this.otherExampleTexts(engineer), current]
+            : this.otherExampleTexts(engineer),
         forms: definition.forms.map((form) => form.text),
         exampleWords: [],
         exampleInstruction: instruction,
-        ...(current ? { currentExample: current } : {}),
+        ...(current && !fresh ? { currentExample: current } : {}),
         ...this.grammarRequest(engineer.grammarId),
       });
       const sentence = parsePassage(examples[0]?.text ?? '').text;
@@ -7796,7 +7802,7 @@ export class ElementModal {
       if (!showing || !same) return;
       if (!sentence || (current && sentence.toLowerCase() === current.toLowerCase())) {
         this.exampleError.set(
-          current ? 'Could not change that example.' : 'Could not write that example.',
+          current && !fresh ? 'Could not change that example.' : 'Could not write that example.',
         );
         return;
       }
@@ -7804,7 +7810,7 @@ export class ElementModal {
     } catch {
       if (this.element().id === element.id) {
         this.exampleError.set(
-          current ? 'Could not change that example.' : 'Could not write that example.',
+          current && !fresh ? 'Could not change that example.' : 'Could not write that example.',
         );
       }
     } finally {
