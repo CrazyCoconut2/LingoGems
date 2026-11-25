@@ -464,8 +464,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               <div>
                 <h2 class="filter-title">Grammar</h2>
                 <p class="filter-subtitle">
-                  Corrected sentences, newest first. Open one to see each mistake, then pick a rule
-                  to color its words.
+                  Corrected sentences, newest first. Open one, then pick the rules whose words
+                  you want to see.
                 </p>
               </div>
               <button type="button" class="icon-btn" aria-label="Close" (click)="closeGrammar()">
@@ -540,8 +540,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                                     class="grammar-rule-btn"
                                     [class.committed]="rule.outcome === 'committed'"
                                     [class.resolved]="rule.outcome === 'resolved'"
-                                    [class.selected]="grammarColor()?.ruleId === rule.id"
-                                    [attr.aria-pressed]="grammarColor()?.ruleId === rule.id"
+                                    [class.selected]="grammarRuleSelected(input.id, rule.id)"
+                                    [attr.aria-pressed]="grammarRuleSelected(input.id, rule.id)"
                                     [attr.aria-label]="grammarRuleLabel(rule)"
                                     (click)="toggleGrammarColor(input.id, rule.id)"
                                   >
@@ -2607,7 +2607,7 @@ export class LanguagePage {
   readonly grammarInputs = signal<GrammarInput[]>([]);
   readonly grammarFilter = signal<string[]>([]);
   readonly grammarExpanded = signal('');
-  readonly grammarColor = signal<{ inputId: string; ruleId: string } | null>(null);
+  readonly grammarColor = signal<{ inputId: string; ruleIds: string[] } | null>(null);
   readonly grammarMistakes = computed(() => grammarRules(this.grammarInputs()));
   readonly visibleGrammarInputs = computed(() => {
     const filter = this.grammarFilter();
@@ -3351,10 +3351,9 @@ export class LanguagePage {
     return grammarMistakeOpen(mistake);
   }
 
-  grammarColorFor(input: GrammarInput): GrammarInputRule | null {
+  grammarRuleSelected(inputId: string, ruleId: string): boolean {
     const color = this.grammarColor();
-    if (!color || color.inputId !== input.id) return null;
-    return input.rules.find((rule) => rule.id === color.ruleId) ?? null;
+    return color?.inputId === inputId && color.ruleIds.includes(ruleId);
   }
 
   grammarRuleLabel(rule: GrammarInputRule): string {
@@ -3374,11 +3373,9 @@ export class LanguagePage {
 
   toggleGrammarColor(inputId: string, ruleId: string): void {
     const current = this.grammarColor();
-    if (current?.inputId === inputId && current.ruleId === ruleId) {
-      this.grammarColor.set(null);
-      return;
-    }
-    this.grammarColor.set({ inputId, ruleId });
+    const ids = current?.inputId === inputId ? current.ruleIds : [];
+    const next = ids.includes(ruleId) ? ids.filter((id) => id !== ruleId) : [...ids, ruleId];
+    this.grammarColor.set(next.length ? { inputId, ruleIds: next } : null);
   }
 
   grammarFiltered(id: string): boolean {
@@ -3397,14 +3394,17 @@ export class LanguagePage {
   }
 
   grammarParts(input: GrammarInput): GrammarMark[] {
-    const coloredId = this.grammarColorFor(input)?.id ?? '';
+    const color = this.grammarColor();
+    const selected = new Set(color?.inputId === input.id ? color.ruleIds : []);
     return grammarCorrectionMarks(
       input.after,
-      input.rules.map((rule) => ({
-        instances: rule.instances,
-        colored: rule.id === coloredId,
-        followed: rule.outcome === 'resolved',
-      })),
+      input.rules
+        .filter((rule) => selected.has(rule.id))
+        .map((rule) => ({
+          instances: rule.instances,
+          colored: true,
+          followed: rule.outcome === 'resolved',
+        })),
     );
   }
 
