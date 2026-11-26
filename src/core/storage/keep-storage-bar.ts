@@ -1,13 +1,18 @@
-import { Component, computed } from '@angular/core';
+import { Component, inject } from '@angular/core';
+import { LanguageService } from '../i18n/language.service';
+import { TranslatePipe } from '../i18n/translate.pipe';
 import { keepStorageFromUser, keepStorageMessage, storageKept } from './keep-storage';
 
 @Component({
   selector: 'app-keep-storage',
+  imports: [TranslatePipe],
   template: `
     @if (kept() === false) {
       <div class="keep" role="status">
         <p>{{ message() }}</p>
-        <button type="button" class="btn btn-primary" (click)="keep()">Keep data</button>
+        <button type="button" class="btn btn-primary" (click)="keep()">
+          {{ 'storage.keep' | translate }}
+        </button>
       </div>
     }
   `,
@@ -64,8 +69,12 @@ import { keepStorageFromUser, keepStorageMessage, storageKept } from './keep-sto
   `,
 })
 export class KeepStorageBar {
+  private readonly i18n = inject(LanguageService);
   readonly kept = storageKept;
-  readonly message = computed(keepStorageMessage);
+
+  message(): string {
+    return keepStorageMessage((key) => this.i18n.translate(key));
+  }
 
   keep(): void {
     void keepStorageFromUser();

@@ -1,13 +1,17 @@
 import { Component, input, signal } from '@angular/core';
+import { TranslatePipe } from '../i18n/translate.pipe';
 
 /** Shows stored text after a click, for this view only. */
 @Component({
   selector: 'app-show-text',
+  imports: [TranslatePipe],
   template: `
     @if (open()) {
       <span>{{ text() }}</span>
     } @else {
-      <button type="button" [attr.aria-label]="label()" (click)="show($event)">Show</button>
+      <button type="button" [attr.aria-label]="label() | translate" (click)="show($event)">
+        {{ 'common.show' | translate }}
+      </button>
     }
   `,
   styles: `
@@ -30,7 +34,7 @@ import { Component, input, signal } from '@angular/core';
 })
 export class ShowText {
   readonly text = input.required<string>();
-  readonly label = input('Show');
+  readonly label = input('common.show');
   readonly open = signal(false);
 
   show(event: Event): void {

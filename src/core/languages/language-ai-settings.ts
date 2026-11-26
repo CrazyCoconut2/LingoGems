@@ -25,12 +25,13 @@ import {
   writeFormMetadataFields,
   type AiMetadataField,
 } from 'ai';
+import { TranslatePipe } from '../i18n/translate.pipe';
 
 type MetadataKind = 'definition' | 'example' | 'form';
 
 @Component({
   selector: 'app-language-ai-settings',
-  standalone: true,
+  imports: [TranslatePipe],
   template: `
     <section class="settings-section" [class.expanded]="open() === 'definitions'">
       <button
@@ -40,7 +41,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
         (click)="toggle('definitions')"
       >
         <span class="section-title">
-          Definition metadata
+          {{ 'settings.definitionMetadata' | translate }}
           @if (filledCount(definitionFields()); as count) {
             <span class="section-count">{{ count }}</span>
           }
@@ -52,17 +53,14 @@ type MetadataKind = 'definition' | 'example' | 'form';
       @if (open() === 'definitions') {
         <div class="section-body metadata">
           <div class="section-head">
-            <p class="section-hint">
-              Asked when fetching definitions. The note is what the AI is told for that field. Leave
-              it empty to accept whatever fits.
-            </p>
+            <p class="section-hint">{{ 'settings.definitionMetadataHint' | translate }}</p>
             <button
               type="button"
               class="reset"
               [disabled]="!definitionFieldsChanged()"
               (click)="resetDefinitionFields()"
             >
-              Reset
+              {{ 'common.reset' | translate }}
             </button>
           </div>
           <label class="translation-toggle">
@@ -71,7 +69,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
               [checked]="definitionExtraFields()"
               (change)="setDefinitionExtraFields($event)"
             />
-            Let the AI add other relevant definition fields
+            {{ 'settings.extraDefinitionFields' | translate }}
           </label>
           @if (definitionFields().length) {
             <ul class="metadata-list">
@@ -79,25 +77,31 @@ type MetadataKind = 'definition' | 'example' | 'form';
                 <li class="metadata-field">
                   <div class="metadata-key-row">
                     <input
-                      [attr.aria-label]="'Definition metadata key ' + ($index + 1)"
+                      [attr.aria-label]="
+                        'settings.definitionKeyAria' | translate: { index: '' + ($index + 1) }
+                      "
                       [attr.maxlength]="metadataKeyMax"
-                      placeholder="Key"
+                      placeholder="{{ 'settings.metadataKey' | translate }}"
                       [value]="field.key"
                       (input)="setDefinitionField($index, 'key', inputValue($event))"
                     />
                     <button
                       type="button"
                       class="metadata-remove"
-                      [attr.aria-label]="'Remove definition metadata ' + ($index + 1)"
+                      [attr.aria-label]="
+                        'settings.removeDefinitionAria' | translate: { index: '' + ($index + 1) }
+                      "
                       (click)="removeDefinitionField($index)"
                     >
                       ×
                     </button>
                   </div>
                   <textarea
-                    [attr.aria-label]="'Note for definition metadata ' + ($index + 1)"
+                    [attr.aria-label]="
+                      'settings.definitionNoteAria' | translate: { index: '' + ($index + 1) }
+                    "
                     [attr.maxlength]="metadataPromptMax"
-                    placeholder="Whatever fits"
+                    placeholder="{{ 'settings.whateverFits' | translate }}"
                     rows="2"
                     [value]="field.prompt"
                     (input)="setDefinitionField($index, 'prompt', inputValue($event))"
@@ -113,7 +117,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
               [disabled]="definitionFields().length >= metadataFieldMax"
               (click)="addDefinitionField()"
             >
-              Add field
+              {{ 'settings.addField' | translate }}
             </button>
             <button
               type="button"
@@ -122,11 +126,11 @@ type MetadataKind = 'definition' | 'example' | 'form';
               [attr.aria-busy]="recommendingDefinitions() ? true : null"
               (click)="recommendDefinitions()"
             >
-              Recommend
+              {{ 'settings.recommend' | translate }}
             </button>
           </div>
           @if (definitionRecommendError()) {
-            <p class="recommend-error">{{ definitionRecommendError() }}</p>
+            <p class="recommend-error">{{ definitionRecommendError() | translate }}</p>
           }
           @let definitionPicks = openSuggestions(definitionSuggestions(), definitionFields());
           @if (definitionPicks.length) {
@@ -135,7 +139,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
                 <li class="metadata-suggestion">
                   <div>
                     <strong>{{ field.key }}</strong>
-                    <p>{{ field.prompt || 'Whatever fits' }}</p>
+                    <p>{{ field.prompt || ('settings.whateverFits' | translate) }}</p>
                   </div>
                   <button
                     type="button"
@@ -143,7 +147,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
                     [disabled]="!canAccept(definitionFields())"
                     (click)="acceptDefinitionSuggestion(field)"
                   >
-                    Add
+                    {{ 'common.add' | translate }}
                   </button>
                 </li>
               }
@@ -161,7 +165,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
         (click)="toggle('examples')"
       >
         <span class="section-title">
-          Example metadata
+          {{ 'settings.exampleMetadata' | translate }}
           @if (filledCount(exampleFields()); as count) {
             <span class="section-count">{{ count }}</span>
           }
@@ -173,17 +177,14 @@ type MetadataKind = 'definition' | 'example' | 'form';
       @if (open() === 'examples') {
         <div class="section-body metadata">
           <div class="section-head">
-            <p class="section-hint">
-              Asked when fetching examples. The note is what the AI is told for that field. Leave it
-              empty to accept whatever fits.
-            </p>
+            <p class="section-hint">{{ 'settings.exampleMetadataHint' | translate }}</p>
             <button
               type="button"
               class="reset"
               [disabled]="!exampleFieldsChanged()"
               (click)="resetExampleFields()"
             >
-              Reset
+              {{ 'common.reset' | translate }}
             </button>
           </div>
           <label class="translation-toggle">
@@ -192,7 +193,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
               [checked]="exampleExtraFields()"
               (change)="setExampleExtraFields($event)"
             />
-            Let the AI add other relevant example fields
+            {{ 'settings.extraExampleFields' | translate }}
           </label>
           @if (exampleFields().length) {
             <ul class="metadata-list">
@@ -200,25 +201,31 @@ type MetadataKind = 'definition' | 'example' | 'form';
                 <li class="metadata-field">
                   <div class="metadata-key-row">
                     <input
-                      [attr.aria-label]="'Example metadata key ' + ($index + 1)"
+                      [attr.aria-label]="
+                        'settings.exampleKeyAria' | translate: { index: '' + ($index + 1) }
+                      "
                       [attr.maxlength]="metadataKeyMax"
-                      placeholder="Key"
+                      placeholder="{{ 'settings.metadataKey' | translate }}"
                       [value]="field.key"
                       (input)="setExampleField($index, 'key', inputValue($event))"
                     />
                     <button
                       type="button"
                       class="metadata-remove"
-                      [attr.aria-label]="'Remove example metadata ' + ($index + 1)"
+                      [attr.aria-label]="
+                        'settings.removeExampleAria' | translate: { index: '' + ($index + 1) }
+                      "
                       (click)="removeExampleField($index)"
                     >
                       ×
                     </button>
                   </div>
                   <textarea
-                    [attr.aria-label]="'Note for example metadata ' + ($index + 1)"
+                    [attr.aria-label]="
+                      'settings.exampleNoteAria' | translate: { index: '' + ($index + 1) }
+                    "
                     [attr.maxlength]="metadataPromptMax"
-                    placeholder="Whatever fits"
+                    placeholder="{{ 'settings.whateverFits' | translate }}"
                     rows="2"
                     [value]="field.prompt"
                     (input)="setExampleField($index, 'prompt', inputValue($event))"
@@ -234,7 +241,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
               [disabled]="exampleFields().length >= metadataFieldMax"
               (click)="addExampleField()"
             >
-              Add field
+              {{ 'settings.addField' | translate }}
             </button>
             <button
               type="button"
@@ -243,11 +250,11 @@ type MetadataKind = 'definition' | 'example' | 'form';
               [attr.aria-busy]="recommendingExamples() ? true : null"
               (click)="recommendExamples()"
             >
-              Recommend
+              {{ 'settings.recommend' | translate }}
             </button>
           </div>
           @if (exampleRecommendError()) {
-            <p class="recommend-error">{{ exampleRecommendError() }}</p>
+            <p class="recommend-error">{{ exampleRecommendError() | translate }}</p>
           }
           @let examplePicks = openSuggestions(exampleSuggestions(), exampleFields());
           @if (examplePicks.length) {
@@ -256,7 +263,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
                 <li class="metadata-suggestion">
                   <div>
                     <strong>{{ field.key }}</strong>
-                    <p>{{ field.prompt || 'Whatever fits' }}</p>
+                    <p>{{ field.prompt || ('settings.whateverFits' | translate) }}</p>
                   </div>
                   <button
                     type="button"
@@ -264,7 +271,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
                     [disabled]="!canAccept(exampleFields())"
                     (click)="acceptExampleSuggestion(field)"
                   >
-                    Add
+                    {{ 'common.add' | translate }}
                   </button>
                 </li>
               }
@@ -282,7 +289,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
         (click)="toggle('forms')"
       >
         <span class="section-title">
-          Forms metadata
+          {{ 'settings.formMetadata' | translate }}
           @if (filledCount(formFields()); as count) {
             <span class="section-count">{{ count }}</span>
           }
@@ -294,17 +301,14 @@ type MetadataKind = 'definition' | 'example' | 'form';
       @if (open() === 'forms') {
         <div class="section-body metadata">
           <div class="section-head">
-            <p class="section-hint">
-              Asked when fetching forms. The note is what the AI is told for that field. Leave it
-              empty to accept whatever fits.
-            </p>
+            <p class="section-hint">{{ 'settings.formMetadataHint' | translate }}</p>
             <button
               type="button"
               class="reset"
               [disabled]="!formFieldsChanged()"
               (click)="resetFormFields()"
             >
-              Reset
+              {{ 'common.reset' | translate }}
             </button>
           </div>
           <label class="translation-toggle">
@@ -313,7 +317,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
               [checked]="formExtraFields()"
               (change)="setFormExtraFields($event)"
             />
-            Let the AI add other relevant form fields
+            {{ 'settings.extraFormFields' | translate }}
           </label>
           @if (formFields().length) {
             <ul class="metadata-list">
@@ -321,25 +325,31 @@ type MetadataKind = 'definition' | 'example' | 'form';
                 <li class="metadata-field">
                   <div class="metadata-key-row">
                     <input
-                      [attr.aria-label]="'Form metadata key ' + ($index + 1)"
+                      [attr.aria-label]="
+                        'settings.formKeyAria' | translate: { index: '' + ($index + 1) }
+                      "
                       [attr.maxlength]="metadataKeyMax"
-                      placeholder="Key"
+                      placeholder="{{ 'settings.metadataKey' | translate }}"
                       [value]="field.key"
                       (input)="setFormField($index, 'key', inputValue($event))"
                     />
                     <button
                       type="button"
                       class="metadata-remove"
-                      [attr.aria-label]="'Remove form metadata ' + ($index + 1)"
+                      [attr.aria-label]="
+                        'settings.removeFormAria' | translate: { index: '' + ($index + 1) }
+                      "
                       (click)="removeFormField($index)"
                     >
                       ×
                     </button>
                   </div>
                   <textarea
-                    [attr.aria-label]="'Note for form metadata ' + ($index + 1)"
+                    [attr.aria-label]="
+                      'settings.formNoteAria' | translate: { index: '' + ($index + 1) }
+                    "
                     [attr.maxlength]="metadataPromptMax"
-                    placeholder="Whatever fits"
+                    placeholder="{{ 'settings.whateverFits' | translate }}"
                     rows="2"
                     [value]="field.prompt"
                     (input)="setFormField($index, 'prompt', inputValue($event))"
@@ -355,7 +365,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
               [disabled]="formFields().length >= metadataFieldMax"
               (click)="addFormField()"
             >
-              Add field
+              {{ 'settings.addField' | translate }}
             </button>
             <button
               type="button"
@@ -364,11 +374,11 @@ type MetadataKind = 'definition' | 'example' | 'form';
               [attr.aria-busy]="recommendingForms() ? true : null"
               (click)="recommendForms()"
             >
-              Recommend
+              {{ 'settings.recommend' | translate }}
             </button>
           </div>
           @if (formRecommendError()) {
-            <p class="recommend-error">{{ formRecommendError() }}</p>
+            <p class="recommend-error">{{ formRecommendError() | translate }}</p>
           }
           @let formPicks = openSuggestions(formSuggestions(), formFields());
           @if (formPicks.length) {
@@ -377,7 +387,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
                 <li class="metadata-suggestion">
                   <div>
                     <strong>{{ field.key }}</strong>
-                    <p>{{ field.prompt || 'Whatever fits' }}</p>
+                    <p>{{ field.prompt || ('settings.whateverFits' | translate) }}</p>
                   </div>
                   <button
                     type="button"
@@ -385,7 +395,7 @@ type MetadataKind = 'definition' | 'example' | 'form';
                     [disabled]="!canAccept(formFields())"
                     (click)="acceptFormSuggestion(field)"
                   >
-                    Add
+                    {{ 'common.add' | translate }}
                   </button>
                 </li>
               }
@@ -835,7 +845,7 @@ export class LanguageAiSettings {
   private async recommend(kind: MetadataKind): Promise<void> {
     const place = this.place(kind);
     if (!readStoredAiCredentials().keys.length) {
-      place.error.set('Save an API key first.');
+      place.error.set('common.saveKeyFirst');
       return;
     }
     const job = place.nextJob();
@@ -845,9 +855,9 @@ export class LanguageAiSettings {
       const fields = await recommendMetadataFields(kind, place.fields());
       if (!place.current(job)) return;
       place.suggestions.set(fields);
-      if (!fields.length) place.error.set('No further fields.');
+      if (!fields.length) place.error.set('settings.noFurtherFields');
     } catch {
-      if (place.current(job)) place.error.set('Could not recommend fields.');
+      if (place.current(job)) place.error.set('settings.recommendFailed');
     } finally {
       if (place.current(job)) place.recommending.set(false);
     }

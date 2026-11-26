@@ -1,4 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
+import { TranslatePipe } from '../i18n/translate.pipe';
+import { LanguageService } from '../i18n/language.service';
 import {
   Component,
   computed,
@@ -38,8 +40,8 @@ const ACTIVITIES: readonly {
   key: ActivityKey;
   label: string;
 }[] = [
-  { key: 'added', label: 'Added' },
-  { key: 'revealed', label: 'Translated' },
+  { key: 'added', label: 'stats.added' },
+  { key: 'revealed', label: 'stats.translated' },
 ];
 
 type ElementSort = { kind: 'exercises' } | { kind: 'differential' } | { kind: 'translated' };
@@ -77,13 +79,13 @@ const EMPTY_DAY: DayStats = {
 
 @Component({
   selector: 'app-stats',
-  imports: [NgTemplateOutlet, PhraseTranslation],
+  imports: [NgTemplateOutlet, PhraseTranslation, TranslatePipe],
   template: `
     <div
       class="backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label="Stats"
+      [attr.aria-label]="'stats.title' | translate"
       [attr.aria-busy]="pending() ? true : null"
       (click)="closeOnBackdrop($event)"
     >
@@ -91,11 +93,11 @@ const EMPTY_DAY: DayStats = {
         <header class="panel-header">
           <div class="header-bar">
             <div>
-              <h2>Stats</h2>
+              <h2>{{ 'stats.title' | translate }}</h2>
               <p class="language">
                 <span>{{ languageName() }}</span>
                 @if (error()) {
-                  <span class="failed">Could not count stats.</span>
+                  <span class="failed">{{ 'stats.failed' | translate }}</span>
                 }
               </p>
             </div>
@@ -104,8 +106,8 @@ const EMPTY_DAY: DayStats = {
                 type="button"
                 class="icon-btn"
                 [class.on]="stale()"
-                [attr.aria-label]="stale() ? 'Update stats' : 'Recompile stats'"
-                [attr.title]="stale() ? 'Update stats' : 'Recompile stats'"
+                [attr.aria-label]="(stale() ? 'stats.update' : 'stats.recompile') | translate"
+                [attr.title]="(stale() ? 'stats.update' : 'stats.recompile') | translate"
                 (click)="recompile()"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -119,7 +121,7 @@ const EMPTY_DAY: DayStats = {
                 type="button"
                 class="icon-btn"
                 [class.on]="goalsOpen()"
-                aria-label="Daily goals"
+                [attr.aria-label]="'stats.dailyGoals' | translate"
                 [attr.aria-expanded]="goalsOpen()"
                 (click)="toggleGoals()"
               >
@@ -130,7 +132,7 @@ const EMPTY_DAY: DayStats = {
                   <circle cx="12" cy="12" r="3" />
                 </svg>
               </button>
-              <button type="button" class="icon-btn" aria-label="Close" (click)="closed.emit()">
+              <button type="button" class="icon-btn" [attr.aria-label]="'common.close' | translate" (click)="closed.emit()">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M18 6 6 18" />
                   <path d="m6 6 12 12" />
@@ -142,7 +144,7 @@ const EMPTY_DAY: DayStats = {
             <button
               type="button"
               class="icon-btn"
-              aria-label="Older day"
+              [attr.aria-label]="'stats.olderDay' | translate"
               [disabled]="pending() || !canGoOlder()"
               (click)="older()"
             >
@@ -174,7 +176,7 @@ const EMPTY_DAY: DayStats = {
             <button
               type="button"
               class="icon-btn"
-              aria-label="Newer day"
+              [attr.aria-label]="'stats.newerDay' | translate"
               [disabled]="pending() || !canGoNewer()"
               (click)="newer()"
             >
@@ -197,7 +199,7 @@ const EMPTY_DAY: DayStats = {
               </section>
               <section class="block">
                 <div class="block-head">
-                  <h3>Activity</h3>
+                  <h3>{{ 'stats.activity' | translate }}</h3>
                 </div>
                 <ul class="activity">
                   @for (item of loadingActivity; track item) {
@@ -211,7 +213,7 @@ const EMPTY_DAY: DayStats = {
               </section>
               <section class="block deck">
                 <div class="block-head">
-                  <h3>Elements</h3>
+                  <h3>{{ 'stats.elements' | translate }}</h3>
                 </div>
                 <ul class="elements">
                   @for (item of loadingRows; track item) {
@@ -232,13 +234,13 @@ const EMPTY_DAY: DayStats = {
                   [attr.title]="scoreLabel(shown().differential)"
                 >
                   <span class="count">{{ formatDiff(shown().differential) }}</span>
-                  <span class="caption">Score</span>
+                  <span class="caption">{{ 'stats.score' | translate }}</span>
                 </li>
               </ul>
             </section>
             <section class="block">
               <div class="block-head">
-                <h3>Activity</h3>
+                <h3>{{ 'stats.activity' | translate }}</h3>
               </div>
               <ul class="activity">
                 <li
@@ -249,15 +251,15 @@ const EMPTY_DAY: DayStats = {
                     <ng-container *ngTemplateOutlet="exerciseIcon" />
                   </span>
                   <span class="count">{{ formatCount(shown().exercises) }}</span>
-                  <span class="caption">Exercises</span>
+                  <span class="caption">{{ 'stats.exercises' | translate }}</span>
                   @if (goalsOpen() || goals().exercises !== null) {
                     <div class="card-foot">
                       @if (goalsOpen()) {
-                        <span class="card-goal-label">Goal</span>
+                        <span class="card-goal-label">{{ 'stats.goal' | translate }}</span>
                         <ng-container
                           *ngTemplateOutlet="
                             goalStepper;
-                            context: { kind: 'exercises', label: 'exercises' }
+                            context: { kind: 'exercises', label: 'stats.goalExercises' }
                           "
                         />
                       }
@@ -284,8 +286,8 @@ const EMPTY_DAY: DayStats = {
                 </li>
                 @for (row of activities; track row.key) {
                   <li
-                    [attr.aria-label]="activityCardLabel(row.label, shown()[row.key])"
-                    [attr.title]="activityCardLabel(row.label, shown()[row.key])"
+                    [attr.aria-label]="activityCardLabel(row.key, shown()[row.key])"
+                    [attr.title]="activityCardLabel(row.key, shown()[row.key])"
                   >
                     <span class="well" aria-hidden="true">
                       <ng-container
@@ -293,15 +295,15 @@ const EMPTY_DAY: DayStats = {
                       />
                     </span>
                     <span class="count">{{ formatCount(shown()[row.key]) }}</span>
-                    <span class="caption">{{ row.label }}</span>
+                    <span class="caption">{{ row.label | translate }}</span>
                     @if (row.key === 'added' && (goalsOpen() || goals().added !== null)) {
                       <div class="card-foot">
                         @if (goalsOpen()) {
-                          <span class="card-goal-label">Goal</span>
+                          <span class="card-goal-label">{{ 'stats.goal' | translate }}</span>
                           <ng-container
                             *ngTemplateOutlet="
                               goalStepper;
-                              context: { kind: 'added', label: 'added' }
+                              context: { kind: 'added', label: 'stats.goalAdded' }
                             "
                           />
                         }
@@ -341,7 +343,7 @@ const EMPTY_DAY: DayStats = {
                   <svg class="fold-chevron" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="m9 18 6-6-6-6" />
                   </svg>
-                  <span class="fold-title">Elements</span>
+                  <span class="fold-title">{{ 'stats.elements' | translate }}</span>
                   <span class="fold-count">{{ formatCount(sortedElements().length) }}</span>
                 </button>
                 <div class="sort-menu">
@@ -350,8 +352,8 @@ const EMPTY_DAY: DayStats = {
                     class="icon-btn"
                     [class.on]="sortMenuOpen() || elementSort()"
                     [attr.aria-expanded]="sortMenuOpen()"
-                    aria-label="Sort elements"
-                    title="Sort"
+                    [attr.aria-label]="'stats.sortElements' | translate"
+                    [attr.title]="'stats.sort' | translate"
                     (click)="toggleSortMenu($event)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -366,7 +368,7 @@ const EMPTY_DAY: DayStats = {
                       class="sort-popover"
                       [class.above]="sortMenuAbove()"
                       role="listbox"
-                      aria-label="Sort elements"
+                      [attr.aria-label]="'stats.sortElements' | translate"
                       [style.max-height.px]="sortMenuMax()"
                       (click)="$event.stopPropagation()"
                     >
@@ -379,7 +381,7 @@ const EMPTY_DAY: DayStats = {
                           [attr.aria-selected]="isSort(option.sort)"
                           (click)="chooseElementSort(option.sort)"
                         >
-                          {{ option.label }}
+                          {{ option.label | translate }}
                         </button>
                       }
                     </div>
@@ -398,7 +400,7 @@ const EMPTY_DAY: DayStats = {
                         (click)="opened.emit(element.id)"
                       >
                         @if (element.added > 0) {
-                          <span class="new-sign">New</span>
+                          <span class="new-sign">{{ 'stats.new' | translate }}</span>
                         }
                         <div class="row-main">
                           <span class="title" [attr.title]="titleOf(element)">{{
@@ -422,10 +424,10 @@ const EMPTY_DAY: DayStats = {
                                   class="bit"
                                   [class.on]="isSort(translatedSort)"
                                   [attr.aria-label]="
-                                    activityLabel(activity.label, element[activity.key])
+                                    activityLabel(activity.key, element[activity.key])
                                   "
                                   [attr.title]="
-                                    activityLabel(activity.label, element[activity.key])
+                                    activityLabel(activity.key, element[activity.key])
                                   "
                                 >
                                   <ng-container
@@ -457,7 +459,7 @@ const EMPTY_DAY: DayStats = {
                   }
                 </ul>
                 @if (!sortedElements().length) {
-                  <p class="hint elements-empty">Nothing recorded yet.</p>
+                  <p class="hint elements-empty">{{ 'stats.nothing' | translate }}</p>
                 }
               }
             </section>
@@ -474,13 +476,13 @@ const EMPTY_DAY: DayStats = {
                     <svg class="fold-chevron" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="m9 18 6-6-6-6" />
                     </svg>
-                    <span class="fold-title">Missing</span>
+                    <span class="fold-title">{{ 'stats.missing' | translate }}</span>
                     <span class="fold-count">{{ formatCount(visibleMissing().length) }}</span>
                   </button>
                 </div>
                 @if (missingOpen()) {
                   @if (askError()) {
-                    <p class="hint missing-error">{{ askError() }}</p>
+                    <p class="hint missing-error">{{ askError() | translate }}</p>
                   }
                   <ul class="elements">
                     @for (token of visibleMissing(); track token.key) {
@@ -492,7 +494,7 @@ const EMPTY_DAY: DayStats = {
                                 <button
                                   type="button"
                                   class="card-title"
-                                  [attr.aria-label]="'Open ' + label(preview.lemma)"
+                                  [attr.aria-label]="'stats.open' | translate: { title: label(preview.lemma) }"
                                   (click)="opened.emit(preview.collectedId)"
                                 >
                                   {{ label(preview.lemma) }}
@@ -507,8 +509,8 @@ const EMPTY_DAY: DayStats = {
                                 <button
                                   type="button"
                                   class="tile-add"
-                                  aria-label="Add"
-                                  title="Add"
+                                  [attr.aria-label]="'common.add' | translate"
+                                  [attr.title]="'common.add' | translate"
                                   [disabled]="asking()"
                                   [attr.aria-busy]="busyToken(token.key) ? true : null"
                                   (click)="addMissing.emit()"
@@ -522,8 +524,8 @@ const EMPTY_DAY: DayStats = {
                               <button
                                 type="button"
                                 class="icon-btn"
-                                aria-label="Remove"
-                                title="Remove"
+                                [attr.aria-label]="'common.remove' | translate"
+                                [attr.title]="'common.remove' | translate"
                                 [disabled]="asking()"
                                 (click)="hideMissing(token)"
                               >
@@ -631,8 +633,8 @@ const EMPTY_DAY: DayStats = {
                               <button
                                 type="button"
                                 class="icon-btn"
-                                aria-label="Ask AI"
-                                title="Ask AI"
+                                [attr.aria-label]="'languages.askAi' | translate"
+                                [attr.title]="'languages.askAi' | translate"
                                 [disabled]="asking()"
                                 [attr.aria-busy]="busyToken(token.key) ? true : null"
                                 (click)="askMissing.emit({ key: token.key, title: token.title })"
@@ -646,8 +648,8 @@ const EMPTY_DAY: DayStats = {
                               <button
                                 type="button"
                                 class="icon-btn"
-                                aria-label="Remove"
-                                title="Remove"
+                                [attr.aria-label]="'common.remove' | translate"
+                                [attr.title]="'common.remove' | translate"
                                 [disabled]="asking()"
                                 (click)="hideMissing(token)"
                               >
@@ -673,7 +675,7 @@ const EMPTY_DAY: DayStats = {
                           <svg class="fold-chevron" viewBox="0 0 24 24" aria-hidden="true">
                             <path d="m9 18 6-6-6-6" />
                           </svg>
-                          <span class="fold-title">Hidden</span>
+                          <span class="fold-title">{{ 'stats.hidden' | translate }}</span>
                           <span class="fold-count">{{ formatCount(hiddenTokens().length) }}</span>
                         </button>
                         @if (hiddenOpen()) {
@@ -705,10 +707,10 @@ const EMPTY_DAY: DayStats = {
                                 <button
                                   type="button"
                                   class="restore"
-                                  [attr.aria-label]="'Restore ' + token.title"
+                                  [attr.aria-label]="'stats.restoreNamed' | translate: { title: token.title }"
                                   (click)="restoreMissing(token.key)"
                                 >
-                                  Restore
+                                  {{ 'common.restore' | translate }}
                                 </button>
                               </li>
                             }
@@ -728,7 +730,7 @@ const EMPTY_DAY: DayStats = {
       <div class="count-stepper">
         <button
           type="button"
-          [attr.aria-label]="'Decrease ' + label + ' goal'"
+          [attr.aria-label]="'stats.decreaseGoal' | translate: { label: (label | translate) }"
           [disabled]="!goalSet(kind)"
           (click)="stepGoal(kind, -1)"
         >
@@ -738,14 +740,14 @@ const EMPTY_DAY: DayStats = {
           type="text"
           inputmode="numeric"
           autocomplete="off"
-          [attr.aria-label]="label + ' daily goal'"
+          [attr.aria-label]="'stats.dailyGoal' | translate: { label: (label | translate) }"
           placeholder="–"
           [value]="goalValue(kind)"
           (change)="commitGoal(kind, $event)"
         />
         <button
           type="button"
-          [attr.aria-label]="'Increase ' + label + ' goal'"
+          [attr.aria-label]="'stats.increaseGoal' | translate: { label: (label | translate) }"
           (click)="stepGoal(kind, 1)"
         >
           +
@@ -1887,6 +1889,7 @@ const EMPTY_DAY: DayStats = {
   `,
 })
 export class StatsModal {
+  private readonly i18n = inject(LanguageService);
   readonly language = input.required<string>();
   readonly asking = input(false);
   readonly askingKey = input('');
@@ -1915,9 +1918,9 @@ export class StatsModal {
   readonly differentialSort: ElementSort = { kind: 'differential' };
   readonly translatedSort: ElementSort = { kind: 'translated' };
   readonly elementSortOptions: readonly { id: string; sort: ElementSort; label: string }[] = [
-    { id: 'differential', sort: this.differentialSort, label: 'By score gained' },
-    { id: 'exercises', sort: this.exerciseSort, label: 'By most exercised' },
-    { id: 'translated', sort: this.translatedSort, label: 'By most translated' },
+    { id: 'differential', sort: this.differentialSort, label: 'stats.sortScore' },
+    { id: 'exercises', sort: this.exerciseSort, label: 'stats.sortExercised' },
+    { id: 'translated', sort: this.translatedSort, label: 'stats.sortTranslated' },
   ];
 
   private readonly job = inject(StatsJob);
@@ -1967,14 +1970,15 @@ export class StatsModal {
   });
   readonly canGoOlder = computed(() => this.dayIndex() < this.days().length - 1);
   readonly canGoNewer = computed(() => this.dayIndex() > 0);
-  readonly dayLabel = computed(() => {
+  dayLabel(): string {
     const current = this.day();
-    return current ? formatDay(current.day) : '';
-  });
-  readonly dayBadge = computed(() => {
+    return current ? formatDay(current.day, this.i18n) : '';
+  }
+
+  dayBadge(): string {
     const current = this.day();
-    return current ? formatDayBadge(current.day) : '';
-  });
+    return current ? formatDayBadge(current.day, this.i18n) : '';
+  }
   readonly viewingToday = computed(() => {
     const current = this.day();
     return !!current && isToday(current.day);
@@ -2126,11 +2130,15 @@ export class StatsModal {
   }
 
   exerciseMeterLabel(goal: number): string {
-    return `Exercises ${this.meterText(this.shown().exercises, goal)}`;
+    return this.i18n.translate('stats.exerciseMeter', {
+      progress: this.meterText(this.shown().exercises, goal),
+    });
   }
 
   addedMeterLabel(goal: number): string {
-    return `Added ${this.meterText(this.shown().added, goal)}`;
+    return this.i18n.translate('stats.addedMeter', {
+      progress: this.meterText(this.shown().added, goal),
+    });
   }
 
   titleOf(element: ElementDayStats): string {
@@ -2142,7 +2150,7 @@ export class StatsModal {
   }
 
   formatCount(count: number): string {
-    return new Intl.NumberFormat(undefined).format(count);
+    return new Intl.NumberFormat(this.i18n.currentLanguage).format(count);
   }
 
   formatDiff(value: number): string {
@@ -2154,21 +2162,29 @@ export class StatsModal {
   }
 
   scoreLabel(value: number): string {
-    return `Score differential ${this.formatDiff(value)}`;
+    return this.i18n.translate('stats.scoreDiff', { value: this.formatDiff(value) });
   }
 
   exerciseLabel(count: number): string {
     const amount = this.formatCount(count);
-    return count === 1 ? `${amount} exercise` : `${amount} exercises`;
+    return this.i18n.translate(count === 1 ? 'stats.exerciseOne' : 'stats.exerciseMany', {
+      count: amount,
+    });
   }
 
-  activityLabel(label: string, count: number): string {
-    return `${count} ${label.toLowerCase()}`;
+  activityLabel(key: ActivityKey, count: number): string {
+    const name = this.i18n.translate(key === 'added' ? 'stats.addedLower' : 'stats.translatedLower');
+    return this.i18n.translate(count === 1 ? 'stats.oneName' : 'stats.countName', {
+      count: this.formatCount(count),
+      name,
+    });
   }
 
   translatedLabel(count: number): string {
     const amount = this.formatCount(count);
-    return count === 1 ? `Translated ${amount} time` : `Translated ${amount} times`;
+    return this.i18n.translate(count === 1 ? 'stats.translatedOne' : 'stats.translatedMany', {
+      count: amount,
+    });
   }
 
   hideMissing(token: MissingToken): void {
@@ -2217,7 +2233,7 @@ export class StatsModal {
   }
 
   metaLabel(value: string): string {
-    return value.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase());
+    return value.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase(this.i18n.currentLanguage));
   }
 
   restoreMissing(key: string): void {
@@ -2226,16 +2242,21 @@ export class StatsModal {
     if (!next.length) this.hiddenOpen.set(false);
   }
 
-  activityCardLabel(label: string, day: number): string {
-    const name = label.toLowerCase();
-    const when = this.dayBadge() || 'this day';
-    const gained = day === 1 ? `1 ${name}` : `${day} ${name}`;
-    return `${gained} ${when}`;
+  activityCardLabel(key: ActivityKey, day: number): string {
+    const name = this.i18n.translate(key === 'added' ? 'stats.addedLower' : 'stats.translatedLower');
+    const when = this.dayBadge() || this.i18n.translate('stats.thisDay');
+    const gained =
+      day === 1
+        ? this.i18n.translate('stats.oneName', { name })
+        : this.i18n.translate('stats.countName', { count: this.formatCount(day), name });
+    return this.i18n.translate('stats.gainedWhen', { gained, when });
   }
 
   streakLabel(): string {
     const amount = this.formatCount(this.streak());
-    return `${amount} day streak`;
+    return this.i18n.translate(this.streak() === 1 ? 'stats.streakOne' : 'stats.streakMany', {
+      count: amount,
+    });
   }
 
   private saveGoal(kind: GoalKind, value: number | null): void {
@@ -2280,32 +2301,31 @@ function activityTotal(element: ElementDayStats): number {
   return element.added + element.revealed;
 }
 
-function formatDay(day: string): string {
+function formatDay(day: string, i18n: LanguageService): string {
   const value = calendarDay(day);
   if (!value) return day;
   const today = new Date();
   const diff = dayDistance(value, today);
-  const short = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(
-    value,
-  );
-  if (diff === 0) return `Today, ${short}`;
-  if (diff === 1) return `Yesterday, ${short}`;
+  const locale = i18n.currentLanguage;
+  const short = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(value);
+  if (diff === 0) return i18n.translate('stats.todayDate', { date: short });
+  if (diff === 1) return i18n.translate('stats.yesterdayDate', { date: short });
   const options: Intl.DateTimeFormatOptions = {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
   };
   if (value.getFullYear() !== today.getFullYear()) options.year = 'numeric';
-  return new Intl.DateTimeFormat(undefined, options).format(value);
+  return new Intl.DateTimeFormat(locale, options).format(value);
 }
 
-function formatDayBadge(day: string): string {
+function formatDayBadge(day: string, i18n: LanguageService): string {
   const value = calendarDay(day);
-  if (!value) return 'that day';
+  if (!value) return i18n.translate('stats.thatDay');
   const diff = dayDistance(value, new Date());
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Yesterday';
-  return 'that day';
+  if (diff === 0) return i18n.translate('stats.today');
+  if (diff === 1) return i18n.translate('stats.yesterday');
+  return i18n.translate('stats.thatDay');
 }
 
 function calendarDay(day: string): Date | null {

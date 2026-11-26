@@ -1,7 +1,8 @@
 import { Component, computed, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { isAiProvider, writeStoredAiCredentials, type AiProviderId } from 'ai';
+import { AiError, AI_ERROR, addStoredAiKey, isAiProvider, type AiProviderId } from 'ai';
 import { markOnboarded } from '../credentials/credentials';
+import { TranslatePipe } from '../i18n/translate.pipe';
 
 type Step = 'welcome' | 'ai';
 
@@ -19,7 +20,7 @@ const AI_PROVIDERS: ProviderOption<AiProviderId>[] = [
 
 @Component({
   selector: 'app-onboarding',
-  imports: [FormsModule],
+  imports: [FormsModule, TranslatePipe],
   template: `
     <section class="screen">
       <div class="card">
@@ -28,22 +29,22 @@ const AI_PROVIDERS: ProviderOption<AiProviderId>[] = [
           @case ('welcome') {
             <div class="copy">
               <h1>LingoGems</h1>
-              <p>You collect meaning instead of grammar.</p>
+              <p>{{ 'onboarding.tagline' | translate }}</p>
             </div>
             <div class="actions">
               <button type="button" class="btn btn-primary" (click)="step.set('ai')">
-                Continue
+                {{ 'onboarding.continue' | translate }}
               </button>
             </div>
           }
           @case ('ai') {
             <form (submit)="saveAi($event)">
               <div class="copy">
-                <h1>AI provider</h1>
-                <p>Add an API key. It stays on this device.</p>
+                <h1>{{ 'settings.aiProvider' | translate }}</h1>
+                <p>{{ 'onboarding.aiHint' | translate }}</p>
               </div>
               <label for="ai-provider">
-                Provider
+                {{ 'settings.provider' | translate }}
                 <select
                   id="ai-provider"
                   [ngModel]="aiProvider()"
@@ -56,21 +57,26 @@ const AI_PROVIDERS: ProviderOption<AiProviderId>[] = [
                 </select>
               </label>
               <label for="ai-api-key">
-                API key
+                {{ 'settings.apiKey' | translate }}
                 <input
                   id="ai-api-key"
                   name="aiApiKey"
                   type="text"
                   autocomplete="off"
                   [ngModel]="aiApiKey()"
-                  (ngModelChange)="aiApiKey.set($event)"
+                  (ngModelChange)="setAiApiKey($event)"
                 />
               </label>
+              @if (aiError()) {
+                <p class="error">{{ aiError() | translate }}</p>
+              }
               <div class="actions">
                 <button type="button" class="btn btn-secondary" (click)="step.set('welcome')">
-                  Back
+                  {{ 'common.back' | translate }}
                 </button>
-                <button type="submit" class="btn btn-primary" [disabled]="!aiReady()">Save</button>
+                <button type="submit" class="btn btn-primary" [disabled]="!aiReady()">
+                  {{ 'common.save' | translate }}
+                </button>
               </div>
             </form>
           }
@@ -152,6 +158,10 @@ const AI_PROVIDERS: ProviderOption<AiProviderId>[] = [
       color: var(--muted);
     }
 
+    .error {
+      color: var(--danger, #f43f5e);
+    }
+
     label {
       display: flex;
       flex-direction: column;
@@ -213,6 +223,7 @@ export class Onboarding {
   readonly step = signal<Step>('welcome');
   readonly aiProvider = signal<AiProviderId>('openai');
   readonly aiApiKey = signal('');
+  readonly aiError = signal('');
 
   readonly aiReady = computed(() => this.aiApiKey().trim().length > 0);
 
@@ -222,29 +233,37 @@ export class Onboarding {
     this.finish();
   }
 
+  setAiApiKey(value: string): void {
+    this.aiApiKey.set(value);
+    this.aiError.set('');
+  }
+
   selectAiProviderValue(value: string): void {
     if (!isAiProvider(value)) return;
     this.aiProvider.set(value);
+    this.aiError.set('');
   }
 
   private persistAiKey(): boolean {
     const apiKey = this.aiApiKey().trim();
     if (!apiKey) return false;
-    writeStoredAiCredentials({
-      keys: [{ id: newKeyId(), provider: this.aiProvider(), apiKey, model: '' }],
-    });
-    return true;
+    try {
+      addStoredAiKey(this.aiProvider(), apiKey);
+      this.aiError.set('');
+      return true;
+    } catch (err) {
+      const code = err instanceof AiError ? err.code : '';
+      this.aiError.set(
+        code === AI_ERROR.CREDENTIALS_ALREADY_CONFIGURED
+          ? 'settings.keyDuplicate'
+          : 'settings.keyInvalid',
+      );
+      return false;
+    }
   }
 
   private finish(): void {
     markOnboarded();
     this.finished.emit();
   }
-}
-
-function newKeyId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `key-${Math.random().toString(36).slice(2, 12)}`;
 }

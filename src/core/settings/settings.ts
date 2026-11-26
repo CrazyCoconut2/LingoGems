@@ -1,11 +1,26 @@
-import { Component, computed, inject, output, signal } from '@angular/core';
+import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import { Component, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import {
+  getLanguageDisplayName,
+  SUPPORTED_LANGUAGES,
+  type LANGUAGE_CODE,
+} from '../i18n/language-code';
+import { LanguageService } from '../i18n/language.service';
+import { TranslatePipe } from '../i18n/translate.pipe';
 import packageJson from '../../../package.json';
 import {
+  AI_ERROR,
+  AiError,
+  addStoredAiKey,
   isAiProvider,
+  keyHintFromSecret,
   readStoredAiCredentials,
-  writeStoredAiCredentials,
+  removeStoredAiKey,
+  reorderStoredAiKeys,
+  testAiKey,
   type AiProviderId,
+  type StoredAiKey,
 } from 'ai';
 import {
   emptyMetadataIndexes,
@@ -40,22 +55,22 @@ const AI_PROVIDERS: ProviderOption[] = [
 
 @Component({
   selector: 'app-settings',
-  imports: [FormsModule, LanguageAiSettings],
+  imports: [CdkDropList, CdkDrag, CdkDragHandle, FormsModule, LanguageAiSettings, TranslatePipe],
   template: `
     <div
       class="backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label="Settings"
+      [attr.aria-label]="'settings.title' | translate"
       (click)="closeOnBackdrop($event)"
     >
       <section class="panel" (click)="$event.stopPropagation()">
         <header class="panel-header">
           <div>
-            <h2>Settings</h2>
-            <p>Provider, support language, score colors, metadata, and your data.</p>
+            <h2>{{ 'settings.title' | translate }}</h2>
+            <p>{{ 'settings.subtitle' | translate }}</p>
           </div>
-          <button type="button" class="icon-btn" aria-label="Close" (click)="back()">
+          <button type="button" class="icon-btn" [attr.aria-label]="'common.close' | translate" (click)="back()">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M18 6 6 18" />
               <path d="m6 6 12 12" />
@@ -64,55 +79,39 @@ const AI_PROVIDERS: ProviderOption[] = [
         </header>
 
         <div class="panel-body">
-          <section class="settings-section" [class.expanded]="expanded() === 'provider'">
+          <section class="settings-section" [class.expanded]="expanded() === 'language'">
             <button
               type="button"
               class="section-header"
-              [attr.aria-expanded]="expanded() === 'provider'"
-              (click)="toggle('provider')"
+              [attr.aria-expanded]="expanded() === 'language'"
+              (click)="toggle('language')"
             >
               <span class="section-title">
-                AI provider
-                <span class="section-count">{{ providerLabel() }}</span>
+                {{ 'settings.appLanguage' | translate }}
+                <span class="section-count">{{ appLanguageName(i18n.currentLanguage) }}</span>
               </span>
               <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m6 9 6 6 6-6" />
               </svg>
             </button>
-            @if (expanded() === 'provider') {
-              <form class="section-body" (submit)="save($event)">
-                <p class="section-hint">The key stays on this device and is used to translate.</p>
-                <label for="settings-ai-provider">
-                  Provider
+            @if (expanded() === 'language') {
+              <div class="section-body">
+                <p class="section-hint">{{ 'settings.appLanguageHint' | translate }}</p>
+                <label for="settings-app-language">
+                  {{ 'settings.appLanguage' | translate }}
                   <select
-                    id="settings-ai-provider"
-                    name="aiProvider"
-                    [ngModel]="provider()"
-                    (ngModelChange)="selectProvider($event)"
+                    id="settings-app-language"
+                    [attr.aria-label]="'settings.appLanguageAria' | translate"
+                    [ngModel]="appLanguageValue()"
+                    (ngModelChange)="setAppLanguage($event)"
                   >
-                    @for (option of providers; track option.id) {
-                      <option [value]="option.id">{{ option.label }}</option>
+                    <option value="device">{{ 'settings.useDeviceLanguage' | translate }}</option>
+                    @for (code of appLanguages; track code) {
+                      <option [value]="code">{{ appLanguageName(code) }}</option>
                     }
                   </select>
                 </label>
-                <label for="settings-ai-key">
-                  API key
-                  <input
-                    id="settings-ai-key"
-                    name="aiApiKey"
-                    type="text"
-                    autocomplete="off"
-                    [ngModel]="apiKey()"
-                    (ngModelChange)="setApiKey($event)"
-                  />
-                </label>
-                <div class="actions">
-                  @if (saved()) {
-                    <p class="saved">Saved.</p>
-                  }
-                  <button type="submit" class="btn btn-primary" [disabled]="!ready()">Save</button>
-                </div>
-              </form>
+              </div>
             }
           </section>
 
@@ -124,7 +123,7 @@ const AI_PROVIDERS: ProviderOption[] = [
               (click)="toggle('support')"
             >
               <span class="section-title">
-                Support language
+                {{ 'settings.supportLanguage' | translate }}
                 <span class="section-count">{{ supportLabel() }}</span>
               </span>
               <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
@@ -133,23 +132,158 @@ const AI_PROVIDERS: ProviderOption[] = [
             </button>
             @if (expanded() === 'support') {
               <div class="section-body">
-                <p class="section-hint">
-                  Definitions, examples, and Discover use this language. A language can choose
-                  another one, or none, in its filter.
-                </p>
+                <p class="section-hint">{{ 'settings.supportHint' | translate }}</p>
                 <label for="settings-support-language">
-                  Support language
+                  {{ 'settings.supportLanguage' | translate }}
                   <select
                     id="settings-support-language"
                     [ngModel]="generalSupport()"
                     (ngModelChange)="setGeneralSupport($event)"
                   >
-                    <option value="">None</option>
+                    <option value="">{{ 'common.none' | translate }}</option>
                     @for (code of supportLanguages; track code) {
                       <option [value]="code">{{ languageName(code) }}</option>
                     }
                   </select>
                 </label>
+              </div>
+            }
+          </section>
+
+          <section class="settings-section" [class.expanded]="expanded() === 'provider'">
+            <button
+              type="button"
+              class="section-header"
+              [attr.aria-expanded]="expanded() === 'provider'"
+              (click)="toggle('provider')"
+            >
+              <span class="section-title">
+                {{ 'settings.aiProvider' | translate }}
+                <span class="section-count">{{ providerLabel() }}</span>
+              </span>
+              <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            @if (expanded() === 'provider') {
+              <div class="section-body">
+                <p class="section-hint">{{ 'settings.aiHint' | translate }}</p>
+                @if (aiNotice(); as notice) {
+                  <p class="section-hint" [class.data-error]="notice.error">
+                    {{ notice.key | translate: notice.params }}
+                  </p>
+                }
+                <div class="actions">
+                  <button type="button" class="btn btn-primary" (click)="toggleAddKey()">
+                    {{ (addOpen() ? 'common.cancel' : 'settings.addKey') | translate }}
+                  </button>
+                </div>
+                @if (addOpen()) {
+                  <form class="key-form" (submit)="addKey($event)">
+                    <label for="settings-ai-provider">
+                      {{ 'settings.provider' | translate }}
+                      <select
+                        id="settings-ai-provider"
+                        name="aiProvider"
+                        [ngModel]="draftProvider()"
+                        (ngModelChange)="selectDraftProvider($event)"
+                      >
+                        @for (option of providers; track option.id) {
+                          <option [value]="option.id">{{ option.label }}</option>
+                        }
+                      </select>
+                    </label>
+                    <label for="settings-ai-key">
+                      {{ 'settings.apiKey' | translate }}
+                      <input
+                        id="settings-ai-key"
+                        name="aiApiKey"
+                        type="text"
+                        autocomplete="off"
+                        [ngModel]="draftKey()"
+                        (ngModelChange)="draftKey.set($event)"
+                      />
+                    </label>
+                    <div class="actions">
+                      <button
+                        type="button"
+                        class="btn btn-secondary"
+                        [disabled]="!draftReady() || busyId() !== null"
+                        (click)="testDraft()"
+                      >
+                        {{ 'settings.testKey' | translate }}
+                      </button>
+                      <button
+                        type="submit"
+                        class="btn btn-primary"
+                        [disabled]="!draftReady() || busyId() !== null"
+                      >
+                        {{ 'common.save' | translate }}
+                      </button>
+                    </div>
+                  </form>
+                }
+                @if (keys().length) {
+                  @if (keys().length > 1) {
+                    <p class="section-hint">{{ 'settings.dragKey' | translate }}</p>
+                  }
+                  <div
+                    class="key-list"
+                    cdkDropList
+                    cdkDropListLockAxis="y"
+                    (cdkDropListDropped)="dropKeys($event)"
+                  >
+                    @for (key of keys(); track key.id) {
+                      <div
+                        class="key-row"
+                        cdkDrag
+                        (cdkDragStarted)="keyDragging.set(true)"
+                        (cdkDragEnded)="finishKeyDrag()"
+                      >
+                        <button
+                          type="button"
+                          class="key-drag"
+                          cdkDragHandle
+                          [attr.aria-label]="'settings.dragKey' | translate"
+                          [attr.title]="'settings.dragKey' | translate"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="9" cy="7" r="1" />
+                            <circle cx="15" cy="7" r="1" />
+                            <circle cx="9" cy="12" r="1" />
+                            <circle cx="15" cy="12" r="1" />
+                            <circle cx="9" cy="17" r="1" />
+                            <circle cx="15" cy="17" r="1" />
+                          </svg>
+                        </button>
+                        <div class="key-meta">
+                          <span class="key-provider">{{ providerName(key.provider) }}</span>
+                          <span class="key-hint">{{ keyHint(key.apiKey) }}</span>
+                        </div>
+                        <div class="key-actions">
+                          <button
+                            type="button"
+                            class="btn btn-secondary"
+                            [disabled]="busyId() !== null"
+                            (click)="testSaved(key)"
+                          >
+                            {{ 'settings.testKey' | translate }}
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-danger"
+                            [disabled]="busyId() !== null"
+                            (click)="removeKey(key.id)"
+                          >
+                            {{ 'common.remove' | translate }}
+                          </button>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                } @else if (!addOpen()) {
+                  <p class="section-hint">{{ 'settings.noKeys' | translate }}</p>
+                }
               </div>
             }
           </section>
@@ -161,20 +295,17 @@ const AI_PROVIDERS: ProviderOption[] = [
               [attr.aria-expanded]="expanded() === 'score'"
               (click)="toggle('score')"
             >
-              <span class="section-title">Score colors</span>
+              <span class="section-title">{{ 'settings.scoreColors' | translate }}</span>
               <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m6 9 6 6 6-6" />
               </svg>
             </button>
             @if (expanded() === 'score') {
               <div class="section-body">
-                <p class="section-hint">
-                  Each score has its own color. 1 is red, 5 is orange, and 10 is green. The scores
-                  between those start on even steps, and you can change any of them.
-                </p>
+                <p class="section-hint">{{ 'settings.scoreColorsHint' | translate }}</p>
                 @for (step of scoreSteps; track step) {
                   <label class="score-color-row" [attr.for]="'settings-score-' + step">
-                    Score {{ step }}
+                    {{ 'settings.scoreStep' | translate: { step: '' + step } }}
                     <input
                       [id]="'settings-score-' + step"
                       class="score-color"
@@ -187,7 +318,7 @@ const AI_PROVIDERS: ProviderOption[] = [
                 @if (scoreColorsChanged()) {
                   <div class="actions">
                     <button type="button" class="btn btn-secondary" (click)="resetScoreColorEnds()">
-                      Reset
+                      {{ 'common.reset' | translate }}
                     </button>
                   </div>
                 }
@@ -204,7 +335,7 @@ const AI_PROVIDERS: ProviderOption[] = [
               [attr.aria-expanded]="expanded() === 'data'"
               (click)="toggle('data')"
             >
-              <span class="section-title">Your data</span>
+              <span class="section-title">{{ 'settings.yourData' | translate }}</span>
               <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m6 9 6 6 6-6" />
               </svg>
@@ -218,11 +349,9 @@ const AI_PROVIDERS: ProviderOption[] = [
                   accept=".gz,.json.gz,application/gzip"
                   (change)="chooseImport($event)"
                 />
-                <p class="section-hint">
-                  A compressed file of your elements. AI settings stay on this device.
-                </p>
+                <p class="section-hint">{{ 'settings.dataHint' | translate }}</p>
                 @if (confirm() === 'delete') {
-                  <p class="section-hint">This deletes every element on this device.</p>
+                  <p class="section-hint">{{ 'settings.deleteAllHint' | translate }}</p>
                   <div class="actions">
                     <button
                       type="button"
@@ -230,7 +359,7 @@ const AI_PROVIDERS: ProviderOption[] = [
                       [disabled]="busy()"
                       (click)="cancelConfirm()"
                     >
-                      Cancel
+                      {{ 'common.cancel' | translate }}
                     </button>
                     <button
                       type="button"
@@ -238,12 +367,15 @@ const AI_PROVIDERS: ProviderOption[] = [
                       [disabled]="busy()"
                       (click)="confirmDelete()"
                     >
-                      Delete
+                      {{ 'common.delete' | translate }}
                     </button>
                   </div>
                 } @else if (confirm() === 'import') {
                   <p class="section-hint">
-                    This replaces every element with {{ importName() || 'that file' }}.
+                    {{
+                      'settings.replaceWith'
+                        | translate: { name: importName() || ('settings.thatFile' | translate) }
+                    }}
                   </p>
                   <div class="actions">
                     <button
@@ -252,7 +384,7 @@ const AI_PROVIDERS: ProviderOption[] = [
                       [disabled]="busy()"
                       (click)="cancelConfirm()"
                     >
-                      Cancel
+                      {{ 'common.cancel' | translate }}
                     </button>
                     <button
                       type="button"
@@ -260,7 +392,7 @@ const AI_PROVIDERS: ProviderOption[] = [
                       [disabled]="busy()"
                       (click)="confirmImport()"
                     >
-                      Import
+                      {{ 'settings.import' | translate }}
                     </button>
                   </div>
                 } @else {
@@ -271,7 +403,7 @@ const AI_PROVIDERS: ProviderOption[] = [
                       [disabled]="busy()"
                       (click)="download()"
                     >
-                      Download
+                      {{ 'settings.download' | translate }}
                     </button>
                     <button
                       type="button"
@@ -279,7 +411,7 @@ const AI_PROVIDERS: ProviderOption[] = [
                       [disabled]="busy()"
                       (click)="dataFile.click()"
                     >
-                      Import
+                      {{ 'settings.import' | translate }}
                     </button>
                     <button
                       type="button"
@@ -287,15 +419,15 @@ const AI_PROVIDERS: ProviderOption[] = [
                       [disabled]="busy()"
                       (click)="askDelete()"
                     >
-                      Delete
+                      {{ 'common.delete' | translate }}
                     </button>
                   </div>
                 }
                 @if (note()) {
-                  <p class="saved">{{ note() }}</p>
+                  <p class="saved">{{ note() | translate }}</p>
                 }
                 @if (error()) {
-                  <p class="data-error">{{ error() }}</p>
+                  <p class="data-error">{{ error() | translate }}</p>
                 }
               </div>
             }
@@ -304,7 +436,9 @@ const AI_PROVIDERS: ProviderOption[] = [
 
         <footer class="panel-footer">
           <p class="version">v{{ version }}</p>
-          <button type="button" class="done-btn" (click)="back()">Done</button>
+          <button type="button" class="done-btn" (click)="back()">
+            {{ 'common.done' | translate }}
+          </button>
         </footer>
       </section>
     </div>
@@ -557,9 +691,88 @@ const AI_PROVIDERS: ProviderOption[] = [
       gap: 0.75rem;
     }
 
-    .saved {
+    .key-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .key-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .key-row {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.55rem 0.65rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 0.85rem;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .key-row.cdk-drag-preview {
+      box-sizing: border-box;
+    }
+
+    .key-drag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      width: 1.6rem;
+      height: 1.6rem;
+      padding: 0;
+      border: 0;
+      border-radius: 0.4rem;
+      background: transparent;
       color: var(--text-muted);
-      font-size: 0.875rem;
+      cursor: grab;
+    }
+
+    .key-drag:hover {
+      background: rgba(139, 144, 165, 0.16);
+      color: var(--text);
+    }
+
+    .key-drag svg {
+      width: 1rem;
+      height: 1rem;
+      fill: currentColor;
+    }
+
+    .key-meta {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      gap: 0.1rem;
+      min-width: 0;
+    }
+
+    .key-provider {
+      font-size: 0.84rem;
+      font-weight: 650;
+    }
+
+    .key-hint {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .key-actions {
+      display: flex;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.35rem;
+    }
+
+    .key-actions .btn {
+      padding: 0.4rem 0.7rem;
+      font-size: 0.78rem;
     }
 
     .data-actions {
@@ -642,34 +855,54 @@ const AI_PROVIDERS: ProviderOption[] = [
   `,
 })
 export class Settings {
+  private readonly i18n = inject(LanguageService);
+  readonly appLanguages = SUPPORTED_LANGUAGES;
+  readonly appLanguageName = getLanguageDisplayName;
   readonly version = packageJson.version;
   readonly closed = output<void>();
   readonly changed = output<void>();
   readonly expanded = signal<string | null>(null);
-  private readonly stored = readStoredAiCredentials().keys[0];
   private readonly job = inject(StatsJob);
   private importFile: File | null = null;
 
   readonly providers = AI_PROVIDERS;
   readonly supportLanguages = LEARNABLE_LANGUAGES;
   readonly supportState = supportSettings;
-  readonly provider = signal<AiProviderId>(this.stored?.provider ?? 'openai');
-  readonly apiKey = signal(this.stored?.apiKey ?? '');
-  readonly saved = signal(false);
+  readonly keys = signal<StoredAiKey[]>(readStoredAiCredentials().keys);
+  readonly addOpen = signal(false);
+  readonly draftProvider = signal<AiProviderId>('openai');
+  readonly draftKey = signal('');
+  readonly busyId = signal<string | null>(null);
+  readonly keyDragging = signal(false);
+  private ignoreBackdropClick = false;
+  readonly aiNotice = signal<{ key: string; params: Record<string, string>; error: boolean } | null>(
+    null,
+  );
   readonly scoreSteps = SCORE_STEPS;
   readonly scoreColorMap = signal(readScoreColors());
-  readonly ready = computed(() => this.apiKey().trim().length > 0);
   readonly busy = signal(false);
   readonly confirm = signal<'delete' | 'import' | null>(null);
   readonly importName = signal('');
   readonly note = signal('');
   readonly error = signal('');
-  private keyId = this.stored?.id ?? '';
-  private rememberedProvider = this.stored?.provider;
-  private rememberedModel = this.stored?.model ?? '';
 
   providerLabel(): string {
-    return this.providers.find((option) => option.id === this.provider())?.label ?? '';
+    const stored = this.keys();
+    if (!stored.length) return this.i18n.translate('common.none');
+    if (stored.length === 1) return this.providerName(stored[0].provider);
+    return String(stored.length);
+  }
+
+  providerName(id: AiProviderId): string {
+    return this.providers.find((option) => option.id === id)?.label ?? '';
+  }
+
+  keyHint(secret: string): string {
+    return keyHintFromSecret(secret);
+  }
+
+  draftReady(): boolean {
+    return this.draftKey().trim().length > 0;
   }
 
   languageName(code: string): string {
@@ -682,7 +915,7 @@ export class Settings {
 
   supportLabel(): string {
     const general = this.generalSupport();
-    return general ? this.languageName(general) : 'None';
+    return general ? this.languageName(general) : this.i18n.translate('common.none');
   }
 
   setGeneralSupport(value: string): void {
@@ -711,19 +944,105 @@ export class Settings {
     this.expanded.update((current) => (current === id ? null : id));
   }
 
+  appLanguageValue(): string {
+    return this.i18n.hasUserOverride ? this.i18n.currentLanguage : 'device';
+  }
+
+  setAppLanguage(value: string): void {
+    if (value === 'device') {
+      this.i18n.resetAppLanguage();
+      return;
+    }
+    this.i18n.setAppLanguage(value as LANGUAGE_CODE);
+  }
+
   closeOnBackdrop(event: Event): void {
-    if (event.target === event.currentTarget) this.back();
+    if (event.target !== event.currentTarget) return;
+    if (this.keyDragging() || this.ignoreBackdropClick) return;
+    this.back();
   }
 
-  selectProvider(value: string): void {
+  finishKeyDrag(): void {
+    this.keyDragging.set(false);
+    this.ignoreBackdropClick = true;
+    setTimeout(() => {
+      this.ignoreBackdropClick = false;
+    });
+  }
+
+  toggleAddKey(): void {
+    const open = !this.addOpen();
+    this.addOpen.set(open);
+    this.aiNotice.set(null);
+    if (!open) this.draftKey.set('');
+  }
+
+  selectDraftProvider(value: string): void {
     if (!isAiProvider(value)) return;
-    this.provider.set(value);
-    this.saved.set(false);
+    this.draftProvider.set(value);
   }
 
-  setApiKey(value: string): void {
-    this.apiKey.set(value);
-    this.saved.set(false);
+  async addKey(event?: Event): Promise<void> {
+    event?.preventDefault();
+    const apiKey = this.draftKey().trim();
+    if (!apiKey || this.busyId()) return;
+    this.busyId.set('add');
+    this.aiNotice.set(null);
+    try {
+      addStoredAiKey(this.draftProvider(), apiKey);
+      this.refreshKeys();
+      this.draftKey.set('');
+      this.addOpen.set(false);
+      this.aiNotice.set({ key: 'settings.keyAdded', params: {}, error: false });
+    } catch (err) {
+      this.aiNotice.set({ key: this.aiFailure(err, 'settings.keyInvalid'), params: {}, error: true });
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  removeKey(id: string): void {
+    if (this.busyId()) return;
+    removeStoredAiKey(id);
+    this.refreshKeys();
+    this.aiNotice.set({ key: 'settings.keyRemoved', params: {}, error: false });
+  }
+
+  dropKeys(event: CdkDragDrop<StoredAiKey[]>): void {
+    if (event.previousIndex === event.currentIndex) return;
+    const next = [...this.keys()];
+    moveItemInArray(next, event.previousIndex, event.currentIndex);
+    reorderStoredAiKeys(next.map((key) => key.id));
+    this.refreshKeys();
+  }
+
+  async testSaved(key: StoredAiKey): Promise<void> {
+    if (this.busyId()) return;
+    this.busyId.set(key.id);
+    this.aiNotice.set(null);
+    try {
+      const sample = await testAiKey(key.provider, { apiKey: key.apiKey, model: key.model });
+      this.aiNotice.set({ key: 'settings.testOk', params: { sample }, error: false });
+    } catch (err) {
+      this.aiNotice.set({ key: this.aiFailure(err, 'settings.testFailed'), params: {}, error: true });
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  async testDraft(): Promise<void> {
+    const apiKey = this.draftKey().trim();
+    if (!apiKey || this.busyId()) return;
+    this.busyId.set('add');
+    this.aiNotice.set(null);
+    try {
+      const sample = await testAiKey(this.draftProvider(), { apiKey });
+      this.aiNotice.set({ key: 'settings.testOk', params: { sample }, error: false });
+    } catch (err) {
+      this.aiNotice.set({ key: this.aiFailure(err, 'settings.testFailed'), params: {}, error: true });
+    } finally {
+      this.busyId.set(null);
+    }
   }
 
   async download(): Promise<void> {
@@ -735,7 +1054,7 @@ export class Settings {
     try {
       downloadDataFile(await buildDataFile());
     } catch {
-      this.error.set('Could not save a copy.');
+      this.error.set('settings.copyFailed');
     } finally {
       this.busy.set(false);
     }
@@ -783,13 +1102,13 @@ export class Settings {
         this.importFile = null;
         this.importName.set('');
         this.confirm.set(null);
-        this.note.set('Imported.');
+        this.note.set('settings.imported');
         this.changed.emit();
       } catch {
-        this.error.set('Could not save your data.');
+        this.error.set('settings.saveFailed');
       }
     } catch {
-      this.error.set('Could not read that file.');
+      this.error.set('settings.readFailed');
     } finally {
       this.busy.set(false);
     }
@@ -804,37 +1123,28 @@ export class Settings {
       await replaceCollection([], emptyMetadataIndexes(), []);
       this.job.forget();
       this.confirm.set(null);
-      this.note.set('Deleted.');
+      this.note.set('settings.deleted');
       this.changed.emit();
     } catch {
-      this.error.set('Could not delete your data.');
+      this.error.set('settings.deleteFailed');
     } finally {
       this.busy.set(false);
     }
   }
 
-  save(event?: Event): void {
-    event?.preventDefault();
-    const apiKey = this.apiKey().trim();
-    if (!apiKey) return;
-    const provider = this.provider();
-    const model = this.rememberedProvider === provider ? this.rememberedModel : '';
-    const id = this.keyId || newKeyId();
-    writeStoredAiCredentials({ keys: [{ id, provider, apiKey, model }] });
-    this.keyId = id;
-    this.rememberedProvider = provider;
-    this.rememberedModel = model;
-    this.saved.set(true);
-  }
-
   back(): void {
     this.closed.emit();
   }
-}
 
-function newKeyId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
+  private refreshKeys(): void {
+    this.keys.set(readStoredAiCredentials().keys);
   }
-  return `key-${Math.random().toString(36).slice(2, 12)}`;
+
+  private aiFailure(err: unknown, fallback: string): string {
+    const code = err instanceof AiError ? err.code : '';
+    if (code === AI_ERROR.PROVIDER_AUTH_FAILED) return 'settings.keyAuthFailed';
+    if (code === AI_ERROR.CREDENTIALS_ALREADY_CONFIGURED) return 'settings.keyDuplicate';
+    if (code === AI_ERROR.CREDENTIALS_INVALID) return 'settings.keyInvalid';
+    return fallback;
+  }
 }

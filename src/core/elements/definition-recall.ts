@@ -1,4 +1,4 @@
-import { Component, computed, effect, input, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import {
   applyGrammarOutcome,
   definitionScoreStep,
@@ -9,6 +9,8 @@ import {
   type GrammarMark,
 } from 'collection';
 import { UpwardQuotePipe } from '../text/upward-quote.pipe';
+import { LanguageService } from '../i18n/language.service';
+import { TranslatePipe } from '../i18n/translate.pipe';
 import { FeedbackTranslation } from '../translate/feedback-translation';
 import {
   correctRecallAnswer,
@@ -58,12 +60,12 @@ type ShownCorrection = {
 /** Recall the meanings of one headword before its definitions are shown. */
 @Component({
   selector: 'app-definition-recall',
-  imports: [FeedbackTranslation, UpwardQuotePipe],
+  imports: [FeedbackTranslation, UpwardQuotePipe, TranslatePipe],
   host: {
     '[class.quiet]': 'settled() && !result()',
   },
   template: `
-    <section class="recall" [attr.aria-label]="'Definitions of ' + lemma()">
+    <section class="recall" [attr.aria-label]="definitionsAria()">
       @if (result(); as scored) {
         @if (!cleared()) {
           <section
@@ -86,7 +88,7 @@ type ShownCorrection = {
                   [sourceLang]="learningLanguage()"
                   [targetLang]="supportLanguage()"
                 />
-                <button type="button" class="clear" aria-label="Clear" (click)="clearResult()">
+                <button type="button" class="clear" [attr.aria-label]="'common.clear' | translate" (click)="clearResult()">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M18 6 6 18" />
                     <path d="m6 6 12 12" />
@@ -95,7 +97,7 @@ type ShownCorrection = {
               </div>
             </div>
             @if (scored.gaveUp) {
-              <p class="hint">You gave up.</p>
+              <p class="hint">{{ 'recall.gaveUp' | translate }}</p>
             } @else if (scored.feedback) {
               <p class="feedback">{{ scored.feedback | upwardQuote }}</p>
               @if (note.shown(); as text) {
@@ -107,7 +109,7 @@ type ShownCorrection = {
         @if (scored.extra; as extra) {
           @if (extraChoice() === 'pending') {
             <div class="extra">
-              <p class="label">Another meaning</p>
+              <p class="label">{{ 'recall.anotherMeaning' | translate }}</p>
               <p>{{ extra.gloss }}</p>
               @if (extra.example) {
                 <p class="example">{{ extra.example }}</p>
@@ -117,23 +119,25 @@ type ShownCorrection = {
               }
               <div class="actions">
                 <button type="button" class="btn btn-secondary" (click)="dismissExtra()">
-                  Dismiss
+                  {{ 'recall.dismiss' | translate }}
                 </button>
                 <button type="button" class="btn btn-primary" (click)="acceptExtraSense()">
-                  Accept
+                  {{ 'recall.accept' | translate }}
                 </button>
               </div>
             </div>
           } @else if (extraChoice() === 'accepted') {
-            <p class="hint">Added to this element.</p>
+            <p class="hint">{{ 'recall.added' | translate }}</p>
           }
         }
       } @else if (!settled()) {
         <div class="prompt">
-          <p class="ask">Write the {{ definitionCountLabel() }} of this element.</p>
+          <p class="ask">
+            {{ 'recall.writeDefinitions' | translate: { definitions: definitionCountLabel() } }}
+          </p>
           <div class="prompt-meta">
             @if (canSwitchLanguage()) {
-              <div class="languages" role="group" aria-label="Answer language">
+              <div class="languages" role="group" [attr.aria-label]="'recall.answerLanguage' | translate">
                 <button
                   type="button"
                   [class.active]="answerSide() === 'support'"
@@ -154,15 +158,17 @@ type ShownCorrection = {
                 </button>
               </div>
             } @else if (answerLanguageName(); as language) {
-              <p class="hint">Write it in {{ language }}.</p>
+              <p class="hint">
+                {{ 'recall.writeIn' | translate: { language: language } }}
+              </p>
             }
             <div class="prompt-tools">
               @if (hintStep() < 1) {
                 <button
                   type="button"
                   class="tool icon"
-                  aria-label="Hint"
-                  title="Hint"
+                  [attr.aria-label]="'recall.hint' | translate"
+                  [attr.title]="'recall.hint' | translate"
                   [disabled]="busy() !== null"
                   (click)="showHint()"
                 >
@@ -179,8 +185,8 @@ type ShownCorrection = {
                 <button
                   type="button"
                   class="tool icon"
-                  aria-label="Correct"
-                  title="Correct"
+                  [attr.aria-label]="'recall.correct' | translate"
+                  [attr.title]="'recall.correct' | translate"
                   [disabled]="!canCorrect()"
                   [attr.aria-busy]="busy() === 'correct' ? true : null"
                   (click)="correct()"
@@ -196,7 +202,7 @@ type ShownCorrection = {
           </div>
         </div>
         @if (correction(); as found) {
-          <div class="mistakes" aria-label="Corrections">
+          <div class="mistakes" [attr.aria-label]="'recall.corrections' | translate">
             @if (found.rules.length) {
               <p class="grammar-sentence">
                 @for (part of correctionParts(); track $index) {
@@ -241,7 +247,7 @@ type ShownCorrection = {
                 }
               </div>
             } @else {
-              <p class="hint">Nothing to correct.</p>
+              <p class="hint">{{ 'recall.nothingToCorrect' | translate }}</p>
             }
           </div>
         }
@@ -255,18 +261,20 @@ type ShownCorrection = {
             [attr.maxlength]="answerMax"
             [disabled]="busy() !== null"
             [value]="draft()"
-            [attr.aria-label]="'Definitions of ' + lemma()"
+            [attr.aria-label]="definitionsAria()"
             [attr.placeholder]="placeholder()"
             (input)="onDraft($event)"
           ></textarea>
           @if (hintStep() >= 1) {
             @if (examples().length) {
-              <ul class="examples" aria-label="Examples">
+              <ul class="examples" [attr.aria-label]="'recall.examples' | translate">
                 @for (example of examples(); track $index) {
                   <li>
                     <span
                       class="example-index"
-                      [attr.aria-label]="'Definition ' + example.definition"
+                      [attr.aria-label]="
+                        'recall.definitionN' | translate: { index: '' + example.definition }
+                      "
                     >
                       {{ example.definition }}
                     </span>
@@ -275,11 +283,11 @@ type ShownCorrection = {
                 }
               </ul>
             } @else {
-              <p class="hint">No examples stored.</p>
+              <p class="hint">{{ 'recall.noExamples' | translate }}</p>
             }
           }
           @if (error()) {
-            <p class="error">{{ error() }}</p>
+            <p class="error">{{ error() | translate }}</p>
           }
           <div class="actions">
             <button
@@ -288,9 +296,11 @@ type ShownCorrection = {
               [disabled]="busy() !== null"
               (click)="giveUp()"
             >
-              Give up
+              {{ 'recall.giveUp' | translate }}
             </button>
-            <button type="submit" class="btn btn-primary" [disabled]="!canSubmit()">Submit</button>
+            <button type="submit" class="btn btn-primary" [disabled]="!canSubmit()">
+              {{ 'common.submit' | translate }}
+            </button>
           </div>
         </form>
       }
@@ -673,6 +683,7 @@ type ShownCorrection = {
   `,
 })
 export class DefinitionRecall {
+  private readonly i18n = inject(LanguageService);
   readonly answerMax = ANSWER_MAX;
   readonly elementId = input.required<string>();
   readonly lemma = input.required<string>();
@@ -752,12 +763,22 @@ export class DefinitionRecall {
 
   placeholder(): string {
     const language = this.answerLanguageName();
-    return language ? `In ${language}` : 'What it means';
+    return language
+      ? this.i18n.translate('recall.inLanguage', { language })
+      : this.i18n.translate('recall.whatItMeans');
   }
 
   definitionCountLabel(): string {
     const count = this.senses().length;
-    return count === 1 ? '1 definition' : `${count} definitions`;
+    return count === 1
+      ? this.i18n.translate('recall.definitionOne')
+      : this.i18n.translate('recall.definitionMany', {
+          count: count.toLocaleString(this.i18n.currentLanguage),
+        });
+  }
+
+  definitionsAria(): string {
+    return this.i18n.translate('recall.definitionsOf', { lemma: this.lemma() });
   }
 
   canCorrect(): boolean {
@@ -776,8 +797,8 @@ export class DefinitionRecall {
   }
 
   scoreLabel(scored: RecallView): string {
-    const bonus = scored.extra ? ', plus 1' : '';
-    return `Score ${scored.coverage} out of 10${bonus}`;
+    const score = String(scored.coverage);
+    return this.i18n.translate(scored.extra ? 'recall.scoreBonus' : 'recall.score', { score });
   }
 
   scoreColor(scored: RecallView): string {
@@ -814,7 +835,7 @@ export class DefinitionRecall {
   async correct(): Promise<void> {
     if (!this.canCorrect() || !this.correctsGrammar()) return;
     if (!readStoredAiCredentials().keys.length) {
-      this.error.set('Save an API key first.');
+      this.error.set('common.saveKeyFirst');
       return;
     }
     const ticket = ++this.correctTicket;
@@ -870,7 +891,7 @@ export class DefinitionRecall {
       this.appliedCorrection = correction.corrected;
     } catch {
       if (ticket !== this.correctTicket || this.elementId() !== elementId) return;
-      this.error.set('Could not correct this.');
+      this.error.set('recall.correctFailed');
     } finally {
       if (ticket === this.correctTicket) this.busy.set(null);
     }
@@ -886,7 +907,7 @@ export class DefinitionRecall {
     const answer = this.draft().trim();
     if (!answer || this.result()) return;
     if (!readStoredAiCredentials().keys.length) {
-      this.error.set('Save an API key first.');
+      this.error.set('common.saveKeyFirst');
       return;
     }
     const ticket = ++this.scoreTicket;
@@ -906,7 +927,7 @@ export class DefinitionRecall {
       });
       if (ticket !== this.scoreTicket || this.elementId() !== elementId || !evaluation.feedback) {
         if (ticket === this.scoreTicket && this.elementId() === elementId) {
-          this.error.set('Could not score this answer.');
+          this.error.set('recall.scoreFailed');
         }
         return;
       }
@@ -926,7 +947,7 @@ export class DefinitionRecall {
       });
     } catch {
       if (ticket !== this.scoreTicket || this.elementId() !== elementId) return;
-      this.error.set('Could not score this answer.');
+      this.error.set('recall.scoreFailed');
     } finally {
       if (ticket === this.scoreTicket && this.busy() === 'score') this.busy.set(null);
     }
@@ -960,8 +981,8 @@ export class DefinitionRecall {
   }
 
   ruleLabel(rule: CorrectionRule): string {
-    const status = rule.outcome === 'committed' ? 'Error committed' : 'Corrected';
-    return `${status}: ${rule.rule}`;
+    const key = rule.outcome === 'committed' ? 'recall.errorCommitted' : 'recall.corrected';
+    return this.i18n.translate(key, { rule: rule.rule });
   }
 }
 

@@ -1,4 +1,6 @@
 import { CdkScrollable } from '@angular/cdk/scrolling';
+import { LanguageService } from '../i18n/language.service';
+import { TranslatePipe } from '../i18n/translate.pipe';
 import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
@@ -511,6 +513,7 @@ function writeExampleSuggestions(
     ShowText,
     DefinitionRecall,
     CdkScrollable,
+    TranslatePipe,
   ],
   template: `
     <div
@@ -534,7 +537,7 @@ function writeExampleSuggestions(
               [disabled]="askingExamples() !== null"
               (click)="toggleGrammarPicker(surface)"
             >
-              <span>Grammar</span>
+              <span>{{ 'element.grammar' | translate }}</span>
               <span class="forms-toggle-side">
                 @if (!grammarPickerOpen(surface) && grammarPickerLabel(surface); as label) {
                   <span>{{ label }}</span>
@@ -574,8 +577,8 @@ function writeExampleSuggestions(
               class="icon-btn hear-inline"
               [class.active]="speaking() === key"
               [attr.aria-pressed]="speaking() === key"
-              [attr.aria-label]="speaking() === key ? 'Stop speaking' : 'Hear ' + label"
-              [attr.title]="speaking() === key ? 'Stop speaking' : 'Hear ' + label"
+              [attr.aria-label]="hearAria(speaking() === key, label)"
+              [attr.title]="hearAria(speaking() === key, label)"
               [disabled]="!!off"
               (click)="hear(key, text); $event.stopPropagation()"
             >
@@ -605,7 +608,7 @@ function writeExampleSuggestions(
               <button
                 type="button"
                 class="lookup-chip"
-                aria-label="Add element with AI"
+                [attr.aria-label]="'element.addWithAi' | translate"
                 [disabled]="aiBusy()"
                 [attr.aria-busy]="addingSelection() ? true : null"
                 (pointerdown)="confirmPassagePick($event, pick.text)"
@@ -615,7 +618,7 @@ function writeExampleSuggestions(
                     d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
                   />
                 </svg>
-                Ask AI
+                {{ 'element.askAi' | translate }}
               </button>
             </div>
           }
@@ -645,8 +648,8 @@ function writeExampleSuggestions(
               <button
                 type="button"
                 class="icon-btn"
-                aria-label="Back"
-                title="Back"
+                [attr.aria-label]="'common.back' | translate"
+                [attr.title]="'common.back' | translate"
                 [disabled]="busy()"
                 (click)="back.emit()"
               >
@@ -661,7 +664,7 @@ function writeExampleSuggestions(
                   type="button"
                   class="element-title"
                   [class.has-color]="scoreAverage() !== 'NA'"
-                  title="Edit element"
+                  [attr.title]="'element.editElement' | translate"
                   [disabled]="aiBusy()"
                   (click)="openTitle()"
                 >
@@ -681,8 +684,8 @@ function writeExampleSuggestions(
               <button
                 type="button"
                 class="icon-btn"
-                aria-label="History"
-                title="History"
+                [attr.aria-label]="'element.history' | translate"
+                [attr.title]="'element.history' | translate"
                 [class.active]="historyOpen()"
                 [attr.aria-pressed]="historyOpen()"
                 [disabled]="recallPending()"
@@ -699,7 +702,7 @@ function writeExampleSuggestions(
                 #closeButton
                 type="button"
                 class="close"
-                aria-label="Close"
+                [attr.aria-label]="'common.close' | translate"
                 (click)="closed.emit()"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -712,7 +715,7 @@ function writeExampleSuggestions(
         </header>
         <div #definitionBody class="body" cdkScrollable>
           @if (collision(); as matches) {
-            <div class="collision" role="menu" aria-label="Matching elements">
+            <div class="collision" role="menu" [attr.aria-label]="'element.matching' | translate">
               @for (match of matches; track match.elementId) {
                 <button type="button" (click)="visitCollision(match.elementId)">
                   {{ shownTitle(match.title) }}
@@ -721,7 +724,7 @@ function writeExampleSuggestions(
             </div>
           }
           @if (error()) {
-            <p class="error">{{ error() }}</p>
+            <p class="error">{{ error() | translate }}</p>
           }
           @if (historyOpen()) {
             <div class="definition-stats">
@@ -734,9 +737,9 @@ function writeExampleSuggestions(
                   [style.--score-color]="scoreColorVar()"
                   [attr.aria-label]="scoreAverageLabel()"
                 >
-                  <p class="stats-eyebrow">Score</p>
+                  <p class="stats-eyebrow">{{ 'element.scoreEyebrow' | translate }}</p>
                   <p class="stats-hero-value">
-                    {{ average }}
+                    {{ average === 'NA' ? ('common.na' | translate) : average }}
                     @if (average !== 'NA') {
                       <span class="score-max">/10</span>
                     }
@@ -749,12 +752,12 @@ function writeExampleSuggestions(
                     />
                   </svg>
                   <span class="stats-rework-count">{{ reworked }}</span>
-                  <span class="stats-rework-label">Reworked</span>
+                  <span class="stats-rework-label">{{ 'element.reworked' | translate }}</span>
                 </section>
               </div>
               @if (shownHistory().length) {
                 <section class="stats-log">
-                  <h3>History</h3>
+                  <h3>{{ 'element.history' | translate }}</h3>
                   <div class="add-choices">
                     @for (entry of shownHistory(); track $index) {
                       <div class="log-item">
@@ -774,7 +777,7 @@ function writeExampleSuggestions(
                                   />
                                 </svg>
                                 <span class="log-edit-copies">
-                                  <span class="log-game">Reworked</span>
+                                  <span class="log-game">{{ 'element.reworked' | translate }}</span>
                                   <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                                 </span>
                               </span>
@@ -804,7 +807,7 @@ function writeExampleSuggestions(
                                   <path d="M14 11v6" />
                                 </svg>
                                 <span class="log-edit-copies">
-                                  <span class="log-game">Deleted a definition</span>
+                                  <span class="log-game">{{ 'element.deletedDefinition' | translate }}</span>
                                   <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                                 </span>
                               </span>
@@ -830,7 +833,7 @@ function writeExampleSuggestions(
                                   <path d="m9 14 2 2 4-4" />
                                 </svg>
                                 <span class="log-edit-copies">
-                                  <span class="log-game">You gave up</span>
+                                  <span class="log-game">{{ 'element.gaveUp' | translate }}</span>
                                   <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                                 </span>
                               </span>
@@ -854,7 +857,7 @@ function writeExampleSuggestions(
                                     <path d="m9 14 2 2 4-4" />
                                   </svg>
                                   <span class="log-edit-copies">
-                                    <span class="log-game">Exercise</span>
+                                    <span class="log-game">{{ 'element.exercise' | translate }}</span>
                                     <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                                   </span>
                                 </span>
@@ -873,7 +876,7 @@ function writeExampleSuggestions(
                             <span
                               class="score-readout score-plain"
                               [style.color]="gameScoreColor(entry)"
-                              aria-label="Score 0 out of 10"
+                              [attr.aria-label]="'element.scoreZero' | translate"
                             >
                               <span>0</span>
                               <span class="score-max">/10</span>
@@ -905,8 +908,8 @@ function writeExampleSuggestions(
                             <button
                               type="button"
                               class="icon-btn"
-                              aria-label="Restore"
-                              title="Restore"
+                              [attr.aria-label]="'common.restore' | translate"
+                              [attr.title]="'common.restore' | translate"
                               [disabled]="busy() || !canRestoreDefinition(entry)"
                               (click)="restoreDefinition(entry)"
                             >
@@ -920,8 +923,8 @@ function writeExampleSuggestions(
                             <button
                               type="button"
                               class="icon-btn danger log-delete"
-                              aria-label="Delete"
-                              title="Delete"
+                              [attr.aria-label]="'common.delete' | translate"
+                              [attr.title]="'common.delete' | translate"
                               [disabled]="busy()"
                               (click)="askDeleteExercise(entry)"
                             >
@@ -938,7 +941,7 @@ function writeExampleSuggestions(
                         @if (entry.event === 'rework' && exerciseEntry() === $index) {
                           <div class="log-detail log-versions">
                             <section class="log-version">
-                              <span class="log-mark">Before</span>
+                              <span class="log-mark">{{ 'element.before' | translate }}</span>
                               <ng-container
                                 [ngTemplateOutlet]="loggedSense"
                                 [ngTemplateOutletContext]="{
@@ -948,7 +951,7 @@ function writeExampleSuggestions(
                               />
                             </section>
                             <section class="log-version">
-                              <span class="log-mark">After</span>
+                              <span class="log-mark">{{ 'element.after' | translate }}</span>
                               <ng-container
                                 [ngTemplateOutlet]="loggedSense"
                                 [ngTemplateOutletContext]="{
@@ -1003,7 +1006,7 @@ function writeExampleSuggestions(
                                       <ng-container [ngTemplateOutlet]="translationIcon" />
                                       <app-show-text
                                         [text]="labeledEquivalent(equivalent)"
-                                        label="Show equivalent"
+                                        label="translate.showEquivalent"
                                       />
                                     </li>
                                   }
@@ -1018,7 +1021,7 @@ function writeExampleSuggestions(
                               }
                             </div>
                             @if (entry.examples?.length) {
-                              <ul class="examples" aria-label="Examples">
+                              <ul class="examples" [attr.aria-label]="'element.examples' | translate">
                                 @for (example of entry.examples ?? []; track $index) {
                                   @let examplePassage = parsePassage(example.text);
                                   <li class="saved-example">
@@ -1080,7 +1083,7 @@ function writeExampleSuggestions(
                               </ul>
                             }
                             @if (entry.forms?.length) {
-                              <ul class="forms" aria-label="Forms">
+                              <ul class="forms" [attr.aria-label]="'element.forms' | translate">
                                 @for (form of entry.forms ?? []; track form.text) {
                                   @let chip = formChipColor(form);
                                   <li>
@@ -1089,7 +1092,7 @@ function writeExampleSuggestions(
                                       class="form-chip readonly"
                                       [class.tinted]="!!chip"
                                       [style.--form-color]="chip"
-                                      [attr.aria-label]="'Attributes for ' + form.text"
+                                      [attr.aria-label]="'element.attributesFor' | translate: { form: form.text }"
                                       (click)="showFormAttributes(form)"
                                     >
                                       <ng-container [ngTemplateOutlet]="formIcon" />
@@ -1106,11 +1109,11 @@ function writeExampleSuggestions(
                         ) {
                           <div class="log-detail feedback-note">
                             <div class="log-detail-head">
-                              <span class="log-game">You wrote</span>
+                              <span class="log-game">{{ 'element.youWrote' | translate }}</span>
                             </div>
                             <p class="log-answer">{{ entry.answer }}</p>
                             <div class="log-detail-head">
-                              <span class="log-game">Feedback</span>
+                              <span class="log-game">{{ 'element.feedback' | translate }}</span>
                               <app-feedback-translation
                                 #note
                                 [text]="entry.explanation || entry.answer"
@@ -1171,7 +1174,7 @@ function writeExampleSuggestions(
                                       <ng-container [ngTemplateOutlet]="translationIcon" />
                                       <app-show-text
                                         [text]="labeledEquivalent(equivalent)"
-                                        label="Show equivalent"
+                                        label="translate.showEquivalent"
                                       />
                                     </li>
                                   }
@@ -1223,7 +1226,7 @@ function writeExampleSuggestions(
                   </div>
                 </section>
               } @else {
-                <p class="hint history-empty">No answers yet.</p>
+                <p class="hint history-empty">{{ 'element.noAnswers' | translate }}</p>
               }
             </div>
           }
@@ -1253,15 +1256,15 @@ function writeExampleSuggestions(
                     (click)="onSenseClick($event, index)"
                   >
                     <div class="sense-row" [class.actionable]="senseStage(index) !== 'open'">
-                      <span class="sense-index">Definition {{ index + 1 }}</span>
+                      <span class="sense-index">{{ 'element.definitionN' | translate: { index: '' + (index + 1) } }}</span>
                       <div class="sense-rail">
                         <div class="sense-actions">
                           @if (definitions.length > 1) {
                             <button
                               type="button"
                               class="icon-btn"
-                              aria-label="Move definition up"
-                              title="Move up"
+                              [attr.aria-label]="'element.moveUp' | translate"
+                              [attr.title]="'element.moveUpShort' | translate"
                               [disabled]="busy() || aiBusy() || index === 0"
                               (click)="moveDefinition(index, -1)"
                             >
@@ -1272,8 +1275,8 @@ function writeExampleSuggestions(
                             <button
                               type="button"
                               class="icon-btn"
-                              aria-label="Move definition down"
-                              title="Move down"
+                              [attr.aria-label]="'element.moveDown' | translate"
+                              [attr.title]="'element.moveDownShort' | translate"
                               [disabled]="busy() || aiBusy() || index === definitions.length - 1"
                               (click)="moveDefinition(index, 1)"
                             >
@@ -1286,8 +1289,8 @@ function writeExampleSuggestions(
                             <button
                               type="button"
                               class="icon-btn"
-                              aria-label="Show examples"
-                              title="Show examples"
+                              [attr.aria-label]="'element.showExamples' | translate"
+                              [attr.title]="'element.showExamples' | translate"
                               (click)="unveilExamples(index)"
                             >
                               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1303,8 +1306,8 @@ function writeExampleSuggestions(
                             <button
                               type="button"
                               class="icon-btn"
-                              aria-label="Show definition"
-                              title="Show definition"
+                              [attr.aria-label]="'element.showDefinition' | translate"
+                              [attr.title]="'element.showDefinition' | translate"
                               (click)="unveilDefinitionText(index)"
                             >
                               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1319,8 +1322,8 @@ function writeExampleSuggestions(
                           <button
                             type="button"
                             class="icon-btn danger"
-                            aria-label="Delete definition"
-                            title="Delete definition"
+                            [attr.aria-label]="'element.deleteDefinitionAria' | translate"
+                            [attr.title]="'element.deleteDefinitionAria' | translate"
                             [disabled]="busy() || aiBusy()"
                             (click)="askDeleteDefinition(index)"
                           >
@@ -1347,8 +1350,8 @@ function writeExampleSuggestions(
                                 <button
                                   type="button"
                                   class="inline-pencil"
-                                  aria-label="Edit definition"
-                                  title="Edit definition"
+                                  [attr.aria-label]="'element.editDefinition' | translate"
+                                  [attr.title]="'element.editDefinition' | translate"
                                   [disabled]="aiBusy()"
                                   (click)="openDefinition(index); $event.stopPropagation()"
                                 >
@@ -1445,7 +1448,7 @@ function writeExampleSuggestions(
                                       <ng-container [ngTemplateOutlet]="translationIcon" />
                                       <app-show-text
                                         [text]="labeledEquivalent(equivalent)"
-                                        label="Show equivalent"
+                                        label="translate.showEquivalent"
                                       />
                                     </li>
                                   }
@@ -1463,7 +1466,7 @@ function writeExampleSuggestions(
                         }
                         <section class="group examples-region">
                           @if (definition.examples.length) {
-                            <ul class="examples" aria-label="Examples">
+                            <ul class="examples" [attr.aria-label]="'element.examples' | translate">
                               @for (
                                 exampleIndex of exampleIndexesNewestFirst(
                                   definition.examples.length
@@ -1530,8 +1533,8 @@ function writeExampleSuggestions(
                                             <button
                                               type="button"
                                               class="inline-pencil"
-                                              aria-label="Edit examples"
-                                              title="Edit examples"
+                                              [attr.aria-label]="'element.editExamples' | translate"
+                                              [attr.title]="'element.editExamples' | translate"
                                               [disabled]="aiBusy()"
                                               (click)="
                                                 openExamples(index); $event.stopPropagation()
@@ -1595,13 +1598,13 @@ function writeExampleSuggestions(
                               [disabled]="aiBusy()"
                               (click)="addExampleManually(index)"
                             >
-                              Add an example
+                              {{ 'element.addExample' | translate }}
                             </button>
                           }
                         </section>
                         @if (senseStage(index) === 'open') {
                           <section class="group forms-region" (click)="onFormsClick($event, index)">
-                            <ul class="forms" aria-label="Forms">
+                            <ul class="forms" [attr.aria-label]="'element.forms' | translate">
                               @if (definition.forms.length) {
                                 @for (form of definition.forms; track form.text) {
                                   @let chip = formChipColor(form);
@@ -1611,7 +1614,7 @@ function writeExampleSuggestions(
                                       class="form-chip readonly"
                                       [class.tinted]="!!chip"
                                       [style.--form-color]="chip"
-                                      [attr.aria-label]="'Attributes for ' + form.text"
+                                      [attr.aria-label]="'element.attributesFor' | translate: { form: form.text }"
                                       (click)="showFormAttributes(form)"
                                     >
                                       <ng-container [ngTemplateOutlet]="formIcon" />
@@ -1627,7 +1630,7 @@ function writeExampleSuggestions(
                                     [disabled]="aiBusy()"
                                     (click)="openForms(index)"
                                   >
-                                    Add forms
+                                    {{ 'element.addForms' | translate }}
                                   </button>
                                 </li>
                               }
@@ -1640,7 +1643,7 @@ function writeExampleSuggestions(
                 }
               </ol>
             } @else if (!element().definitions.length) {
-              <p class="empty">No definitions yet.</p>
+              <p class="empty">{{ 'element.noDefinitions' | translate }}</p>
             }
           </div>
         </div>
@@ -1684,7 +1687,7 @@ function writeExampleSuggestions(
                   <button
                     type="button"
                     class="example-slot-clear"
-                    aria-label="Clear example"
+                    [attr.aria-label]="'element.clearExample' | translate"
                     [disabled]="aiBusy()"
                     (click)="clearExampleSlot()"
                   >
@@ -1697,7 +1700,7 @@ function writeExampleSuggestions(
                 <button
                   type="submit"
                   class="example-slot-submit"
-                  [attr.aria-label]="guidedExample() ? 'Create example' : 'Add example'"
+                  [attr.aria-label]="(guidedExample() ? 'element.createExample' : 'element.addExampleAction') | translate"
                   [disabled]="aiBusy() || (!definitionExample().trim() && !arrivedGuide())"
                   [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
                 >
@@ -1714,11 +1717,9 @@ function writeExampleSuggestions(
               </div>
               <p id="example-slot-hint" class="example-slot-hint">
                 @if (arrivedGuide() && !definitionExample().trim()) {
-                  Create an example that uses both. Press again to match it to a definition, or add
-                  one.
+{{ 'element.exampleHintBoth' | translate }}
                 } @else {
-                  This sentence is matched to a definition that already fits, or a new definition is
-                  added.
+{{ 'element.exampleHintMatch' | translate }}
                 }
               </p>
             </form>
@@ -1749,7 +1750,7 @@ function writeExampleSuggestions(
                       [attr.aria-selected]="workTab() === 'definitions'"
                       (click)="showWorkTab('definitions')"
                     >
-                      Definition
+                      {{ 'element.definition' | translate }}
                     </button>
                     <button
                       type="button"
@@ -1759,7 +1760,7 @@ function writeExampleSuggestions(
                       [disabled]="!canOpenWorkSection()"
                       (click)="showWorkTab('examples')"
                     >
-                      Examples
+                      {{ 'element.examples' | translate }}
                     </button>
                     <button
                       type="button"
@@ -1769,7 +1770,7 @@ function writeExampleSuggestions(
                       [disabled]="!canOpenWorkSection()"
                       (click)="showWorkTab('forms')"
                     >
-                      Forms
+                      {{ 'element.forms' | translate }}
                     </button>
                   </div>
                 } @else {
@@ -1781,7 +1782,7 @@ function writeExampleSuggestions(
                     <button
                       type="button"
                       class="icon-btn"
-                      aria-label="Close"
+                      [attr.aria-label]="'common.close' | translate"
                       [disabled]="workCloseDisabled()"
                       (click)="closeEditor()"
                     >
@@ -1799,8 +1800,8 @@ function writeExampleSuggestions(
                     <button
                       type="button"
                       class="icon-btn"
-                      [attr.aria-label]="translating() ? 'Translating…' : 'Translate'"
-                      [attr.title]="translating() ? 'Translating…' : 'Translate'"
+                      [attr.aria-label]="(translating() ? 'translate.translating' : 'translate.translate') | translate"
+                      [attr.title]="(translating() ? 'translate.translating' : 'translate.translate') | translate"
                       [attr.aria-busy]="translating() ? true : null"
                       [disabled]="!canTranslate()"
                       (click)="translateDraft()"
@@ -1819,8 +1820,8 @@ function writeExampleSuggestions(
                     <button
                       type="button"
                       class="icon-btn"
-                      aria-label="Engineer definition"
-                      title="Engineer definition"
+                      [attr.aria-label]="'element.engineerDefinition' | translate"
+                      [attr.title]="'element.engineerDefinition' | translate"
                       [class.active]="definitionEngineerOpen()"
                       [attr.aria-pressed]="definitionEngineerOpen()"
                       [attr.aria-busy]="definitionEngineerBusy(current.index) ? true : null"
@@ -1838,8 +1839,8 @@ function writeExampleSuggestions(
                     <button
                       type="button"
                       class="icon-btn"
-                      aria-label="Engineer example"
-                      title="Engineer example"
+                      [attr.aria-label]="'element.engineerExample' | translate"
+                      [attr.title]="'element.engineerExample' | translate"
                       [class.active]="exampleEngineerOpen()"
                       [attr.aria-pressed]="exampleEngineerOpen()"
                       [attr.aria-busy]="askingExamples() !== null ? true : null"
@@ -1869,7 +1870,7 @@ function writeExampleSuggestions(
                 >
                   @if (current.kind === 'definition') {
                     <div class="field-heading">
-                      <span class="field-label">Definition</span>
+                      <span class="field-label">{{ 'element.definition' | translate }}</span>
                       <ng-container [ngTemplateOutlet]="draftActions" />
                     </div>
                   }
@@ -1881,15 +1882,15 @@ function writeExampleSuggestions(
                           [value]="engineer.instruction"
                           [attr.maxlength]="definitionInstructionMax"
                           [disabled]="definitionSheetBusy()"
-                          placeholder="Instruct AI on how to modify this definition"
-                          aria-label="Instruct AI on how to modify this definition"
+                          [placeholder]="'element.modifyInstruction' | translate"
+                          [attr.aria-label]="'element.modifyInstruction' | translate"
                           (input)="onDefinitionEngineerInstruction($event)"
                           (keydown.enter)="$event.preventDefault(); generateEngineeredDefinition()"
                         />
                         <button
                           type="button"
                           class="entry-confirm"
-                          aria-label="Modify definition"
+                          [attr.aria-label]="'element.modifyDefinition' | translate"
                           [disabled]="
                             definitionSheetBusy() ||
                             (!engineer.instruction.trim() && !engineer.selected.length)
@@ -1923,8 +1924,8 @@ function writeExampleSuggestions(
                             <button
                               type="button"
                               class="related-more"
-                              aria-label="Find related"
-                              title="Find related"
+                              [attr.aria-label]="'element.findRelated' | translate"
+                              [attr.title]="'element.findRelated' | translate"
                               [disabled]="definitionSheetBusy()"
                               [attr.aria-busy]="askingRelated() !== null ? true : null"
                               (click)="findRelatedWords()"
@@ -1947,15 +1948,15 @@ function writeExampleSuggestions(
                   @if (exampleEngineerOpen()) {
                     @if (exampleEngineer(); as engineer) {
                       <div class="definition-ai">
-                        <label class="field-label" for="example-note">Note</label>
+                        <label class="field-label" for="example-note">{{ 'element.note' | translate }}</label>
                         <textarea
                           id="example-note"
                           rows="3"
                           [value]="engineer.instruction"
                           [attr.maxlength]="exampleInstructionMax"
                           [disabled]="askingExamples() !== null"
-                          placeholder="A walk to the market"
-                          aria-label="Note"
+                          [placeholder]="'element.notePlaceholder' | translate"
+                          [attr.aria-label]="'element.note' | translate"
                           (input)="onEngineerInstruction($event)"
                         ></textarea>
                         @if (definitionForms(engineer.definitionIndex); as forms) {
@@ -1967,7 +1968,7 @@ function writeExampleSuggestions(
                               [disabled]="askingExamples() !== null"
                               (click)="toggleEngineerForms()"
                             >
-                              <span>Forms</span>
+                              <span>{{ 'element.forms' | translate }}</span>
                               <span class="forms-toggle-side">
                                 @if (!engineer.formsOpen && engineer.forms.length) {
                                   <span>{{ engineer.forms.join(', ') }}</span>
@@ -1984,7 +1985,7 @@ function writeExampleSuggestions(
                             @if (engineer.formsOpen) {
                               <div class="engineer-forms">
                                 <p class="hint">
-                                  Select forms to require. More than one picks a form at random.
+                                  {{ 'element.formsHint' | translate }}
                                 </p>
                                 <ul class="equivalent-choices">
                                   @for (form of forms; track form) {
@@ -2011,7 +2012,7 @@ function writeExampleSuggestions(
                           [ngTemplateOutletContext]="{ surface: 'new' }"
                         />
                         @if (exampleError()) {
-                          <p class="error">{{ exampleError() }}</p>
+                          <p class="error">{{ exampleError() | translate }}</p>
                         }
                         <div class="sheet-actions example-actions">
                           <div class="generate-bundle">
@@ -2022,7 +2023,7 @@ function writeExampleSuggestions(
                               [attr.aria-busy]="askingExamples() !== null ? true : null"
                               (click)="generateEngineeredExample()"
                             >
-                              Generate
+                              {{ 'element.generate' | translate }}
                             </button>
                           </div>
                         </div>
@@ -2033,7 +2034,7 @@ function writeExampleSuggestions(
                     <textarea
                       #draftField
                       [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
-                      [attr.aria-label]="current.kind === 'definition' ? 'Definition' : 'Example'"
+                      [attr.aria-label]="(current.kind === 'definition' ? 'element.definition' : 'element.example') | translate"
                       rows="3"
                       [disabled]="asking()"
                       [value]="textDraft()"
@@ -2046,8 +2047,8 @@ function writeExampleSuggestions(
                           rows="1"
                           [value]="definitionTranslationField()"
                           [disabled]="translating() || !draftGloss()"
-                          placeholder="Translation"
-                          aria-label="Translation"
+                          [placeholder]="'element.translation' | translate"
+                          [attr.aria-label]="'element.translation' | translate"
                           (input)="onDefinitionTranslationInput($event)"
                           (blur)="commitDefinitionTranslation()"
                           (keydown.enter)="$event.preventDefault()"
@@ -2059,8 +2060,8 @@ function writeExampleSuggestions(
                               rows="1"
                               [value]="definitionEquivalentField()"
                               [attr.maxlength]="equivalentMax"
-                              placeholder="Equivalent"
-                              aria-label="Equivalent"
+                              [placeholder]="'element.equivalent' | translate"
+                              [attr.aria-label]="'element.equivalent' | translate"
                               (input)="onDefinitionEquivalentInput($event)"
                               (blur)="commitDefinitionEquivalent()"
                               (keydown.enter)="$event.preventDefault()"
@@ -2072,18 +2073,18 @@ function writeExampleSuggestions(
                   </div>
                 </div>
                 @if (sheetError()) {
-                  <p class="error">{{ sheetError() }}</p>
+                  <p class="error">{{ sheetError() | translate }}</p>
                 }
                 <div class="meta">
                   <div class="field-heading">
-                    <span class="field-label">Metadata</span>
+                    <span class="field-label">{{ 'element.metadata' | translate }}</span>
                     <button
                       type="button"
                       class="icon-btn"
                       [attr.aria-label]="
-                        askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'
+                        (askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata') | translate
                       "
-                      [attr.title]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
+                      [attr.title]="(askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata') | translate"
                       [attr.aria-busy]="askingMetadata() ? true : null"
                       [disabled]="!canAskMetadata()"
                       (click)="askMetadata()"
@@ -2105,16 +2106,16 @@ function writeExampleSuggestions(
                         #metaKeyField
                         [value]="metaKey()"
                         [attr.maxlength]="metaKeyMaxLength"
-                        placeholder="Key"
-                        aria-label="Metadata key"
+                        [placeholder]="'element.key' | translate"
+                        [attr.aria-label]="'element.metadataKey' | translate"
                         (input)="metaKey.set(inputValue($event))"
                         (keydown.enter)="saveMetadata()"
                       />
                       <input
                         [value]="metaValue()"
                         [attr.maxlength]="metaValueMaxLength"
-                        placeholder="Value"
-                        aria-label="Metadata value"
+                        [placeholder]="'element.value' | translate"
+                        [attr.aria-label]="'element.metadataValue' | translate"
                         (input)="metaValue.set(inputValue($event))"
                         (keydown.enter)="saveMetadata()"
                       />
@@ -2122,7 +2123,7 @@ function writeExampleSuggestions(
                         type="button"
                         class="icon-btn"
                         [disabled]="busy() || !metaKey().trim() || !metaValue().trim()"
-                        aria-label="Save metadata"
+                        [attr.aria-label]="'element.saveMetadata' | translate"
                         (click)="saveMetadata()"
                       >
                         <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
@@ -2130,7 +2131,7 @@ function writeExampleSuggestions(
                       <button
                         type="button"
                         class="icon-btn"
-                        aria-label="Cancel"
+                        [attr.aria-label]="'common.cancel' | translate"
                         (click)="cancelMetadata()"
                       >
                         <svg viewBox="0 0 24 24">
@@ -2148,7 +2149,7 @@ function writeExampleSuggestions(
                           <button
                             type="button"
                             [disabled]="busy()"
-                            [attr.aria-label]="'Edit metadata ' + entry.key"
+                            [attr.aria-label]="'element.editMetadata' | translate: { key: entry.key }"
                             (click)="openMetadata(entry.key)"
                           >
                             <span class="sense-meta-key">{{ label(entry.key) }}</span>
@@ -2158,7 +2159,7 @@ function writeExampleSuggestions(
                             type="button"
                             class="tag-remove"
                             [disabled]="busy()"
-                            [attr.aria-label]="'Remove metadata ' + entry.key"
+                            [attr.aria-label]="'element.removeMetadata' | translate: { key: entry.key }"
                             (click)="removeMetadata(entry.key)"
                           >
                             ×
@@ -2172,8 +2173,8 @@ function writeExampleSuggestions(
                           [value]="metaKey()"
                           [attr.maxlength]="metaKeyMaxLength"
                           [style.width]="metaEntryWidth(metaKey(), 'Key')"
-                          placeholder="Key"
-                          aria-label="Metadata key"
+                          [placeholder]="'element.key' | translate"
+                          [attr.aria-label]="'element.metadataKey' | translate"
                           autocomplete="off"
                           (input)="metaKey.set(inputValue($event))"
                           (keydown.enter)="commitNewMetadata()"
@@ -2182,8 +2183,8 @@ function writeExampleSuggestions(
                           [value]="metaValue()"
                           [attr.maxlength]="metaValueMaxLength"
                           [style.width]="metaEntryWidth(metaValue(), 'Value')"
-                          placeholder="Value"
-                          aria-label="Metadata value"
+                          [placeholder]="'element.value' | translate"
+                          [attr.aria-label]="'element.metadataValue' | translate"
                           autocomplete="off"
                           (input)="metaValue.set(inputValue($event))"
                           (keydown.enter)="commitNewMetadata()"
@@ -2191,7 +2192,7 @@ function writeExampleSuggestions(
                         <button
                           type="button"
                           class="entry-confirm"
-                          aria-label="Add metadata"
+                          [attr.aria-label]="'element.addMetadata' | translate"
                           [disabled]="busy() || !metaKey().trim() || !metaValue().trim()"
                           (click)="commitNewMetadata()"
                         >
@@ -2215,12 +2216,12 @@ function writeExampleSuggestions(
                   @let worked = sheetDefinition(workIndex);
                   <section class="sheet-part work-section">
                     <div class="section-heading work-title">
-                      <span class="section-title work-title-text">Examples</span>
+                      <span class="section-title work-title-text">{{ 'element.examples' | translate }}</span>
                       <button
                         type="button"
                         class="icon-btn work-title-actions"
-                        aria-label="Add an example"
-                        title="Add an example"
+                        [attr.aria-label]="'element.addExample' | translate"
+                        [attr.title]="'element.addExample' | translate"
                         [disabled]="aiBusy()"
                         (click)="addExampleManually(workIndex)"
                       >
@@ -2241,9 +2242,9 @@ function writeExampleSuggestions(
                           type="button"
                           class="icon-btn"
                           [attr.aria-label]="
-                            translatingExample() === key ? 'Translating…' : 'Translate'
+                            (translatingExample() === key ? 'translate.translating' : 'translate.translate') | translate
                           "
-                          [attr.title]="translatingExample() === key ? 'Translating…' : 'Translate'"
+                          [attr.title]="(translatingExample() === key ? 'translate.translating' : 'translate.translate') | translate"
                           [attr.aria-busy]="translatingExample() === key ? true : null"
                           [disabled]="!canTranslateListedExample(phrase, key)"
                           (click)="translateListedExample(phrase, key)"
@@ -2263,8 +2264,8 @@ function writeExampleSuggestions(
                       <button
                         type="button"
                         class="icon-btn"
-                        aria-label="Engineer example"
-                        title="Engineer example"
+                        [attr.aria-label]="'element.engineerExample' | translate"
+                        [attr.title]="'element.engineerExample' | translate"
                         [class.active]="exampleFieldOpen(work, kind, index)"
                         [attr.aria-pressed]="exampleFieldOpen(work, kind, index)"
                         [attr.aria-busy]="exampleFieldBusy(work, kind, index) ? true : null"
@@ -2303,7 +2304,7 @@ function writeExampleSuggestions(
                             <button
                               type="button"
                               class="entry-confirm"
-                              [attr.aria-label]="phrase.trim() ? 'Modify example' : 'Write example'"
+                              [attr.aria-label]="(phrase.trim() ? 'element.modifyExample' : 'element.writeExample') | translate"
                               [disabled]="exampleFieldGenerateDisabled()"
                               [attr.aria-busy]="exampleFieldBusy(work, kind, index) ? true : null"
                               (click)="generateExampleField()"
@@ -2325,8 +2326,8 @@ function writeExampleSuggestions(
                           rows="3"
                           [value]="phrase"
                           [disabled]="aiBusy()"
-                          [attr.placeholder]="placeholder || null"
-                          [attr.aria-label]="label"
+                          [attr.placeholder]="placeholder ? (placeholder | translate) : null"
+                          [attr.aria-label]="label | translate"
                           (input)="onListedExampleInput(work, kind, index, $event)"
                         ></textarea>
                         @if (supportAvailable() && phrase.trim()) {
@@ -2335,8 +2336,8 @@ function writeExampleSuggestions(
                               class="line-edit"
                               rows="1"
                               [value]="exampleTranslationField(phrase)"
-                              placeholder="Translation"
-                              aria-label="Translation"
+                              [placeholder]="'element.translation' | translate"
+                              [attr.aria-label]="'element.translation' | translate"
                               (input)="onExampleTranslationInput(phrase, $event)"
                               (blur)="commitExampleTranslation(phrase)"
                               (keydown.enter)="$event.preventDefault()"
@@ -2358,7 +2359,7 @@ function writeExampleSuggestions(
                         ) {
                           <li class="saved-example">
                             <div class="field-heading">
-                              <span class="field-label">New example</span>
+                              <span class="field-label">{{ 'element.newExample' | translate }}</span>
                               <span class="header-actions">
                                 <ng-container
                                   [ngTemplateOutlet]="exampleTranslateButton"
@@ -2379,8 +2380,8 @@ function writeExampleSuggestions(
                                 <button
                                   type="button"
                                   class="icon-btn danger"
-                                  aria-label="Remove example"
-                                  title="Remove example"
+                                  [attr.aria-label]="'element.removeExample' | translate"
+                                  [attr.title]="'element.removeExample' | translate"
                                   [disabled]="aiBusy()"
                                   (click)="removeExampleAddition(workIndex, additionIndex)"
                                 >
@@ -2402,8 +2403,8 @@ function writeExampleSuggestions(
                                 index: additionIndex,
                                 phrase: exampleAdditionValue(workIndex, additionIndex),
                                 raw: '',
-                                label: 'New example',
-                                placeholder: 'Add an example',
+                                label: 'element.newExample',
+                                placeholder: 'element.addExample',
                               }"
                             />
                           </li>
@@ -2411,7 +2412,7 @@ function writeExampleSuggestions(
                         @if (exampleDraftFor(workIndex); as draft) {
                           <li class="saved-example">
                             <div class="field-heading">
-                              <span class="field-label">New example</span>
+                              <span class="field-label">{{ 'element.newExample' | translate }}</span>
                               <span class="header-actions">
                                 <ng-container
                                   [ngTemplateOutlet]="exampleTranslateButton"
@@ -2432,8 +2433,8 @@ function writeExampleSuggestions(
                                 <button
                                   type="button"
                                   class="icon-btn danger"
-                                  aria-label="Remove example"
-                                  title="Remove example"
+                                  [attr.aria-label]="'element.removeExample' | translate"
+                                  [attr.title]="'element.removeExample' | translate"
                                   [disabled]="aiBusy()"
                                   (click)="discardExampleDraft()"
                                 >
@@ -2455,7 +2456,7 @@ function writeExampleSuggestions(
                                 index: null,
                                 phrase: exampleDraftFieldValue(workIndex),
                                 raw: draft.text,
-                                label: 'New example',
+                                label: 'element.newExample',
                                 placeholder: '',
                               }"
                             />
@@ -2489,8 +2490,8 @@ function writeExampleSuggestions(
                                 <button
                                   type="button"
                                   class="icon-btn danger"
-                                  aria-label="Delete example"
-                                  title="Delete example"
+                                  [attr.aria-label]="'element.deleteExample' | translate"
+                                  [attr.title]="'element.deleteExample' | translate"
                                   [disabled]="aiBusy()"
                                   (click)="askDeleteExample(workIndex, exampleIndex)"
                                 >
@@ -2512,7 +2513,7 @@ function writeExampleSuggestions(
                                 index: exampleIndex,
                                 phrase: exampleFieldValue(workIndex, exampleIndex),
                                 raw: example.text,
-                                label: 'Example ' + (exampleIndex + 1),
+                                label: ('element.exampleN' | translate: { index: '' + (exampleIndex + 1) }),
                                 placeholder: '',
                               }"
                             />
@@ -2538,7 +2539,7 @@ function writeExampleSuggestions(
                       </ul>
                     }
                     @if (exampleError()) {
-                      <p class="error">{{ exampleError() }}</p>
+                      <p class="error">{{ exampleError() | translate }}</p>
                     }
                   </section>
                 }
@@ -2547,13 +2548,13 @@ function writeExampleSuggestions(
                   @let worked = sheetDefinition(workIndex);
                   <section class="sheet-part work-section">
                     <div class="section-heading work-title">
-                      <span class="section-title work-title-text">Forms</span>
+                      <span class="section-title work-title-text">{{ 'element.forms' | translate }}</span>
                       <div class="header-actions work-title-actions">
                         <button
                           type="button"
                           class="icon-btn"
-                          aria-label="Generate forms"
-                          title="Generate forms"
+                          [attr.aria-label]="'element.generateForms' | translate"
+                          [attr.title]="'element.generateForms' | translate"
                           [disabled]="aiBusy()"
                           [attr.aria-busy]="askingForms() === workIndex ? true : null"
                           (click)="generateForms(workIndex)"
@@ -2571,8 +2572,8 @@ function writeExampleSuggestions(
                         <button
                           type="button"
                           class="icon-btn"
-                          aria-label="Add a form"
-                          title="Add a form"
+                          [attr.aria-label]="'element.addForm' | translate"
+                          [attr.title]="'element.addForm' | translate"
                           [disabled]="aiBusy()"
                           (click)="addFormManually(workIndex)"
                         >
@@ -2591,7 +2592,7 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 [disabled]="busy()"
-                                [attr.aria-label]="'Attributes for ' + form.text"
+                                [attr.aria-label]="'element.attributesFor' | translate: { form: form.text }"
                                 (click)="showFormAttributes(form)"
                               >
                                 <ng-container [ngTemplateOutlet]="formIcon" />
@@ -2601,8 +2602,8 @@ function writeExampleSuggestions(
                                 type="button"
                                 class="form-edit"
                                 [disabled]="busy()"
-                                [attr.aria-label]="'Edit form ' + form.text"
-                                title="Edit form"
+                                [attr.aria-label]="'element.editFormNamed' | translate: { form: form.text }"
+                                [attr.title]="'element.editForm' | translate"
                                 (click)="openExistingForm(workIndex, form.text)"
                               >
                                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2613,7 +2614,7 @@ function writeExampleSuggestions(
                                 type="button"
                                 class="tag-remove"
                                 [disabled]="busy()"
-                                [attr.aria-label]="'Remove form ' + form.text"
+                                [attr.aria-label]="'element.removeForm' | translate: { form: form.text }"
                                 (click)="removeForm(workIndex, form.text)"
                               >
                                 ×
@@ -2625,14 +2626,14 @@ function writeExampleSuggestions(
                     }
                     @if (pendingFormsFor(workIndex); as pending) {
                       @if (pending.length) {
-                        <p class="field-label">New forms</p>
+                        <p class="field-label">{{ 'element.newForms' | translate }}</p>
                         <ul class="forms">
                           @for (form of pending; track form.text) {
                             <li>
                               <button
                                 type="button"
                                 class="form-chip readonly"
-                                [attr.aria-label]="'Attributes for ' + form.text"
+                                [attr.aria-label]="'element.attributesFor' | translate: { form: form.text }"
                                 (click)="showFormAttributes(form)"
                               >
                                 <ng-container [ngTemplateOutlet]="formIcon" />
@@ -2644,7 +2645,7 @@ function writeExampleSuggestions(
                       }
                     }
                     @if (formsError()) {
-                      <p class="error">{{ formsError() }}</p>
+                      <p class="error">{{ formsError() | translate }}</p>
                     }
                   </section>
                 }
@@ -2667,7 +2668,7 @@ function writeExampleSuggestions(
                         />
                       </svg>
                     }
-                    Save
+                    {{ 'common.save' | translate }}
                   </button>
                   <button
                     type="button"
@@ -2675,7 +2676,7 @@ function writeExampleSuggestions(
                     [disabled]="workCloseDisabled()"
                     (click)="closeEditor()"
                   >
-                    Close
+                    {{ 'common.close' | translate }}
                   </button>
                 </div>
               }
@@ -2694,7 +2695,7 @@ function writeExampleSuggestions(
                         d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
                       />
                     </svg>
-                    Save
+                    {{ 'common.save' | translate }}
                   </button>
                 </div>
               }
@@ -2708,15 +2709,15 @@ function writeExampleSuggestions(
               class="sheet"
               role="dialog"
               aria-modal="true"
-              [attr.aria-label]="editing.originalText ? 'Edit form' : 'Add a form'"
+              [attr.aria-label]="(editing.originalText ? 'element.editForm' : 'element.addForm') | translate"
               (click)="$event.stopPropagation()"
             >
               <div class="sheet-head">
-                <h3>{{ editing.originalText ? 'Edit form' : 'Add a form' }}</h3>
+                <h3>{{ (editing.originalText ? 'element.editForm' : 'element.addForm') | translate }}</h3>
                 <button
                   type="button"
                   class="icon-btn"
-                  aria-label="Close"
+                  [attr.aria-label]="'common.close' | translate"
                   [disabled]="busy()"
                   (click)="cancelForm()"
                 >
@@ -2726,30 +2727,30 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <label for="new-form">Form</label>
+              <label for="new-form">{{ 'element.form' | translate }}</label>
               <input
                 #formField
                 id="new-form"
                 [value]="formDraft()"
                 [attr.maxlength]="formMaxLength"
-                placeholder="walked"
+                [placeholder]="'element.formPlaceholder' | translate"
                 autocomplete="off"
                 (input)="onFormInput($event)"
                 (keydown.enter)="saveForm()"
               />
               @if (formError()) {
-                <p class="error">{{ formError() }}</p>
+                <p class="error">{{ formError() | translate }}</p>
               }
               <div class="meta">
                 <div class="field-heading">
-                  <span class="field-label">Metadata</span>
+                  <span class="field-label">{{ 'element.metadata' | translate }}</span>
                   <button
                     type="button"
                     class="icon-btn"
                     [attr.aria-label]="
-                      askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'
+                      (askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata') | translate
                     "
-                    [attr.title]="askingMetadata() ? 'Finding metadata…' : 'Ask AI for metadata'"
+                    [attr.title]="(askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata') | translate"
                     [attr.aria-busy]="askingMetadata() ? true : null"
                     [disabled]="!canAskFormMetadata()"
                     (click)="askFormMetadata()"
@@ -2771,16 +2772,16 @@ function writeExampleSuggestions(
                       #formFeatureField
                       [value]="formFeatureKey()"
                       [attr.maxlength]="metaKeyMaxLength"
-                      placeholder="Key"
-                      aria-label="Metadata key"
+                      [placeholder]="'element.key' | translate"
+                      [attr.aria-label]="'element.metadataKey' | translate"
                       (input)="formFeatureKey.set(inputValue($event))"
                       (keydown.enter)="saveFormFeature()"
                     />
                     <input
                       [value]="formFeatureValue()"
                       [attr.maxlength]="metaValueMaxLength"
-                      placeholder="Value"
-                      aria-label="Metadata value"
+                      [placeholder]="'element.value' | translate"
+                      [attr.aria-label]="'element.metadataValue' | translate"
                       (input)="formFeatureValue.set(inputValue($event))"
                       (keydown.enter)="saveFormFeature()"
                     />
@@ -2788,7 +2789,7 @@ function writeExampleSuggestions(
                       type="button"
                       class="icon-btn"
                       [disabled]="busy() || !formFeatureKey().trim() || !formFeatureValue().trim()"
-                      aria-label="Save metadata"
+                      [attr.aria-label]="'element.saveMetadata' | translate"
                       (click)="saveFormFeature()"
                     >
                       <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
@@ -2796,7 +2797,7 @@ function writeExampleSuggestions(
                     <button
                       type="button"
                       class="icon-btn"
-                      aria-label="Cancel"
+                      [attr.aria-label]="'common.cancel' | translate"
                       (click)="cancelFormFeature()"
                     >
                       <svg viewBox="0 0 24 24">
@@ -2814,7 +2815,7 @@ function writeExampleSuggestions(
                         <button
                           type="button"
                           [disabled]="busy()"
-                          [attr.aria-label]="'Edit metadata ' + entry.key"
+                          [attr.aria-label]="'element.editMetadata' | translate: { key: entry.key }"
                           (click)="openFormFeature(entry.key)"
                         >
                           <span class="sense-meta-key">{{ label(entry.key) }}</span>
@@ -2824,7 +2825,7 @@ function writeExampleSuggestions(
                           type="button"
                           class="tag-remove"
                           [disabled]="busy()"
-                          [attr.aria-label]="'Remove metadata ' + entry.key"
+                          [attr.aria-label]="'element.removeMetadata' | translate: { key: entry.key }"
                           (click)="removeFormFeature(entry.key)"
                         >
                           ×
@@ -2838,8 +2839,8 @@ function writeExampleSuggestions(
                         [value]="formFeatureKey()"
                         [attr.maxlength]="metaKeyMaxLength"
                         [style.width]="metaEntryWidth(formFeatureKey(), 'Key')"
-                        placeholder="Key"
-                        aria-label="Metadata key"
+                        [placeholder]="'element.key' | translate"
+                        [attr.aria-label]="'element.metadataKey' | translate"
                         autocomplete="off"
                         (input)="formFeatureKey.set(inputValue($event))"
                         (keydown.enter)="commitNewFormFeature()"
@@ -2848,8 +2849,8 @@ function writeExampleSuggestions(
                         [value]="formFeatureValue()"
                         [attr.maxlength]="metaValueMaxLength"
                         [style.width]="metaEntryWidth(formFeatureValue(), 'Value')"
-                        placeholder="Value"
-                        aria-label="Metadata value"
+                        [placeholder]="'element.value' | translate"
+                        [attr.aria-label]="'element.metadataValue' | translate"
                         autocomplete="off"
                         (input)="formFeatureValue.set(inputValue($event))"
                         (keydown.enter)="commitNewFormFeature()"
@@ -2857,7 +2858,7 @@ function writeExampleSuggestions(
                       <button
                         type="button"
                         class="entry-confirm"
-                        aria-label="Add metadata"
+                        [attr.aria-label]="'element.addMetadata' | translate"
                         [disabled]="
                           busy() || !formFeatureKey().trim() || !formFeatureValue().trim()
                         "
@@ -2878,7 +2879,7 @@ function writeExampleSuggestions(
                   [disabled]="busy() || !formDraft().trim()"
                   (click)="saveForm()"
                 >
-                  Save
+                  {{ 'common.save' | translate }}
                 </button>
               </div>
             </section>
@@ -2891,7 +2892,7 @@ function writeExampleSuggestions(
               class="sheet"
               role="dialog"
               aria-modal="true"
-              [attr.aria-label]="form.text + ' attributes'"
+              [attr.aria-label]="('element.formAttributesAria' | translate: { form: form.text })"
               (click)="$event.stopPropagation()"
             >
               <div class="sheet-head">
@@ -2902,7 +2903,7 @@ function writeExampleSuggestions(
                 <button
                   type="button"
                   class="icon-btn"
-                  aria-label="Close"
+                  [attr.aria-label]="'common.close' | translate"
                   (click)="closeFormAttributes()"
                 >
                   <svg viewBox="0 0 24 24">
@@ -2913,7 +2914,7 @@ function writeExampleSuggestions(
               </div>
               @if (entries(form.metadata); as meta) {
                 @if (meta.length) {
-                  <ul class="pills" aria-label="Attributes">
+                  <ul class="pills" [attr.aria-label]="'element.attributes' | translate">
                     @for (entry of meta; track entry.key) {
                       @let color = metaColor('forms', entry.key);
                       <li [class.colored]="color" [style.--meta-color]="color">
@@ -2925,7 +2926,7 @@ function writeExampleSuggestions(
                     }
                   </ul>
                 } @else {
-                  <p class="hint">No attributes</p>
+                  <p class="hint">{{ 'element.noAttributes' | translate }}</p>
                 }
               }
             </section>
@@ -2938,16 +2939,16 @@ function writeExampleSuggestions(
               class="sheet element-edit"
               role="dialog"
               aria-modal="true"
-              aria-label="Edit element"
+              [attr.aria-label]="'element.editElement' | translate"
               (click)="$event.stopPropagation()"
               (submit)="saveTitle($event)"
             >
               <div class="sheet-head">
-                <h3>Edit element</h3>
+                <h3>{{ 'element.editElement' | translate }}</h3>
                 <button
                   type="button"
                   class="icon-btn"
-                  aria-label="Close"
+                  [attr.aria-label]="'common.close' | translate"
                   [disabled]="busy()"
                   (click)="cancelTitle()"
                 >
@@ -2957,10 +2958,10 @@ function writeExampleSuggestions(
                   </svg>
                 </button>
               </div>
-              <label for="element-title">Title</label>
+              <label for="element-title">{{ 'element.title' | translate }}</label>
               <input
                 id="element-title"
-                aria-label="Title"
+                [attr.aria-label]="'element.title' | translate"
                 [value]="titleDraft()"
                 [attr.maxlength]="formMaxLength"
                 autocomplete="off"
@@ -2968,7 +2969,7 @@ function writeExampleSuggestions(
                 (input)="titleDraft.set(inputValue($event))"
               />
               @if (titleError()) {
-                <p class="error">{{ titleError() }}</p>
+                <p class="error">{{ titleError() | translate }}</p>
               }
               <div class="sheet-actions">
                 <button
@@ -2977,7 +2978,7 @@ function writeExampleSuggestions(
                   [disabled]="busy()"
                   (click)="askDeleteElement()"
                 >
-                  Delete
+                  {{ 'common.delete' | translate }}
                 </button>
                 <button
                   type="button"
@@ -2985,10 +2986,10 @@ function writeExampleSuggestions(
                   [disabled]="busy()"
                   (click)="cancelTitle()"
                 >
-                  Cancel
+                  {{ 'common.cancel' | translate }}
                 </button>
                 <button type="submit" class="btn btn-primary" [disabled]="!canSaveElement()">
-                  Save
+                  {{ 'common.save' | translate }}
                 </button>
               </div>
             </form>
@@ -3013,7 +3014,7 @@ function writeExampleSuggestions(
                   [disabled]="busy()"
                   (click)="confirm.set(null)"
                 >
-                  Cancel
+                  {{ 'common.cancel' | translate }}
                 </button>
                 <button
                   type="button"
@@ -3021,7 +3022,7 @@ function writeExampleSuggestions(
                   [disabled]="busy()"
                   (click)="confirmDelete()"
                 >
-                  Delete
+                  {{ 'common.delete' | translate }}
                 </button>
               </div>
             </section>
@@ -5666,6 +5667,7 @@ function writeExampleSuggestions(
   `,
 })
 export class ElementModal {
+  private readonly i18n = inject(LanguageService);
   readonly element = input.required<StoredElement>();
   readonly collection = input<StoredElement[]>([]);
   readonly canGoBack = input(false);
@@ -6017,7 +6019,7 @@ export class ElementModal {
         (item) => item.id !== element.id && sameTitle(item.title, name),
       );
       if (taken) {
-        this.titleError.set('That title is already there.');
+        this.titleError.set('element.titleTaken');
         return;
       }
     }
@@ -6033,7 +6035,7 @@ export class ElementModal {
     const saved = await this.commit({ ...current, title: name, definitions }, { report: false });
     if (!this.alive || this.element().id !== element.id) return;
     if (!saved) {
-      this.titleError.set('Could not save this element.');
+      this.titleError.set('element.saveFailed');
       return;
     }
     if (editing?.originalText && sameTitle(editing.originalText, element.title)) {
@@ -6054,7 +6056,9 @@ export class ElementModal {
 
   examplePlaceholder(): string {
     const language = languageDisplayName(this.element().language);
-    return language ? `Enter your own example in ${language}…` : 'Enter your own example…';
+    return language
+      ? this.i18n.translate('element.enterExampleIn', { language })
+      : this.i18n.translate('element.enterExample');
   }
 
   translationLanguageName(): string {
@@ -6166,7 +6170,7 @@ export class ElementModal {
       this.sheetMetadata.set(mergeMetadata(this.sheetMetadata(), suggested));
     } catch {
       if (!this.alive) return;
-      this.sheetError.set('Could not add metadata.');
+      this.sheetError.set('element.metadataFailed');
     } finally {
       this.askingMetadata.set(false);
     }
@@ -6199,7 +6203,7 @@ export class ElementModal {
       this.formFeatures.set(mergeMetadata(this.formFeatures(), suggested));
     } catch {
       if (!this.alive) return;
-      this.formError.set('Could not add metadata.');
+      this.formError.set('element.metadataFailed');
     } finally {
       this.askingMetadata.set(false);
     }
@@ -6301,15 +6305,15 @@ export class ElementModal {
   }
 
   sheetTitle(editor: Editor): string {
-    if (editor.kind === 'definition') return 'Definition';
-    return editor.exampleIndex == null ? 'Add an example' : 'Edit example';
+    if (editor.kind === 'definition') return this.i18n.translate('element.definition');
+    return this.i18n.translate(editor.exampleIndex == null ? 'element.addExample' : 'element.editExample');
   }
 
   workSectionLabel(editor: Editor): string {
-    if (editor.kind !== 'definition') return 'Definition';
-    if (this.workTab() === 'examples') return 'Examples';
-    if (this.workTab() === 'forms') return 'Forms';
-    return 'Definition';
+    if (editor.kind !== 'definition') return this.i18n.translate('element.definition');
+    if (this.workTab() === 'examples') return this.i18n.translate('element.examples');
+    if (this.workTab() === 'forms') return this.i18n.translate('element.forms');
+    return this.i18n.translate('element.definition');
   }
 
   workSaveDisabled(): boolean {
@@ -6478,7 +6482,7 @@ export class ElementModal {
     const selected = element.title.replace(/\s+/g, ' ').trim();
     if (!guide || !selected) return;
     if (!readStoredAiCredentials().keys.length) {
-      this.error.set('Save an API key first.');
+      this.error.set('common.saveKeyFirst');
       return;
     }
     this.addingDefinitions.set('example');
@@ -6494,13 +6498,13 @@ export class ElementModal {
       });
       if (this.element().id !== element.id) return;
       if (!sentence) {
-        this.error.set('Could not write that example.');
+        this.error.set('element.writeExampleFailed');
         return;
       }
       this.definitionExample.set(sentence);
       this.heldExample.set(sentence);
     } catch {
-      if (this.element().id === element.id) this.error.set('Could not write that example.');
+      if (this.element().id === element.id) this.error.set('element.writeExampleFailed');
     } finally {
       if (this.element().id === element.id) {
         this.asking.set(false);
@@ -6531,7 +6535,7 @@ export class ElementModal {
       });
       if (this.element().id !== element.id) return;
       if (!placed) {
-        this.error.set('Could not place that example.');
+        this.error.set('element.placeExampleFailed');
         return;
       }
       if (placed.kind === 'existing') {
@@ -6552,7 +6556,7 @@ export class ElementModal {
       this.heldExample.set('');
     } catch {
       if (this.element().id === element.id) {
-        this.error.set('Could not place that example.');
+        this.error.set('element.placeExampleFailed');
       }
     } finally {
       if (this.element().id === element.id) this.asking.set(false);
@@ -6570,12 +6574,12 @@ export class ElementModal {
       (definition) => senseKey(definition.text) === gloss.trim().toLowerCase(),
     );
     if (!target) {
-      this.error.set('Could not place that example.');
+      this.error.set('element.placeExampleFailed');
       return;
     }
     const key = senseKey(example);
     if (!key || target.examples.some((item) => senseKey(item.text) === key)) {
-      this.error.set('That example is already there.');
+      this.error.set('element.exampleExists');
       return;
     }
     target.examples.push({ text: example, metadata: {} });
@@ -6727,12 +6731,12 @@ export class ElementModal {
         next.push(form);
       }
       if (next.length === (current?.definitionIndex === index ? current.forms.length : 0)) {
-        this.formsError.set('No further forms.');
+        this.formsError.set('element.noFurtherForms');
         return;
       }
       this.pendingForms.set({ definitionIndex: index, forms: next });
     } catch {
-      if (this.element().id === element.id) this.formsError.set('Could not ask for forms.');
+      if (this.element().id === element.id) this.formsError.set('element.formsFailed');
     } finally {
       if (this.element().id === element.id) this.askingForms.set(null);
     }
@@ -7160,12 +7164,12 @@ export class ElementModal {
       const seen = new Set(current.words.map((word) => word.text.toLowerCase()));
       const added = words.filter((word) => !seen.has(word.text.toLowerCase()));
       if (!added.length) {
-        this.sheetError.set('No further related words.');
+        this.sheetError.set('element.noFurtherRelated');
         return;
       }
       this.patchDefinitionEngineer({ words: [...current.words, ...added] });
     } catch {
-      if (this.element().id === element.id) this.sheetError.set('Could not ask for related words.');
+      if (this.element().id === element.id) this.sheetError.set('element.relatedFailed');
     } finally {
       if (this.relatedJob === job && this.element().id === element.id) this.askingRelated.set(null);
     }
@@ -7201,23 +7205,23 @@ export class ElementModal {
       const phrase = phrases[0];
       const showing = this.element().id === element.id;
       if (!phrase) {
-        if (showing) this.sheetError.set('Could not forge a definition.');
+        if (showing) this.sheetError.set('element.forgeFailed');
         return;
       }
       const extra = parsePassage(phrase.text);
       if (!extra.text) {
-        if (showing) this.sheetError.set('Could not forge a definition.');
+        if (showing) this.sheetError.set('element.forgeFailed');
         return;
       }
       if (picked.some((word) => !sentenceUsesForm(extra.text, word.text))) {
-        if (showing) this.sheetError.set('The phrase did not use every chosen word.');
+        if (showing) this.sheetError.set('element.phraseUnused');
         return;
       }
       if (!showing) return;
       if (sense && senseKey(this.element().definitions[index]?.text ?? '') !== sense) return;
       this.textDraft.set(this.appendedEngineerPassage(extra));
     } catch {
-      if (this.element().id === element.id) this.sheetError.set('Could not forge a definition.');
+      if (this.element().id === element.id) this.sheetError.set('element.forgeFailed');
     } finally {
       if (this.wordingJob === job && this.element().id === element.id) this.askingWording.set(null);
     }
@@ -7381,12 +7385,12 @@ export class ElementModal {
       const sentence = examples[0];
       const showing = this.element().id === element.id;
       if (!sentence) {
-        if (showing) this.exampleError.set('No further examples.');
+        if (showing) this.exampleError.set('element.noFurtherExamples');
         return;
       }
       const primary = parsePassage(sentence.text).text;
       if (required && !sentenceUsesForm(primary, required)) {
-        if (showing) this.exampleError.set('The example did not use the chosen form.');
+        if (showing) this.exampleError.set('element.formUnused');
         return;
       }
       if (!showing) return;
@@ -7401,7 +7405,7 @@ export class ElementModal {
         (held && senseKey(held.text) === sentenceKey) ||
         (editing && senseKey(editing) === sentenceKey)
       ) {
-        this.exampleError.set('No further examples.');
+        this.exampleError.set('element.noFurtherExamples');
         return;
       }
       if (
@@ -7420,7 +7424,7 @@ export class ElementModal {
         metadata: { ...sentence.metadata },
       });
     } catch {
-      if (this.element().id === element.id) this.exampleError.set('Could not ask for examples.');
+      if (this.element().id === element.id) this.exampleError.set('element.examplesFailed');
     } finally {
       if (this.exampleJob === job && this.element().id === element.id)
         this.askingExamples.set(null);
@@ -7546,7 +7550,7 @@ export class ElementModal {
     const text = plainPassage(phrase).trim();
     if (!this.canTranslateListedExample(phrase, key)) return;
     if (!readStoredAiCredentials().keys.length) {
-      this.exampleError.set('Save an API key first.');
+      this.exampleError.set('common.saveKeyFirst');
       return;
     }
     this.translatingExample.set(key);
@@ -7556,7 +7560,7 @@ export class ElementModal {
       if (this.exampleTranslationCleared() === text) this.exampleTranslationCleared.set('');
       this.exampleTranslationVersion.update((version) => version + 1);
     } catch {
-      this.exampleError.set('Could not translate this.');
+      this.exampleError.set('translate.failed');
     } finally {
       if (this.translatingExample() === key) this.translatingExample.set(null);
     }
@@ -7580,9 +7584,9 @@ export class ElementModal {
   }
 
   exampleFieldPrompt(phrase: string): string {
-    return phrase.trim()
-      ? 'Instruct AI on how to modify this example'
-      : 'Instruct AI on how to write this example';
+    return this.i18n.translate(
+      phrase.trim() ? 'element.modifyExampleInstruction' : 'element.writeExampleInstruction',
+    );
   }
 
   exampleFieldGenerateDisabled(): boolean {
@@ -7638,7 +7642,7 @@ export class ElementModal {
     const gloss = parsePassage(definition?.text ?? '').text.trim();
     if (!definition || !gloss) return;
     if (!readStoredAiCredentials().keys.length) {
-      this.exampleError.set('Save an API key first.');
+      this.exampleError.set('common.saveKeyFirst');
       return;
     }
     const current = this.exampleFieldText(engineer);
@@ -7675,7 +7679,7 @@ export class ElementModal {
       if (!showing || !same) return;
       if (!sentence || (current && sentence.toLowerCase() === current.toLowerCase())) {
         this.exampleError.set(
-          current && !fresh ? 'Could not change that example.' : 'Could not write that example.',
+          current && !fresh ? 'element.changeExampleFailed' : 'element.writeExampleFailed',
         );
         return;
       }
@@ -7683,7 +7687,7 @@ export class ElementModal {
     } catch {
       if (this.element().id === element.id) {
         this.exampleError.set(
-          current && !fresh ? 'Could not change that example.' : 'Could not write that example.',
+          current && !fresh ? 'element.changeExampleFailed' : 'element.writeExampleFailed',
         );
       }
     } finally {
@@ -7728,12 +7732,12 @@ export class ElementModal {
       const draft = this.exampleEdits().get(this.exampleEditKey(index, exampleIndex)) ?? baseline;
       const nextText = this.exampleTextToStore(draft);
       if (!parsePassage(nextText).text.trim()) {
-        this.exampleError.set('An example needs text.');
+        this.exampleError.set('element.exampleNeedsText');
         return;
       }
       const key = senseKey(nextText);
       if (!key || seen.has(key)) {
-        this.exampleError.set('That example is already there.');
+        this.exampleError.set('element.exampleExists');
         return;
       }
       seen.add(key);
@@ -7745,7 +7749,7 @@ export class ElementModal {
       const text = this.exampleTextToStore(row);
       const key = senseKey(text);
       if (!key || seen.has(key)) {
-        this.exampleError.set('That example is already there.');
+        this.exampleError.set('element.exampleExists');
         return;
       }
       seen.add(key);
@@ -7758,12 +7762,12 @@ export class ElementModal {
       const edited = field?.definitionIndex === index;
       const text = this.exampleTextToStore(edited ? field.text : pending.text);
       if (!parsePassage(text).text.trim()) {
-        this.exampleError.set('An example needs text.');
+        this.exampleError.set('element.exampleNeedsText');
         return;
       }
       const key = senseKey(text);
       if (!key || seen.has(key)) {
-        this.exampleError.set('That example is already there.');
+        this.exampleError.set('element.exampleExists');
         return;
       }
       seen.add(key);
@@ -8211,7 +8215,7 @@ export class ElementModal {
         guide,
       );
       if (!saved && this.element().id === element.id) {
-        this.error.set('Could not add that element.');
+        this.error.set('common.addFailed');
       }
     } finally {
       if (this.element().id === element.id) this.addingSelection.set(false);
@@ -8413,7 +8417,7 @@ export class ElementModal {
       this.draftTranslation.set({ phrase: text, text: translated });
     } catch {
       if (ticket !== this.translateTicket) return;
-      this.sheetError.set('Could not translate this.');
+      this.sheetError.set('translate.failed');
     } finally {
       if (ticket === this.translateTicket) this.translating.set(false);
     }
@@ -8521,7 +8525,7 @@ export class ElementModal {
     const definition = definitions[editing.definitionIndex];
     if (!definition) return;
     if (!isValidForm(form)) {
-      this.formError.set('That form is not valid.');
+      this.formError.set('element.formInvalid');
       return;
     }
     const original = editing.originalText;
@@ -8530,7 +8534,7 @@ export class ElementModal {
         (item) => item.text !== original && item.text.toLowerCase() === form.toLowerCase(),
       )
     ) {
-      this.formError.set('That form is already there.');
+      this.formError.set('element.formExists');
       return;
     }
     const next = { text: form, metadata: this.formFeaturesToStore() };
@@ -8611,17 +8615,17 @@ export class ElementModal {
   }
 
   confirmTitle(pending: ConfirmDelete): string {
-    if (pending.kind === 'element') return 'Delete this element?';
-    if (pending.kind === 'definition') return 'Delete this definition?';
+    if (pending.kind === 'element') return this.i18n.translate('element.deleteElement');
+    if (pending.kind === 'definition') return this.i18n.translate('element.deleteDefinition');
     if (pending.kind === 'exercise') {
       const entry = this.elementHistory()[pending.historyIndex];
-      if (entry?.event === 'delete') return 'Delete this deletion?';
-      if (entry?.event === 'example') return 'Delete this example?';
-      if (entry?.event === 'form') return 'Delete these forms?';
-      if (entry?.event === 'reveal') return 'Delete this translation?';
-      return 'Delete this exercise?';
+      if (entry?.event === 'delete') return this.i18n.translate('element.deleteDeletion');
+      if (entry?.event === 'example') return this.i18n.translate('element.deleteExampleQ');
+      if (entry?.event === 'form') return this.i18n.translate('element.deleteForms');
+      if (entry?.event === 'reveal') return this.i18n.translate('element.deleteTranslation');
+      return this.i18n.translate('element.deleteExercise');
     }
-    return 'Delete this example?';
+    return this.i18n.translate('element.deleteExampleQ');
   }
 
   confirmHint(pending: ConfirmDelete): string {
@@ -8629,10 +8633,10 @@ export class ElementModal {
       pending.kind === 'element' ||
       (pending.kind === 'exercise' && this.historyEmptiesElement(pending.historyIndex))
     ) {
-      return 'If you delete all the history, this element is lost. Stats are recomputed.';
+      return this.i18n.translate('element.deleteHistoryHint');
     }
-    if (pending.kind === 'definition') return 'This definition will be removed.';
-    return 'This will be removed.';
+    if (pending.kind === 'definition') return this.i18n.translate('element.definitionRemoved');
+    return this.i18n.translate('element.willBeRemoved');
   }
 
   askDeleteElement(): void {
@@ -8835,7 +8839,7 @@ export class ElementModal {
       this.deleted.emit();
     } catch {
       this.confirm.set(null);
-      this.error.set('Could not delete this element.');
+      this.error.set('element.deleteFailed');
     } finally {
       this.busy.set(false);
     }
@@ -9089,7 +9093,11 @@ export class ElementModal {
   }
 
   activityLabel(event: 'rework', count: number): string {
-    return count === 1 ? 'Reworked 1 time' : `Reworked ${count} times`;
+    return count === 1
+      ? this.i18n.translate('element.reworkedOne')
+      : this.i18n.translate('element.reworkedMany', {
+          count: count.toLocaleString(this.i18n.currentLanguage),
+        });
   }
 
   private async persist(
@@ -9136,7 +9144,7 @@ export class ElementModal {
       } catch {
         if (this.written === snapshot) this.written = null;
         if (report && this.alive && this.element().id === snapshot.id) {
-          this.error.set('Could not save this element.');
+          this.error.set('element.saveFailed');
         }
         return false;
       } finally {
@@ -9327,34 +9335,64 @@ export class ElementModal {
   }
 
   historyTitle(entry: DefinitionHistoryEntry): string {
-    if (entry.event === 'rework') return 'Reworked';
-    if (entry.event === 'delete') return 'Deleted';
-    if (entry.event === 'example') return 'Example';
-    if (entry.event === 'form') return 'Forms';
-    if (entry.event === 'reveal') return 'Translated';
-    return 'Exercise';
+    if (entry.event === 'rework') return this.i18n.translate('element.reworked');
+    if (entry.event === 'delete') return this.i18n.translate('element.deleted');
+    if (entry.event === 'example') return this.i18n.translate('element.example');
+    if (entry.event === 'form') return this.i18n.translate('element.forms');
+    if (entry.event === 'reveal') return this.i18n.translate('element.translated');
+    return this.i18n.translate('element.exercise');
+  }
+
+  hearAria(speaking: boolean, part: string): string {
+    if (speaking) return this.i18n.translate('element.stopSpeaking');
+    const label = this.i18n.translate(
+      part === 'definition'
+        ? 'element.partDefinition'
+        : part === 'example'
+          ? 'element.partExample'
+          : 'element.partTitle',
+    );
+    return this.i18n.translate('element.hear', { label });
   }
 
   historyAria(entry: DefinitionHistoryEntry): string {
     const when = this.exerciseWhen(entry.at);
     if (entry.event === 'game') {
-      const bonus = entry.extra ? ', plus 1' : '';
       const wrote = entry.answer.trim();
-      const attempt = wrote ? `${this.historyTitle(entry)}, ${wrote}` : this.historyTitle(entry);
-      return `${attempt}, score ${this.shownGameScore(entry)} out of ${this.scoreMax}${bonus}, ${when}`;
+      const score = String(this.shownGameScore(entry));
+      const max = String(this.scoreMax);
+      const title = this.historyTitle(entry);
+      if (wrote && entry.extra) {
+        return this.i18n.translate('element.historyGameAnswerBonus', { title, answer: wrote, score, max, when });
+      }
+      if (wrote) {
+        return this.i18n.translate('element.historyGameAnswer', { title, answer: wrote, score, max, when });
+      }
+      return this.i18n.translate(entry.extra ? 'element.historyGameBonus' : 'element.historyGame', {
+        title, score, max, when,
+      });
     }
     if (entry.event === 'rework') {
-      return `Reworked, before ${this.logWording(entry.before)}, after ${this.logWording(entry.after)}, ${when}`;
+      return this.i18n.translate('element.historyRework', {
+        before: this.logWording(entry.before),
+        after: this.logWording(entry.after),
+        when,
+      });
     }
     if (entry.event === 'delete') {
-      return `Deleted, ${this.logWording(entry.definition)}, ${when}`;
+      return this.i18n.translate('element.historyDelete', {
+        wording: this.logWording(entry.definition),
+        when,
+      });
     }
-    return `${this.historyTitle(entry)}, ${when}`;
+    return this.i18n.translate('element.historyWhen', { title: this.historyTitle(entry), when });
   }
 
   scoreAria(entry: DefinitionGameLog): string {
-    const bonus = entry.extra ? ', plus 1' : '';
-    return `Score ${this.shownGameScore(entry)} out of ${this.scoreMax}${bonus}`;
+    return this.i18n.translate(entry.extra ? 'element.scoreBonus' : 'element.score', {
+      score: String(this.shownGameScore(entry)),
+      max: String(this.scoreMax),
+    });
   }
 
   private listedHistory(entry: ElementLogEntry): entry is DefinitionHistoryEntry {
@@ -9369,7 +9407,7 @@ export class ElementModal {
   }
 
   exerciseWhen(at: number): string {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(this.i18n.currentLanguage, {
       month: 'short',
       day: 'numeric',
       hour: 'numeric',

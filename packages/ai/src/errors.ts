@@ -6,6 +6,7 @@ export const AI_ERROR = {
   CREDENTIALS_INVALID: 'error.ai.credentialsInvalid',
   CREDENTIALS_PROVIDER_INVALID: 'error.ai.credentialsProviderInvalid',
   CREDENTIALS_REQUIRED: 'error.ai.credentialsRequired',
+  CREDENTIALS_ALREADY_CONFIGURED: 'error.ai.credentialsAlreadyConfigured',
   PROVIDER_AUTH_FAILED: 'error.ai.providerAuthFailed',
 } as const;
 

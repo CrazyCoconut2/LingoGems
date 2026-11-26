@@ -1,5 +1,6 @@
-import { Component, computed, effect, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { readStoredAiCredentials } from 'ai';
+import { LanguageService } from '../i18n/language.service';
 import { readPhraseTranslation, requestPhraseTranslation } from './translation-cache';
 
 /** Translate one learning-language comment into the support language. */
@@ -75,6 +76,7 @@ import { readPhraseTranslation, requestPhraseTranslation } from './translation-c
   `,
 })
 export class FeedbackTranslation {
+  private readonly i18n = inject(LanguageService);
   readonly text = input('');
   readonly sourceLang = input('');
   readonly targetLang = input('');
@@ -105,10 +107,10 @@ export class FeedbackTranslation {
   }
 
   label(): string {
-    if (this.busy()) return 'Translating…';
-    if (this.failed()) return this.problem() || 'Could not translate this.';
-    if (this.shown()) return 'Hide translation';
-    return 'Translate';
+    if (this.busy()) return this.i18n.translate('translate.translating');
+    if (this.failed()) return this.i18n.translate(this.problem() || 'translate.failed');
+    if (this.shown()) return this.i18n.translate('translate.hide');
+    return this.i18n.translate('translate.translate');
   }
 
   async toggle(event: Event): Promise<void> {
@@ -128,7 +130,7 @@ export class FeedbackTranslation {
     const cached = readPhraseTranslation(sourceLang, targetLang, text)?.text.trim() ?? '';
     if (!cached && !readStoredAiCredentials().keys.length) {
       this.failed.set(true);
-      this.problem.set('Save an API key first.');
+      this.problem.set('common.saveKeyFirst');
       return;
     }
     if (!cached) this.busy.set(true);
@@ -139,7 +141,7 @@ export class FeedbackTranslation {
     } catch {
       if (ticket !== this.ticket || this.text().trim() !== text) return;
       this.failed.set(true);
-      this.problem.set('Could not translate this.');
+      this.problem.set('translate.failed');
     } finally {
       if (ticket === this.ticket) this.busy.set(false);
     }

@@ -1,4 +1,5 @@
 import { Component, effect, input, output, signal } from '@angular/core';
+import { TranslatePipe } from '../i18n/translate.pipe';
 import {
   readPhraseTranslation,
   notePhraseUnveil,
@@ -9,6 +10,7 @@ import {
 /** A stored translation sits blurred under the phrase. The icon asks for one when none is stored. */
 @Component({
   selector: 'app-phrase-translation',
+  imports: [TranslatePipe],
   template: `
     @if (stored(); as text) {
       @if (revealed()) {
@@ -22,7 +24,7 @@ import {
         <button
           type="button"
           class="translation"
-          aria-label="Show translation"
+          [attr.aria-label]="'translate.show' | translate"
           (click)="reveal($event)"
         >
           <span aria-hidden="true">{{ text }}</span>
@@ -32,9 +34,16 @@ import {
       <button
         type="button"
         class="ask"
-        [attr.aria-label]="busy() ? 'Translating…' : 'Translate'"
+        [attr.aria-label]="
+          (busy() ? 'translate.translating' : 'translate.translate') | translate
+        "
         [attr.title]="
-          failed() ? 'Could not translate this.' : busy() ? 'Translating…' : 'Translate'
+          (failed()
+            ? 'translate.failed'
+            : busy()
+              ? 'translate.translating'
+              : 'translate.translate'
+          ) | translate
         "
         [attr.aria-busy]="busy() ? true : null"
         [disabled]="busy()"

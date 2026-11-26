@@ -1,8 +1,18 @@
-export type { AiProviderId } from './types';
+export type { AiProviderId, StoredAiKey } from './types';
 
-export { isAiProvider } from './credentials';
+export { isAiProvider, keyHintFromSecret } from './credentials';
 
-export { readStoredAiCredentials, writeStoredAiCredentials } from './storage';
+export { AI_ERROR, AiError } from './errors';
+
+export { testAiKey } from './complete';
+
+export {
+  addStoredAiKey,
+  readStoredAiCredentials,
+  removeStoredAiKey,
+  reorderStoredAiKeys,
+  writeStoredAiCredentials,
+} from './storage';
 
 export {
   DEFAULT_DEFINITION_METADATA_FIELDS,

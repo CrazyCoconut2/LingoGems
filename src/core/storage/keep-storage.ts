@@ -62,11 +62,9 @@ export function keepStorageFromUser(): Promise<boolean> {
   );
 }
 
-export function keepStorageMessage(): string {
-  if (storageRefused()) {
-    return 'Storage is still unlocked. This browser may clear your languages and keys.';
-  }
-  return 'Ask this browser to keep your languages and keys on this device.';
+export function keepStorageMessage(translate: (key: string) => string): string {
+  if (storageRefused()) return translate('storage.unlocked');
+  return translate('storage.ask');
 }
 
 function markKept(granted: boolean): void {

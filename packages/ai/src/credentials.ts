@@ -41,3 +41,11 @@ export function modelsForProvider(provider: AiProviderId, extra?: string | null)
 export function isAiProvider(value: string): value is AiProviderId {
   return AI_PROVIDER_IDS.includes(value as AiProviderId);
 }
+
+/** Last four characters, so a saved key can be recognized without showing the secret. */
+export function keyHintFromSecret(value: string): string {
+  const secret = String(value || '').trim();
+  if (!secret) return '';
+  if (secret.length <= 4) return `…${secret}`;
+  return `…${secret.slice(-4)}`;
+}

@@ -63,6 +63,24 @@ async function withModelFallback<T>(
   aiError(AI_ERROR.FAILED);
 }
 
+/** A short call that checks whether this key can answer. */
+export async function testAiKey(
+  provider: AiProviderId,
+  credentials: ProviderCredentials,
+): Promise<string> {
+  const parsed = await completeJson(
+    provider,
+    {
+      system: 'Reply with JSON only.',
+      user: 'Return {"ok":true,"sample":"ok"}',
+      maxTokens: 64,
+    },
+    credentials,
+  );
+  const sample = parsed['sample'];
+  return typeof sample === 'string' && sample.trim() ? sample.trim() : 'ok';
+}
+
 export async function completeJson(
   provider: string,
   input: CompleteJsonInput,

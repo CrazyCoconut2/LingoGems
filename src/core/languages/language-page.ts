@@ -9,6 +9,8 @@ import {
   untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { LanguageService } from '../i18n/language.service';
+import { TranslatePipe } from '../i18n/translate.pipe';
 import { ElementModal } from '../elements/element-modal';
 import { StatsJob } from '../elements/stats-job';
 import { StatsModal, type MissingPreview } from '../elements/stats-modal';
@@ -128,11 +130,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
 @Component({
   selector: 'app-language-page',
-  imports: [FormsModule, ElementModal, DiscoverModal, Settings, StatsModal],
+  imports: [FormsModule, ElementModal, DiscoverModal, Settings, StatsModal, TranslatePipe],
   template: `
     <main>
       <div class="page-top">
-        <section class="entries-toolbar" aria-label="Search">
+        <section class="entries-toolbar" [attr.aria-label]="'languages.search' | translate">
           <form class="search-bar" autocomplete="off" (submit)="askFromSearch($event)">
             <span class="search-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
@@ -148,16 +150,16 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               [attr.maxlength]="maxSearchLength"
               [disabled]="!code()"
               (input)="onSearch(inputValue($event))"
-              placeholder="Search lemmas or forms…"
-              aria-label="Search lemmas or forms"
+              [placeholder]="'languages.searchPlaceholder' | translate"
+              [attr.aria-label]="'languages.searchAria' | translate"
             />
             @if (query().trim()) {
               <div class="search-actions">
                 <button
                   type="submit"
                   class="search-add"
-                  aria-label="Ask AI"
-                  title="Ask AI"
+                  [attr.aria-label]="'languages.askAi' | translate"
+                  [attr.title]="'languages.askAi' | translate"
                   [disabled]="asking()"
                   [attr.aria-busy]="asking() ? true : null"
                 >
@@ -177,8 +179,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               class="toolbar-icon-btn"
               [class.active]="filtersOpen() || filterCount() > 0 || sortActive()"
               [attr.aria-expanded]="filtersOpen()"
-              aria-label="Filter and sort"
-              title="Filter and sort"
+              [attr.aria-label]="'languages.filterAndSort' | translate"
+              [attr.title]="'languages.filterAndSort' | translate"
               (click)="openFilters($event)"
             >
               <svg viewBox="0 0 24 24">
@@ -193,8 +195,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               class="toolbar-icon-btn"
               [class.active]="grammarOpen()"
               [attr.aria-expanded]="grammarOpen()"
-              aria-label="Grammar"
-              title="Grammar"
+              [attr.aria-label]="'languages.grammar' | translate"
+              [attr.title]="'languages.grammar' | translate"
               [disabled]="!code()"
               (click)="openGrammar($event)"
             >
@@ -211,7 +213,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         </section>
 
         @if (lookupError()) {
-          <p class="lookup-error">{{ lookupError() }}</p>
+          <p class="lookup-error">{{ lookupError() | translate }}</p>
         }
 
         @if (ready()) {
@@ -228,8 +230,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   <button
                     type="button"
                     class="list-action danger"
-                    aria-label="Delete selected"
-                    title="Delete selected"
+                    [attr.aria-label]="'languages.deleteSelected' | translate"
+                    [attr.title]="'languages.deleteSelected' | translate"
                     [disabled]="selectionBusy()"
                     (click)="askDeleteSelection()"
                   >
@@ -245,8 +247,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 <button
                   type="button"
                   class="list-action"
-                  aria-label="Select all"
-                  title="Select all"
+                  [attr.aria-label]="'languages.selectAll' | translate"
+                  [attr.title]="'languages.selectAll' | translate"
                   [disabled]="selectionBusy() || !shown().length || allShownSelected()"
                   (click)="selectAll()"
                 >
@@ -257,8 +259,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 <button
                   type="button"
                   class="list-action"
-                  aria-label="Clear selection"
-                  title="Clear selection"
+                  [attr.aria-label]="'languages.clearSelection' | translate"
+                  [attr.title]="'languages.clearSelection' | translate"
                   [disabled]="selectionBusy()"
                   (click)="clearSelection()"
                 >
@@ -271,7 +273,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             }
           </div>
           @if (selectionError()) {
-            <p class="selection-error">{{ selectionError() }}</p>
+            <p class="selection-error">{{ selectionError() | translate }}</p>
           }
         } @else {
           <div class="list-toolbar" aria-hidden="true">
@@ -404,17 +406,17 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   @if (scoreLabel(element); as score) {
                     <span
                       class="stat-score"
-                      [attr.aria-label]="'Score average ' + score + ' out of 10'"
+                      [attr.aria-label]="'languages.scoreAverage' | translate: { score: score }"
                     >
                       {{ score }}<span class="stat-score-max">/10</span>
                     </span>
                   } @else {
                     <span
                       class="stat-score unscored"
-                      aria-label="Score not available"
-                      title="Score not available"
+                      [attr.aria-label]="'languages.scoreUnavailable' | translate"
+                      [attr.title]="'languages.scoreUnavailable' | translate"
                     >
-                      NA
+                      {{ 'common.na' | translate }}
                     </span>
                   }
                 </div>
@@ -442,27 +444,25 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           class="filter-backdrop"
           role="dialog"
           aria-modal="true"
-          aria-label="Grammar"
+          [attr.aria-label]="'languages.grammar' | translate"
           (click)="closeGrammarOnBackdrop($event)"
         >
           <div class="filter-panel" (click)="$event.stopPropagation()">
             <header class="filter-header">
               <div class="filter-heading">
-                <h2 class="filter-title">Grammar</h2>
-                <button type="button" class="icon-btn" aria-label="Close" (click)="closeGrammar()">
+                <h2 class="filter-title">{{ 'languages.grammar' | translate }}</h2>
+                <button type="button" class="icon-btn" [attr.aria-label]="'common.close' | translate" (click)="closeGrammar()">
                   <svg viewBox="0 0 24 24">
                     <path d="M18 6 6 18" />
                     <path d="m6 6 12 12" />
                   </svg>
                 </button>
               </div>
-              <p class="filter-subtitle">
-                Corrected sentences, newest first. Pick the rules whose words you want to see.
-              </p>
+<p class="filter-subtitle">{{ 'languages.grammarSubtitle' | translate }}</p>
             </header>
             <div class="filter-body">
               <section class="grammar-section">
-                <h3 class="grammar-heading">Rules</h3>
+                <h3 class="grammar-heading">{{ 'languages.rules' | translate }}</h3>
                 @if (grammarMistakes().length) {
                   <div class="grammar-filter-rules">
                     @for (mistake of grammarMistakes(); track mistake.id) {
@@ -479,11 +479,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                     }
                   </div>
                 } @else {
-                  <p class="empty">No grammar mistakes yet.</p>
+                  <p class="empty">{{ 'languages.noMistakes' | translate }}</p>
                 }
               </section>
               <section class="grammar-section">
-                <h3 class="grammar-heading">Inputs</h3>
+                <h3 class="grammar-heading">{{ 'languages.inputs' | translate }}</h3>
                 @if (visibleGrammarInputs().length) {
                   <ul class="grammar-list">
                     @for (input of visibleGrammarInputs(); track input.id) {
@@ -541,16 +541,15 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 } @else {
                   <p class="empty">
                     {{
-                      grammarFilter().length
-                        ? 'No sentences include a selected rule.'
-                        : 'No corrected sentences yet.'
+                      (grammarFilter().length ? 'languages.noRuleSentences' : 'languages.noSentences')
+                        | translate
                     }}
                   </p>
                 }
               </section>
             </div>
             <footer class="filter-footer">
-              <button type="button" class="done-btn" (click)="closeGrammar()">Done</button>
+              <button type="button" class="done-btn" (click)="closeGrammar()">{{ 'common.done' | translate }}</button>
             </footer>
           </div>
         </div>
@@ -561,23 +560,21 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           class="filter-backdrop"
           role="dialog"
           aria-modal="true"
-          aria-label="Filter and sort"
+          [attr.aria-label]="'languages.filterAndSort' | translate"
           (click)="closeFiltersOnBackdrop($event)"
         >
           <div class="filter-panel" (click)="$event.stopPropagation()">
             <header class="filter-header">
               <div class="filter-heading">
-                <h2 class="filter-title">Filter and sort</h2>
-                <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
+                <h2 class="filter-title">{{ 'languages.filterAndSort' | translate }}</h2>
+                <button type="button" class="icon-btn" [attr.aria-label]="'common.close' | translate" (click)="closeFilters()">
                   <svg viewBox="0 0 24 24">
                     <path d="M18 6 6 18" />
                     <path d="m6 6 12 12" />
                   </svg>
                 </button>
               </div>
-              <p class="filter-subtitle">
-                Order the list, and keep elements by language, score, or metadata.
-              </p>
+<p class="filter-subtitle">{{ 'languages.filterSubtitle' | translate }}</p>
             </header>
 
             <div class="filter-body">
@@ -588,7 +585,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   [disabled]="recomputing()"
                   (click)="recomputeMetadata()"
                 >
-                  {{ recomputing() ? 'Recomputing…' : 'Recompute metadata' }}
+                  {{ (recomputing() ? 'languages.recomputing' : 'languages.recompute') | translate }}
                 </button>
                 <button
                   type="button"
@@ -596,11 +593,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   [disabled]="optionalFilterCount() === 0"
                   (click)="clearFilters()"
                 >
-                  Clear filters
+                  {{ 'languages.clearFilters' | translate }}
                 </button>
               </div>
               @if (recomputeError()) {
-                <p class="recompute-error">{{ recomputeError() }}</p>
+                <p class="recompute-error">{{ recomputeError() | translate }}</p>
               }
 
               <section class="filter-section" [class.expanded]="expanded() === 'sort'">
@@ -612,7 +609,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                     (click)="toggleSection('sort')"
                   >
                     <span class="section-title">
-                      Sort
+                      {{ 'languages.sort' | translate }}
                       <span class="section-count">{{ sortLabel() }}</span>
                     </span>
                     <svg class="section-chevron" viewBox="0 0 24 24">
@@ -622,7 +619,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 </div>
                 @if (expanded() === 'sort') {
                   <div class="section-body">
-                    <div class="sort-options" role="listbox" aria-label="Sort">
+                    <div class="sort-options" role="listbox" [attr.aria-label]="'languages.sort' | translate">
                       @for (option of sortOptions; track option.value) {
                         <button
                           type="button"
@@ -632,7 +629,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                           [attr.aria-selected]="sort() === option.value"
                           (click)="chooseSort(option.value)"
                         >
-                          {{ option.label }}
+                          {{ option.label | translate }}
                         </button>
                       }
                     </div>
@@ -649,7 +646,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                     (click)="toggleSection('language')"
                   >
                     <span class="section-title">
-                      Language
+                      {{ 'languages.language' | translate }}
                       @if (code()) {
                         <span class="section-count">{{ name() }}</span>
                       }
@@ -661,15 +658,15 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 </div>
                 @if (expanded() === 'language') {
                   <div class="section-body">
-                    <p class="section-hint">Choose one language to continue.</p>
+                    <p class="section-hint">{{ 'languages.chooseLanguageHint' | translate }}</p>
                     <select
                       class="language-select"
-                      aria-label="Language"
+                      [attr.aria-label]="'languages.language' | translate"
                       [ngModel]="code()"
                       (ngModelChange)="chooseLanguageValue($event)"
                     >
                       @if (!code()) {
-                        <option value="">Choose a language</option>
+                        <option value="">{{ 'languages.chooseLanguage' | translate }}</option>
                       }
                       @for (option of languageOptions; track option) {
                         <option [value]="option">{{ languageName(option) }}</option>
@@ -677,22 +674,20 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                     </select>
                     @if (code(); as learning) {
                       <label class="support-field">
-                        Support language
+                        {{ 'languages.supportLanguage' | translate }}
                         <select
                           class="language-select"
-                          aria-label="Support language"
+                          [attr.aria-label]="'languages.supportLanguage' | translate"
                           [ngModel]="supportFor(learning)"
                           (ngModelChange)="setSupportLanguage(learning, $event)"
                         >
-                          <option value="">None</option>
+                          <option value="">{{ 'common.none' | translate }}</option>
                           @for (option of supportChoices(learning); track option) {
                             <option [value]="option">{{ languageName(option) }}</option>
                           }
                         </select>
                       </label>
-                      <p class="section-hint">
-                        Uses the language from Settings, unless you choose another one or none.
-                      </p>
+<p class="section-hint">{{ 'languages.supportOverrideHint' | translate }}</p>
                     }
                   </div>
                 }
@@ -707,7 +702,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                     (click)="toggleSection('score')"
                   >
                     <span class="section-title">
-                      Score
+                      {{ 'languages.score' | translate }}
                       @if (scoreFilterActive()) {
                         <span class="section-count">{{ scoreSummary() }}</span>
                       }
@@ -718,20 +713,20 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   </button>
                   @if (scoreFilterActive()) {
                     <button type="button" class="link-btn section-clear" (click)="clearScore()">
-                      Clear
+                      {{ 'common.clear' | translate }}
                     </button>
                   }
                 </div>
                 @if (expanded() === 'score') {
                   <div class="section-body">
-                    <div class="score-values" role="group" aria-label="Score">
+                    <div class="score-values" role="group" [attr.aria-label]="'languages.score' | translate">
                       @for (step of scoreSteps; track step) {
                         <button
                           type="button"
                           class="score-chip"
                           [class.selected]="scoreSelected(step)"
                           [attr.aria-pressed]="scoreSelected(step)"
-                          [attr.aria-label]="'Score ' + step"
+                          [attr.aria-label]="'languages.scoreStep' | translate: { step: '' + step }"
                           [style.--step-color]="'var(--score-' + step + ')'"
                           [style.--step-bg]="
                             'color-mix(in srgb, var(--score-' + step + ') 14%, transparent)'
@@ -746,12 +741,12 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                         class="score-chip unscored"
                         [class.selected]="unscoredFilter()"
                         [attr.aria-pressed]="unscoredFilter()"
-                        aria-label="No score"
+                        [attr.aria-label]="'languages.noScore' | translate"
                         [style.--step-color]="'var(--text-muted)'"
                         [style.--step-bg]="'color-mix(in srgb, var(--text-muted) 14%, transparent)'"
                         (click)="toggleUnscored()"
                       >
-                        No score
+                        {{ 'languages.noScore' | translate }}
                       </button>
                     </div>
                   </div>
@@ -768,7 +763,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                       (click)="toggleSection(section.id)"
                     >
                       <span class="section-title">
-                        {{ section.title }}
+                        {{ section.title | translate }}
                         @if (metadataValueCount(section.kind); as selected) {
                           <span class="section-count">{{ selected }}</span>
                         }
@@ -783,7 +778,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                         class="link-btn section-clear"
                         (click)="clearSection(section)"
                       >
-                        Clear
+                        {{ 'common.clear' | translate }}
                       </button>
                     }
                   </div>
@@ -798,7 +793,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                                 <input
                                   type="color"
                                   class="meta-color"
-                                  [attr.aria-label]="'Color for ' + entry.key"
+                                  [attr.aria-label]="'languages.colorFor' | translate: { key: entry.key }"
                                   [value]="fieldColor(section.kind, entry.key) || '#8b90a5'"
                                   (input)="setFieldColor(section.kind, entry.key, $event)"
                                 />
@@ -806,7 +801,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                                   <button
                                     type="button"
                                     class="meta-color-clear"
-                                    [attr.aria-label]="'Clear color for ' + entry.key"
+                                    [attr.aria-label]="'languages.clearColorFor' | translate: { key: entry.key }"
                                     (click)="clearFieldColor(section.kind, entry.key)"
                                   >
                                     ×
@@ -836,7 +831,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                             </div>
                           }
                         } @else {
-                          <p class="section-hint">{{ section.empty }}</p>
+                          <p class="section-hint">{{ section.empty | translate }}</p>
                         }
                       }
                     </div>
@@ -846,7 +841,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             </div>
 
             <footer class="filter-footer">
-              <button type="button" class="done-btn" (click)="closeFilters()">Done</button>
+              <button type="button" class="done-btn" (click)="closeFilters()">{{ 'common.done' | translate }}</button>
             </footer>
           </div>
         </div>
@@ -870,7 +865,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 [disabled]="selectionBusy()"
                 (click)="closeDeleteConfirm($event)"
               >
-                Cancel
+                {{ 'common.cancel' | translate }}
               </button>
               <button
                 type="button"
@@ -878,11 +873,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 [disabled]="selectionBusy()"
                 (click)="confirmDeleteSelection()"
               >
-                Delete
+                {{ 'common.delete' | translate }}
               </button>
             </div>
             @if (selectionError()) {
-              <p class="selection-error">{{ selectionError() }}</p>
+              <p class="selection-error">{{ selectionError() | translate }}</p>
             }
           </section>
         </div>
@@ -927,12 +922,12 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       }
 
       <footer class="app-bar">
-        <nav class="app-bar-row" aria-label="Primary">
+        <nav class="app-bar-row" [attr.aria-label]="'languages.primary' | translate">
           <button
             type="button"
             class="app-bar-btn"
             [class.active]="statsOpen()"
-            aria-label="Stats"
+            [attr.aria-label]="'languages.stats' | translate"
             (click)="openStats()"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -941,27 +936,27 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               <path d="M13 17V5" />
               <path d="M8 17v-3" />
             </svg>
-            <span>Stats</span>
+            <span>{{ 'languages.stats' | translate }}</span>
           </button>
           <button
             type="button"
             class="app-bar-btn"
             [class.active]="discoverOpen()"
             [disabled]="!code()"
-            aria-label="Discover"
+            [attr.aria-label]="'languages.discover' | translate"
             (click)="openDiscover($event)"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="10" />
               <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
             </svg>
-            <span>Discover</span>
+            <span>{{ 'languages.discover' | translate }}</span>
           </button>
           <button
             type="button"
             class="app-bar-btn"
             [class.active]="settingsOpen()"
-            aria-label="Settings"
+            [attr.aria-label]="'languages.settings' | translate"
             (click)="openSettings()"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -970,7 +965,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               />
               <circle cx="12" cy="12" r="3" />
             </svg>
-            <span>Settings</span>
+            <span>{{ 'languages.settings' | translate }}</span>
           </button>
         </nav>
       </footer>
@@ -2352,6 +2347,7 @@ export class LanguagePage {
   private scrollLocked = false;
   private promptedLanguage = false;
   private missingAsk = 0;
+  private readonly i18n = inject(LanguageService);
   private readonly statsJob = inject(StatsJob);
 
   readonly languageOptions = LEARNABLE_LANGUAGES;
@@ -2369,13 +2365,13 @@ export class LanguagePage {
   readonly deleteConfirm = signal(false);
   readonly skeletons = ELEMENT_SKELETONS;
   readonly sortOptions: { value: ElementSort; label: string }[] = [
-    { value: 'title-asc', label: 'Title A–Z' },
-    { value: 'title-desc', label: 'Title Z–A' },
-    { value: 'created-desc', label: 'Most recent' },
-    { value: 'created-asc', label: 'Least recent' },
-    { value: 'score-desc', label: 'Highest score' },
-    { value: 'score-asc', label: 'Lowest score' },
-    { value: 'translations-desc', label: 'Most translations' },
+    { value: 'title-asc', label: 'languages.sortTitleAsc' },
+    { value: 'title-desc', label: 'languages.sortTitleDesc' },
+    { value: 'created-desc', label: 'languages.sortNewest' },
+    { value: 'created-asc', label: 'languages.sortOldest' },
+    { value: 'score-desc', label: 'languages.sortScoreHigh' },
+    { value: 'score-asc', label: 'languages.sortScoreLow' },
+    { value: 'translations-desc', label: 'languages.sortTranslations' },
   ];
   readonly code = signal('');
   private translationLanguage = '';
@@ -2408,20 +2404,20 @@ export class LanguagePage {
     {
       id: 'definitions',
       kind: 'definitions',
-      title: 'Definitions',
-      empty: 'No definition metadata yet. Recompute to collect it.',
+      title: 'languages.definitions',
+      empty: 'languages.noDefinitionMetadata',
     },
     {
       id: 'examples',
       kind: 'examples',
-      title: 'Examples',
-      empty: 'No example metadata yet. Recompute to collect it.',
+      title: 'languages.examples',
+      empty: 'languages.noExampleMetadata',
     },
     {
       id: 'forms',
       kind: 'forms',
-      title: 'Forms',
-      empty: 'No form metadata yet. Recompute to collect it.',
+      title: 'languages.forms',
+      empty: 'languages.noFormMetadata',
     },
   ];
   readonly scoreSteps = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -2493,25 +2489,30 @@ export class LanguagePage {
     return matched.slice().sort((left, right) => compareElements(left, right, this.sort()));
   });
   readonly shown = computed(() => this.visible());
-  readonly countLabel = computed(() => {
+  countLabel(): string {
+    const locale = this.i18n.currentLanguage;
     if (this.selecting()) {
       const count = this.selectedIds().size;
-      return count === 1 ? '1 selected' : `${count} selected`;
+      return count === 1
+        ? this.i18n.translate('languages.selectedOne')
+        : this.i18n.translate('languages.selectedMany', { count: count.toLocaleString(locale) });
     }
     const count = this.shown().length;
-    return count === 1 ? '1 element' : `${count} elements`;
-  });
+    return count === 1
+      ? this.i18n.translate('languages.elementOne')
+      : this.i18n.translate('languages.elementMany', { count: count.toLocaleString(locale) });
+  }
   readonly allShownSelected = computed(() => {
     const shown = this.shown();
     if (!shown.length) return false;
     const selected = this.selectedIds();
     return shown.every((element) => selected.has(element.id));
   });
-  readonly emptyMessage = computed(() => {
-    if (!this.code()) return 'Select a language to continue.';
-    if (!this.elements().length) return 'No elements yet.';
-    return 'No matching elements.';
-  });
+  emptyMessage(): string {
+    if (!this.code()) return this.i18n.translate('languages.selectLanguage');
+    if (!this.elements().length) return this.i18n.translate('languages.noElements');
+    return this.i18n.translate('languages.noMatches');
+  }
 
   constructor() {
     effect(() => {
@@ -2660,13 +2661,16 @@ export class LanguagePage {
 
   deleteSelectionTitle(): string {
     const count = this.selectedIds().size;
-    return count === 1 ? 'Delete this element?' : `Delete ${count} elements?`;
+    const locale = this.i18n.currentLanguage;
+    return count === 1
+      ? this.i18n.translate('languages.deleteOne')
+      : this.i18n.translate('languages.deleteMany', { count: count.toLocaleString(locale) });
   }
 
   selectionConfirmHint(): string {
-    return this.selectedIds().size === 1
-      ? 'If you delete all the history, this element is lost. Stats are recomputed.'
-      : 'If you delete all the history, these elements are lost. Stats are recomputed.';
+    return this.i18n.translate(
+      this.selectedIds().size === 1 ? 'languages.deleteHintOne' : 'languages.deleteHintMany',
+    );
   }
 
   async confirmDeleteSelection(): Promise<void> {
@@ -2682,7 +2686,7 @@ export class LanguagePage {
       if (gone.has(this.elementId())) this.closeElement();
       this.clearSelection();
     } catch {
-      this.selectionError.set('Could not delete these elements.');
+      this.selectionError.set('languages.deleteFailed');
     } finally {
       this.selectionBusy.set(false);
     }
@@ -2759,7 +2763,7 @@ export class LanguagePage {
       this.applyCatalog(await readMetadataCatalog());
       return true;
     } catch {
-      this.selectionError.set('Could not update these elements.');
+      this.selectionError.set('languages.updateFailed');
       return false;
     } finally {
       this.selectionBusy.set(false);
@@ -2940,13 +2944,19 @@ export class LanguagePage {
   }
 
   workedLabel(count: number): string {
-    if (count === 0) return 'Not worked';
-    return count === 1 ? 'Worked once' : `Worked ${count} times`;
+    if (count === 0) return this.i18n.translate('languages.notWorked');
+    if (count === 1) return this.i18n.translate('languages.workedOnce');
+    return this.i18n.translate('languages.workedMany', {
+      count: count.toLocaleString(this.i18n.currentLanguage),
+    });
   }
 
   reworkedLabel(count: number): string {
-    if (count === 0) return 'Not reworked';
-    return count === 1 ? 'Reworked once' : `Reworked ${count} times`;
+    if (count === 0) return this.i18n.translate('languages.notReworked');
+    if (count === 1) return this.i18n.translate('languages.reworkedOnce');
+    return this.i18n.translate('languages.reworkedMany', {
+      count: count.toLocaleString(this.i18n.currentLanguage),
+    });
   }
 
   /** Lifetime unveils of this element or one of its forms. */
@@ -2955,8 +2965,11 @@ export class LanguagePage {
   }
 
   translatedLabel(count: number): string {
-    if (count === 0) return 'Not translated';
-    return count === 1 ? 'Translated once' : `Translated ${count} times`;
+    if (count === 0) return this.i18n.translate('languages.notTranslated');
+    if (count === 1) return this.i18n.translate('languages.translatedOnce');
+    return this.i18n.translate('languages.translatedMany', {
+      count: count.toLocaleString(this.i18n.currentLanguage),
+    });
   }
 
   inputValue(event: Event): string {
@@ -3000,7 +3013,7 @@ export class LanguagePage {
         true,
       );
     } catch {
-      this.lookupError.set('Could not add that element.');
+      this.lookupError.set('common.addFailed');
     } finally {
       this.asking.set(false);
     }
@@ -3063,7 +3076,8 @@ export class LanguagePage {
   }
 
   sortLabel(): string {
-    return this.sortOptions.find((option) => option.value === this.sort())?.label ?? 'None';
+    const key = this.sortOptions.find((option) => option.value === this.sort())?.label;
+    return key ? this.i18n.translate(key) : this.i18n.translate('common.none');
   }
 
   chooseSort(sort: ElementSort): void {
@@ -3107,8 +3121,8 @@ export class LanguagePage {
   }
 
   grammarRuleLabel(rule: GrammarInputRule): string {
-    const status = rule.outcome === 'committed' ? 'Error committed' : 'Corrected';
-    return `${status}: ${rule.rule}`;
+    const key = rule.outcome === 'committed' ? 'languages.errorCommitted' : 'languages.corrected';
+    return this.i18n.translate(key, { rule: rule.rule });
   }
 
   toggleGrammarColor(inputId: string, ruleId: string): void {
@@ -3148,7 +3162,7 @@ export class LanguagePage {
   }
 
   grammarTime(at: number): string {
-    return new Date(at).toLocaleString(undefined, {
+    return new Date(at).toLocaleString(this.i18n.currentLanguage, {
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
@@ -3371,7 +3385,7 @@ export class LanguagePage {
       const generated = await this.elementFromQuery(code, selected);
       if (job !== this.missingAsk || !this.statsOpen() || this.code() !== code) return;
       if (!generated?.definitions.length) {
-        this.statsAskError.set('Could not add that element.');
+        this.statsAskError.set('common.addFailed');
         return;
       }
       this.missingPreview.set({
@@ -3388,7 +3402,7 @@ export class LanguagePage {
       });
     } catch {
       if (job === this.missingAsk && this.statsOpen()) {
-        this.statsAskError.set('Could not add that element.');
+        this.statsAskError.set('common.addFailed');
       }
     } finally {
       if (job === this.missingAsk) {
@@ -3421,7 +3435,7 @@ export class LanguagePage {
       });
       if (job !== this.missingAsk) return;
       if (!saved) {
-        this.statsAskError.set('Could not add that element.');
+        this.statsAskError.set('common.addFailed');
         return;
       }
       const current = this.missingPreview();
@@ -3429,7 +3443,7 @@ export class LanguagePage {
         this.missingPreview.set({ ...current, collectedId: saved.element.id });
       }
     } catch {
-      if (job === this.missingAsk) this.statsAskError.set('Could not add that element.');
+      if (job === this.missingAsk) this.statsAskError.set('common.addFailed');
     } finally {
       if (job === this.missingAsk) {
         this.asking.set(false);
@@ -3457,7 +3471,7 @@ export class LanguagePage {
       if (code) this.elements.set(next.filter((element) => element.language === code));
       this.applyCatalog(catalog);
     } catch {
-      this.recomputeError.set('Could not recompute metadata.');
+      this.recomputeError.set('languages.recomputeFailed');
     } finally {
       this.recomputing.set(false);
     }

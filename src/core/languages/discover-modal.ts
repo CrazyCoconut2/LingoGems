@@ -8,6 +8,8 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { LanguageService } from '../i18n/language.service';
+import { TranslatePipe } from '../i18n/translate.pipe';
 import {
   addElement,
   displayTitle,
@@ -53,40 +55,40 @@ type DiscoverDraft = { key: string; value: string };
 type ResultFilter = 'all' | 'new' | 'collected';
 
 const SECTIONS: readonly DiscoverSection[] = [
-  { id: 'definition', title: 'Definitions' },
-  { id: 'example', title: 'Examples' },
-  { id: 'form', title: 'Forms' },
+  { id: 'definition', title: 'languages.definitions' },
+  { id: 'example', title: 'languages.examples' },
+  { id: 'form', title: 'languages.forms' },
 ];
 
 const EMPTY_DRAFT: DiscoverDraft = { key: '', value: '' };
 const VALUE_MAX = 100;
 const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'new', label: 'New' },
-  { id: 'collected', label: 'Collected' },
+  { id: 'all', label: 'discover.all' },
+  { id: 'new', label: 'discover.new' },
+  { id: 'collected', label: 'discover.collected' },
 ];
 
 @Component({
   selector: 'app-discover-modal',
-  imports: [PhraseTranslation],
+  imports: [PhraseTranslation, TranslatePipe],
   template: `
     <div
       class="backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label="Discover"
+      [attr.aria-label]="'discover.title' | translate"
       (click)="onBackdrop($event)"
     >
       <div class="panel">
         <header class="head">
           <div>
-            <h2>Discover</h2>
+            <h2>{{ 'discover.title' | translate }}</h2>
             @if (languageName(language()); as learning) {
               <p class="learning">{{ learning }}</p>
             }
-            <p>Elements to add, with their definitions. A note and metadata narrow the batch.</p>
+            <p>{{ 'discover.subtitle' | translate }}</p>
           </div>
-          <button type="button" class="icon-btn" aria-label="Close" (click)="closed.emit()">
+          <button type="button" class="icon-btn" [attr.aria-label]="'common.close' | translate" (click)="closed.emit()">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M18 6 6 18" />
               <path d="m6 6 12 12" />
@@ -97,15 +99,15 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
         <div class="body">
           <div class="query">
             <div class="note">
-              <span>Instruction</span>
+              <span>{{ 'discover.instruction' | translate }}</span>
               <div class="instruction-field">
                 <input
                   class="instruction"
                   type="text"
                   [class.has-clear]="canClear()"
                   [attr.maxlength]="instructionMax"
-                  placeholder="Argentine expressions"
-                  aria-label="Instruction"
+                  [placeholder]="'discover.instructionPlaceholder' | translate"
+                  [attr.aria-label]="'discover.instruction' | translate"
                   [readonly]="locked()"
                   [value]="instruction()"
                   (input)="onInstruction($event)"
@@ -115,8 +117,8 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                   <button
                     type="button"
                     class="clear-x"
-                    aria-label="Clear"
-                    title="Clear"
+                    [attr.aria-label]="'common.clear' | translate"
+                    [attr.title]="'common.clear' | translate"
                     [disabled]="busy() || adding()"
                     (click)="clearSearch()"
                   >
@@ -134,15 +136,15 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
               [disabled]="!canSearch() || busy() || adding()"
               (click)="submit()"
             >
-              {{ results().length ? 'More' : 'Search' }}
+              {{ (results().length ? 'common.more' : 'common.search') | translate }}
             </button>
             <button
               type="button"
               class="filter-btn"
               [class.active]="filtersOpen() || metaCount() > 0"
               [attr.aria-expanded]="filtersOpen()"
-              aria-label="Filter by metadata"
-              title="Metadata"
+              [attr.aria-label]="'discover.filterMetadata' | translate"
+              [attr.title]="'discover.metadata' | translate"
               (click)="openFilters()"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -157,7 +159,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
           <div class="results">
             <div class="filter-row">
               @if (results().length) {
-                <div class="filter-chips" role="group" aria-label="Results">
+                <div class="filter-chips" role="group" [attr.aria-label]="'discover.results' | translate">
                   @for (option of resultFilters; track option.id) {
                     <button
                       type="button"
@@ -166,7 +168,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                       [attr.aria-pressed]="resultFilter() === option.id"
                       (click)="resultFilter.set(option.id)"
                     >
-                      {{ option.label }}
+                      {{ option.label | translate }}
                     </button>
                   }
                 </div>
@@ -176,8 +178,8 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                 class="filter-btn history-btn"
                 [class.active]="historyOpen()"
                 [attr.aria-expanded]="historyOpen()"
-                aria-label="Search history"
-                title="History"
+                [attr.aria-label]="'discover.searchHistory' | translate"
+                [attr.title]="'discover.history' | translate"
                 (click)="openHistory()"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -190,9 +192,9 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
               </button>
             </div>
             @if (error()) {
-              <p class="error">{{ error() }}</p>
+              <p class="error">{{ error() | translate }}</p>
             } @else if (notice()) {
-              <p class="notice">{{ notice() }}</p>
+              <p class="notice">{{ notice() | translate }}</p>
             }
 
             @if (results().length) {
@@ -206,7 +208,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                             <button
                               type="button"
                               class="card-title"
-                              [attr.aria-label]="'Open ' + label(row.title)"
+                              [attr.aria-label]="'discover.open' | translate: { title: label(row.title) }"
                               (click)="open.emit(id)"
                             >
                               {{ label(row.title) }}
@@ -221,8 +223,8 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                             <button
                               type="button"
                               class="tile-add"
-                              aria-label="Add"
-                              title="Add"
+                              [attr.aria-label]="'common.add' | translate"
+                              [attr.title]="'common.add' | translate"
                               [disabled]="adding()"
                               (click)="addHit(row)"
                             >
@@ -317,16 +319,16 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
           class="filter-backdrop"
           role="dialog"
           aria-modal="true"
-          aria-label="Metadata"
+          [attr.aria-label]="'discover.metadata' | translate"
           (click)="closeFiltersOnBackdrop($event)"
         >
           <div class="filter-sheet" (click)="$event.stopPropagation()">
             <header class="filter-head">
               <div>
-                <h3>Metadata</h3>
-                <p>Narrow the batch by definition, example, or form.</p>
+                <h3>{{ 'discover.metadata' | translate }}</h3>
+                <p>{{ 'discover.metadataHint' | translate }}</p>
               </div>
-              <button type="button" class="icon-btn" aria-label="Close" (click)="closeFilters()">
+              <button type="button" class="icon-btn" [attr.aria-label]="'common.close' | translate" (click)="closeFilters()">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M18 6 6 18" />
                   <path d="m6 6 12 12" />
@@ -343,7 +345,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                     (click)="toggleSection(section.id)"
                   >
                     <span class="section-title">
-                      {{ section.title }}
+                      {{ section.title | translate }}
                       @if (valueCount(section.id); as selected) {
                         <span class="section-count">{{ selected }}</span>
                       }
@@ -361,7 +363,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                           [disabled]="locked() || valueCount(section.id) === 0"
                           (click)="clearMeta(section.id)"
                         >
-                          Clear
+                          {{ 'common.clear' | translate }}
                         </button>
                       </div>
                       @if (entries(section.id); as rows) {
@@ -386,14 +388,14 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                             </div>
                           }
                         } @else {
-                          <p class="hint">No saved values yet. Type a key and a value.</p>
+                          <p class="hint">{{ 'discover.noValues' | translate }}</p>
                         }
                       }
                       <form class="constraint" (submit)="addConstraint(section.id, $event)">
                         <input
                           type="text"
-                          placeholder="Key"
-                          aria-label="Metadata key"
+                          [placeholder]="'discover.key' | translate"
+                          [attr.aria-label]="'discover.metadataKey' | translate"
                           [attr.maxlength]="keyMax"
                           [disabled]="locked()"
                           [value]="draft(section.id).key"
@@ -401,15 +403,15 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                         />
                         <input
                           type="text"
-                          placeholder="Value"
-                          aria-label="Metadata value"
+                          [placeholder]="'discover.value' | translate"
+                          [attr.aria-label]="'discover.metadataValue' | translate"
                           [attr.maxlength]="valueMax"
                           [disabled]="locked()"
                           [value]="draft(section.id).value"
                           (input)="setDraft(section.id, 'value', $event)"
                         />
                         <button type="submit" [disabled]="locked() || !canAdd(section.id)">
-                          Add
+                          {{ 'common.add' | translate }}
                         </button>
                       </form>
                     </div>
@@ -418,7 +420,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
               }
             </div>
             <footer class="filter-foot">
-              <button type="button" class="discover-btn" (click)="closeFilters()">Done</button>
+              <button type="button" class="discover-btn" (click)="closeFilters()">{{ 'common.done' | translate }}</button>
             </footer>
           </div>
         </div>
@@ -429,16 +431,16 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
           class="filter-backdrop"
           role="dialog"
           aria-modal="true"
-          aria-label="Search history"
+          [attr.aria-label]="'discover.searchHistory' | translate"
           (click)="closeHistoryOnBackdrop($event)"
         >
           <div class="filter-sheet" (click)="$event.stopPropagation()">
             <header class="filter-head">
               <div>
-                <h3>History</h3>
-                <p>Saved searches for this language.</p>
+                <h3>{{ 'discover.history' | translate }}</h3>
+                <p>{{ 'discover.historyHint' | translate }}</p>
               </div>
-              <button type="button" class="icon-btn" aria-label="Close" (click)="closeHistory()">
+              <button type="button" class="icon-btn" [attr.aria-label]="'common.close' | translate" (click)="closeHistory()">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M18 6 6 18" />
                   <path d="m6 6 12 12" />
@@ -464,7 +466,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
                   }
                 </div>
               } @else {
-                <p class="hint">No saved searches.</p>
+                <p class="hint">{{ 'discover.noSearches' | translate }}</p>
               }
             </div>
           </div>
@@ -1358,6 +1360,7 @@ const RESULT_FILTERS: readonly { id: ResultFilter; label: string }[] = [
   `,
 })
 export class DiscoverModal implements OnInit {
+  private readonly i18n = inject(LanguageService);
   readonly language = input.required<string>();
   readonly catalog = input.required<ElementMetadataIndexes>();
   readonly elements = input.required<readonly StoredElement[]>();
@@ -1555,7 +1558,7 @@ export class DiscoverModal implements OnInit {
   }
 
   searchLabel(search: DiscoverSearch): string {
-    return search.instruction.trim() || 'Any titles';
+    return search.instruction.trim() || this.i18n.translate('discover.anyTitles');
   }
 
   sensePassage(sense: DiscoverSense): ParsedPassage {
@@ -1581,7 +1584,7 @@ export class DiscoverModal implements OnInit {
   }
 
   metaLabel(value: string): string {
-    return value.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase());
+    return value.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase(this.i18n.currentLanguage));
   }
 
   loadSearch(id: string): void {
@@ -1600,9 +1603,9 @@ export class DiscoverModal implements OnInit {
   }
 
   emptyFilterMessage(): string {
-    return this.resultFilter() === 'collected'
-      ? 'None of these are in the collection yet.'
-      : 'All of these are already in the collection.';
+    return this.i18n.translate(
+      this.resultFilter() === 'collected' ? 'discover.noneNew' : 'discover.allCollected',
+    );
   }
 
   languageName(code: string): string {
@@ -1657,7 +1660,7 @@ export class DiscoverModal implements OnInit {
       await saveDiscoveredElement(language, row);
       this.added.emit();
     } catch {
-      this.error.set('Could not add that element.');
+      this.error.set('common.addFailed');
     } finally {
       this.adding.set(false);
     }
@@ -1683,7 +1686,7 @@ export class DiscoverModal implements OnInit {
     this.busy.set(true);
     this.error.set('');
     if (!readStoredAiCredentials().keys.length) {
-      this.error.set('Save an API key first.');
+      this.error.set('common.saveKeyFirst');
       this.busy.set(false);
       return;
     }
@@ -1704,7 +1707,7 @@ export class DiscoverModal implements OnInit {
         (item) => !blocked.some((row) => sameTitle(row.title, item.title)),
       );
       if (!fresh.length) {
-        this.notice.set(prior.length ? 'Nothing new in that batch.' : 'Nothing new to add.');
+        this.notice.set(prior.length ? 'discover.nothingInBatch' : 'discover.nothingToAdd');
         return;
       }
       const search: DiscoverSearch = {
@@ -1722,7 +1725,7 @@ export class DiscoverModal implements OnInit {
       this.apply(stored, continuing);
     } catch {
       if (job !== this.job) return;
-      this.error.set('Could not discover elements.');
+      this.error.set('discover.failed');
     } finally {
       if (job === this.job) this.busy.set(false);
     }
