@@ -87,3 +87,5 @@ export {
   type RecallResolvedMistake,
   type RecallSense,
 } from './recall';
+
+export { suggestReformulations, type ReformulationSuggestion } from './reformulate';

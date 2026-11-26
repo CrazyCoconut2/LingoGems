@@ -126,6 +126,15 @@ export {
   type GrammarResolution,
 } from './grammar/grammar-store';
 
+export {
+  readReformulations,
+  reformulationMarks,
+  saveReformulation,
+  type ReformulationChange,
+  type ReformulationMark,
+  type StoredReformulation,
+} from './formulation/reformulation-store';
+
 export { requestPersistentStorage, storageIsPersistent } from './persistent-storage';
 
 export {

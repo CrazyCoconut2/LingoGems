@@ -5,8 +5,12 @@ import {
   grammarCorrectionMarks,
   languageDisplayName,
   readGrammarMistakes,
+  reformulationMarks,
+  saveReformulation,
   type GrammarInstance,
   type GrammarMark,
+  type ReformulationChange,
+  type ReformulationMark,
 } from 'collection';
 import { UpwardQuotePipe } from '../text/upward-quote.pipe';
 import { LanguageService } from '../i18n/language.service';
@@ -16,6 +20,7 @@ import {
   correctRecallAnswer,
   evaluateRecallAnswer,
   readStoredAiCredentials,
+  suggestReformulations,
   type RecallExtra,
   type RecallCorrection,
   type RecallSense,
@@ -55,6 +60,12 @@ type CorrectionRule = {
 type ShownCorrection = {
   after: string;
   rules: CorrectionRule[];
+};
+
+type ShownReformulation = {
+  id: string;
+  text: string;
+  changes: readonly ReformulationChange[];
 };
 
 /** Recall the meanings of one headword before its definitions are shown. */
@@ -249,6 +260,74 @@ type ShownCorrection = {
             } @else {
               <p class="hint">{{ 'recall.nothingToCorrect' | translate }}</p>
             }
+            <div class="reformulation-follow">
+              @if (reformulations(); as suggestions) {
+                @if (suggestions.length) {
+                  <div class="reformulations" [attr.aria-label]="'recall.reformulations' | translate">
+                    @for (item of suggestions; track item.id) {
+                      <article class="reformulation">
+                        <p class="grammar-sentence">
+                          @for (part of reformulationParts(item); track $index) {
+                            @if (part.kind === 'change') {
+                              <span class="grammar-mistake">{{ part.wrote }}</span>
+                              <span class="grammar-fix colored">{{ part.reformulation }}</span>
+                            } @else {
+                              <span>{{ part.text }}</span>
+                            }
+                          }
+                        </p>
+                        <ul class="reformulation-changes">
+                          @for (change of item.changes; track $index) {
+                            <li>
+                              <span class="reformulation-swap">
+                                <span class="grammar-mistake">{{ change.wrote }}</span>
+                                <span class="grammar-fix colored">{{ change.reformulation }}</span>
+                              </span>
+                              <span>{{ change.reason }}</span>
+                            </li>
+                          }
+                        </ul>
+                        <div class="actions">
+                          <button
+                            type="button"
+                            class="btn btn-secondary"
+                            [disabled]="busy() !== null"
+                            (click)="dismissReformulation(item.id)"
+                          >
+                            {{ 'recall.dismiss' | translate }}
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-primary"
+                            [disabled]="busy() !== null"
+                            (click)="acceptReformulation(item.id)"
+                          >
+                            {{ 'recall.accept' | translate }}
+                          </button>
+                        </div>
+                      </article>
+                    }
+                  </div>
+                } @else {
+                  <p class="hint">{{ 'recall.nothingToReformulate' | translate }}</p>
+                }
+              } @else if (reformulationSaved()) {
+                <p class="hint">{{ 'recall.reformulationSaved' | translate }}</p>
+              }
+              @if (!reformulations()?.length) {
+                <div class="reformulate-offer">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    [disabled]="!canReformulate()"
+                    [attr.aria-busy]="busy() === 'reformulate' ? true : null"
+                    (click)="reformulate()"
+                  >
+                    {{ 'recall.reformulate' | translate }}
+                  </button>
+                </div>
+              }
+            </div>
           </div>
         }
         <form (submit)="submit($event)">
@@ -527,6 +606,53 @@ type ShownCorrection = {
       background: var(--accent-soft);
     }
 
+    .reformulation-follow {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      margin-top: 0.75rem;
+    }
+
+    .reformulations {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .reformulation {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin: 0;
+    }
+
+    .reformulation-changes {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .reformulation-changes li {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.12rem;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+
+    .reformulation-swap {
+      color: var(--text);
+    }
+
+    .reformulate-offer {
+      display: flex;
+    }
+
     textarea {
       width: 100%;
       box-sizing: border-box;
@@ -703,10 +829,12 @@ export class DefinitionRecall {
   readonly hintStep = signal(0);
   readonly correction = signal<ShownCorrection | null>(null);
   readonly coloredRules = signal<readonly string[]>([]);
+  readonly reformulations = signal<readonly ShownReformulation[] | null>(null);
+  readonly reformulationSaved = signal(false);
   readonly result = signal<RecallView | null>(null);
   readonly extraChoice = signal<'pending' | 'accepted' | 'dismissed'>('pending');
   readonly error = signal('');
-  readonly busy = signal<'correct' | 'score' | null>(null);
+  readonly busy = signal<'correct' | 'score' | 'reformulate' | null>(null);
   readonly cleared = signal(false);
 
   readonly canSwitchLanguage = computed(() => {
@@ -727,16 +855,23 @@ export class DefinitionRecall {
 
   private correctTicket = 0;
   private scoreTicket = 0;
+  private reformulateTicket = 0;
   /** Corrected sentence last written into the draft. Empty once the learner edits it. */
   private appliedCorrection = '';
+  /** Sentence the current suggestions were written for. */
+  private reformulationSource = '';
+  /** Accepted wording last written into the draft. */
+  private acceptedReformulation = '';
 
   constructor() {
     effect(() => {
       this.elementId();
       this.correctTicket += 1;
       this.scoreTicket += 1;
+      this.reformulateTicket += 1;
       this.draft.set('');
       this.appliedCorrection = '';
+      this.dropReformulations();
       this.answerSide.set('support');
       this.hintStep.set(0);
       this.correction.set(null);
@@ -758,6 +893,7 @@ export class DefinitionRecall {
     this.answerSide.set(side);
     this.correction.set(null);
     this.coloredRules.set([]);
+    this.dropReformulations();
     this.error.set('');
   }
 
@@ -789,11 +925,16 @@ export class DefinitionRecall {
     return this.busy() === null && !!this.draft().trim();
   }
 
+  canReformulate(): boolean {
+    return this.busy() === null && !!this.draft().trim() && !!this.correction();
+  }
+
   onDraft(event: Event): void {
     const target = event.target;
     if (!(target instanceof HTMLTextAreaElement)) return;
     this.draft.set(target.value);
     if (target.value.trim() !== this.appliedCorrection.trim()) this.appliedCorrection = '';
+    this.keepReformulation(target.value);
   }
 
   scoreLabel(scored: RecallView): string {
@@ -889,6 +1030,7 @@ export class DefinitionRecall {
       this.correction.set(shownCorrection(correction, names));
       this.coloredRules.set([]);
       this.appliedCorrection = correction.corrected;
+      this.dropReformulations();
     } catch {
       if (ticket !== this.correctTicket || this.elementId() !== elementId) return;
       this.error.set('recall.correctFailed');
@@ -953,6 +1095,91 @@ export class DefinitionRecall {
     }
   }
 
+  async reformulate(): Promise<void> {
+    if (!this.canReformulate() || !this.correctsGrammar()) return;
+    if (!readStoredAiCredentials().keys.length) {
+      this.error.set('common.saveKeyFirst');
+      return;
+    }
+    const ticket = ++this.reformulateTicket;
+    const elementId = this.elementId();
+    const text = this.draft();
+    const language = this.learningLanguage();
+    const lemma = this.lemma();
+    this.busy.set('reformulate');
+    this.error.set('');
+    this.reformulationSaved.set(false);
+    try {
+      const offer = await suggestReformulations({ language, text, lemma });
+      if (ticket !== this.reformulateTicket || this.elementId() !== elementId) return;
+      this.reformulationSource = offer.source;
+      this.acceptedReformulation = '';
+      this.reformulations.set(
+        offer.suggestions.map((item) => ({
+          id: crypto.randomUUID(),
+          text: item.text,
+          changes: item.changes,
+        })),
+      );
+    } catch {
+      if (ticket !== this.reformulateTicket || this.elementId() !== elementId) return;
+      this.error.set('recall.reformulateFailed');
+    } finally {
+      if (ticket === this.reformulateTicket && this.busy() === 'reformulate') this.busy.set(null);
+    }
+  }
+
+  dismissReformulation(id: string): void {
+    if (this.busy() !== null) return;
+    const next = (this.reformulations() ?? []).filter((item) => item.id !== id);
+    if (next.length) {
+      this.reformulations.set(next);
+      return;
+    }
+    this.reformulations.set(null);
+    this.reformulationSource = '';
+  }
+
+  async acceptReformulation(id: string): Promise<void> {
+    const item = this.reformulations()?.find((suggestion) => suggestion.id === id);
+    const source = this.reformulationSource;
+    if (!item || !source || this.busy() !== null) return;
+    const ticket = this.reformulateTicket;
+    const elementId = this.elementId();
+    this.busy.set('reformulate');
+    this.error.set('');
+    try {
+      const saved = await saveReformulation({
+        language: this.learningLanguage(),
+        elementId,
+        source,
+        text: item.text,
+        changes: item.changes,
+        at: Date.now(),
+      });
+      if (ticket !== this.reformulateTicket || this.elementId() !== elementId) return;
+      if (!saved) {
+        this.error.set('recall.reformulateFailed');
+        return;
+      }
+      this.acceptedReformulation = saved.text;
+      this.reformulationSource = '';
+      this.reformulations.set(null);
+      this.reformulationSaved.set(true);
+      this.appliedCorrection = '';
+      this.draft.set(saved.text);
+    } catch {
+      if (ticket !== this.reformulateTicket || this.elementId() !== elementId) return;
+      this.error.set('recall.reformulateFailed');
+    } finally {
+      if (ticket === this.reformulateTicket && this.busy() === 'reformulate') this.busy.set(null);
+    }
+  }
+
+  reformulationParts(item: ShownReformulation): ReformulationMark[] {
+    return reformulationMarks(item.text, item.changes);
+  }
+
   correctionParts(): GrammarMark[] {
     const found = this.correction();
     if (!found) return [];
@@ -983,6 +1210,21 @@ export class DefinitionRecall {
   ruleLabel(rule: CorrectionRule): string {
     const key = rule.outcome === 'committed' ? 'recall.errorCommitted' : 'recall.corrected';
     return this.i18n.translate(key, { rule: rule.rule });
+  }
+
+  private dropReformulations(): void {
+    this.reformulations.set(null);
+    this.reformulationSaved.set(false);
+    this.reformulationSource = '';
+    this.acceptedReformulation = '';
+  }
+
+  private keepReformulation(text: string): void {
+    if (!this.reformulations() && !this.reformulationSaved()) return;
+    const sentence = text.replace(/\s+/g, ' ').trim();
+    if (sentence === this.reformulationSource) return;
+    if (this.acceptedReformulation && sentence === this.acceptedReformulation) return;
+    this.dropReformulations();
   }
 }
 

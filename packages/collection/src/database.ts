@@ -2,13 +2,14 @@ import { rememberCatalogRecord } from './elements/metadata-catalog';
 import { requestPersistentStorage } from './persistent-storage';
 
 const DB_NAME = 'lingogem';
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 const RETIRED_CATALOG_STORE = 'catalog';
 const RETIRED_CATALOG_ID = 'app';
 
 export const ELEMENTS_STORE = 'elements';
 export const TRANSLATIONS_STORE = 'translations';
 export const GRAMMAR_STORE = 'grammar';
+export const REFORMULATION_STORE = 'reformulation';
 
 let database: Promise<IDBDatabase> | null = null;
 
@@ -44,6 +45,10 @@ export function openDatabase(): Promise<IDBDatabase> {
         if (!grammar.indexNames.contains('language')) {
           grammar.createIndex('language', 'language', { unique: false });
         }
+      }
+      if (!db.objectStoreNames.contains(REFORMULATION_STORE)) {
+        const reformulation = db.createObjectStore(REFORMULATION_STORE, { keyPath: 'id' });
+        reformulation.createIndex('language', 'language', { unique: false });
       }
     };
     request.onsuccess = () => {
