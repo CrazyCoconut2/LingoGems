@@ -41,6 +41,14 @@ export class StatsJob {
     return cached;
   }
 
+  /** How many times this language has been invalidated. A snapshot is stale when this has moved. */
+  revision(language: string): number {
+    this.tick();
+    const code = normalize(language);
+    if (!code) return 0;
+    return this.generation.get(code) ?? 0;
+  }
+
   /** Mark this language stale and compile again after a short quiet period. */
   invalidate(language: string): void {
     const code = normalize(language);

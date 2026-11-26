@@ -2,8 +2,11 @@ import { Component, computed, effect, input, output, signal } from '@angular/cor
 import {
   applyGrammarOutcome,
   definitionScoreStep,
+  grammarCorrectionMarks,
   languageDisplayName,
   readGrammarMistakes,
+  type GrammarInstance,
+  type GrammarMark,
 } from 'collection';
 import { UpwardQuotePipe } from '../text/upward-quote.pipe';
 import { FeedbackTranslation } from '../translate/feedback-translation';
@@ -12,7 +15,7 @@ import {
   evaluateRecallAnswer,
   readStoredAiCredentials,
   type RecallExtra,
-  type RecallMistake,
+  type RecallCorrection,
   type RecallSense,
 } from 'ai';
 
@@ -38,6 +41,18 @@ type RecallView = {
   feedback: string;
   extra: RecallExtra | null;
   gaveUp: boolean;
+};
+
+type CorrectionRule = {
+  key: string;
+  rule: string;
+  outcome: 'committed' | 'resolved';
+  instances: GrammarInstance[];
+};
+
+type ShownCorrection = {
+  after: string;
+  rules: CorrectionRule[];
 };
 
 /** Recall the meanings of one headword before its definitions are shown. */
@@ -180,14 +195,51 @@ type RecallView = {
             </div>
           </div>
         </div>
-        @if (mistakes(); as found) {
+        @if (correction(); as found) {
           <div class="mistakes" aria-label="Corrections">
-            @if (found.length) {
-              <ul>
-                @for (mistake of found; track $index) {
-                  <li>{{ mistake.rule }}</li>
+            @if (found.rules.length) {
+              <p class="grammar-sentence">
+                @for (part of correctionParts(); track $index) {
+                  @if (part.kind === 'fix') {
+                    <span class="grammar-mistake" [class.colored]="part.colored">{{
+                      part.wrote
+                    }}</span>
+                    <span class="grammar-fix" [class.colored]="part.colored">{{
+                      part.correction
+                    }}</span>
+                  } @else if (part.kind === 'good') {
+                    <span class="grammar-good">{{ part.text }}</span>
+                  } @else {
+                    <span>{{ part.text }}</span>
+                  }
                 }
-              </ul>
+              </p>
+              <div class="grammar-rules">
+                @for (rule of found.rules; track rule.key) {
+                  <button
+                    type="button"
+                    class="grammar-rule-btn"
+                    [class.committed]="rule.outcome === 'committed'"
+                    [class.resolved]="rule.outcome === 'resolved'"
+                    [class.selected]="ruleColored(rule.key)"
+                    [attr.aria-pressed]="ruleColored(rule.key)"
+                    [attr.aria-label]="ruleLabel(rule)"
+                    (click)="toggleRuleColor(rule.key)"
+                  >
+                    @if (rule.outcome === 'committed') {
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                      </svg>
+                    } @else {
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    }
+                    <span>{{ rule.rule }}</span>
+                  </button>
+                }
+              </div>
             } @else {
               <p class="hint">Nothing to correct.</p>
             }
@@ -377,7 +429,6 @@ type RecallView = {
       background: var(--surface-2);
     }
 
-    .mistakes ul,
     .examples {
       margin: 0;
       padding: 0;
@@ -387,20 +438,83 @@ type RecallView = {
       gap: 0.45rem;
     }
 
-    .mistakes li {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      align-items: baseline;
+    .grammar-sentence {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.5;
     }
 
-    .wrote {
+    .grammar-mistake {
       color: var(--text-muted);
       text-decoration: line-through;
     }
 
-    .arrow {
-      color: var(--text-muted);
+    .grammar-mistake.colored {
+      color: var(--danger);
+      font-weight: 650;
+    }
+
+    .grammar-fix {
+      margin-left: 0.28rem;
+    }
+
+    .grammar-fix.colored {
+      color: var(--score-10);
+      font-weight: 650;
+    }
+
+    .grammar-good {
+      color: var(--score-10);
+      font-weight: 650;
+    }
+
+    .grammar-rules {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0.45rem 0 0;
+    }
+
+    .grammar-rule-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      width: auto;
+      padding: 0.28rem 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      line-height: 1.3;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .grammar-rule-btn svg {
+      display: block;
+      flex: none;
+      width: 0.72rem;
+      height: 0.72rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .grammar-rule-btn.committed svg {
+      color: var(--danger);
+    }
+
+    .grammar-rule-btn.resolved svg {
+      color: var(--score-10);
+    }
+
+    .grammar-rule-btn.selected {
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
     }
 
     textarea {
@@ -576,7 +690,8 @@ export class DefinitionRecall {
 
   readonly draft = signal('');
   readonly hintStep = signal(0);
-  readonly mistakes = signal<RecallMistake[] | null>(null);
+  readonly correction = signal<ShownCorrection | null>(null);
+  readonly coloredRules = signal<readonly string[]>([]);
   readonly result = signal<RecallView | null>(null);
   readonly extraChoice = signal<'pending' | 'accepted' | 'dismissed'>('pending');
   readonly error = signal('');
@@ -613,7 +728,8 @@ export class DefinitionRecall {
       this.appliedCorrection = '';
       this.answerSide.set('support');
       this.hintStep.set(0);
-      this.mistakes.set(null);
+      this.correction.set(null);
+      this.coloredRules.set([]);
       this.result.set(null);
       this.extraChoice.set('pending');
       this.error.set('');
@@ -629,7 +745,8 @@ export class DefinitionRecall {
   chooseLanguage(side: 'support' | 'learning'): void {
     if (this.busy() !== null || !this.canSwitchLanguage() || side === this.answerSide()) return;
     this.answerSide.set(side);
-    this.mistakes.set(null);
+    this.correction.set(null);
+    this.coloredRules.set([]);
     this.error.set('');
   }
 
@@ -710,6 +827,7 @@ export class DefinitionRecall {
     this.error.set('');
     try {
       const prior = untouched ? [] : (await readGrammarMistakes(language)).slice(0, PRIOR_MAX);
+      const names = new Map(prior.map((mistake) => [mistake.id, mistake.rule]));
       if (ticket !== this.correctTicket || this.elementId() !== elementId) return;
       const correction = await correctRecallAnswer({
         language,
@@ -747,7 +865,8 @@ export class DefinitionRecall {
       }
       if (ticket !== this.correctTicket || this.elementId() !== elementId) return;
       this.draft.set(correction.corrected);
-      this.mistakes.set(correction.mistakes);
+      this.correction.set(shownCorrection(correction, names));
+      this.coloredRules.set([]);
       this.appliedCorrection = correction.corrected;
     } catch {
       if (ticket !== this.correctTicket || this.elementId() !== elementId) return;
@@ -812,4 +931,84 @@ export class DefinitionRecall {
       if (ticket === this.scoreTicket && this.busy() === 'score') this.busy.set(null);
     }
   }
+
+  correctionParts(): GrammarMark[] {
+    const found = this.correction();
+    if (!found) return [];
+    const selected = new Set(this.coloredRules());
+    return grammarCorrectionMarks(
+      found.after,
+      found.rules
+        .filter((rule) => selected.has(rule.key))
+        .map((rule) => ({
+          instances: rule.instances,
+          colored: true,
+          followed: rule.outcome === 'resolved',
+        })),
+    );
+  }
+
+  ruleColored(key: string): boolean {
+    return this.coloredRules().includes(key);
+  }
+
+  toggleRuleColor(key: string): void {
+    const current = this.coloredRules();
+    this.coloredRules.set(
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
+    );
+  }
+
+  ruleLabel(rule: CorrectionRule): string {
+    const status = rule.outcome === 'committed' ? 'Error committed' : 'Corrected';
+    return `${status}: ${rule.rule}`;
+  }
+}
+
+function shownCorrection(
+  correction: RecallCorrection,
+  names: ReadonlyMap<string, string>,
+): ShownCorrection {
+  const rules: CorrectionRule[] = [];
+  const seen = new Set<string>();
+  for (const item of correction.committed) {
+    const key = item.id || item.rule.trim().toLowerCase();
+    const wrote = item.wrote.trim();
+    const fix = item.correction.trim();
+    const instance =
+      wrote && fix && wrote.toLowerCase() !== fix.toLowerCase() ? { wrote, correction: fix } : null;
+    const current = rules.find((rule) => rule.key === key);
+    if (current) {
+      if (
+        instance &&
+        !current.instances.some(
+          (row) => row.wrote === instance.wrote && row.correction === instance.correction,
+        )
+      ) {
+        current.instances.push(instance);
+      }
+      continue;
+    }
+    seen.add(key);
+    if (item.id) seen.add(item.id);
+    rules.push({
+      key,
+      rule: item.rule,
+      outcome: 'committed',
+      instances: instance ? [instance] : [],
+    });
+  }
+  for (const item of correction.resolved) {
+    if (seen.has(item.id)) continue;
+    const rule = names.get(item.id);
+    if (!rule) continue;
+    const wrote = item.wrote.trim();
+    rules.push({
+      key: item.id,
+      rule,
+      outcome: 'resolved',
+      instances: wrote ? [{ wrote, correction: wrote }] : [],
+    });
+  }
+  return { after: correction.corrected, rules };
 }

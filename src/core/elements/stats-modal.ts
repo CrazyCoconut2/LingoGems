@@ -27,6 +27,7 @@ import {
   writeDailyGoals,
   type DailyGoals,
 } from './stats-goals';
+import { type StatsView } from './stats-cache';
 import { StatsJob } from './stats-job';
 import { ignoreMissingToken, readMissingBlacklist, restoreMissingToken } from './stats-missing';
 import type { DayStats, ElementDayStats, MissingToken } from './stats.worker';
@@ -102,8 +103,9 @@ const EMPTY_DAY: DayStats = {
               <button
                 type="button"
                 class="icon-btn"
-                aria-label="Recompile stats"
-                title="Recompile stats"
+                [class.on]="stale()"
+                [attr.aria-label]="stale() ? 'Update stats' : 'Recompile stats'"
+                [attr.title]="stale() ? 'Update stats' : 'Recompile stats'"
                 (click)="recompile()"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1919,8 +1921,17 @@ export class StatsModal {
   ];
 
   private readonly job = inject(StatsJob);
+  /** False once this open window has a snapshot and should ignore later compiles. */
+  private readonly following = signal(true);
+  private readonly held = signal<StatsView | null>(null);
+  private readonly heldRevision = signal(0);
 
-  readonly stats = computed(() => this.job.view(this.language()));
+  readonly live = computed(() => this.job.view(this.language()));
+  readonly stats = computed(() => (this.following() ? this.live() : (this.held() ?? this.live())));
+  readonly stale = computed(() => {
+    if (this.following()) return false;
+    return this.job.revision(this.language()) !== this.heldRevision();
+  });
   readonly pending = computed(() => {
     const phase = this.stats().phase;
     return phase === 'pending' || (phase === 'empty' && this.language().trim().length > 0);
@@ -1978,6 +1989,9 @@ export class StatsModal {
     effect(() => {
       const language = this.language();
       untracked(() => {
+        this.following.set(true);
+        this.held.set(null);
+        this.heldRevision.set(0);
         this.dayIndex.set(0);
         this.elementSort.set(null);
         this.sortMenuOpen.set(false);
@@ -1988,6 +2002,17 @@ export class StatsModal {
         this.hiddenOpen.set(false);
         this.missingOpen.set(false);
         this.job.ensure(language);
+      });
+    });
+    effect(() => {
+      if (!this.following()) return;
+      const language = this.language();
+      const live = this.job.view(language);
+      if (live.phase !== 'ready' && live.phase !== 'error') return;
+      untracked(() => {
+        this.held.set(live);
+        this.heldRevision.set(this.job.revision(language));
+        this.following.set(false);
       });
     });
   }
@@ -2050,9 +2075,14 @@ export class StatsModal {
     this.goalsOpen.update((open) => !open);
   }
 
-  /** Compile this language again from the stored elements and translations. */
+  /** Show the compile already in progress, or start one when the window is current. */
   recompile(): void {
-    this.job.invalidate(this.language());
+    const language = this.language();
+    const behind = !this.following() && this.job.revision(language) !== this.heldRevision();
+    const live = this.job.view(language);
+    this.following.set(true);
+    if (behind && live.phase !== 'empty') return;
+    this.job.invalidate(language);
   }
 
   goalSet(kind: GoalKind): boolean {
