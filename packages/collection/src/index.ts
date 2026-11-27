@@ -116,6 +116,7 @@ export {
   grammarMistakeOpen,
   grammarRules,
   grammarSentenceMarks,
+  grammarStats,
   readGrammarInputs,
   readGrammarMistakes,
   readOpenGrammarMistakes,
@@ -125,7 +126,11 @@ export {
   type GrammarInstance,
   type GrammarMark,
   type GrammarMistake,
+  type GrammarMovement,
   type GrammarResolution,
+  type GrammarRuleStats,
+  type GrammarStats,
+  type GrammarTotals,
 } from './grammar/grammar-store';
 
 export {

@@ -42,14 +42,15 @@ import {
   isValidForm,
   LEARNABLE_LANGUAGES,
   grammarCorrectionMarks,
-  grammarMistakeOpen,
   grammarRules,
+  grammarStats as tallyGrammar,
   languageDisplayName,
   type GrammarInput,
   type GrammarInputRule,
   type GrammarMark,
+  type GrammarMovement,
+  type GrammarRuleStats,
   readGrammarInputs,
-  type GrammarMistake,
   mergeMetadataVariability,
   mergeElements,
   metadataFilterSize,
@@ -89,6 +90,21 @@ function retargetLayers(
     next.push(id === layer.id ? layer : { ...layer, id });
   }
   return next;
+}
+
+function grammarMovementKey(movement: GrammarMovement): string {
+  switch (movement) {
+    case 'new':
+      return 'languages.grammarNew';
+    case 'open':
+      return 'languages.grammarMoveOpen';
+    case 'held':
+      return 'languages.grammarMoveHeld';
+    case 'relapsed':
+      return 'languages.grammarMoveRelapsed';
+    case 'steady':
+      return 'languages.grammarMoveSteady';
+  }
 }
 
 type FilterSection = 'sort' | 'language' | 'score' | 'definitions' | 'examples' | 'forms';
@@ -494,21 +510,137 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             <header class="filter-header">
               <div class="filter-heading">
                 <h2 class="filter-title">{{ 'languages.grammar' | translate }}</h2>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  [attr.aria-label]="'common.close' | translate"
-                  (click)="closeGrammar()"
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                </button>
+                <div class="heading-actions">
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    [class.on]="grammarStatsOpen()"
+                    [attr.aria-pressed]="grammarStatsOpen()"
+                    [attr.aria-label]="'languages.stats' | translate"
+                    [attr.title]="'languages.stats' | translate"
+                    (click)="toggleGrammarStats()"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+                      <path d="M18 17V9" />
+                      <path d="M13 17V5" />
+                      <path d="M8 17v-3" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    [attr.aria-label]="'common.close' | translate"
+                    (click)="closeGrammar()"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <p class="filter-subtitle">{{ 'languages.grammarSubtitle' | translate }}</p>
             </header>
             <div class="filter-body">
+              @if (grammarStatsOpen()) {
+                @let stats = grammarStats();
+                @if (stats.sentences) {
+                  <section class="grammar-section">
+                    <div
+                      class="grammar-score"
+                      role="group"
+                      [class.up]="stats.score > 0"
+                      [class.down]="stats.score < 0"
+                      [attr.aria-label]="grammarScoreLabel()"
+                    >
+                      <span class="grammar-score-count" aria-hidden="true">{{
+                        formatGrammarScore(stats.score)
+                      }}</span>
+                      <span class="grammar-score-caption" aria-hidden="true">{{
+                        'languages.grammarScore' | translate
+                      }}</span>
+                    </div>
+                    <ul class="grammar-totals">
+                      <li>
+                        <span class="grammar-total-count">{{
+                          formatGrammarCount(stats.sentences)
+                        }}</span>
+                        <span class="grammar-total-caption">{{
+                          'languages.grammarSentences' | translate
+                        }}</span>
+                      </li>
+                      <li>
+                        <span class="grammar-total-count">{{
+                          formatGrammarCount(stats.broken)
+                        }}</span>
+                        <span class="grammar-total-caption">{{
+                          'languages.grammarBroken' | translate
+                        }}</span>
+                      </li>
+                      <li>
+                        <span class="grammar-total-count">{{
+                          formatGrammarCount(stats.followed)
+                        }}</span>
+                        <span class="grammar-total-caption">{{
+                          'languages.grammarFollowed' | translate
+                        }}</span>
+                      </li>
+                    </ul>
+                    <p class="grammar-today">{{ grammarTodayLine() }}</p>
+                  </section>
+                  <section class="grammar-section">
+                    <h3 class="grammar-heading">{{ 'languages.rules' | translate }}</h3>
+                    <ul class="grammar-stat-list">
+                      @for (rule of stats.rules; track rule.id) {
+                        <li>
+                          <button
+                            type="button"
+                            class="grammar-stat-row"
+                            [attr.aria-label]="grammarRuleStatLabel(rule)"
+                            (click)="openGrammarRule(rule.id)"
+                          >
+                            <span class="grammar-stat-rule">{{ rule.rule }}</span>
+                            <span class="grammar-stat-aside">
+                              @if (rule.broken > 0) {
+                                <span class="grammar-stat-bit broken">
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M18 6 6 18" />
+                                    <path d="m6 6 12 12" />
+                                  </svg>
+                                  <span>{{ formatGrammarCount(rule.broken) }}</span>
+                                </span>
+                              }
+                              @if (rule.followed > 0) {
+                                <span class="grammar-stat-bit followed">
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M20 6 9 17l-5-5" />
+                                  </svg>
+                                  <span>{{ formatGrammarCount(rule.followed) }}</span>
+                                </span>
+                              }
+                              @if (rule.movement === 'new') {
+                                <span class="grammar-stat-mark new">{{
+                                  'languages.grammarNew' | translate
+                                }}</span>
+                              } @else if (rule.movement === 'held' || rule.movement === 'relapsed') {
+                                <span
+                                  class="grammar-stat-mark"
+                                  [class.up]="rule.movement === 'held'"
+                                  [class.down]="rule.movement === 'relapsed'"
+                                  >{{ formatGrammarScore(rule.movement === 'held' ? 1 : -1) }}</span
+                                >
+                              }
+                            </span>
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  </section>
+                } @else {
+                  <p class="empty">{{ 'languages.noMistakes' | translate }}</p>
+                }
+              } @else {
               <section class="grammar-section">
                 <h3 class="grammar-heading">{{ 'languages.rules' | translate }}</h3>
                 @if (grammarMistakes().length) {
@@ -518,7 +650,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                         type="button"
                         class="grammar-filter-chip"
                         [class.selected]="grammarFiltered(mistake.id)"
-                        [class.corrected]="!mistakeOpen(mistake)"
+                        [class.corrected]="mistake.outcome !== 'committed'"
                         [attr.aria-pressed]="grammarFiltered(mistake.id)"
                         (click)="toggleGrammarFilter(mistake.id)"
                       >
@@ -597,6 +729,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   </p>
                 }
               </section>
+              }
             </div>
             <footer class="filter-footer">
               <button type="button" class="done-btn" (click)="closeGrammar()">
@@ -659,47 +792,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 <p class="recompute-error">{{ recomputeError() | translate }}</p>
               }
 
-              <section class="filter-section" [class.expanded]="expanded() === 'sort'">
-                <div class="section-header">
-                  <button
-                    type="button"
-                    class="section-toggle"
-                    [attr.aria-expanded]="expanded() === 'sort'"
-                    (click)="toggleSection('sort')"
-                  >
-                    <span class="section-title">
-                      {{ 'languages.sort' | translate }}
-                      <span class="section-count">{{ sortLabel() }}</span>
-                    </span>
-                    <svg class="section-chevron" viewBox="0 0 24 24">
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
-                  </button>
-                </div>
-                @if (expanded() === 'sort') {
-                  <div class="section-body">
-                    <div
-                      class="sort-options"
-                      role="listbox"
-                      [attr.aria-label]="'languages.sort' | translate"
-                    >
-                      @for (option of sortOptions; track option.value) {
-                        <button
-                          type="button"
-                          class="sort-option"
-                          role="option"
-                          [class.selected]="sort() === option.value"
-                          [attr.aria-selected]="sort() === option.value"
-                          (click)="chooseSort(option.value)"
-                        >
-                          {{ option.label | translate }}
-                        </button>
-                      }
-                    </div>
-                  </div>
-                }
-              </section>
-
               <section class="filter-section" [class.expanded]="expanded() === 'language'">
                 <div class="section-header">
                   <button
@@ -752,6 +844,47 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                       </label>
                       <p class="section-hint">{{ 'languages.supportOverrideHint' | translate }}</p>
                     }
+                  </div>
+                }
+              </section>
+
+              <section class="filter-section" [class.expanded]="expanded() === 'sort'">
+                <div class="section-header">
+                  <button
+                    type="button"
+                    class="section-toggle"
+                    [attr.aria-expanded]="expanded() === 'sort'"
+                    (click)="toggleSection('sort')"
+                  >
+                    <span class="section-title">
+                      {{ 'languages.sort' | translate }}
+                      <span class="section-count">{{ sortLabel() }}</span>
+                    </span>
+                    <svg class="section-chevron" viewBox="0 0 24 24">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                </div>
+                @if (expanded() === 'sort') {
+                  <div class="section-body">
+                    <div
+                      class="sort-options"
+                      role="listbox"
+                      [attr.aria-label]="'languages.sort' | translate"
+                    >
+                      @for (option of sortOptions; track option.value) {
+                        <button
+                          type="button"
+                          class="sort-option"
+                          role="option"
+                          [class.selected]="sort() === option.value"
+                          [attr.aria-selected]="sort() === option.value"
+                          (click)="chooseSort(option.value)"
+                        >
+                          {{ option.label | translate }}
+                        </button>
+                      }
+                    </div>
                   </div>
                 }
               </section>
@@ -1917,6 +2050,13 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       gap: 0.75rem;
     }
 
+    .heading-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.15rem;
+      flex-shrink: 0;
+    }
+
     .filter-title {
       margin: 0;
       font-size: 1.25rem;
@@ -1949,6 +2089,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
     .icon-btn:hover {
       background: rgba(139, 144, 165, 0.16);
       color: var(--text);
+    }
+
+    .icon-btn.on {
+      background: rgba(255, 51, 102, 0.12);
+      color: #ff3366;
     }
 
     .filter-body {
@@ -2046,6 +2191,173 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 
     .grammar-filter-chip.corrected {
       opacity: 0.72;
+    }
+
+    .grammar-score {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.15rem;
+    }
+
+    .grammar-score-count {
+      color: var(--text-muted);
+      font-size: 1.55rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .grammar-score.up .grammar-score-count {
+      color: var(--score-10);
+    }
+
+    .grammar-score.down .grammar-score-count {
+      color: var(--score-1);
+    }
+
+    .grammar-score-caption,
+    .grammar-total-caption {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .grammar-totals {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.4rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .grammar-totals li {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.12rem;
+      box-sizing: border-box;
+      padding: 0.55rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-2);
+    }
+
+    .grammar-total-count {
+      color: var(--text);
+      font-size: 1.15rem;
+      font-weight: 720;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .grammar-today {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+
+    .grammar-stat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .grammar-stat-row {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      box-sizing: border-box;
+      width: 100%;
+      padding: 0.55rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-2);
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .grammar-stat-row.selected {
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+    }
+
+    .grammar-stat-rule {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-weight: 650;
+      line-height: 1.3;
+    }
+
+    .grammar-stat-aside {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      flex: none;
+      margin-left: auto;
+    }
+
+    .grammar-stat-bit {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .grammar-stat-bit svg {
+      display: block;
+      flex: none;
+      width: 0.72rem;
+      height: 0.72rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .grammar-stat-bit.broken {
+      color: var(--danger);
+    }
+
+    .grammar-stat-bit.followed {
+      color: var(--score-10);
+    }
+
+    .grammar-stat-mark {
+      flex: none;
+      font-size: 0.82rem;
+      font-weight: 720;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+    }
+
+    .grammar-stat-mark.new {
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .grammar-stat-mark.up {
+      color: var(--score-10);
+    }
+
+    .grammar-stat-mark.down {
+      color: var(--score-1);
     }
 
     .grammar-rules {
@@ -2551,19 +2863,19 @@ export class LanguagePage {
   readonly recomputeError = signal('');
   readonly filtersOpen = signal(false);
   readonly grammarOpen = signal(false);
+  readonly grammarStatsOpen = signal(false);
   readonly grammarInputs = signal<GrammarInput[]>([]);
   readonly grammarFilter = signal<string[]>([]);
   readonly grammarColor = signal<{ inputId: string; ruleIds: string[] } | null>(null);
   readonly grammarMistakes = computed(() => grammarRules(this.grammarInputs()));
+  readonly grammarStats = computed(() => tallyGrammar(this.grammarInputs()));
   readonly visibleGrammarInputs = computed(() => {
     const filter = this.grammarFilter();
     const rows = this.grammarInputs();
     if (!filter.length) return rows;
     return rows.filter((input) => filter.some((id) => input.rules.some((rule) => rule.id === id)));
   });
-  readonly openGrammarCount = computed(
-    () => this.grammarMistakes().filter((mistake) => grammarMistakeOpen(mistake)).length,
-  );
+  readonly openGrammarCount = computed(() => this.grammarStats().open);
   readonly settingsOpen = signal(false);
   readonly statsOpen = signal(false);
   readonly expanded = signal<FilterSection | null>('definitions');
@@ -2660,6 +2972,10 @@ export class LanguagePage {
     }
     if (this.discoverOpen()) {
       if (!this.elementId()) this.closeDiscover();
+      return;
+    }
+    if (this.grammarStatsOpen()) {
+      this.closeGrammarStats();
       return;
     }
     if (this.grammarOpen()) {
@@ -3348,8 +3664,49 @@ export class LanguagePage {
     this.useLanguageCatalog(elements);
   }
 
-  mistakeOpen(mistake: GrammarMistake): boolean {
-    return grammarMistakeOpen(mistake);
+  formatGrammarCount(count: number): string {
+    return count.toLocaleString(this.i18n.currentLanguage);
+  }
+
+  formatGrammarScore(value: number): string {
+    const text = Math.abs(value).toLocaleString(this.i18n.currentLanguage);
+    if (value > 0) return `+${text}`;
+    if (value < 0) return `−${text}`;
+    return '0';
+  }
+
+  grammarScoreLabel(): string {
+    return this.i18n.translate('languages.grammarScoreValue', {
+      value: this.formatGrammarScore(this.grammarStats().score),
+    });
+  }
+
+  grammarTodayLine(): string {
+    const today = this.grammarStats().today;
+    const locale = this.i18n.currentLanguage;
+    return this.i18n.translate('languages.grammarTodayLine', {
+      sentences: today.sentences.toLocaleString(locale),
+      broken: today.broken.toLocaleString(locale),
+      followed: today.followed.toLocaleString(locale),
+    });
+  }
+
+  grammarRuleStatLabel(rule: GrammarRuleStats): string {
+    const locale = this.i18n.currentLanguage;
+    const broken = this.i18n.translate(
+      rule.broken === 1 ? 'languages.grammarBrokenOne' : 'languages.grammarBrokenMany',
+      { count: rule.broken.toLocaleString(locale) },
+    );
+    const followed = this.i18n.translate(
+      rule.followed === 1 ? 'languages.grammarFollowedOne' : 'languages.grammarFollowedMany',
+      { count: rule.followed.toLocaleString(locale) },
+    );
+    return this.i18n.translate('languages.grammarRuleLabel', {
+      rule: rule.rule,
+      broken,
+      followed,
+      movement: this.i18n.translate(grammarMovementKey(rule.movement)),
+    });
   }
 
   grammarRuleSelected(inputId: string, ruleId: string): boolean {
@@ -3421,12 +3778,30 @@ export class LanguagePage {
 
   closeGrammar(): void {
     if (!this.grammarOpen()) return;
+    this.grammarStatsOpen.set(false);
     this.grammarOpen.set(false);
     this.unlockScroll();
   }
 
   closeGrammarOnBackdrop(event: MouseEvent): void {
     if (event.target === event.currentTarget) this.closeGrammar();
+  }
+
+  toggleGrammarStats(): void {
+    this.grammarStatsOpen.update((open) => !open);
+  }
+
+  closeGrammarStats(): void {
+    this.grammarStatsOpen.set(false);
+  }
+
+  openGrammarRule(id: string): void {
+    this.grammarFilter.set([id]);
+    const color = this.grammarColor();
+    if (color && !this.visibleGrammarInputs().some((input) => input.id === color.inputId)) {
+      this.grammarColor.set(null);
+    }
+    this.closeGrammarStats();
   }
 
   openFilters(event: Event): void {

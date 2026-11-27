@@ -67,6 +67,155 @@ export function grammarMistakeOpen(mistake: GrammarMistake): boolean {
   return mistake.outcome === 'committed';
 }
 
+/** How the newest mention of a rule compares with the mention before it. */
+export type GrammarMovement = 'new' | 'open' | 'held' | 'relapsed' | 'steady';
+
+/** Counts for one rule across every correction that mentioned it. */
+export type GrammarRuleStats = {
+  id: string;
+  rule: string;
+  broken: number;
+  followed: number;
+  /** True when the newest mention is a violation. */
+  open: boolean;
+  movement: GrammarMovement;
+  /** Time of the newest mention. */
+  at: number;
+};
+
+/** Sentence, break, and follow counts. */
+export type GrammarTotals = {
+  sentences: number;
+  broken: number;
+  followed: number;
+};
+
+/**
+ * Totals and per-rule movement for these corrections.
+ * The score is how many rules are currently held, minus how many relapsed.
+ * `today` uses the local calendar day of `now`.
+ */
+export type GrammarStats = GrammarTotals & {
+  today: GrammarTotals;
+  open: number;
+  score: number;
+  rules: GrammarRuleStats[];
+};
+
+const MOVEMENT_RANK: Record<GrammarMovement, number> = {
+  relapsed: 0,
+  open: 1,
+  new: 2,
+  held: 3,
+  steady: 4,
+};
+
+type GrammarMention = {
+  at: number;
+  outcome: 'committed' | 'resolved';
+  rule: string;
+};
+
+/**
+ * Summarizes these corrections.
+ * Mentions of one rule are ordered by time. A break sorts after a follow when they share a time,
+ * matching the rule list, which keeps the break.
+ */
+export function grammarStats(inputs: readonly GrammarInput[], now = Date.now()): GrammarStats {
+  const todayKey = grammarDayKey(now);
+  let broken = 0;
+  let followed = 0;
+  const today: GrammarTotals = { sentences: 0, broken: 0, followed: 0 };
+  const mentions = new Map<string, GrammarMention[]>();
+
+  for (const input of inputs) {
+    const onToday = grammarDayKey(input.at) === todayKey;
+    if (onToday) today.sentences += 1;
+    for (const entry of input.rules) {
+      if (entry.outcome === 'committed') {
+        broken += 1;
+        if (onToday) today.broken += 1;
+      } else {
+        followed += 1;
+        if (onToday) today.followed += 1;
+      }
+      const mention: GrammarMention = { at: input.at, outcome: entry.outcome, rule: entry.rule };
+      const list = mentions.get(entry.id);
+      if (list) list.push(mention);
+      else mentions.set(entry.id, [mention]);
+    }
+  }
+
+  const rules: GrammarRuleStats[] = [];
+  let open = 0;
+  let score = 0;
+  for (const [id, list] of mentions) {
+    list.sort(compareMentions);
+    let ruleBroken = 0;
+    let ruleFollowed = 0;
+    for (const mention of list) {
+      if (mention.outcome === 'committed') ruleBroken += 1;
+      else ruleFollowed += 1;
+    }
+    const newest = list[list.length - 1];
+    const previous = list.length > 1 ? list[list.length - 2] : null;
+    const movement = movementOf(newest.outcome, previous?.outcome ?? null);
+    const isOpen = newest.outcome === 'committed';
+    if (isOpen) open += 1;
+    if (movement === 'held') score += 1;
+    else if (movement === 'relapsed') score -= 1;
+    rules.push({
+      id,
+      rule: newest.rule,
+      broken: ruleBroken,
+      followed: ruleFollowed,
+      open: isOpen,
+      movement,
+      at: newest.at,
+    });
+  }
+  rules.sort(compareRuleStats);
+  return {
+    sentences: inputs.length,
+    broken,
+    followed,
+    today,
+    open,
+    score,
+    rules,
+  };
+}
+
+function movementOf(
+  newest: GrammarMention['outcome'],
+  previous: GrammarMention['outcome'] | null,
+): GrammarMovement {
+  if (!previous) return newest === 'committed' ? 'new' : 'steady';
+  if (newest === 'committed') return previous === 'resolved' ? 'relapsed' : 'open';
+  return previous === 'committed' ? 'held' : 'steady';
+}
+
+function compareMentions(left: GrammarMention, right: GrammarMention): number {
+  if (left.at !== right.at) return left.at - right.at;
+  if (left.outcome === right.outcome) return 0;
+  return left.outcome === 'committed' ? 1 : -1;
+}
+
+function compareRuleStats(left: GrammarRuleStats, right: GrammarRuleStats): number {
+  const rank = MOVEMENT_RANK[left.movement] - MOVEMENT_RANK[right.movement];
+  if (rank) return rank;
+  if (left.broken !== right.broken) return right.broken - left.broken;
+  return right.at - left.at || left.id.localeCompare(right.id);
+}
+
+function grammarDayKey(at: number): string {
+  if (!Number.isFinite(at)) return '';
+  const date = new Date(at);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 /** Every correction for this language, newest first. */
 export async function readGrammarInputs(language: string): Promise<GrammarInput[]> {
   const code = languageCode(language);
