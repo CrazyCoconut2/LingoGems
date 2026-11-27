@@ -1,6 +1,6 @@
 import type { DayStats, ElementDayStats, MissingToken } from './stats.worker';
 
-const KEY_PREFIX = 'lingogem.stats.v19.';
+const KEY_PREFIX = 'lingogem.stats.v20.';
 const STALE_STATS_ROOT = 'lingogem.stats.v';
 
 export type StatsPhase = 'empty' | 'pending' | 'ready' | 'error';

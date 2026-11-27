@@ -210,26 +210,6 @@ function plainPassage(value: string): string {
   return parsePassage(value).text.trim();
 }
 
-function sameLogMoment(left: ElementLogEntry, right: ElementLogEntry): boolean {
-  return left.event === right.event && left.at === right.at;
-}
-
-/** True when `next` is `base` with later entries appended. */
-function logExtends(base: StoredElement, next: StoredElement): boolean {
-  if (next.log.length < base.log.length) return false;
-  return base.log.every((entry, index) => sameLogMoment(entry, next.log[index]));
-}
-
-/** Keep a just-written copy until the open list includes it. A diverged list wins. */
-function preferLogged(
-  listed: StoredElement | undefined,
-  cached: StoredElement | undefined,
-): StoredElement | undefined {
-  if (!listed) return cached;
-  if (!cached) return listed;
-  return logExtends(listed, cached) ? cached : listed;
-}
-
 function swapIndexMap<T>(map: ReadonlyMap<number, T>, from: number, to: number): Map<number, T> {
   const next = new Map<number, T>();
   for (const [index, value] of map) {
@@ -750,6 +730,7 @@ function writeExampleSuggestions(
           @if (historyOpen()) {
             <div class="definition-stats">
               @let average = scoreAverage();
+              @let seen = seenCount();
               @let reworked = activityCount('rework');
               <div class="stats-pair">
                 <section
@@ -766,6 +747,15 @@ function writeExampleSuggestions(
                     }
                   </p>
                 </section>
+                <div class="stats-side">
+                <section class="stats-rework" [attr.aria-label]="seenCountLabel(seen)">
+                  <svg class="stats-rework-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  <span class="stats-rework-count">{{ seen }}</span>
+                  <span class="stats-rework-label">{{ 'stats.seen' | translate }}</span>
+                </section>
                 <section class="stats-rework" [attr.aria-label]="activityLabel('rework', reworked)">
                   <svg class="stats-rework-icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path
@@ -775,6 +765,7 @@ function writeExampleSuggestions(
                   <span class="stats-rework-count">{{ reworked }}</span>
                   <span class="stats-rework-label">{{ 'element.reworked' | translate }}</span>
                 </section>
+                </div>
               </div>
               @if (shownHistory().length) {
                 <section class="stats-log">
@@ -4746,9 +4737,17 @@ function writeExampleSuggestions(
       letter-spacing: 0;
     }
 
-    .stats-rework {
+    .stats-side {
       display: flex;
       flex: 0 0 6.6rem;
+      flex-direction: column;
+      gap: 0.45rem;
+      min-width: 0;
+    }
+
+    .stats-rework {
+      display: flex;
+      flex: 1 1 auto;
       flex-direction: column;
       align-items: center;
       justify-content: center;
@@ -5795,10 +5794,21 @@ export class ElementModal {
   readonly skipRecall = input(false);
   /** This open is a give-up. The recall stays hidden, and the give-up is still logged. */
   readonly forfeitRecall = input(false);
+  /** Passage this open came from. Empty for a click, Back, or a new element. */
+  readonly openedFrom = input('');
+  /** Element whose definition arrived as the example. Empty for any other open. */
+  readonly definitionFor = input('');
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
   readonly deleted = output<void>();
-  readonly visit = output<{ id: string; definition: number; example: string; guide: string }>();
+  readonly visit = output<{
+    id: string;
+    definition: number;
+    example: string;
+    guide: string;
+    phrase: string;
+    definitionFor: string;
+  }>();
   readonly back = output<void>();
   readonly addSelection = output<{
     title: string;
@@ -5864,9 +5874,6 @@ export class ElementModal {
   private collisionExample = '';
   /** Passage a collision pick was opened from. */
   private collisionPhrase = '';
-  /** Opens from another element, in order, so a second click keeps the first log. */
-  private seenWrites: Promise<void> = Promise.resolve();
-  private seenLatest = new Map<string, StoredElement>();
   readonly passageSelection = signal<PassageSelection | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
@@ -5967,17 +5974,9 @@ export class ElementModal {
       stopSpeaking();
     });
     effect(() => {
-      const list = this.collection();
-      for (const [id, cached] of this.seenLatest) {
-        const listed = list.find((item) => item.id === id);
-        if (!listed || !logExtends(listed, cached) || listed.log.length >= cached.log.length) {
-          this.seenLatest.delete(id);
-        }
-      }
-    });
-    effect(() => {
       const id = this.element().id;
       const forfeit = this.forfeitRecall();
+      const openedFrom = this.openedFrom().replace(/\s+/g, ' ').trim();
       if (id === this.trackedElementId) return;
       const definition = this.definitionIndex();
       this.trackedElementId = id;
@@ -6025,6 +6024,7 @@ export class ElementModal {
       this.askingMetadata.set(false);
       this.engineerDrafts.clear();
       this.definitionEngineerDrafts = readRelatedDrafts(id);
+      this.noteSeen(openedFrom);
       void this.commitStoredExamples(id);
       this.refreshNewDefinitions(id);
       this.scrollSenseIntoView(definition);
@@ -6225,7 +6225,6 @@ export class ElementModal {
       ...(glosses.length ? { snapshot: { text: glosses.join('\n'), equivalent: '' } } : {}),
     };
     this.appendLog(entry);
-    if (result.answer.trim()) this.appendLog({ event: 'seen', at: entry.at });
     this.revealRecallDefinitions(element);
     this.recallSettled.set(true);
     void this.persist(this.copyDefinitions(), this.currentElement().equivalents, { busy: false });
@@ -6660,13 +6659,21 @@ export class ElementModal {
       this.error.set('element.exampleExists');
       return;
     }
-    target.examples.push({ text: example, metadata: {} });
+    target.examples.push({ text: example, metadata: this.definitionForMetadata(example) });
     this.appendExample(target, example);
     const index = definitions.indexOf(target);
     if (!(await this.persist(definitions, element.equivalents))) return;
     if (this.element().id === element.id) this.scrollSenseIntoView(index);
     this.definitionExample.set('');
     this.heldExample.set('');
+  }
+
+  /** The arrived definition is an example of the element it was written for. */
+  private definitionForMetadata(example: string): ElementMetadata {
+    const source = this.definitionFor().replace(/\s+/g, ' ').trim();
+    const arrived = this.heldExample().trim();
+    if (!source || !arrived || senseKey(example) !== senseKey(arrived)) return {};
+    return { 'Definition for': source };
   }
 
   dismissNew(text: string): void {
@@ -8210,7 +8217,7 @@ export class ElementModal {
       .text.replace(/\s+/g, ' ')
       .trim();
     const source = phrase.replace(/\s+/g, ' ').trim() || gloss;
-    this.visitHighlight(id, definitionIndex, '', source);
+    this.visitHighlight(id, definitionIndex, gloss, source, this.shownTitle());
   }
 
   visitHighlight(
@@ -8218,38 +8225,21 @@ export class ElementModal {
     definition = this.collisionDefinition,
     example = '',
     phrase = '',
+    definitionFor = '',
   ): void {
     this.collision.set(null);
     this.collisionExample = '';
     this.collisionPhrase = '';
     if (!id || id === this.element().id) return;
     const source = (phrase || example).replace(/\s+/g, ' ').trim();
-    const visit = { id, definition, example: example.trim(), guide: '' };
-    this.seenWrites = this.seenWrites
-      .then(async () => {
-        if (source) await this.writeOpenedFrom(id, source);
-        if (this.alive) this.visit.emit(visit);
-      })
-      .catch(() => undefined);
-  }
-
-  /** Store the passage this element was opened from, without touching the one on screen. */
-  private async writeOpenedFrom(id: string, phrase: string): Promise<void> {
-    const base = preferLogged(
-      this.collection().find((item) => item.id === id),
-      this.seenLatest.get(id),
-    );
-    if (!base) return;
-    try {
-      const saved = await saveElement({
-        ...base,
-        log: [...base.log, { event: 'seen', at: Date.now(), phrase }],
-      });
-      this.seenLatest.set(id, saved);
-      this.changed.emit(saved);
-    } catch {
-      // The element still opens. A missed log is not a failure of the one on screen.
-    }
+    this.visit.emit({
+      id,
+      definition,
+      example: example.trim(),
+      guide: '',
+      phrase: source,
+      definitionFor: definitionFor.replace(/\s+/g, ' ').trim(),
+    });
   }
 
   confirmPassagePick(event: Event, text: string): void {
@@ -9145,6 +9135,16 @@ export class ElementModal {
     };
   }
 
+  /** One sighting for this open. A passage keeps the "opened from" line in the history. */
+  private noteSeen(phrase: string): void {
+    this.appendLog({
+      event: 'seen',
+      at: Date.now(),
+      ...(phrase ? { phrase } : {}),
+    });
+    void this.persist(this.copyDefinitions(), this.currentElement().equivalents, { busy: false });
+  }
+
   /** Activity is stored on the element, in the order it happened. */
   private appendLog(entry: DefinitionLogEntry): void {
     const current = this.currentElement();
@@ -9187,6 +9187,15 @@ export class ElementModal {
     if (equivalentTextFor(element.equivalents, current.equivalentIds, language)) return;
     current.equivalentIds = linkEquivalent(current.equivalentIds, language, linked.equivalentId);
     await this.persist(definitions, linked.equivalents, { busy: false });
+  }
+
+  seenCount(): number {
+    return this.currentElement().log.filter((entry) => entry.event === 'seen').length;
+  }
+
+  seenCountLabel(count: number): string {
+    const shown = count.toLocaleString(this.i18n.currentLanguage);
+    return this.i18n.translate(count === 1 ? 'stats.seenOne' : 'stats.seenMany', { count: shown });
   }
 
   activityCount(event: 'rework'): number {

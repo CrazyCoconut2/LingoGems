@@ -24,7 +24,6 @@ import { generateElementFromSelection, readDefinitionMetadataFields } from 'ai';
 import {
   addElement,
   catalogFromElements,
-  commitElementCatalog,
   compareElements,
   DEFAULT_ELEMENT_SORT,
   deleteElement,
@@ -54,9 +53,7 @@ import {
   mergeMetadataVariability,
   metadataFilterSize,
   parseMetadataFilter,
-  readAllElements,
   readElements,
-  readMetadataCatalog,
   saveElement,
   sensesWithEquivalents,
   type ElementCatalog,
@@ -947,6 +944,8 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           [arrivedExample]="arrivedExample()"
           [skipRecall]="skipRecall()"
           [forfeitRecall]="forfeitRecall()"
+          [openedFrom]="openedFrom()"
+          [definitionFor]="definitionFor()"
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
           (deleted)="onElementDeleted()"
@@ -2495,6 +2494,10 @@ export class LanguagePage {
   /** The score opens the element as a give-up. Development keeps the normal card click. */
   readonly scoreShortcut = !isDevMode();
   readonly trail = signal<ElementTrailStop[]>([]);
+  /** Passage for the open in progress. Empty unless this visit came from a highlight. */
+  readonly openedFrom = signal('');
+  /** Source element when this visit carries its definition as an example. */
+  readonly definitionFor = signal('');
   readonly canGoBack = computed(() => this.trail().length > 1);
   readonly openedDefinition = computed(() => this.trail().at(-1)?.definition ?? 0);
   readonly arrivedExample = computed(() => this.trail().at(-1)?.example?.trim() ?? '');
@@ -2569,7 +2572,6 @@ export class LanguagePage {
       this.clearPressTimer();
       if (this.overlayOpen()) this.unlockScroll(true);
     });
-    void this.loadCatalog();
     void this.load(ensureSelectedLanguage() ?? '');
   }
 
@@ -2748,9 +2750,9 @@ export class LanguagePage {
     this.selectionError.set('');
     try {
       await Promise.all(ids.map((id) => deleteElement(id)));
-      this.applyCatalog(await readMetadataCatalog());
       const gone = new Set(ids);
       this.elements.update((list) => list.filter((item) => !gone.has(item.id)));
+      this.useLanguageCatalog(this.elements());
       if (gone.has(this.elementId())) this.closeElement();
       this.clearSelection();
     } catch {
@@ -2828,7 +2830,7 @@ export class LanguagePage {
       if (this.code() !== language) return false;
       const byId = new Map(saved.map((item) => [item.id, item]));
       this.elements.update((list) => list.map((item) => byId.get(item.id) ?? item));
-      this.applyCatalog(await readMetadataCatalog());
+      this.useLanguageCatalog(this.elements());
       return true;
     } catch {
       this.selectionError.set('languages.updateFailed');
@@ -2839,7 +2841,14 @@ export class LanguagePage {
   }
 
   visitElement(
-    visit: { id: string; definition: number; example?: string; guide?: string },
+    visit: {
+      id: string;
+      definition: number;
+      example?: string;
+      guide?: string;
+      phrase?: string;
+      definitionFor?: string;
+    },
     fresh = false,
   ): void {
     const id = visit.id;
@@ -2860,7 +2869,7 @@ export class LanguagePage {
     });
     this.skipRecall.set(fresh);
     this.forfeitRecall.set(false);
-    this.showElement(id);
+    this.showElement(id, visit.phrase ?? '', visit.definitionFor ?? '');
   }
 
   backElement(): void {
@@ -2950,7 +2959,7 @@ export class LanguagePage {
         ? list.map((item) => (item.id === saved.id ? saved : item))
         : [...list, saved],
     );
-    void this.refreshCatalog();
+    this.refreshCatalog();
   }
 
   onElementDeleted(): void {
@@ -2959,7 +2968,7 @@ export class LanguagePage {
       this.elements.update((list) => list.filter((item) => item.id !== id));
       this.dropSelected(id);
     }
-    void this.refreshCatalog();
+    this.refreshCatalog();
     this.closeElement();
   }
 
@@ -2970,7 +2979,9 @@ export class LanguagePage {
     void this.refreshGrammar();
   }
 
-  private showElement(id: string | null): void {
+  private showElement(id: string | null, phrase = '', definitionFor = ''): void {
+    this.openedFrom.set(id ? phrase.replace(/\s+/g, ' ').trim() : '');
+    this.definitionFor.set(id ? definitionFor.replace(/\s+/g, ' ').trim() : '');
     this.elementId.set(id ?? '');
     if (!id) this.trail.set([]);
   }
@@ -3005,16 +3016,11 @@ export class LanguagePage {
   }
 
   activityTotals(element: StoredElement): { seen: number; worked: number } {
-    const exercisedAt = new Set<number>();
     let worked = 0;
+    let seen = 0;
     for (const entry of element.log) {
-      if (entry.event !== 'game') continue;
-      worked += 1;
-      exercisedAt.add(entry.at);
-    }
-    let seen = worked + 1;
-    for (const entry of element.log) {
-      if (entry.event === 'seen' && !exercisedAt.has(entry.at)) seen += 1;
+      if (entry.event === 'game') worked += 1;
+      else if (entry.event === 'seen') seen += 1;
     }
     return { seen, worked };
   }
@@ -3118,8 +3124,11 @@ export class LanguagePage {
         equivalents: attached.equivalents,
       });
     }
-    if (this.code() === code) this.elements.set(await readElements(code));
-    this.applyCatalog(await readMetadataCatalog());
+    if (this.code() === code) {
+      const elements = await readElements(code);
+      this.elements.set(elements);
+      this.useLanguageCatalog(elements);
+    }
     return { element: created, fresh };
   }
 
@@ -3182,10 +3191,10 @@ export class LanguagePage {
   async reloadElements(): Promise<void> {
     const code = this.code();
     if (!code) return;
-    const [elements, catalog] = await Promise.all([readElements(code), readMetadataCatalog()]);
+    const elements = await readElements(code);
     if (this.code() !== code) return;
     this.elements.set(elements);
-    this.applyCatalog(catalog);
+    this.useLanguageCatalog(elements);
   }
 
   mistakeOpen(mistake: GrammarMistake): boolean {
@@ -3534,19 +3543,19 @@ export class LanguagePage {
   }
 
   async recomputeMetadata(): Promise<void> {
-    if (this.recomputing()) return;
+    const code = this.code();
+    if (!code || this.recomputing()) return;
     this.recomputing.set(true);
     this.recomputeError.set('');
     try {
-      const all = await readAllElements();
+      const current = await readElements(code);
       const next: StoredElement[] = [];
-      for (const element of all) {
+      for (const element of current) {
         next.push(await saveElement(element, { syncCatalog: false }));
       }
-      const catalog = await commitElementCatalog(catalogFromElements(next));
-      const code = this.code();
-      if (code) this.elements.set(next.filter((element) => element.language === code));
-      this.applyCatalog(catalog);
+      if (this.code() !== code) return;
+      this.elements.set(next);
+      this.useLanguageCatalog(next);
     } catch {
       this.recomputeError.set('languages.recomputeFailed');
     } finally {
@@ -3554,16 +3563,13 @@ export class LanguagePage {
     }
   }
 
-  private async loadCatalog(): Promise<void> {
-    this.applyCatalog(await readMetadataCatalog());
+  /** Filter values for the language on screen. Other languages stay out of this list. */
+  private useLanguageCatalog(elements: readonly StoredElement[]): void {
+    this.metadataCatalog.set(catalogFromElements(elements));
   }
 
-  private async refreshCatalog(): Promise<void> {
-    this.applyCatalog(await readMetadataCatalog());
-  }
-
-  private applyCatalog(catalog: ElementCatalog): void {
-    this.metadataCatalog.set(catalog);
+  private refreshCatalog(): void {
+    this.useLanguageCatalog(this.elements());
   }
 
   private async load(language: string): Promise<void> {
@@ -3580,10 +3586,14 @@ export class LanguagePage {
     if (this.grammarOpen()) this.closeGrammar();
     this.elementId.set('');
     this.trail.set([]);
+    this.definitionMetaFilter.set({});
+    this.exampleMetaFilter.set({});
+    this.formMetaFilter.set({});
     if (!isLearnableLanguage(code)) {
       this.code.set('');
       this.name.set('');
       this.elements.set([]);
+      this.useLanguageCatalog([]);
       this.clearGrammar();
       this.ready.set(true);
       if (!this.promptedLanguage) {
@@ -3604,6 +3614,7 @@ export class LanguagePage {
     ]);
     if (seq !== this.loadId) return;
     this.elements.set(elements);
+    this.useLanguageCatalog(elements);
     this.grammarInputs.set(grammar);
     this.ready.set(true);
   }
