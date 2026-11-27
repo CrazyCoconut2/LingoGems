@@ -1375,6 +1375,26 @@ function writeExampleSuggestions(
                               </svg>
                             </button>
                           }
+                          @if (definitionExample().trim()) {
+                            <button
+                              type="button"
+                              class="icon-btn place-example"
+                              [attr.aria-label]="'element.addExampleHere' | translate"
+                              [attr.title]="
+                                (exampleAlreadyOn(index)
+                                  ? 'element.exampleExists'
+                                  : 'element.addExampleHere'
+                                ) | translate
+                              "
+                              [disabled]="aiBusy() || exampleAlreadyOn(index)"
+                              (click)="placeExampleHere(index)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M5 12h14" />
+                                <path d="M12 5v14" />
+                              </svg>
+                            </button>
+                          }
                           <button
                             type="button"
                             class="icon-btn danger"
@@ -1756,7 +1776,12 @@ function writeExampleSuggestions(
                 </button>
               </div>
               <p id="example-slot-hint" class="example-slot-hint">
-                {{ 'element.exampleHintMatch' | translate }}
+                {{
+                  (definitionExample().trim()
+                    ? 'element.exampleHintPlace'
+                    : 'element.exampleHintMatch'
+                  ) | translate
+                }}
               </p>
             </form>
           </footer>
@@ -3965,6 +3990,37 @@ function writeExampleSuggestions(
     .sense-actions .icon-btn svg {
       width: 0.9rem;
       height: 0.9rem;
+    }
+
+    .sense-actions .icon-btn.place-example {
+      width: 1.7rem;
+      height: 1.7rem;
+      margin-inline: 0.28rem;
+      border-radius: 0.5rem;
+      background: linear-gradient(135deg, #f43f5e, #ec4899 55%, #7c3aed);
+      color: white;
+      box-shadow: 0 4px 12px -3px rgba(236, 72, 153, 0.7);
+    }
+
+    .sense-actions .icon-btn.place-example svg {
+      width: 0.95rem;
+      height: 0.95rem;
+      stroke-width: 2.4;
+    }
+
+    .sense-actions .icon-btn.place-example:hover:not(:disabled) {
+      color: white;
+      background: linear-gradient(135deg, #fb7185, #f472b6 55%, #8b5cf6);
+    }
+
+    .sense-actions .icon-btn.place-example:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+
+    .sense-actions .icon-btn.place-example:disabled {
+      background: transparent;
+      color: #94a3b8;
+      box-shadow: none;
     }
 
     .sense {
@@ -6644,15 +6700,46 @@ export class ElementModal {
     }
   }
 
+  /** The sentence in the footer, typed or arrived, is already on this definition. */
+  exampleAlreadyOn(index: number): boolean {
+    const key = senseKey(this.definitionExample());
+    const definition = this.currentElement().definitions[index];
+    if (!key || !definition) return false;
+    return definition.examples.some((item) => senseKey(item.text) === key);
+  }
+
+  /** Save the footer sentence on the definition the user chose. */
+  placeExampleHere(index: number): void {
+    if (this.aiBusy()) return;
+    const example = this.definitionExample().trim().slice(0, MAX_EXAMPLE_LENGTH);
+    const element = this.currentElement();
+    if (!example || !element.definitions[index]) return;
+    void this.placeExampleAt(element, this.copyDefinitions(), index, example);
+  }
+
   private async attachExample(
     element: StoredElement,
     gloss: string,
     example: string,
   ): Promise<void> {
     const definitions = this.copyDefinitions();
-    const target = definitions.find(
+    const index = definitions.findIndex(
       (definition) => senseKey(definition.text) === gloss.trim().toLowerCase(),
     );
+    if (index < 0) {
+      this.error.set('element.placeExampleFailed');
+      return;
+    }
+    await this.placeExampleAt(element, definitions, index, example);
+  }
+
+  private async placeExampleAt(
+    element: StoredElement,
+    definitions: ElementDefinition[],
+    index: number,
+    example: string,
+  ): Promise<void> {
+    const target = definitions[index];
     if (!target) {
       this.error.set('element.placeExampleFailed');
       return;
@@ -6664,9 +6751,10 @@ export class ElementModal {
     }
     target.examples.push({ text: example, metadata: this.definitionForMetadata(example) });
     this.appendExample(target, example);
-    const index = definitions.indexOf(target);
     if (!(await this.persist(definitions, element.equivalents))) return;
-    if (this.element().id === element.id) this.scrollSenseIntoView(index);
+    if (this.element().id !== element.id) return;
+    this.unveilExamples(index);
+    this.scrollSenseIntoView(index);
     this.definitionExample.set('');
     this.heldExample.set('');
   }
