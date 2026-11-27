@@ -1108,21 +1108,19 @@ function writeExampleSuggestions(
                                       }
                                       @if (entries(example.metadata); as exampleMeta) {
                                         @if (exampleMeta.length) {
-                                          <ul class="pills">
+                                          <ul class="sense-meta">
                                             @for (field of exampleMeta; track field.key) {
                                               @let color = metaColor('examples', field.key);
                                               <li
                                                 [class.colored]="color"
                                                 [style.--meta-color]="color"
                                               >
-                                                <span>
-                                                  <span class="sense-meta-key">{{
-                                                    label(field.key)
-                                                  }}</span>
-                                                  <span class="sense-meta-value">{{
-                                                    label(field.value)
-                                                  }}</span>
-                                                </span>
+                                                <span class="sense-meta-key">{{
+                                                  label(field.key)
+                                                }}</span>
+                                                <span class="sense-meta-value">{{
+                                                  label(field.value)
+                                                }}</span>
                                               </li>
                                             }
                                           </ul>
@@ -1613,21 +1611,19 @@ function writeExampleSuggestions(
                                     }
                                     @if (entries(example.metadata); as meta) {
                                       @if (meta.length) {
-                                        <ul class="pills">
+                                        <ul class="sense-meta">
                                           @for (entry of meta; track entry.key) {
                                             @let color = metaColor('examples', entry.key);
                                             <li
                                               [class.colored]="color"
                                               [style.--meta-color]="color"
                                             >
-                                              <span>
-                                                <span class="sense-meta-key">{{
-                                                  label(entry.key)
-                                                }}</span>
-                                                <span class="sense-meta-value">{{
-                                                  label(entry.value)
-                                                }}</span>
-                                              </span>
+                                              <span class="sense-meta-key">{{
+                                                label(entry.key)
+                                              }}</span>
+                                              <span class="sense-meta-value">{{
+                                                label(entry.value)
+                                              }}</span>
                                             </li>
                                           }
                                         </ul>
@@ -2597,16 +2593,12 @@ function writeExampleSuggestions(
                             />
                             @if (entries(example.metadata); as meta) {
                               @if (meta.length) {
-                                <ul class="pills">
+                                <ul class="sense-meta">
                                   @for (entry of meta; track entry.key) {
                                     @let color = metaColor('examples', entry.key);
                                     <li [class.colored]="color" [style.--meta-color]="color">
-                                      <span>
-                                        <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                                        <span class="sense-meta-value">{{
-                                          label(entry.value)
-                                        }}</span>
-                                      </span>
+                                      <span class="sense-meta-key">{{ label(entry.key) }}</span>
+                                      <span class="sense-meta-value">{{ label(entry.value) }}</span>
                                     </li>
                                   }
                                 </ul>
@@ -4388,6 +4380,17 @@ function writeExampleSuggestions(
       flex-direction: column;
       align-items: stretch;
       gap: 0.35rem;
+    }
+
+    .examples .sense-meta li {
+      display: inline-flex;
+      flex: none;
+      flex-direction: row;
+      align-items: center;
+      align-self: center;
+      width: auto;
+      gap: 0.375rem;
+      white-space: nowrap;
     }
 
     .saved-example .draft-translation {
