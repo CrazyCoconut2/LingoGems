@@ -80,6 +80,7 @@ import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { supportLanguageFor } from '../languages/translation-language';
 import { UpwardQuotePipe } from '../text/upward-quote.pipe';
 import { FeedbackTranslation } from '../translate/feedback-translation';
+import { HighlightedText } from './highlighted-text';
 import { PhraseTranslation } from '../translate/phrase-translation';
 import {
   readPhraseTranslation,
@@ -306,7 +307,7 @@ function writeRecord(key: string, stored: Record<string, unknown>): void {
 
 type ExampleSuggestion = { text: string; form: string };
 
-type EngineerDraft = { instruction: string; forms: string[] };
+type EngineerDraft = { instruction: string; form: string };
 
 type ExampleEngineer = EngineerDraft & {
   definitionIndex: number;
@@ -322,6 +323,8 @@ type ExampleFieldEngineer = {
   kind: ExampleFieldKind;
   index: number | null;
   instruction: string;
+  formsOpen: boolean;
+  form: string;
   grammarOpen: boolean;
   grammarId: string;
 };
@@ -509,6 +512,7 @@ function writeExampleSuggestions(
   imports: [
     NgTemplateOutlet,
     FeedbackTranslation,
+    HighlightedText,
     UpwardQuotePipe,
     PhraseTranslation,
     ShowText,
@@ -568,6 +572,52 @@ function writeExampleSuggestions(
                   </li>
                 }
               </ul>
+            }
+          }
+        </ng-template>
+        <ng-template #formPick let-surface="surface">
+          @if (pickerForms(surface); as forms) {
+            @if (forms.length) {
+              <button
+                type="button"
+                class="forms-toggle"
+                [attr.aria-expanded]="formPickerOpen(surface)"
+                [disabled]="askingExamples() !== null"
+                (click)="toggleFormPicker(surface)"
+              >
+                <span>{{ 'element.forms' | translate }}</span>
+                <span class="forms-toggle-side">
+                  @if (!formPickerOpen(surface) && formPickerLabel(surface); as label) {
+                    <span>{{ label }}</span>
+                  }
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    [class.open]="formPickerOpen(surface)"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </span>
+              </button>
+              @if (formPickerOpen(surface)) {
+                <ul class="grammar-picks">
+                  @for (form of forms; track form) {
+                    <li>
+                      <button
+                        type="button"
+                        class="form-option"
+                        [class.selected]="formPickerChosen(surface, form)"
+                        [attr.aria-pressed]="formPickerChosen(surface, form)"
+                        [disabled]="askingExamples() !== null"
+                        (click)="pickExampleForm(surface, form)"
+                      >
+                        <ng-container [ngTemplateOutlet]="formIcon" />
+                        {{ form }}
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
             }
           }
         </ng-template>
@@ -1162,7 +1212,17 @@ function writeExampleSuggestions(
                             <div class="log-detail-head">
                               <span class="log-game">{{ 'element.youWrote' | translate }}</span>
                             </div>
-                            <p class="log-answer">{{ entry.answer }}</p>
+                            <p class="log-answer">
+                              <app-highlighted-text
+                                [text]="entry.answer"
+                                [element]="element()"
+                                [collection]="collection()"
+                                (opened)="openFromDefinition($event.id, -1, $event.phrase)"
+                                (collided)="
+                                  showCollision($event.event, $event.matches, -1, '', $event.phrase)
+                                "
+                              />
+                            </p>
                             <div class="log-detail-head">
                               <span class="log-game">{{ 'element.feedback' | translate }}</span>
                               <app-feedback-translation
@@ -1173,7 +1233,15 @@ function writeExampleSuggestions(
                               />
                             </div>
                             <p class="log-feedback">
-                              {{ entry.explanation || entry.answer | upwardQuote }}
+                              <app-highlighted-text
+                                [text]="(entry.explanation || entry.answer) | upwardQuote"
+                                [element]="element()"
+                                [collection]="collection()"
+                                (opened)="openFromDefinition($event.id, -1, $event.phrase)"
+                                (collided)="
+                                  showCollision($event.event, $event.matches, -1, '', $event.phrase)
+                                "
+                              />
                             </p>
                             @if (note.shown(); as text) {
                               <p class="log-translation">{{ text | upwardQuote }}</p>
@@ -1182,7 +1250,17 @@ function writeExampleSuggestions(
                         }
                         @if (entry.event === 'seen' && entry.phrase && exerciseEntry() === $index) {
                           <div class="log-detail">
-                            <p class="log-answer">{{ entry.phrase }}</p>
+                            <p class="log-answer">
+                              <app-highlighted-text
+                                [text]="entry.phrase"
+                                [element]="element()"
+                                [collection]="collection()"
+                                (opened)="openFromDefinition($event.id, -1, $event.phrase)"
+                                (collided)="
+                                  showCollision($event.event, $event.matches, -1, '', $event.phrase)
+                                "
+                              />
+                            </p>
                           </div>
                         }
                         <ng-template #loggedSense let-snapshot="snapshot" let-hearKey="hearKey">
@@ -1294,8 +1372,12 @@ function writeExampleSuggestions(
                 [senses]="recallSenses()"
                 [examples]="recallExamples()"
                 [settled]="recallSettled()"
+                [element]="element()"
+                [collection]="collection()"
                 (finished)="finishRecall($event)"
                 (acceptExtra)="acceptRecallExtra($event)"
+                (opened)="openFromDefinition($event.id, -1, $event.phrase)"
+                (collided)="showCollision($event.event, $event.matches, -1, '', $event.phrase)"
               />
             }
             @if (element().definitions.length && !recallPending()) {
@@ -2028,54 +2110,10 @@ function writeExampleSuggestions(
                           [attr.aria-label]="'element.note' | translate"
                           (input)="onEngineerInstruction($event)"
                         ></textarea>
-                        @if (definitionForms(engineer.definitionIndex); as forms) {
-                          @if (forms.length) {
-                            <button
-                              type="button"
-                              class="forms-toggle"
-                              [attr.aria-expanded]="engineer.formsOpen"
-                              [disabled]="askingExamples() !== null"
-                              (click)="toggleEngineerForms()"
-                            >
-                              <span>{{ 'element.forms' | translate }}</span>
-                              <span class="forms-toggle-side">
-                                @if (!engineer.formsOpen && engineer.forms.length) {
-                                  <span>{{ engineer.forms.join(', ') }}</span>
-                                }
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  aria-hidden="true"
-                                  [class.open]="engineer.formsOpen"
-                                >
-                                  <path d="m6 9 6 6 6-6" />
-                                </svg>
-                              </span>
-                            </button>
-                            @if (engineer.formsOpen) {
-                              <div class="engineer-forms">
-                                <p class="hint">
-                                  {{ 'element.formsHint' | translate }}
-                                </p>
-                                <ul class="equivalent-choices">
-                                  @for (form of forms; track form) {
-                                    <li>
-                                      <button
-                                        type="button"
-                                        [class.selected]="engineerFormChosen(form)"
-                                        [attr.aria-pressed]="engineerFormChosen(form)"
-                                        [disabled]="askingExamples() !== null"
-                                        (click)="toggleEngineerForm(form)"
-                                      >
-                                        <ng-container [ngTemplateOutlet]="formIcon" />
-                                        {{ form }}
-                                      </button>
-                                    </li>
-                                  }
-                                </ul>
-                              </div>
-                            }
-                          }
-                        }
+                        <ng-container
+                          [ngTemplateOutlet]="formPick"
+                          [ngTemplateOutletContext]="{ surface: 'new' }"
+                        />
                         <ng-container
                           [ngTemplateOutlet]="grammarPick"
                           [ngTemplateOutletContext]="{ surface: 'new' }"
@@ -2408,6 +2446,10 @@ function writeExampleSuggestions(
                             </button>
                           </div>
                           <ng-container
+                            [ngTemplateOutlet]="formPick"
+                            [ngTemplateOutletContext]="{ surface: 'field' }"
+                          />
+                          <ng-container
                             [ngTemplateOutlet]="grammarPick"
                             [ngTemplateOutletContext]="{ surface: 'field' }"
                           />
@@ -2564,6 +2606,7 @@ function writeExampleSuggestions(
                           track exampleIndex
                         ) {
                           @let example = worked.examples[exampleIndex];
+                          @if (!exampleRemoved(workIndex, exampleIndex)) {
                           <li class="saved-example">
                             <div class="field-heading">
                               <span class="field-label">Example {{ exampleIndex + 1 }}</span>
@@ -2590,7 +2633,7 @@ function writeExampleSuggestions(
                                   [attr.aria-label]="'element.deleteExample' | translate"
                                   [attr.title]="'element.deleteExample' | translate"
                                   [disabled]="aiBusy()"
-                                  (click)="askDeleteExample(workIndex, exampleIndex)"
+                                  (click)="stageExampleRemoval(workIndex, exampleIndex)"
                                 >
                                   <svg viewBox="0 0 24 24" aria-hidden="true">
                                     <path d="M3 6h18" />
@@ -2630,6 +2673,7 @@ function writeExampleSuggestions(
                               }
                             }
                           </li>
+                          }
                         }
                       </ul>
                     }
@@ -3618,7 +3662,7 @@ function writeExampleSuggestions(
     .log-chevron,
     .form-chip svg,
     .form-attributes-title svg,
-    .engineer-forms .equivalent-choices svg,
+    .grammar-picks svg,
     .sense-equivalent svg,
     .equivalent-result svg {
       fill: none;
@@ -4962,23 +5006,6 @@ function writeExampleSuggestions(
       resize: none;
     }
 
-    .engineer-forms {
-      overflow: visible;
-    }
-
-    .engineer-forms .equivalent-choices button {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-
-    .engineer-forms .equivalent-choices svg {
-      display: block;
-      width: 0.95rem;
-      height: 0.95rem;
-      flex: none;
-    }
-
     .definition-slot {
       display: flex;
       flex-direction: column;
@@ -5039,18 +5066,6 @@ function writeExampleSuggestions(
       color: rgba(255, 255, 255, 0.72);
     }
 
-    .definition-ai .engineer-forms .equivalent-choices button {
-      border-color: rgba(255, 255, 255, 0.35);
-      background: rgba(255, 255, 255, 0.12);
-      color: white;
-    }
-
-    .definition-ai .engineer-forms .equivalent-choices button.selected {
-      background: white;
-      color: var(--accent);
-      border-color: white;
-    }
-
     .definition-ai .grammar-picks {
       display: flex;
       flex-flow: row wrap;
@@ -5087,6 +5102,17 @@ function writeExampleSuggestions(
       background: white;
       color: var(--accent);
       border-color: white;
+    }
+
+    .definition-ai .grammar-picks button.form-option {
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .definition-ai .grammar-picks button.form-option svg {
+      width: 0.95rem;
+      height: 0.95rem;
+      flex: none;
     }
 
     .definition-ai .grammar-picks button:disabled {
@@ -5985,6 +6011,8 @@ export class ElementModal {
   readonly exampleDraftField = signal<{ definitionIndex: number; text: string } | null>(null);
   /** Unsaved text for examples already on a definition, keyed by definition and example index. */
   readonly exampleEdits = signal<ReadonlyMap<string, string>>(new Map());
+  /** Saved examples marked for removal. They stay until the examples sheet is saved. */
+  readonly removedExamples = signal<ReadonlySet<string>>(new Set());
   /** Blank example rows added in the sheet, newest first. */
   readonly exampleAdditions = signal<ReadonlyMap<number, string[]>>(new Map());
   /** Generated forms waiting to be saved. */
@@ -6017,6 +6045,8 @@ export class ElementModal {
   private relatedJob = 0;
   private wordingJob = 0;
   private trackedElementId = '';
+  /** This open already counted a sighting. The recall phase does not. */
+  private seenThisOpen = false;
   private engineerDrafts = new Map<string, EngineerDraft>();
   private definitionEngineerDrafts = new Map<string, DefinitionEngineerDraft>();
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
@@ -6083,7 +6113,8 @@ export class ElementModal {
       this.askingMetadata.set(false);
       this.engineerDrafts.clear();
       this.definitionEngineerDrafts = readRelatedDrafts(id);
-      this.noteSeen(openedFrom);
+      this.seenThisOpen = false;
+      if (!this.element().definitions.length || this.skipRecall()) this.noteSeen(openedFrom);
       void this.commitStoredExamples(id);
       this.refreshNewDefinitions(id);
       this.scrollSenseIntoView(definition);
@@ -6286,7 +6317,12 @@ export class ElementModal {
     this.appendLog(entry);
     this.revealRecallDefinitions(element);
     this.recallSettled.set(true);
-    void this.persist(this.copyDefinitions(), this.currentElement().equivalents, { busy: false });
+    const phrase = this.openedFrom().replace(/\s+/g, ' ').trim();
+    if (this.seenThisOpen) {
+      void this.persist(this.copyDefinitions(), this.currentElement().equivalents, { busy: false });
+    } else {
+      this.noteSeen(phrase);
+    }
   }
 
   acceptRecallExtra(extra: RecallExtra): void {
@@ -6583,6 +6619,7 @@ export class ElementModal {
     this.exampleDraft.set(null);
     this.exampleDraftField.set(null);
     this.exampleEdits.set(new Map());
+    this.removedExamples.set(new Set());
     this.exampleAdditions.set(new Map());
     this.pendingForms.set(null);
     this.exampleError.set('');
@@ -7059,6 +7096,9 @@ export class ElementModal {
       }
       return next;
     });
+    this.mapRemovedExamples(
+      (definitionIndex, exampleIndex) => `${swap(definitionIndex)}:${exampleIndex}`,
+    );
     this.exampleAdditions.update((current) => swapIndexMap(current, from, to));
     const field = this.exampleDraftField();
     if (field)
@@ -7172,12 +7212,11 @@ export class ElementModal {
       this.exampleEngineer.set(null);
       return;
     }
-    const draft = this.engineerDrafts.get(key) ?? { instruction: '', forms: [] };
-    const available = new Set(definition.forms.map((form) => form.text.toLowerCase()));
+    const draft = this.engineerDrafts.get(key) ?? { instruction: '', form: '' };
     this.exampleEngineer.set({
       definitionIndex: index,
       instruction: draft.instruction,
-      forms: draft.forms.filter((form) => available.has(form.toLowerCase())),
+      form: this.keptForm(definition.forms, draft.form),
       formsOpen: false,
       grammarOpen: false,
       grammarId: '',
@@ -7196,12 +7235,11 @@ export class ElementModal {
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
     this.confirm.set(null);
-    const draft = this.engineerDrafts.get(key) ?? { instruction: '', forms: [] };
-    const available = new Set(definition.forms.map((form) => form.text.toLowerCase()));
+    const draft = this.engineerDrafts.get(key) ?? { instruction: '', form: '' };
     this.exampleEngineer.set({
       definitionIndex: index,
       instruction: draft.instruction,
-      forms: draft.forms.filter((form) => available.has(form.toLowerCase())),
+      form: this.keptForm(definition.forms, draft.form),
       formsOpen: false,
       grammarOpen: false,
       grammarId: '',
@@ -7489,31 +7527,66 @@ export class ElementModal {
     }
   }
 
-  toggleEngineerForms(): void {
-    const engineer = this.exampleEngineer();
-    if (!engineer || this.askingExamples() !== null) return;
-    this.exampleEngineer.set({ ...engineer, formsOpen: !engineer.formsOpen });
+  pickerForms(surface: GrammarSurface): string[] {
+    const index =
+      surface === 'new'
+        ? this.exampleEngineer()?.definitionIndex
+        : this.exampleFieldEngineer()?.definitionIndex;
+    return index == null ? [] : this.definitionForms(index);
+  }
+
+  formPickerOpen(surface: GrammarSurface): boolean {
+    return surface === 'new'
+      ? !!this.exampleEngineer()?.formsOpen
+      : !!this.exampleFieldEngineer()?.formsOpen;
+  }
+
+  formPickerLabel(surface: GrammarSurface): string {
+    const form =
+      surface === 'new' ? this.exampleEngineer()?.form : this.exampleFieldEngineer()?.form;
+    return form?.trim() ?? '';
+  }
+
+  formPickerChosen(surface: GrammarSurface, form: string): boolean {
+    const key = form.trim().toLowerCase();
+    return !!key && this.formPickerLabel(surface).toLowerCase() === key;
+  }
+
+  toggleFormPicker(surface: GrammarSurface): void {
+    if (this.askingExamples() !== null) return;
+    if (surface === 'new') {
+      const engineer = this.exampleEngineer();
+      if (!engineer) return;
+      this.exampleEngineer.set({ ...engineer, formsOpen: !engineer.formsOpen });
+      return;
+    }
+    const engineer = this.exampleFieldEngineer();
+    if (!engineer) return;
+    this.exampleFieldEngineer.set({ ...engineer, formsOpen: !engineer.formsOpen });
+  }
+
+  pickExampleForm(surface: GrammarSurface, form: string): void {
+    if (this.askingExamples() !== null) return;
+    const next = this.formPickerChosen(surface, form) ? '' : form;
+    if (surface === 'new') {
+      this.patchEngineer({ form: next });
+      return;
+    }
+    const engineer = this.exampleFieldEngineer();
+    if (!engineer) return;
+    this.exampleFieldEngineer.set({ ...engineer, form: next });
+  }
+
+  private keptForm(forms: readonly { text: string }[], form: string): string {
+    const key = form.trim().toLowerCase();
+    if (!key) return '';
+    return forms.find((item) => item.text.trim().toLowerCase() === key)?.text ?? '';
   }
 
   onEngineerInstruction(event: Event): void {
     this.patchEngineer({
       instruction: this.inputValue(event).slice(0, MAX_EXAMPLE_INSTRUCTION),
     });
-  }
-
-  engineerFormChosen(form: string): boolean {
-    const key = form.trim().toLowerCase();
-    return this.exampleEngineer()?.forms.some((item) => item.toLowerCase() === key) ?? false;
-  }
-
-  toggleEngineerForm(form: string): void {
-    const engineer = this.exampleEngineer();
-    if (!engineer || this.askingExamples() !== null) return;
-    const key = form.toLowerCase();
-    const forms = engineer.forms.some((item) => item.toLowerCase() === key)
-      ? engineer.forms.filter((item) => item.toLowerCase() !== key)
-      : [...engineer.forms, form];
-    this.patchEngineer({ forms });
   }
 
   async generateEngineeredExample(): Promise<void> {
@@ -7524,12 +7597,7 @@ export class ElementModal {
     const gloss = parsePassage(definition?.text ?? '').text.trim();
     const sense = senseKey(gloss);
     if (!definition || !sense) return;
-    const available = new Map(definition.forms.map((form) => [form.text.toLowerCase(), form.text]));
-    const selected = engineer.forms.flatMap((form) => {
-      const text = available.get(form.toLowerCase());
-      return text ? [text] : [];
-    });
-    const required = selected.length ? selected[Math.floor(Math.random() * selected.length)] : '';
+    const required = this.keptForm(definition.forms, engineer.form);
     const index = engineer.definitionIndex;
     const editor = this.editor();
     const editing =
@@ -7782,6 +7850,8 @@ export class ElementModal {
       kind,
       index,
       instruction: '',
+      formsOpen: false,
+      form: '',
       grammarOpen: false,
       grammarId: '',
     });
@@ -7823,6 +7893,7 @@ export class ElementModal {
     }
     const current = this.exampleFieldText(engineer);
     const fresh = !instruction;
+    const required = this.keptForm(definition.forms, engineer.form);
     const index = engineer.definitionIndex;
     const job = ++this.exampleJob;
     this.askingExamples.set(index);
@@ -7838,9 +7909,10 @@ export class ElementModal {
           fresh && current
             ? [...this.otherExampleTexts(engineer), current]
             : this.otherExampleTexts(engineer),
-        forms: definition.forms.map((form) => form.text),
+        forms: required ? [] : definition.forms.map((form) => form.text),
         exampleWords: [],
         exampleInstruction: instruction,
+        ...(required ? { requiredForm: required } : {}),
         ...(current && !fresh ? { currentExample: current } : {}),
         ...this.grammarRequest(engineer.grammarId),
       });
@@ -7857,6 +7929,10 @@ export class ElementModal {
         this.exampleError.set(
           current && !fresh ? 'element.changeExampleFailed' : 'element.writeExampleFailed',
         );
+        return;
+      }
+      if (required && !sentenceUsesForm(sentence, required)) {
+        this.exampleError.set('element.formUnused');
         return;
       }
       this.setExampleFieldText(engineer, sentence);
@@ -7901,8 +7977,11 @@ export class ElementModal {
     const definitions = this.copyDefinitions();
     const definition = definitions[index];
     if (!definition) return;
+    const removed = this.removedExamples();
     const seen = new Set<string>();
+    const kept: ElementDefinition['examples'] = [];
     for (let exampleIndex = 0; exampleIndex < definition.examples.length; exampleIndex += 1) {
+      if (removed.has(this.exampleEditKey(index, exampleIndex))) continue;
       const example = definition.examples[exampleIndex];
       const baseline = plainPassage(example.text);
       const draft = this.exampleEdits().get(this.exampleEditKey(index, exampleIndex)) ?? baseline;
@@ -7918,7 +7997,9 @@ export class ElementModal {
       }
       seen.add(key);
       example.text = nextText;
+      kept.push(example);
     }
+    definition.examples = kept;
     const created: string[] = [];
     for (const row of this.exampleAdditions().get(index) ?? []) {
       if (!plainPassage(row)) continue;
@@ -7964,6 +8045,9 @@ export class ElementModal {
       const draft = this.exampleEdits().get(this.exampleEditKey(index, exampleIndex));
       if (draft != null && draft !== baseline && plainPassage(draft)) return true;
     }
+    for (const key of this.removedExamples()) {
+      if (Number(key.slice(0, key.indexOf(':'))) === index) return true;
+    }
     if ((this.exampleAdditions().get(index) ?? []).some((row) => plainPassage(row))) return true;
     return !!parsePassage(this.exampleDraftFor(index)?.text ?? '').text.trim();
   }
@@ -7988,6 +8072,9 @@ export class ElementModal {
       }
       return next;
     });
+    this.mapRemovedExamples(
+      (definitionIndex, exampleIndex) => `${definitionIndex + by}:${exampleIndex}`,
+    );
     this.exampleAdditions.update((current) => {
       const next = new Map<number, string[]>();
       for (const [index, rows] of current) next.set(index + by, rows);
@@ -8015,6 +8102,11 @@ export class ElementModal {
         next.set(`${shifted}:${key.slice(split + 1)}`, value);
       }
       return next;
+    });
+    this.mapRemovedExamples((definitionIndex, exampleIndex) => {
+      if (definitionIndex === index) return null;
+      const shifted = definitionIndex > index ? definitionIndex - 1 : definitionIndex;
+      return `${shifted}:${exampleIndex}`;
     });
     this.exampleAdditions.update((current) => {
       const next = new Map<number, string[]>();
@@ -8056,6 +8148,12 @@ export class ElementModal {
       }
       return next;
     });
+    this.mapRemovedExamples((definition, example) => {
+      if (definition !== definitionIndex) return `${definition}:${example}`;
+      if (example === exampleIndex) return null;
+      const shifted = example > exampleIndex ? example - 1 : example;
+      return `${definition}:${shifted}`;
+    });
     const engineer = this.exampleFieldEngineer();
     if (
       !engineer ||
@@ -8095,6 +8193,7 @@ export class ElementModal {
     };
     definition?.examples.forEach((_, exampleIndex) => {
       if (engineer.kind === 'saved' && engineer.index === exampleIndex) return;
+      if (this.exampleRemoved(index, exampleIndex)) return;
       add(this.exampleFieldValue(index, exampleIndex));
     });
     (this.exampleAdditions().get(index) ?? []).forEach((row, additionIndex) => {
@@ -8838,9 +8937,41 @@ export class ElementModal {
     this.confirm.set({ kind: 'definition', index });
   }
 
-  askDeleteExample(definitionIndex: number, exampleIndex: number): void {
+  /** Hide a saved example until the sheet is saved. Closing the sheet keeps it. */
+  stageExampleRemoval(definitionIndex: number, exampleIndex: number): void {
     if (this.aiBusy() || this.busy()) return;
-    this.confirm.set({ kind: 'example', definitionIndex, exampleIndex });
+    if (!this.sheetDefinition(definitionIndex)?.examples[exampleIndex]) return;
+    this.removedExamples.update((current) => {
+      const next = new Set(current);
+      next.add(this.exampleEditKey(definitionIndex, exampleIndex));
+      return next;
+    });
+    const engineer = this.exampleFieldEngineer();
+    if (
+      engineer?.kind === 'saved' &&
+      engineer.definitionIndex === definitionIndex &&
+      engineer.index === exampleIndex
+    ) {
+      this.exampleFieldEngineer.set(null);
+    }
+  }
+
+  exampleRemoved(definitionIndex: number, exampleIndex: number): boolean {
+    return this.removedExamples().has(this.exampleEditKey(definitionIndex, exampleIndex));
+  }
+
+  private mapRemovedExamples(
+    mapKey: (definitionIndex: number, exampleIndex: number) => string | null,
+  ): void {
+    this.removedExamples.update((current) => {
+      const next = new Set<string>();
+      for (const key of current) {
+        const split = key.indexOf(':');
+        const mapped = mapKey(Number(key.slice(0, split)), Number(key.slice(split + 1)));
+        if (mapped) next.add(mapped);
+      }
+      return next;
+    });
   }
 
   askDeleteExercise(entry: DefinitionHistoryEntry): void {
@@ -9038,7 +9169,7 @@ export class ElementModal {
     if (!sense) return;
     this.engineerDrafts.set(sense, {
       instruction: next.instruction,
-      forms: [...next.forms],
+      form: next.form,
     });
   }
 
@@ -9226,8 +9357,10 @@ export class ElementModal {
     };
   }
 
-  /** One sighting for this open. A passage keeps the "opened from" line in the history. */
+  /** One sighting once the definitions are on screen. A passage keeps the "opened from" line. */
   private noteSeen(phrase: string): void {
+    if (this.seenThisOpen) return;
+    this.seenThisOpen = true;
     this.appendLog({
       event: 'seen',
       at: Date.now(),

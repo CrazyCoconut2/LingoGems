@@ -10,11 +10,14 @@ import {
   type GrammarMark,
   type ReformulationChange,
   type ReformulationMark,
+  type DefinitionHighlightMatch,
+  type StoredElement,
 } from 'collection';
 import { UpwardQuotePipe } from '../text/upward-quote.pipe';
 import { LanguageService } from '../i18n/language.service';
 import { TranslatePipe } from '../i18n/translate.pipe';
 import { FeedbackTranslation } from '../translate/feedback-translation';
+import { HighlightedText } from './highlighted-text';
 import {
   correctRecallAnswer,
   evaluateRecallAnswer,
@@ -70,7 +73,7 @@ type ShownReformulation = {
 /** Recall the meanings of one headword before its definitions are shown. */
 @Component({
   selector: 'app-definition-recall',
-  imports: [FeedbackTranslation, UpwardQuotePipe, TranslatePipe],
+  imports: [FeedbackTranslation, HighlightedText, UpwardQuotePipe, TranslatePipe],
   host: {
     '[class.quiet]': 'settled() && !result()',
   },
@@ -109,7 +112,15 @@ type ShownReformulation = {
             @if (scored.gaveUp) {
               <p class="hint">{{ 'recall.gaveUp' | translate }}</p>
             } @else if (scored.feedback) {
-              <p class="feedback">{{ scored.feedback | upwardQuote }}</p>
+              <p class="feedback">
+                <app-highlighted-text
+                  [text]="scored.feedback | upwardQuote"
+                  [element]="element()"
+                  [collection]="collection()"
+                  (opened)="opened.emit($event)"
+                  (collided)="collided.emit($event)"
+                />
+              </p>
               @if (note.shown(); as text) {
                 <p class="feedback-translation">{{ text | upwardQuote }}</p>
               }
@@ -811,8 +822,16 @@ export class DefinitionRecall {
   /** This open already revealed the definitions, so the prompt cannot return. */
   readonly settled = input(false);
   readonly examples = input.required<readonly RecallExample[]>();
+  readonly element = input.required<StoredElement>();
+  readonly collection = input<StoredElement[]>([]);
   readonly finished = output<RecallFinish>();
   readonly acceptExtra = output<RecallExtra>();
+  readonly opened = output<{ id: string; phrase: string }>();
+  readonly collided = output<{
+    event: MouseEvent;
+    matches: DefinitionHighlightMatch[];
+    phrase: string;
+  }>();
 
   readonly draft = signal('');
   readonly hintStep = signal(0);
