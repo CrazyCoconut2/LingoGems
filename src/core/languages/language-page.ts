@@ -51,6 +51,7 @@ import {
   readGrammarInputs,
   type GrammarMistake,
   mergeMetadataVariability,
+  mergeElements,
   metadataFilterSize,
   parseMetadataFilter,
   readElements,
@@ -66,6 +67,20 @@ import {
 } from 'collection';
 
 type ElementTrailStop = { id: string; definition: number; example?: string; guide?: string };
+
+function retargetTrail(
+  trail: readonly ElementTrailStop[],
+  absorbedId: string,
+  keepId: string,
+): ElementTrailStop[] {
+  const next: ElementTrailStop[] = [];
+  for (const stop of trail) {
+    const id = stop.id === absorbedId ? keepId : stop.id;
+    if (next.at(-1)?.id === id) continue;
+    next.push(id === stop.id ? stop : { ...stop, id });
+  }
+  return next;
+}
 
 type FilterSection = 'sort' | 'language' | 'score' | 'definitions' | 'examples' | 'forms';
 
@@ -224,6 +239,22 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             </p>
             @if (selecting()) {
               <div class="list-toolbar-actions">
+                @if (selectedIds().size === 2) {
+                  <button
+                    type="button"
+                    class="list-action"
+                    [attr.aria-label]="'element.merge' | translate"
+                    [attr.title]="'element.merge' | translate"
+                    [disabled]="selectionBusy()"
+                    (click)="askMergeSelection()"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M7 4v7a5 5 0 0 0 5 5" />
+                      <path d="M17 4v7a5 5 0 0 1-5 5" />
+                      <path d="M12 16v4" />
+                    </svg>
+                  </button>
+                }
                 @if (selectedIds().size) {
                   <button
                     type="button"
@@ -877,6 +908,42 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
               </button>
             </footer>
           </div>
+        </div>
+      }
+
+      @if (mergeConfirm()) {
+        <div class="selection-backdrop" (click)="closeMergeConfirm($event)">
+          <section
+            class="selection-sheet"
+            role="dialog"
+            aria-modal="true"
+            [attr.aria-label]="'element.mergeInto' | translate"
+            (click)="$event.stopPropagation()"
+          >
+            <h3>{{ 'element.mergeInto' | translate }}</h3>
+            <p class="selection-hint">{{ mergeConfirmHint() }}</p>
+            <div class="selection-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                [disabled]="selectionBusy()"
+                (click)="closeMergeConfirm($event)"
+              >
+                {{ 'common.cancel' | translate }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-primary"
+                [disabled]="selectionBusy()"
+                (click)="confirmMergeSelection()"
+              >
+                {{ 'element.merge' | translate }}
+              </button>
+            </div>
+            @if (selectionError()) {
+              <p class="selection-error">{{ selectionError() | translate }}</p>
+            }
+          </section>
         </div>
       }
 
@@ -2402,6 +2469,7 @@ export class LanguagePage {
   readonly selectionBusy = signal(false);
   readonly selectionError = signal('');
   readonly deleteConfirm = signal(false);
+  readonly mergeConfirm = signal(false);
   readonly skeletons = ELEMENT_SKELETONS;
   readonly sortOptions: { value: ElementSort; label: string }[] = [
     { value: 'title-asc', label: 'languages.sortTitleAsc' },
@@ -2604,6 +2672,10 @@ export class LanguagePage {
       return;
     }
     if (this.elementId() || this.selectionBusy()) return;
+    if (this.mergeConfirm()) {
+      this.mergeConfirm.set(false);
+      return;
+    }
     if (this.deleteConfirm()) {
       this.deleteConfirm.set(false);
       return;
@@ -2715,12 +2787,62 @@ export class LanguagePage {
     this.selecting.set(false);
     this.selectedIds.set(new Set());
     this.deleteConfirm.set(false);
+    this.mergeConfirm.set(false);
     this.selectionError.set('');
   }
 
   askDeleteSelection(): void {
     if (this.selectionBusy() || this.selectedIds().size === 0) return;
+    this.mergeConfirm.set(false);
     this.deleteConfirm.set(true);
+  }
+
+  askMergeSelection(): void {
+    if (this.selectionBusy() || !this.mergePair()) return;
+    this.deleteConfirm.set(false);
+    this.selectionError.set('');
+    this.mergeConfirm.set(true);
+  }
+
+  closeMergeConfirm(event?: Event): void {
+    event?.stopPropagation();
+    if (this.selectionBusy()) return;
+    this.mergeConfirm.set(false);
+  }
+
+  mergeConfirmHint(): string {
+    const pair = this.mergePair();
+    if (!pair) return '';
+    const [keep, absorb] = pair;
+    return this.i18n.translate('element.mergeConfirm', {
+      title: displayTitle(keep.title, keep.language),
+      other: displayTitle(absorb.title, absorb.language),
+    });
+  }
+
+  async confirmMergeSelection(): Promise<void> {
+    const pair = this.mergePair();
+    if (!pair || this.selectionBusy()) return;
+    const [keep, absorb] = pair;
+    this.selectionBusy.set(true);
+    this.selectionError.set('');
+    try {
+      const saved = await mergeElements(keep.id, absorb.id);
+      this.elements.update((list) =>
+        list
+          .filter((item) => item.id !== absorb.id)
+          .map((item) => (item.id === saved.id ? saved : item)),
+      );
+      this.dropSelected(absorb.id);
+      this.trail.update((trail) => retargetTrail(trail, absorb.id, saved.id));
+      if (this.elementId() === absorb.id) this.elementId.set(saved.id);
+      this.useLanguageCatalog(this.elements());
+      this.clearSelection();
+    } catch {
+      this.selectionError.set('element.saveFailed');
+    } finally {
+      this.selectionBusy.set(false);
+    }
   }
 
   closeDeleteConfirm(event?: Event): void {
@@ -2762,6 +2884,24 @@ export class LanguagePage {
     }
   }
 
+  /** The card earlier in the list keeps its title. The other card is absorbed. */
+  private mergePair(): [StoredElement, StoredElement] | null {
+    if (this.selectedIds().size !== 2) return null;
+    const ids = this.selectedIds();
+    const picked = this.shown().filter((element) => ids.has(element.id));
+    if (picked.length < 2) {
+      for (const element of this.elements()) {
+        if (!ids.has(element.id) || picked.some((item) => item.id === element.id)) continue;
+        picked.push(element);
+        if (picked.length === 2) break;
+      }
+    }
+    const keep = picked[0];
+    const absorb = picked[1];
+    if (!keep || !absorb || keep.id === absorb.id) return null;
+    return [keep, absorb];
+  }
+
   private beginSelection(id: string): void {
     if (this.selectionBusy() || !id) return;
     this.swallowClickUntil = Date.now() + 400;
@@ -2797,7 +2937,7 @@ export class LanguagePage {
 
   private dismissSelectionFromOutside(target: Element | null): void {
     if (this.selectionBusy() || !this.selecting()) return;
-    if (this.deleteConfirm()) return;
+    if (this.deleteConfirm() || this.mergeConfirm()) return;
     if (
       target?.closest(
         '.card, .element, .list-toolbar-actions, .selection-backdrop, app-element-modal',

@@ -16,8 +16,6 @@ npm run deploy
 `deploy` bumps the patch version, builds, and publishes with Wrangler.
 
 TODO
-- FORMS: They can go outside definitions in retrospective.
-         They can have multiple part of speech metadata.
 - Feature when writing something with *.
   => So I think this is another genius feature. When somebody
       writes something, they often times think in their other language so they'll say something like "Passe moi la *spoon*". The AI could automatically detect that and suggest a change for the phrase that the user can accept.

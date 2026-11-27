@@ -19,6 +19,7 @@ export {
   commitElementCatalog,
   deleteElement,
   displayTitle,
+  mergeElements,
   readAllElements,
   readElements,
   replaceCollection,
@@ -130,6 +131,7 @@ export {
 export {
   readReformulations,
   reformulationMarks,
+  retargetReformulations,
   saveReformulation,
   type ReformulationChange,
   type ReformulationMark,

@@ -26,8 +26,7 @@ export type StoredReformulation = {
 };
 
 export type ReformulationMark =
-  | { kind: 'text'; text: string }
-  | { kind: 'change'; wrote: string; reformulation: string };
+  { kind: 'text'; text: string } | { kind: 'change'; wrote: string; reformulation: string };
 
 /** Accepted reformulations for this language, newest first. */
 export async function readReformulations(language: string): Promise<StoredReformulation[]> {
@@ -84,6 +83,31 @@ export async function saveReformulation(input: {
   tx.objectStore(REFORMULATION_STORE).put(row);
   await done;
   return row;
+}
+
+/** Point reformulations that belonged to `fromId` at `toId`. */
+export async function retargetReformulations(fromId: string, toId: string): Promise<void> {
+  const from = clip(fromId, ID_MAX);
+  const to = clip(toId, ID_MAX);
+  if (!from || !to || from === to || typeof indexedDB === 'undefined') return;
+  const db = await openDatabase();
+  const rows = await idbRequest(
+    db.transaction(REFORMULATION_STORE, 'readonly').objectStore(REFORMULATION_STORE).getAll(),
+  );
+  if (!Array.isArray(rows)) return;
+  const updates: StoredReformulation[] = [];
+  for (const item of rows) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as StoredReformulation;
+    if (row.elementId !== from || !row.id) continue;
+    updates.push({ ...row, elementId: to });
+  }
+  if (!updates.length) return;
+  const tx = db.transaction(REFORMULATION_STORE, 'readwrite');
+  const done = transactionDone(tx);
+  const store = tx.objectStore(REFORMULATION_STORE);
+  for (const row of updates) store.put(row);
+  await done;
 }
 
 /** The suggestion, with each changed span shown as the words that were written beside the new wording. */

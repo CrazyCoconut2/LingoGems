@@ -17,12 +17,14 @@ import {
   replaceMetadataCatalog,
   type ElementCatalog,
 } from './metadata-catalog';
+import { isValidForm } from './forms';
 import {
   collectMetadataIndexes,
   emptyMetadataIndexes,
   metadataIndexesEmpty,
   type ElementMetadataVariability,
 } from './metadata-variability';
+import { retargetReformulations } from '../formulation/reformulation-store';
 
 export type ElementMetadata = Record<string, string>;
 
@@ -437,6 +439,247 @@ export async function deleteElement(id: string): Promise<void> {
     db.transaction(ELEMENTS_STORE, 'readwrite').objectStore(ELEMENTS_STORE).delete(element.id),
   );
   elementWriteListener?.(element.language);
+}
+
+/**
+ * Fold `absorbId` into `keepId` and delete the absorbed card.
+ * Score attempts are dropped. The rest of the history is kept, oldest first.
+ */
+export async function mergeElements(keepId: string, absorbId: string): Promise<StoredElement> {
+  const keepKey = keepId.trim();
+  const absorbKey = absorbId.trim();
+  if (!keepKey || !absorbKey) throw new Error('Id is required');
+  const keep = await readStoredElement(keepKey);
+  const absorb = await readStoredElement(absorbKey);
+  if (!keep || !absorb) throw new Error('Element not found');
+  if (keep.id === absorb.id) return keep;
+  if (keep.language !== absorb.language) throw new Error('Languages differ');
+  const saved = await saveElement(combineElements(keep, absorb));
+  await retargetReformulations(absorb.id, keep.id);
+  await deleteElement(absorb.id);
+  return saved;
+}
+
+function combineElements(keep: StoredElement, absorb: StoredElement): StoredElement {
+  const live = mergeDefinitionLists(
+    keep.definitions,
+    absorb.definitions,
+    absorb.equivalents,
+    keep.equivalents.map((item) => ({ ...item })),
+  );
+  const removed = mergeRemovedDefinitions(
+    keep.removedDefinitions,
+    absorb.removedDefinitions,
+    absorb.equivalents,
+    live.pool,
+  );
+  return {
+    ...keep,
+    equivalents: removed.pool,
+    definitions: withAbsorbedTitle(live.definitions, keep.title, absorb.title),
+    removedDefinitions: removed.removed,
+    clicks: keep.clicks + absorb.clicks,
+    log: [...withoutScores(keep.log), ...withoutScores(absorb.log)].sort(
+      (left, right) => left.at - right.at,
+    ),
+    createdAt: earlierStamp(keep.createdAt, absorb.createdAt),
+  };
+}
+
+/** Recall scores are not carried into the merged element. */
+function withoutScores(log: readonly ElementLogEntry[]): ElementLogEntry[] {
+  return log.filter((entry) => entry.event !== 'game');
+}
+
+function earlierStamp(left: number, right: number): number {
+  const first = Number.isFinite(left) && left > 0 ? left : 0;
+  const second = Number.isFinite(right) && right > 0 ? right : 0;
+  if (first && second) return Math.min(first, second);
+  return first || second;
+}
+
+function glossKey(text: string): string {
+  return parsePassage(text).text.trim().toLowerCase();
+}
+
+function mergeMetadataKeep(current: ElementMetadata, extra: ElementMetadata): ElementMetadata {
+  const next = { ...current };
+  for (const [key, value] of Object.entries(extra)) {
+    if (next[key] || !value.trim()) continue;
+    next[key] = value;
+  }
+  return next;
+}
+
+function mergeForms(keep: readonly ElementForm[], extra: readonly ElementForm[]): ElementForm[] {
+  const forms = keep.map((form) => ({ text: form.text, metadata: { ...form.metadata } }));
+  for (const form of extra) {
+    const key = form.text.trim().toLowerCase();
+    if (!key) continue;
+    const existing = forms.find((item) => item.text.trim().toLowerCase() === key);
+    if (existing) {
+      existing.metadata = mergeMetadataKeep(existing.metadata, form.metadata);
+      continue;
+    }
+    forms.push({ text: form.text.trim(), metadata: { ...form.metadata } });
+  }
+  return forms;
+}
+
+function mergeExamples(
+  keep: readonly ElementExample[],
+  extra: readonly ElementExample[],
+): ElementExample[] {
+  const examples = keep.map((example) => ({
+    text: example.text,
+    metadata: { ...example.metadata },
+  }));
+  for (const example of extra) {
+    const key = glossKey(example.text);
+    if (!key) {
+      examples.push({ text: example.text, metadata: { ...example.metadata } });
+      continue;
+    }
+    const existing = examples.find((item) => glossKey(item.text) === key);
+    if (existing) {
+      existing.metadata = mergeMetadataKeep(existing.metadata, example.metadata);
+      continue;
+    }
+    examples.push({ text: example.text, metadata: { ...example.metadata } });
+  }
+  return examples;
+}
+
+function adoptLinks(
+  links: EquivalentLinks,
+  extra: EquivalentLinks,
+  sourceEquivalents: readonly ElementEquivalent[],
+  pool: ElementEquivalent[],
+): { links: EquivalentLinks; pool: ElementEquivalent[] } {
+  const nextLinks = { ...links };
+  let nextPool = pool;
+  for (const [language, id] of Object.entries(extra)) {
+    if (nextLinks[language]) continue;
+    const source = sourceEquivalents.find((item) => item.id === id);
+    if (!source) continue;
+    const assigned = assignEquivalent(nextPool, source.text, source.language);
+    nextPool = assigned.equivalents;
+    if (assigned.equivalentId) nextLinks[language] = assigned.equivalentId;
+  }
+  return { links: nextLinks, pool: nextPool };
+}
+
+function copyDefinition(definition: ElementDefinition): ElementDefinition {
+  return {
+    text: definition.text,
+    equivalentIds: { ...definition.equivalentIds },
+    forms: definition.forms.map((form) => ({ text: form.text, metadata: { ...form.metadata } })),
+    examples: definition.examples.map((example) => ({
+      text: example.text,
+      metadata: { ...example.metadata },
+    })),
+    metadata: { ...definition.metadata },
+  };
+}
+
+function mergeOneDefinition(
+  keep: ElementDefinition,
+  extra: ElementDefinition,
+  sourceEquivalents: readonly ElementEquivalent[],
+  pool: ElementEquivalent[],
+): { definition: ElementDefinition; pool: ElementEquivalent[] } {
+  const linked = adoptLinks(keep.equivalentIds, extra.equivalentIds, sourceEquivalents, pool);
+  return {
+    pool: linked.pool,
+    definition: {
+      ...keep,
+      equivalentIds: linked.links,
+      forms: mergeForms(keep.forms, extra.forms),
+      examples: mergeExamples(keep.examples, extra.examples),
+      metadata: mergeMetadataKeep(keep.metadata, extra.metadata),
+    },
+  };
+}
+
+function mergeDefinitionLists(
+  keep: readonly ElementDefinition[],
+  extra: readonly ElementDefinition[],
+  sourceEquivalents: readonly ElementEquivalent[],
+  pool: ElementEquivalent[],
+): { definitions: ElementDefinition[]; pool: ElementEquivalent[] } {
+  const definitions = keep.map(copyDefinition);
+  let nextPool = pool;
+  for (const definition of extra) {
+    const key = glossKey(definition.text);
+    const index = key ? definitions.findIndex((item) => glossKey(item.text) === key) : -1;
+    if (index >= 0) {
+      const merged = mergeOneDefinition(
+        definitions[index]!,
+        definition,
+        sourceEquivalents,
+        nextPool,
+      );
+      definitions[index] = merged.definition;
+      nextPool = merged.pool;
+      continue;
+    }
+    const linked = adoptLinks({}, definition.equivalentIds, sourceEquivalents, nextPool);
+    nextPool = linked.pool;
+    definitions.push({ ...copyDefinition(definition), equivalentIds: linked.links });
+  }
+  return { definitions, pool: nextPool };
+}
+
+function mergeRemovedDefinitions(
+  keep: readonly RemovedDefinition[],
+  extra: readonly RemovedDefinition[],
+  sourceEquivalents: readonly ElementEquivalent[],
+  pool: ElementEquivalent[],
+): { removed: RemovedDefinition[]; pool: ElementEquivalent[] } {
+  const removed = keep.map((definition) => ({
+    ...copyDefinition(definition),
+    deletedAt: definition.deletedAt,
+  }));
+  let nextPool = pool;
+  for (const definition of extra) {
+    const key = glossKey(definition.text);
+    const index = key ? removed.findIndex((item) => glossKey(item.text) === key) : -1;
+    if (index >= 0) {
+      const current = removed[index]!;
+      const merged = mergeOneDefinition(current, definition, sourceEquivalents, nextPool);
+      removed[index] = { ...merged.definition, deletedAt: current.deletedAt };
+      nextPool = merged.pool;
+      continue;
+    }
+    const linked = adoptLinks({}, definition.equivalentIds, sourceEquivalents, nextPool);
+    nextPool = linked.pool;
+    removed.push({
+      ...copyDefinition(definition),
+      equivalentIds: linked.links,
+      deletedAt: definition.deletedAt,
+    });
+  }
+  return { removed, pool: nextPool };
+}
+
+/** The other headword stays highlightable as a form on the first definition. */
+function withAbsorbedTitle(
+  definitions: ElementDefinition[],
+  keepTitle: string,
+  absorbTitle: string,
+): ElementDefinition[] {
+  const title = absorbTitle.trim();
+  const first = definitions[0];
+  if (!title || !first || sameTitle(title, keepTitle) || !isValidForm(title)) return definitions;
+  const key = title.toLowerCase();
+  const taken = definitions.some((definition) =>
+    definition.forms.some((form) => form.text.trim().toLowerCase() === key),
+  );
+  if (taken) return definitions;
+  return [
+    { ...first, forms: [...first.forms, { text: title, metadata: {} }] },
+    ...definitions.slice(1),
+  ];
 }
 
 async function readLanguageRecords(language: string): Promise<unknown[]> {
