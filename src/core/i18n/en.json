@@ -90,7 +90,7 @@
   "element.example": "Example",
   "element.exampleExists": "That example is already there.",
   "element.exampleHintBoth": "Create an example that uses both. Press again to match it to a definition, or add one.",
-  "element.exampleHintMatch": "This sentence is matched to a definition that already fits, or a new definition is added.",
+  "element.exampleHintMatch": "This sentence is matched to a definition that already fits.",
   "element.exampleN": "Example {index}",
   "element.exampleNeedsText": "An example needs text.",
   "element.examples": "Examples",

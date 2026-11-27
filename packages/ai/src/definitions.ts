@@ -75,29 +75,14 @@ function elementFromSelectionSystemPrompt(
   ]);
 }
 
-function definitionFromExampleSystemPrompt(
-  fields: readonly AiMetadataField[],
-  extra = false,
-): string {
+function definitionFromExampleSystemPrompt(): string {
   return joinPrompt([
     'You place one example sentence on a dictionary headword.',
     'JSON keys stay in English.',
-    'The gloss MUST be in the language named by writeFieldsIn.',
-    'Do not use English for a gloss unless writeFieldsIn is English.',
-    metadataIntro(fields, extra),
     'Rules:',
     '- If the example uses a meaning already listed in existingDefinitions, return {"match":"<that gloss exactly as listed>"} and nothing else',
-    '- Otherwise return exactly one new sense: the meaning of the lemma as it is used in the example',
-    '- Do not define a different meaning',
-    '- One short dictionary-style gloss',
-    NO_SELF_MENTION,
-    '- Do not include the example, other examples, forms, or citations',
-    '- Do not add bracket tags such as [en:…]',
-    '- Spelling MUST be correct in the gloss',
-    NO_TRANSLATION,
-    ...metadataRuleLines('definition', fields, extra),
-    'A new sense uses this shape:',
-    `{"senses":[${definitionSenseShape(fields, extra)}]}`,
+    '- If none of the listed meanings fits, return {"match":""}',
+    '- Do not write a new gloss or a new sense',
   ]);
 }
 
@@ -210,9 +195,8 @@ function buildDefinitionFromExampleUserMessage(input: GenerateDefinitionFromExam
   });
 }
 
-/** Where one example sentence belongs: an existing sense, or a new one. */
-type ExamplePlacement =
-  { kind: 'existing'; gloss: string } | { kind: 'new'; definition: GeneratedDefinition };
+/** An existing sense the example sentence belongs on. */
+type ExamplePlacement = { kind: 'existing'; gloss: string };
 
 function matchingGloss(gloss: string, existing: ReadonlyArray<{ gloss: string }>): string {
   const key = gloss.trim().toLowerCase();
@@ -220,7 +204,7 @@ function matchingGloss(gloss: string, existing: ReadonlyArray<{ gloss: string }>
   return existing.find((definition) => definition.gloss.toLowerCase() === key)?.gloss ?? '';
 }
 
-/** An existing sense for the example, a new sense, or null when the reply is unusable. */
+/** An existing sense for the example, or null when the reply names none. */
 function parseExamplePlacement(
   parsed: unknown,
   input: GenerateDefinitionFromExampleInput,
@@ -233,8 +217,6 @@ function parseExamplePlacement(
   const existing = describedDefinitions(input.existingDefinitions);
   const matched = matchingGloss(glossText(source['match']), existing);
   if (matched) return { kind: 'existing', gloss: matched };
-  const senses = parseGeneratedDefinitions(parsed, input);
-  if (senses?.[0]) return { kind: 'new', definition: senses[0] };
   const list = source['senses'];
   if (!Array.isArray(list)) return null;
   for (const item of list) {
@@ -245,7 +227,7 @@ function parseExamplePlacement(
   return null;
 }
 
-/** Place the example on an existing sense, or write one new sense. Null when nothing usable comes back. */
+/** Place the example on an existing sense. Null when it matches none. */
 export async function generateDefinitionFromExample(
   request: GenerateDefinitionFromExampleInput,
 ): Promise<ExamplePlacement | null> {
@@ -255,10 +237,7 @@ export async function generateDefinitionFromExample(
   if (!title || !language || !example) return null;
   const prepared = { ...request, title, language, example };
   const input: CompleteJsonInput = {
-    system: definitionFromExampleSystemPrompt(
-      readDefinitionMetadataFields(),
-      readDefinitionExtraFields(),
-    ),
+    system: definitionFromExampleSystemPrompt(),
     user: buildDefinitionFromExampleUserMessage(prepared),
     maxTokens: 1024,
     temperature: 0,

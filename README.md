@@ -17,19 +17,21 @@ npm run deploy
 
 TODO
 - Number of view feature. It counts. When you open something 
-  in a context, meaning 
+  in a context, meaning.
+- FORMS: They can go outside definitions in retrospective.
+          They can have multiple part of speech metadata.
 - Feature when writing something with *.
     => So I think this is another genius feature. When somebody
-       writes something, they often times think in their other language
-       so they'll say something like "Passe moi la *spoon*". The AI could
-       automatically detect that and suggest a change for the phrase that the user can accept.
+       writes something, they often times think in their other language so they'll say something like "Passe moi la *spoon*". The AI could automatically detect that and suggest a change for the phrase that the user can accept.
+       So the first step would be to replace those elements,
+       then correct via the correction, then reformulate.
 - TODO: We just have to know what happens if a form is not 
         present, so if an element exists but one of its forms in an example is not there. How should it act? And I think we're done. Maybe we can have duplicates or something. Same issue with the soft delete of an element. How do we deal with that?
         Tests need to be written for it.
 - Phantom elements (from translations) and querying the
   whole data to get examples and definitions where the element is.
-- The amount of time we translated stuff or opened a translation
-  is also a useful metric. I think we should see it decrease through the days.
+- The amount of time we translated stuff or opened a
+  translation is also a useful metric. I think we should see it decrease through the days.
 - The metric for the amount of times you saw the element 
   being translated is important to show too.
 - Optimization for stats : If stats don't exist in localStorage, we compute everything. If they do exist we only compute the stats for the current day.
@@ -48,3 +50,7 @@ Question to answer later :
 Why do we infer faster than we can read the definition?
 It's kind of the same way that we learn faster a mathematical thing by infering it. The best way to learn is to follow a thought process.
 Is inference a path?
+
+We could rebaptize this project Semaphoro.ai
+Cause that's what it is in essense man. Green you're supposed
+to go, if you stop at it you lose points. Yellow means you should slow down, red you should stop (click on it).

@@ -62,7 +62,6 @@ import {
   MAX_EXAMPLE_LENGTH,
   MAX_RELATED_PICKS,
   generateDefinitionFromExample,
-  generateDerivedExample,
   generateElementFromSelection,
   generateExamples,
   generateForms,
@@ -1266,9 +1265,7 @@ function writeExampleSuggestions(
                                 class="linguagem-highlighted"
                                 [style.--score-color]="part.color || null"
                                 [textContent]="part.text"
-                                (click)="
-                                  showCollision($event, part.matches, -1, '', part.text, text)
-                                "
+                                (click)="showCollision($event, part.matches, -1, '', text)"
                               ></button>
                             } @else if (part.matches.length === 1 && !part.current) {
                               <button
@@ -1276,9 +1273,7 @@ function writeExampleSuggestions(
                                 class="linguagem-highlighted"
                                 [style.--score-color]="part.color || null"
                                 [textContent]="part.text"
-                                (click)="
-                                  openFromDefinition(part.matches[0].elementId, -1, part.text, text)
-                                "
+                                (click)="openFromDefinition(part.matches[0].elementId, -1, text)"
                               ></button>
                             } @else if (part.current) {
                               <span
@@ -1450,15 +1445,7 @@ function writeExampleSuggestions(
                                               class="linguagem-highlighted"
                                               [style.--score-color]="part.color || null"
                                               [textContent]="part.text"
-                                              (click)="
-                                                showCollision(
-                                                  $event,
-                                                  part.matches,
-                                                  index,
-                                                  '',
-                                                  part.text
-                                                )
-                                              "
+                                              (click)="showCollision($event, part.matches, index)"
                                             ></button>
                                           } @else if (part.matches.length === 1 && !part.current) {
                                             <button
@@ -1467,11 +1454,7 @@ function writeExampleSuggestions(
                                               [style.--score-color]="part.color || null"
                                               [textContent]="part.text"
                                               (click)="
-                                                openFromDefinition(
-                                                  part.matches[0].elementId,
-                                                  index,
-                                                  part.text
-                                                )
+                                                openFromDefinition(part.matches[0].elementId, index)
                                               "
                                             ></button>
                                           } @else if (part.current) {
@@ -1724,12 +1707,8 @@ function writeExampleSuggestions(
         @if (!recallPending() && !historyOpen()) {
           <footer class="definition-footer">
             <form class="example-slot" (submit)="submitDefinitionExample($event)">
-              <div class="example-slot-field" [class.arrived]="!!heldExample() || guidedExample()">
-                @if (guidedExample()) {
-                  <div class="example-slot-text">
-                    <p>{{ arrivedGuide() }}</p>
-                  </div>
-                } @else if (heldExample(); as held) {
+              <div class="example-slot-field" [class.arrived]="!!heldExample()">
+                @if (heldExample(); as held) {
                   @let passage = parsePassage(held);
                   <div class="example-slot-text">
                     @if (passage.text) {
@@ -1774,11 +1753,8 @@ function writeExampleSuggestions(
                 <button
                   type="submit"
                   class="example-slot-submit"
-                  [attr.aria-label]="
-                    (guidedExample() ? 'element.createExample' : 'element.addExampleAction')
-                      | translate
-                  "
-                  [disabled]="aiBusy() || (!definitionExample().trim() && !arrivedGuide())"
+                  [attr.aria-label]="'element.addExampleAction' | translate"
+                  [disabled]="aiBusy() || !definitionExample().trim()"
                   [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1793,11 +1769,7 @@ function writeExampleSuggestions(
                 </button>
               </div>
               <p id="example-slot-hint" class="example-slot-hint">
-                @if (arrivedGuide() && !definitionExample().trim()) {
-                  {{ 'element.exampleHintBoth' | translate }}
-                } @else {
-                  {{ 'element.exampleHintMatch' | translate }}
-                }
+                {{ 'element.exampleHintMatch' | translate }}
               </p>
             </form>
           </footer>
@@ -5814,8 +5786,6 @@ export class ElementModal {
   readonly skipRecall = input(false);
   /** This open is a give-up. The recall stays hidden, and the give-up is still logged. */
   readonly forfeitRecall = input(false);
-  /** Parent headword and gloss, shown so an example can be written before it is added. */
-  readonly arrivedGuide = input('');
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
   readonly deleted = output<void>();
@@ -5883,7 +5853,6 @@ export class ElementModal {
   /** Definition that opened the collision menu. */
   private collisionDefinition = 0;
   private collisionExample = '';
-  private collisionWord = '';
   /** Passage a collision pick was opened from. */
   private collisionPhrase = '';
   /** Opens from another element, in order, so a second click keeps the first log. */
@@ -6619,59 +6588,13 @@ export class ElementModal {
 
   submitDefinitionExample(event: Event): void {
     event.preventDefault();
-    if (!this.definitionExample().trim() && this.arrivedGuide()) {
-      void this.createGuidedExample();
-      return;
-    }
     void this.addDefinitionFromExample();
-  }
-
-  guidedExample(): boolean {
-    return !!this.arrivedGuide() && !this.definitionExample().trim();
   }
 
   clearExampleSlot(): void {
     if (this.aiBusy()) return;
     this.definitionExample.set('');
     this.heldExample.set('');
-  }
-
-  private async createGuidedExample(): Promise<void> {
-    if (this.aiBusy()) return;
-    const guide = splitExampleGuide(this.arrivedGuide());
-    const element = this.element();
-    const selected = element.title.replace(/\s+/g, ' ').trim();
-    if (!guide || !selected) return;
-    if (!readStoredAiCredentials().keys.length) {
-      this.error.set('common.saveKeyFirst');
-      return;
-    }
-    this.addingDefinitions.set('example');
-    this.asking.set(true);
-    this.error.set('');
-    try {
-      const sentence = await generateDerivedExample({
-        language: element.language,
-        root: guide.root,
-        definition: guide.gloss,
-        selected,
-        translation: this.translationTarget(),
-      });
-      if (this.element().id !== element.id) return;
-      if (!sentence) {
-        this.error.set('element.writeExampleFailed');
-        return;
-      }
-      this.definitionExample.set(sentence);
-      this.heldExample.set(sentence);
-    } catch {
-      if (this.element().id === element.id) this.error.set('element.writeExampleFailed');
-    } finally {
-      if (this.element().id === element.id) {
-        this.asking.set(false);
-        this.addingDefinitions.set(null);
-      }
-    }
   }
 
   async addDefinitionFromExample(): Promise<void> {
@@ -6699,22 +6622,7 @@ export class ElementModal {
         this.error.set('element.placeExampleFailed');
         return;
       }
-      if (placed.kind === 'existing') {
-        await this.attachExample(element, placed.gloss, example);
-        return;
-      }
-      const seen = new Set(
-        element.definitions.map((definition) => definitionGloss(definition.text)),
-      );
-      const key = definitionGloss(placed.definition.text);
-      if (key && seen.has(key)) {
-        await this.attachExample(element, key, example);
-        return;
-      }
-      if (!(await this.commitGeneratedSenses(element, [{ ...placed.definition, example }], 'end')))
-        return;
-      this.definitionExample.set('');
-      this.heldExample.set('');
+      await this.attachExample(element, placed.gloss, example);
     } catch {
       if (this.element().id === element.id) {
         this.error.set('element.placeExampleFailed');
@@ -8267,55 +8175,47 @@ export class ElementModal {
     matches: DefinitionHighlightMatch[],
     definition: number,
     example = '',
-    selected = '',
     phrase = '',
   ): void {
     event.preventDefault();
     event.stopPropagation();
     this.collisionDefinition = definition;
     this.collisionExample = example.trim();
-    this.collisionWord = selected.replace(/\s+/g, ' ').trim();
     this.collisionPhrase = phrase.replace(/\s+/g, ' ').trim();
     this.collision.set(matches);
   }
 
   visitCollision(id: string): void {
     const example = this.collisionExample;
-    const word = this.collisionWord;
     const definition = this.collisionDefinition;
     const phrase = this.collisionPhrase;
     if (example) {
-      this.visitHighlight(id, definition, example, '', phrase);
+      this.visitHighlight(id, definition, example, phrase);
       return;
     }
-    this.openFromDefinition(id, definition, word, phrase);
+    this.openFromDefinition(id, definition, phrase);
   }
 
-  openFromDefinition(id: string, definitionIndex: number, selected: string, phrase = ''): void {
+  openFromDefinition(id: string, definitionIndex: number, phrase = ''): void {
     const gloss = parsePassage(this.element().definitions[definitionIndex]?.text ?? '')
       .text.replace(/\s+/g, ' ')
       .trim();
-    const root = this.element().title.replace(/\s+/g, ' ').trim();
-    const word = selected.replace(/\s+/g, ' ').trim();
-    const guide = gloss && root && word ? `${root}: ${gloss}` : '';
     const source = phrase.replace(/\s+/g, ' ').trim() || gloss;
-    this.visitHighlight(id, definitionIndex, '', guide, source);
+    this.visitHighlight(id, definitionIndex, '', source);
   }
 
   visitHighlight(
     id: string,
     definition = this.collisionDefinition,
     example = '',
-    guide = '',
     phrase = '',
   ): void {
     this.collision.set(null);
     this.collisionExample = '';
-    this.collisionWord = '';
     this.collisionPhrase = '';
     if (!id || id === this.element().id) return;
     const source = (phrase || example).replace(/\s+/g, ' ').trim();
-    const visit = { id, definition, example: example.trim(), guide: guide.trim() };
+    const visit = { id, definition, example: example.trim(), guide: '' };
     this.seenWrites = this.seenWrites
       .then(async () => {
         if (source) await this.writeOpenedFrom(id, source);
@@ -9661,15 +9561,6 @@ export class ElementModal {
     this.exerciseEntry.set(-1);
     this.historyOpen.set(false);
   }
-}
-
-function splitExampleGuide(guide: string): { root: string; gloss: string } | null {
-  const split = guide.indexOf(': ');
-  if (split <= 0) return null;
-  const root = guide.slice(0, split).trim();
-  const gloss = guide.slice(split + 2).trim();
-  if (!root || !gloss) return null;
-  return { root, gloss };
 }
 
 function readPassageSelection(): PassageSelection | null {

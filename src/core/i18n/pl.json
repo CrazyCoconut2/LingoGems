@@ -90,7 +90,7 @@
   "element.example": "Przykład",
   "element.exampleExists": "Ten przykład już tam jest.",
   "element.exampleHintBoth": "Utwórz przykład, który używa obu. Naciśnij ponownie, żeby dopasować go do definicji, albo jakąś dodaj.",
-  "element.exampleHintMatch": "To zdanie zostanie dopasowane do definicji, która już pasuje, albo dodana zostanie nowa.",
+  "element.exampleHintMatch": "To zdanie zostanie dopasowane do definicji, która już pasuje.",
   "element.exampleN": "Przykład {index}",
   "element.exampleNeedsText": "Przykład potrzebuje tekstu.",
   "element.examples": "Przykłady",

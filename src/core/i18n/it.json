@@ -90,7 +90,7 @@
   "element.example": "Esempio",
   "element.exampleExists": "Quell'esempio è già lì.",
   "element.exampleHintBoth": "Crea un esempio che usi entrambi. Premi di nuovo per abbinarlo a una definizione, oppure aggiungine una.",
-  "element.exampleHintMatch": "Questa frase viene abbinata a una definizione che già va bene, oppure si aggiunge una nuova definizione.",
+  "element.exampleHintMatch": "Questa frase viene abbinata a una definizione che già va bene.",
   "element.exampleN": "Esempio {index}",
   "element.exampleNeedsText": "Un esempio ha bisogno di testo.",
   "element.examples": "Esempi",

@@ -458,14 +458,19 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             <header class="filter-header">
               <div class="filter-heading">
                 <h2 class="filter-title">{{ 'languages.grammar' | translate }}</h2>
-                <button type="button" class="icon-btn" [attr.aria-label]="'common.close' | translate" (click)="closeGrammar()">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  [attr.aria-label]="'common.close' | translate"
+                  (click)="closeGrammar()"
+                >
                   <svg viewBox="0 0 24 24">
                     <path d="M18 6 6 18" />
                     <path d="m6 6 12 12" />
                   </svg>
                 </button>
               </div>
-<p class="filter-subtitle">{{ 'languages.grammarSubtitle' | translate }}</p>
+              <p class="filter-subtitle">{{ 'languages.grammarSubtitle' | translate }}</p>
             </header>
             <div class="filter-body">
               <section class="grammar-section">
@@ -548,15 +553,19 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 } @else {
                   <p class="empty">
                     {{
-                      (grammarFilter().length ? 'languages.noRuleSentences' : 'languages.noSentences')
-                        | translate
+                      (grammarFilter().length
+                        ? 'languages.noRuleSentences'
+                        : 'languages.noSentences'
+                      ) | translate
                     }}
                   </p>
                 }
               </section>
             </div>
             <footer class="filter-footer">
-              <button type="button" class="done-btn" (click)="closeGrammar()">{{ 'common.done' | translate }}</button>
+              <button type="button" class="done-btn" (click)="closeGrammar()">
+                {{ 'common.done' | translate }}
+              </button>
             </footer>
           </div>
         </div>
@@ -574,14 +583,19 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             <header class="filter-header">
               <div class="filter-heading">
                 <h2 class="filter-title">{{ 'languages.filterAndSort' | translate }}</h2>
-                <button type="button" class="icon-btn" [attr.aria-label]="'common.close' | translate" (click)="closeFilters()">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  [attr.aria-label]="'common.close' | translate"
+                  (click)="closeFilters()"
+                >
                   <svg viewBox="0 0 24 24">
                     <path d="M18 6 6 18" />
                     <path d="m6 6 12 12" />
                   </svg>
                 </button>
               </div>
-<p class="filter-subtitle">{{ 'languages.filterSubtitle' | translate }}</p>
+              <p class="filter-subtitle">{{ 'languages.filterSubtitle' | translate }}</p>
             </header>
 
             <div class="filter-body">
@@ -592,7 +606,9 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   [disabled]="recomputing()"
                   (click)="recomputeMetadata()"
                 >
-                  {{ (recomputing() ? 'languages.recomputing' : 'languages.recompute') | translate }}
+                  {{
+                    (recomputing() ? 'languages.recomputing' : 'languages.recompute') | translate
+                  }}
                 </button>
                 <button
                   type="button"
@@ -626,7 +642,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 </div>
                 @if (expanded() === 'sort') {
                   <div class="section-body">
-                    <div class="sort-options" role="listbox" [attr.aria-label]="'languages.sort' | translate">
+                    <div
+                      class="sort-options"
+                      role="listbox"
+                      [attr.aria-label]="'languages.sort' | translate"
+                    >
                       @for (option of sortOptions; track option.value) {
                         <button
                           type="button"
@@ -694,7 +714,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                           }
                         </select>
                       </label>
-<p class="section-hint">{{ 'languages.supportOverrideHint' | translate }}</p>
+                      <p class="section-hint">{{ 'languages.supportOverrideHint' | translate }}</p>
                     }
                   </div>
                 }
@@ -726,7 +746,11 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 </div>
                 @if (expanded() === 'score') {
                   <div class="section-body">
-                    <div class="score-values" role="group" [attr.aria-label]="'languages.score' | translate">
+                    <div
+                      class="score-values"
+                      role="group"
+                      [attr.aria-label]="'languages.score' | translate"
+                    >
                       @for (step of scoreSteps; track step) {
                         <button
                           type="button"
@@ -800,7 +824,9 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                                 <input
                                   type="color"
                                   class="meta-color"
-                                  [attr.aria-label]="'languages.colorFor' | translate: { key: entry.key }"
+                                  [attr.aria-label]="
+                                    'languages.colorFor' | translate: { key: entry.key }
+                                  "
                                   [value]="fieldColor(section.kind, entry.key) || '#8b90a5'"
                                   (input)="setFieldColor(section.kind, entry.key, $event)"
                                 />
@@ -808,7 +834,9 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                                   <button
                                     type="button"
                                     class="meta-color-clear"
-                                    [attr.aria-label]="'languages.clearColorFor' | translate: { key: entry.key }"
+                                    [attr.aria-label]="
+                                      'languages.clearColorFor' | translate: { key: entry.key }
+                                    "
                                     (click)="clearFieldColor(section.kind, entry.key)"
                                   >
                                     ×
@@ -848,7 +876,9 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             </div>
 
             <footer class="filter-footer">
-              <button type="button" class="done-btn" (click)="closeFilters()">{{ 'common.done' | translate }}</button>
+              <button type="button" class="done-btn" (click)="closeFilters()">
+                {{ 'common.done' | translate }}
+              </button>
             </footer>
           </div>
         </div>
@@ -916,7 +946,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           [canGoBack]="canGoBack()"
           [definitionIndex]="openedDefinition()"
           [arrivedExample]="arrivedExample()"
-          [arrivedGuide]="arrivedGuide()"
           [skipRecall]="skipRecall()"
           [forfeitRecall]="forfeitRecall()"
           (closed)="closeElement()"
@@ -2470,7 +2499,6 @@ export class LanguagePage {
   readonly canGoBack = computed(() => this.trail().length > 1);
   readonly openedDefinition = computed(() => this.trail().at(-1)?.definition ?? 0);
   readonly arrivedExample = computed(() => this.trail().at(-1)?.example?.trim() ?? '');
-  readonly arrivedGuide = computed(() => this.trail().at(-1)?.guide?.trim() ?? '');
   readonly opened = computed(() => {
     const id = this.elementId();
     if (!id) return null;
