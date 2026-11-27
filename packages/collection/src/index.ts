@@ -129,13 +129,9 @@ export {
 } from './grammar/grammar-store';
 
 export {
-  readReformulations,
   reformulationMarks,
-  retargetReformulations,
-  saveReformulation,
   type ReformulationChange,
   type ReformulationMark,
-  type StoredReformulation,
 } from './formulation/reformulation-store';
 
 export { requestPersistentStorage, storageIsPersistent } from './persistent-storage';

@@ -6,7 +6,6 @@ import {
   languageDisplayName,
   readGrammarMistakes,
   reformulationMarks,
-  saveReformulation,
   type GrammarInstance,
   type GrammarMark,
   type ReformulationChange,
@@ -296,14 +295,6 @@ type ShownReformulation = {
                           >
                             {{ 'recall.dismiss' | translate }}
                           </button>
-                          <button
-                            type="button"
-                            class="btn btn-primary"
-                            [disabled]="busy() !== null"
-                            (click)="acceptReformulation(item.id)"
-                          >
-                            {{ 'recall.accept' | translate }}
-                          </button>
                         </div>
                       </article>
                     }
@@ -311,8 +302,6 @@ type ShownReformulation = {
                 } @else {
                   <p class="hint">{{ 'recall.nothingToReformulate' | translate }}</p>
                 }
-              } @else if (reformulationSaved()) {
-                <p class="hint">{{ 'recall.reformulationSaved' | translate }}</p>
               }
               @if (!reformulations()?.length) {
                 <div class="reformulate-offer">
@@ -830,7 +819,6 @@ export class DefinitionRecall {
   readonly correction = signal<ShownCorrection | null>(null);
   readonly coloredRules = signal<readonly string[]>([]);
   readonly reformulations = signal<readonly ShownReformulation[] | null>(null);
-  readonly reformulationSaved = signal(false);
   readonly result = signal<RecallView | null>(null);
   readonly extraChoice = signal<'pending' | 'accepted' | 'dismissed'>('pending');
   readonly error = signal('');
@@ -860,8 +848,6 @@ export class DefinitionRecall {
   private appliedCorrection = '';
   /** Sentence the current suggestions were written for. */
   private reformulationSource = '';
-  /** Accepted wording last written into the draft. */
-  private acceptedReformulation = '';
 
   constructor() {
     effect(() => {
@@ -1108,12 +1094,10 @@ export class DefinitionRecall {
     const lemma = this.lemma();
     this.busy.set('reformulate');
     this.error.set('');
-    this.reformulationSaved.set(false);
     try {
       const offer = await suggestReformulations({ language, text, lemma });
       if (ticket !== this.reformulateTicket || this.elementId() !== elementId) return;
       this.reformulationSource = offer.source;
-      this.acceptedReformulation = '';
       this.reformulations.set(
         offer.suggestions.map((item) => ({
           id: crypto.randomUUID(),
@@ -1138,42 +1122,6 @@ export class DefinitionRecall {
     }
     this.reformulations.set(null);
     this.reformulationSource = '';
-  }
-
-  async acceptReformulation(id: string): Promise<void> {
-    const item = this.reformulations()?.find((suggestion) => suggestion.id === id);
-    const source = this.reformulationSource;
-    if (!item || !source || this.busy() !== null) return;
-    const ticket = this.reformulateTicket;
-    const elementId = this.elementId();
-    this.busy.set('reformulate');
-    this.error.set('');
-    try {
-      const saved = await saveReformulation({
-        language: this.learningLanguage(),
-        elementId,
-        source,
-        text: item.text,
-        changes: item.changes,
-        at: Date.now(),
-      });
-      if (ticket !== this.reformulateTicket || this.elementId() !== elementId) return;
-      if (!saved) {
-        this.error.set('recall.reformulateFailed');
-        return;
-      }
-      this.acceptedReformulation = saved.text;
-      this.reformulationSource = '';
-      this.reformulations.set(null);
-      this.reformulationSaved.set(true);
-      this.appliedCorrection = '';
-      this.draft.set(saved.text);
-    } catch {
-      if (ticket !== this.reformulateTicket || this.elementId() !== elementId) return;
-      this.error.set('recall.reformulateFailed');
-    } finally {
-      if (ticket === this.reformulateTicket && this.busy() === 'reformulate') this.busy.set(null);
-    }
   }
 
   reformulationParts(item: ShownReformulation): ReformulationMark[] {
@@ -1214,16 +1162,13 @@ export class DefinitionRecall {
 
   private dropReformulations(): void {
     this.reformulations.set(null);
-    this.reformulationSaved.set(false);
     this.reformulationSource = '';
-    this.acceptedReformulation = '';
   }
 
   private keepReformulation(text: string): void {
-    if (!this.reformulations() && !this.reformulationSaved()) return;
+    if (!this.reformulations()) return;
     const sentence = text.replace(/\s+/g, ' ').trim();
     if (sentence === this.reformulationSource) return;
-    if (this.acceptedReformulation && sentence === this.acceptedReformulation) return;
     this.dropReformulations();
   }
 }

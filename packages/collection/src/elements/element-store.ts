@@ -24,8 +24,6 @@ import {
   metadataIndexesEmpty,
   type ElementMetadataVariability,
 } from './metadata-variability';
-import { retargetReformulations } from '../formulation/reformulation-store';
-
 export type ElementMetadata = Record<string, string>;
 
 type ElementExample = {
@@ -455,7 +453,6 @@ export async function mergeElements(keepId: string, absorbId: string): Promise<S
   if (keep.id === absorb.id) return keep;
   if (keep.language !== absorb.language) throw new Error('Languages differ');
   const saved = await saveElement(combineElements(keep, absorb));
-  await retargetReformulations(absorb.id, keep.id);
   await deleteElement(absorb.id);
   return saved;
 }

@@ -288,7 +288,6 @@
   "recall.nothingToReformulate": "Rien à reformuler.",
   "recall.reformulate": "Reformuler",
   "recall.reformulateFailed": "Impossible de reformuler ça.",
-  "recall.reformulationSaved": "Reformulation enregistrée.",
   "recall.reformulations": "Reformulations",
   "recall.score": "Score {score} sur 10",
   "recall.scoreBonus": "Score {score} sur 10, plus 1",
