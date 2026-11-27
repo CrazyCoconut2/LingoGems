@@ -1,12 +1,12 @@
 const KEY_PREFIX = 'lingogem.stats.goals.v3.';
 const STALE_GOALS_ROOT = 'lingogem.stats.goals.v';
 
-const GOAL_KINDS = ['exercises', 'added'] as const;
+const GOAL_KINDS = ['exercises', 'added', 'seen'] as const;
 
 export type DailyGoals = Record<(typeof GOAL_KINDS)[number], number | null>;
 
 export function emptyDailyGoals(): DailyGoals {
-  return { exercises: null, added: null };
+  return { exercises: null, added: null, seen: null };
 }
 
 export function readDailyGoals(language: string): DailyGoals {

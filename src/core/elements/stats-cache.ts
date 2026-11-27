@@ -168,6 +168,7 @@ function isDay(value: unknown): value is DayStats {
     isCount(source.added) &&
     isCount(source.revealed) &&
     isCount(source.exercises) &&
+    isCount(source.seen) &&
     isSigned(source.differential) &&
     Array.isArray(source.elements) &&
     source.elements.every(isElementDay)
@@ -185,6 +186,7 @@ function isElementDay(value: unknown): value is ElementDayStats {
     isCount(source.added) &&
     isCount(source.revealed) &&
     isCount(source.exercises) &&
+    isCount(source.seen) &&
     isOptionalSigned(source.differential)
   );
 }

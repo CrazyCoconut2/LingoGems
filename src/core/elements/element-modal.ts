@@ -44,6 +44,7 @@ import {
   type DefinitionLogEntry,
   type DefinitionRevealLog,
   type DefinitionReworkLog,
+  type DefinitionSeenLog,
   type DefinitionSnapshot,
   type DefinitionHighlightPart,
   type ElementDefinition,
@@ -172,7 +173,8 @@ type DefinitionHistoryEntry =
   | DefinitionDeleteLog
   | DefinitionExampleLog
   | DefinitionFormLog
-  | DefinitionRevealLog;
+  | DefinitionRevealLog
+  | DefinitionSeenLog;
 
 type ExampleDraft = {
   definitionIndex: number;
@@ -207,6 +209,26 @@ function shiftIndexMap<T>(map: ReadonlyMap<number, T>, by: number): Map<number, 
 
 function plainPassage(value: string): string {
   return parsePassage(value).text.trim();
+}
+
+function sameLogMoment(left: ElementLogEntry, right: ElementLogEntry): boolean {
+  return left.event === right.event && left.at === right.at;
+}
+
+/** True when `next` is `base` with later entries appended. */
+function logExtends(base: StoredElement, next: StoredElement): boolean {
+  if (next.log.length < base.log.length) return false;
+  return base.log.every((entry, index) => sameLogMoment(entry, next.log[index]));
+}
+
+/** Keep a just-written copy until the open list includes it. A diverged list wins. */
+function preferLogged(
+  listed: StoredElement | undefined,
+  cached: StoredElement | undefined,
+): StoredElement | undefined {
+  if (!listed) return cached;
+  if (!cached) return listed;
+  return logExtends(listed, cached) ? cached : listed;
 }
 
 function swapIndexMap<T>(map: ReadonlyMap<number, T>, from: number, to: number): Map<number, T> {
@@ -807,7 +829,41 @@ function writeExampleSuggestions(
                                   <path d="M14 11v6" />
                                 </svg>
                                 <span class="log-edit-copies">
-                                  <span class="log-game">{{ 'element.deletedDefinition' | translate }}</span>
+                                  <span class="log-game">{{
+                                    'element.deletedDefinition' | translate
+                                  }}</span>
+                                  <span class="hint">{{ exerciseWhen(entry.at) }}</span>
+                                </span>
+                              </span>
+                              <svg
+                                class="log-chevron"
+                                [class.open]="exerciseEntry() === $index"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                              >
+                                <path d="m6 9 6 6 6-6" />
+                              </svg>
+                            </button>
+                          } @else if (entry.event === 'seen') {
+                            <button
+                              type="button"
+                              class="log-open"
+                              [attr.aria-expanded]="exerciseEntry() === $index"
+                              [attr.aria-label]="historyAria(entry)"
+                              (click)="toggleExerciseEntry($index)"
+                            >
+                              <span class="log-edit-line">
+                                <svg class="log-wrench" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M15 3h6v6" />
+                                  <path d="M10 14 21 3" />
+                                  <path
+                                    d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+                                  />
+                                </svg>
+                                <span class="log-edit-copies">
+                                  <span class="log-game">{{
+                                    'element.openedFrom' | translate
+                                  }}</span>
                                   <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                                 </span>
                               </span>
@@ -857,7 +913,9 @@ function writeExampleSuggestions(
                                     <path d="m9 14 2 2 4-4" />
                                   </svg>
                                   <span class="log-edit-copies">
-                                    <span class="log-game">{{ 'element.exercise' | translate }}</span>
+                                    <span class="log-game">{{
+                                      'element.exercise' | translate
+                                    }}</span>
                                     <span class="hint">{{ exerciseWhen(entry.at) }}</span>
                                   </span>
                                 </span>
@@ -1021,7 +1079,10 @@ function writeExampleSuggestions(
                               }
                             </div>
                             @if (entry.examples?.length) {
-                              <ul class="examples" [attr.aria-label]="'element.examples' | translate">
+                              <ul
+                                class="examples"
+                                [attr.aria-label]="'element.examples' | translate"
+                              >
                                 @for (example of entry.examples ?? []; track $index) {
                                   @let examplePassage = parsePassage(example.text);
                                   <li class="saved-example">
@@ -1092,7 +1153,9 @@ function writeExampleSuggestions(
                                       class="form-chip readonly"
                                       [class.tinted]="!!chip"
                                       [style.--form-color]="chip"
-                                      [attr.aria-label]="'element.attributesFor' | translate: { form: form.text }"
+                                      [attr.aria-label]="
+                                        'element.attributesFor' | translate: { form: form.text }
+                                      "
                                       (click)="showFormAttributes(form)"
                                     >
                                       <ng-container [ngTemplateOutlet]="formIcon" />
@@ -1127,6 +1190,11 @@ function writeExampleSuggestions(
                             @if (note.shown(); as text) {
                               <p class="log-translation">{{ text | upwardQuote }}</p>
                             }
+                          </div>
+                        }
+                        @if (entry.event === 'seen' && entry.phrase && exerciseEntry() === $index) {
+                          <div class="log-detail">
+                            <p class="log-answer">{{ entry.phrase }}</p>
                           </div>
                         }
                         <ng-template #loggedSense let-snapshot="snapshot" let-hearKey="hearKey">
@@ -1198,7 +1266,9 @@ function writeExampleSuggestions(
                                 class="linguagem-highlighted"
                                 [style.--score-color]="part.color || null"
                                 [textContent]="part.text"
-                                (click)="showCollision($event, part.matches, -1, '', part.text)"
+                                (click)="
+                                  showCollision($event, part.matches, -1, '', part.text, text)
+                                "
                               ></button>
                             } @else if (part.matches.length === 1 && !part.current) {
                               <button
@@ -1207,7 +1277,7 @@ function writeExampleSuggestions(
                                 [style.--score-color]="part.color || null"
                                 [textContent]="part.text"
                                 (click)="
-                                  openFromDefinition(part.matches[0].elementId, -1, part.text)
+                                  openFromDefinition(part.matches[0].elementId, -1, part.text, text)
                                 "
                               ></button>
                             } @else if (part.current) {
@@ -1256,7 +1326,9 @@ function writeExampleSuggestions(
                     (click)="onSenseClick($event, index)"
                   >
                     <div class="sense-row" [class.actionable]="senseStage(index) !== 'open'">
-                      <span class="sense-index">{{ 'element.definitionN' | translate: { index: '' + (index + 1) } }}</span>
+                      <span class="sense-index">{{
+                        'element.definitionN' | translate: { index: '' + (index + 1) }
+                      }}</span>
                       <div class="sense-rail">
                         <div class="sense-actions">
                           @if (definitions.length > 1) {
@@ -1614,7 +1686,9 @@ function writeExampleSuggestions(
                                       class="form-chip readonly"
                                       [class.tinted]="!!chip"
                                       [style.--form-color]="chip"
-                                      [attr.aria-label]="'element.attributesFor' | translate: { form: form.text }"
+                                      [attr.aria-label]="
+                                        'element.attributesFor' | translate: { form: form.text }
+                                      "
                                       (click)="showFormAttributes(form)"
                                     >
                                       <ng-container [ngTemplateOutlet]="formIcon" />
@@ -1700,7 +1774,10 @@ function writeExampleSuggestions(
                 <button
                   type="submit"
                   class="example-slot-submit"
-                  [attr.aria-label]="(guidedExample() ? 'element.createExample' : 'element.addExampleAction') | translate"
+                  [attr.aria-label]="
+                    (guidedExample() ? 'element.createExample' : 'element.addExampleAction')
+                      | translate
+                  "
                   [disabled]="aiBusy() || (!definitionExample().trim() && !arrivedGuide())"
                   [attr.aria-busy]="addingDefinitions() === 'example' ? true : null"
                 >
@@ -1717,9 +1794,9 @@ function writeExampleSuggestions(
               </div>
               <p id="example-slot-hint" class="example-slot-hint">
                 @if (arrivedGuide() && !definitionExample().trim()) {
-{{ 'element.exampleHintBoth' | translate }}
+                  {{ 'element.exampleHintBoth' | translate }}
                 } @else {
-{{ 'element.exampleHintMatch' | translate }}
+                  {{ 'element.exampleHintMatch' | translate }}
                 }
               </p>
             </form>
@@ -1800,8 +1877,14 @@ function writeExampleSuggestions(
                     <button
                       type="button"
                       class="icon-btn"
-                      [attr.aria-label]="(translating() ? 'translate.translating' : 'translate.translate') | translate"
-                      [attr.title]="(translating() ? 'translate.translating' : 'translate.translate') | translate"
+                      [attr.aria-label]="
+                        (translating() ? 'translate.translating' : 'translate.translate')
+                          | translate
+                      "
+                      [attr.title]="
+                        (translating() ? 'translate.translating' : 'translate.translate')
+                          | translate
+                      "
                       [attr.aria-busy]="translating() ? true : null"
                       [disabled]="!canTranslate()"
                       (click)="translateDraft()"
@@ -1948,7 +2031,9 @@ function writeExampleSuggestions(
                   @if (exampleEngineerOpen()) {
                     @if (exampleEngineer(); as engineer) {
                       <div class="definition-ai">
-                        <label class="field-label" for="example-note">{{ 'element.note' | translate }}</label>
+                        <label class="field-label" for="example-note">{{
+                          'element.note' | translate
+                        }}</label>
                         <textarea
                           id="example-note"
                           rows="3"
@@ -2034,7 +2119,10 @@ function writeExampleSuggestions(
                     <textarea
                       #draftField
                       [id]="current.kind === 'definition' ? 'definition-text' : 'example-text'"
-                      [attr.aria-label]="(current.kind === 'definition' ? 'element.definition' : 'element.example') | translate"
+                      [attr.aria-label]="
+                        (current.kind === 'definition' ? 'element.definition' : 'element.example')
+                          | translate
+                      "
                       rows="3"
                       [disabled]="asking()"
                       [value]="textDraft()"
@@ -2082,9 +2170,13 @@ function writeExampleSuggestions(
                       type="button"
                       class="icon-btn"
                       [attr.aria-label]="
-                        (askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata') | translate
+                        (askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata')
+                          | translate
                       "
-                      [attr.title]="(askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata') | translate"
+                      [attr.title]="
+                        (askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata')
+                          | translate
+                      "
                       [attr.aria-busy]="askingMetadata() ? true : null"
                       [disabled]="!canAskMetadata()"
                       (click)="askMetadata()"
@@ -2149,7 +2241,9 @@ function writeExampleSuggestions(
                           <button
                             type="button"
                             [disabled]="busy()"
-                            [attr.aria-label]="'element.editMetadata' | translate: { key: entry.key }"
+                            [attr.aria-label]="
+                              'element.editMetadata' | translate: { key: entry.key }
+                            "
                             (click)="openMetadata(entry.key)"
                           >
                             <span class="sense-meta-key">{{ label(entry.key) }}</span>
@@ -2159,7 +2253,9 @@ function writeExampleSuggestions(
                             type="button"
                             class="tag-remove"
                             [disabled]="busy()"
-                            [attr.aria-label]="'element.removeMetadata' | translate: { key: entry.key }"
+                            [attr.aria-label]="
+                              'element.removeMetadata' | translate: { key: entry.key }
+                            "
                             (click)="removeMetadata(entry.key)"
                           >
                             ×
@@ -2216,7 +2312,9 @@ function writeExampleSuggestions(
                   @let worked = sheetDefinition(workIndex);
                   <section class="sheet-part work-section">
                     <div class="section-heading work-title">
-                      <span class="section-title work-title-text">{{ 'element.examples' | translate }}</span>
+                      <span class="section-title work-title-text">{{
+                        'element.examples' | translate
+                      }}</span>
                       <button
                         type="button"
                         class="icon-btn work-title-actions"
@@ -2242,9 +2340,17 @@ function writeExampleSuggestions(
                           type="button"
                           class="icon-btn"
                           [attr.aria-label]="
-                            (translatingExample() === key ? 'translate.translating' : 'translate.translate') | translate
+                            (translatingExample() === key
+                              ? 'translate.translating'
+                              : 'translate.translate'
+                            ) | translate
                           "
-                          [attr.title]="(translatingExample() === key ? 'translate.translating' : 'translate.translate') | translate"
+                          [attr.title]="
+                            (translatingExample() === key
+                              ? 'translate.translating'
+                              : 'translate.translate'
+                            ) | translate
+                          "
                           [attr.aria-busy]="translatingExample() === key ? true : null"
                           [disabled]="!canTranslateListedExample(phrase, key)"
                           (click)="translateListedExample(phrase, key)"
@@ -2304,7 +2410,10 @@ function writeExampleSuggestions(
                             <button
                               type="button"
                               class="entry-confirm"
-                              [attr.aria-label]="(phrase.trim() ? 'element.modifyExample' : 'element.writeExample') | translate"
+                              [attr.aria-label]="
+                                (phrase.trim() ? 'element.modifyExample' : 'element.writeExample')
+                                  | translate
+                              "
                               [disabled]="exampleFieldGenerateDisabled()"
                               [attr.aria-busy]="exampleFieldBusy(work, kind, index) ? true : null"
                               (click)="generateExampleField()"
@@ -2359,7 +2468,9 @@ function writeExampleSuggestions(
                         ) {
                           <li class="saved-example">
                             <div class="field-heading">
-                              <span class="field-label">{{ 'element.newExample' | translate }}</span>
+                              <span class="field-label">{{
+                                'element.newExample' | translate
+                              }}</span>
                               <span class="header-actions">
                                 <ng-container
                                   [ngTemplateOutlet]="exampleTranslateButton"
@@ -2412,7 +2523,9 @@ function writeExampleSuggestions(
                         @if (exampleDraftFor(workIndex); as draft) {
                           <li class="saved-example">
                             <div class="field-heading">
-                              <span class="field-label">{{ 'element.newExample' | translate }}</span>
+                              <span class="field-label">{{
+                                'element.newExample' | translate
+                              }}</span>
                               <span class="header-actions">
                                 <ng-container
                                   [ngTemplateOutlet]="exampleTranslateButton"
@@ -2513,7 +2626,9 @@ function writeExampleSuggestions(
                                 index: exampleIndex,
                                 phrase: exampleFieldValue(workIndex, exampleIndex),
                                 raw: example.text,
-                                label: ('element.exampleN' | translate: { index: '' + (exampleIndex + 1) }),
+                                label:
+                                  ('element.exampleN'
+                                  | translate: { index: '' + (exampleIndex + 1) }),
                                 placeholder: '',
                               }"
                             />
@@ -2548,7 +2663,9 @@ function writeExampleSuggestions(
                   @let worked = sheetDefinition(workIndex);
                   <section class="sheet-part work-section">
                     <div class="section-heading work-title">
-                      <span class="section-title work-title-text">{{ 'element.forms' | translate }}</span>
+                      <span class="section-title work-title-text">{{
+                        'element.forms' | translate
+                      }}</span>
                       <div class="header-actions work-title-actions">
                         <button
                           type="button"
@@ -2592,7 +2709,9 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 [disabled]="busy()"
-                                [attr.aria-label]="'element.attributesFor' | translate: { form: form.text }"
+                                [attr.aria-label]="
+                                  'element.attributesFor' | translate: { form: form.text }
+                                "
                                 (click)="showFormAttributes(form)"
                               >
                                 <ng-container [ngTemplateOutlet]="formIcon" />
@@ -2602,7 +2721,9 @@ function writeExampleSuggestions(
                                 type="button"
                                 class="form-edit"
                                 [disabled]="busy()"
-                                [attr.aria-label]="'element.editFormNamed' | translate: { form: form.text }"
+                                [attr.aria-label]="
+                                  'element.editFormNamed' | translate: { form: form.text }
+                                "
                                 [attr.title]="'element.editForm' | translate"
                                 (click)="openExistingForm(workIndex, form.text)"
                               >
@@ -2614,7 +2735,9 @@ function writeExampleSuggestions(
                                 type="button"
                                 class="tag-remove"
                                 [disabled]="busy()"
-                                [attr.aria-label]="'element.removeForm' | translate: { form: form.text }"
+                                [attr.aria-label]="
+                                  'element.removeForm' | translate: { form: form.text }
+                                "
                                 (click)="removeForm(workIndex, form.text)"
                               >
                                 ×
@@ -2633,7 +2756,9 @@ function writeExampleSuggestions(
                               <button
                                 type="button"
                                 class="form-chip readonly"
-                                [attr.aria-label]="'element.attributesFor' | translate: { form: form.text }"
+                                [attr.aria-label]="
+                                  'element.attributesFor' | translate: { form: form.text }
+                                "
                                 (click)="showFormAttributes(form)"
                               >
                                 <ng-container [ngTemplateOutlet]="formIcon" />
@@ -2709,11 +2834,15 @@ function writeExampleSuggestions(
               class="sheet"
               role="dialog"
               aria-modal="true"
-              [attr.aria-label]="(editing.originalText ? 'element.editForm' : 'element.addForm') | translate"
+              [attr.aria-label]="
+                (editing.originalText ? 'element.editForm' : 'element.addForm') | translate
+              "
               (click)="$event.stopPropagation()"
             >
               <div class="sheet-head">
-                <h3>{{ (editing.originalText ? 'element.editForm' : 'element.addForm') | translate }}</h3>
+                <h3>
+                  {{ (editing.originalText ? 'element.editForm' : 'element.addForm') | translate }}
+                </h3>
                 <button
                   type="button"
                   class="icon-btn"
@@ -2748,9 +2877,13 @@ function writeExampleSuggestions(
                     type="button"
                     class="icon-btn"
                     [attr.aria-label]="
-                      (askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata') | translate
+                      (askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata')
+                        | translate
                     "
-                    [attr.title]="(askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata') | translate"
+                    [attr.title]="
+                      (askingMetadata() ? 'element.findingMetadata' : 'element.askMetadata')
+                        | translate
+                    "
                     [attr.aria-busy]="askingMetadata() ? true : null"
                     [disabled]="!canAskFormMetadata()"
                     (click)="askFormMetadata()"
@@ -2825,7 +2958,9 @@ function writeExampleSuggestions(
                           type="button"
                           class="tag-remove"
                           [disabled]="busy()"
-                          [attr.aria-label]="'element.removeMetadata' | translate: { key: entry.key }"
+                          [attr.aria-label]="
+                            'element.removeMetadata' | translate: { key: entry.key }
+                          "
                           (click)="removeFormFeature(entry.key)"
                         >
                           ×
@@ -2892,7 +3027,7 @@ function writeExampleSuggestions(
               class="sheet"
               role="dialog"
               aria-modal="true"
-              [attr.aria-label]="('element.formAttributesAria' | translate: { form: form.text })"
+              [attr.aria-label]="'element.formAttributesAria' | translate: { form: form.text }"
               (click)="$event.stopPropagation()"
             >
               <div class="sheet-head">
@@ -5675,7 +5810,7 @@ export class ElementModal {
   readonly definitionIndex = input(0);
   /** Example sentence carried in from the element that opened this one. */
   readonly arrivedExample = input('');
-  /** This open is the one that created the element, so recall stays out of the way. */
+  /** Recall stays out of the way. This open created the element, or it came from another one. */
   readonly skipRecall = input(false);
   /** This open is a give-up. The recall stays hidden, and the give-up is still logged. */
   readonly forfeitRecall = input(false);
@@ -5749,6 +5884,11 @@ export class ElementModal {
   private collisionDefinition = 0;
   private collisionExample = '';
   private collisionWord = '';
+  /** Passage a collision pick was opened from. */
+  private collisionPhrase = '';
+  /** Opens from another element, in order, so a second click keeps the first log. */
+  private seenWrites: Promise<void> = Promise.resolve();
+  private seenLatest = new Map<string, StoredElement>();
   readonly passageSelection = signal<PassageSelection | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
@@ -5847,6 +5987,15 @@ export class ElementModal {
     inject(DestroyRef).onDestroy(() => {
       this.alive = false;
       stopSpeaking();
+    });
+    effect(() => {
+      const list = this.collection();
+      for (const [id, cached] of this.seenLatest) {
+        const listed = list.find((item) => item.id === id);
+        if (!listed || !logExtends(listed, cached) || listed.log.length >= cached.log.length) {
+          this.seenLatest.delete(id);
+        }
+      }
     });
     effect(() => {
       const id = this.element().id;
@@ -6098,6 +6247,7 @@ export class ElementModal {
       ...(glosses.length ? { snapshot: { text: glosses.join('\n'), equivalent: '' } } : {}),
     };
     this.appendLog(entry);
+    if (result.answer.trim()) this.appendLog({ event: 'seen', at: entry.at });
     this.revealRecallDefinitions(element);
     this.recallSettled.set(true);
     void this.persist(this.copyDefinitions(), this.currentElement().equivalents, { busy: false });
@@ -6315,7 +6465,9 @@ export class ElementModal {
 
   sheetTitle(editor: Editor): string {
     if (editor.kind === 'definition') return this.i18n.translate('element.definition');
-    return this.i18n.translate(editor.exampleIndex == null ? 'element.addExample' : 'element.editExample');
+    return this.i18n.translate(
+      editor.exampleIndex == null ? 'element.addExample' : 'element.editExample',
+    );
   }
 
   workSectionLabel(editor: Editor): string {
@@ -8116,12 +8268,14 @@ export class ElementModal {
     definition: number,
     example = '',
     selected = '',
+    phrase = '',
   ): void {
     event.preventDefault();
     event.stopPropagation();
     this.collisionDefinition = definition;
     this.collisionExample = example.trim();
     this.collisionWord = selected.replace(/\s+/g, ' ').trim();
+    this.collisionPhrase = phrase.replace(/\s+/g, ' ').trim();
     this.collision.set(matches);
   }
 
@@ -8129,21 +8283,23 @@ export class ElementModal {
     const example = this.collisionExample;
     const word = this.collisionWord;
     const definition = this.collisionDefinition;
+    const phrase = this.collisionPhrase;
     if (example) {
-      this.visitHighlight(id, definition, example);
+      this.visitHighlight(id, definition, example, '', phrase);
       return;
     }
-    this.openFromDefinition(id, definition, word);
+    this.openFromDefinition(id, definition, word, phrase);
   }
 
-  openFromDefinition(id: string, definitionIndex: number, selected: string): void {
+  openFromDefinition(id: string, definitionIndex: number, selected: string, phrase = ''): void {
     const gloss = parsePassage(this.element().definitions[definitionIndex]?.text ?? '')
       .text.replace(/\s+/g, ' ')
       .trim();
     const root = this.element().title.replace(/\s+/g, ' ').trim();
     const word = selected.replace(/\s+/g, ' ').trim();
     const guide = gloss && root && word ? `${root}: ${gloss}` : '';
-    this.visitHighlight(id, definitionIndex, '', guide);
+    const source = phrase.replace(/\s+/g, ' ').trim() || gloss;
+    this.visitHighlight(id, definitionIndex, '', guide, source);
   }
 
   visitHighlight(
@@ -8151,12 +8307,40 @@ export class ElementModal {
     definition = this.collisionDefinition,
     example = '',
     guide = '',
+    phrase = '',
   ): void {
     this.collision.set(null);
     this.collisionExample = '';
     this.collisionWord = '';
+    this.collisionPhrase = '';
     if (!id || id === this.element().id) return;
-    this.visit.emit({ id, definition, example: example.trim(), guide: guide.trim() });
+    const source = (phrase || example).replace(/\s+/g, ' ').trim();
+    const visit = { id, definition, example: example.trim(), guide: guide.trim() };
+    this.seenWrites = this.seenWrites
+      .then(async () => {
+        if (source) await this.writeOpenedFrom(id, source);
+        if (this.alive) this.visit.emit(visit);
+      })
+      .catch(() => undefined);
+  }
+
+  /** Store the passage this element was opened from, without touching the one on screen. */
+  private async writeOpenedFrom(id: string, phrase: string): Promise<void> {
+    const base = preferLogged(
+      this.collection().find((item) => item.id === id),
+      this.seenLatest.get(id),
+    );
+    if (!base) return;
+    try {
+      const saved = await saveElement({
+        ...base,
+        log: [...base.log, { event: 'seen', at: Date.now(), phrase }],
+      });
+      this.seenLatest.set(id, saved);
+      this.changed.emit(saved);
+    } catch {
+      // The element still opens. A missed log is not a failure of the one on screen.
+    }
   }
 
   confirmPassagePick(event: Event, text: string): void {
@@ -8632,6 +8816,7 @@ export class ElementModal {
       if (entry?.event === 'example') return this.i18n.translate('element.deleteExampleQ');
       if (entry?.event === 'form') return this.i18n.translate('element.deleteForms');
       if (entry?.event === 'reveal') return this.i18n.translate('element.deleteTranslation');
+      if (entry?.event === 'seen') return this.i18n.translate('element.deleteOpening');
       return this.i18n.translate('element.deleteExercise');
     }
     return this.i18n.translate('element.deleteExampleQ');
@@ -9246,11 +9431,19 @@ export class ElementModal {
 
   readonly scoreMax = DEFINITION_COVERAGE_MAX;
 
-  /** Recall attempts, definition edits, and definition deletions, newest first. */
-  shownHistory(): Array<DefinitionGameLog | DefinitionReworkLog | DefinitionDeleteLog> {
+  /** Recall attempts, definition edits, deletions, and opens from another element, newest first. */
+  shownHistory(): Array<
+    DefinitionGameLog | DefinitionReworkLog | DefinitionDeleteLog | DefinitionSeenLog
+  > {
     return this.elementHistory().filter(
-      (entry): entry is DefinitionGameLog | DefinitionReworkLog | DefinitionDeleteLog =>
-        entry.event === 'game' || entry.event === 'rework' || entry.event === 'delete',
+      (
+        entry,
+      ): entry is
+        DefinitionGameLog | DefinitionReworkLog | DefinitionDeleteLog | DefinitionSeenLog =>
+        entry.event === 'game' ||
+        entry.event === 'rework' ||
+        entry.event === 'delete' ||
+        (entry.event === 'seen' && !!entry.phrase),
     );
   }
 
@@ -9349,6 +9542,7 @@ export class ElementModal {
     if (entry.event === 'example') return this.i18n.translate('element.example');
     if (entry.event === 'form') return this.i18n.translate('element.forms');
     if (entry.event === 'reveal') return this.i18n.translate('element.translated');
+    if (entry.event === 'seen') return this.i18n.translate('element.openedFrom');
     return this.i18n.translate('element.exercise');
   }
 
@@ -9372,13 +9566,28 @@ export class ElementModal {
       const max = String(this.scoreMax);
       const title = this.historyTitle(entry);
       if (wrote && entry.extra) {
-        return this.i18n.translate('element.historyGameAnswerBonus', { title, answer: wrote, score, max, when });
+        return this.i18n.translate('element.historyGameAnswerBonus', {
+          title,
+          answer: wrote,
+          score,
+          max,
+          when,
+        });
       }
       if (wrote) {
-        return this.i18n.translate('element.historyGameAnswer', { title, answer: wrote, score, max, when });
+        return this.i18n.translate('element.historyGameAnswer', {
+          title,
+          answer: wrote,
+          score,
+          max,
+          when,
+        });
       }
       return this.i18n.translate(entry.extra ? 'element.historyGameBonus' : 'element.historyGame', {
-        title, score, max, when,
+        title,
+        score,
+        max,
+        when,
       });
     }
     if (entry.event === 'rework') {
@@ -9391,6 +9600,12 @@ export class ElementModal {
     if (entry.event === 'delete') {
       return this.i18n.translate('element.historyDelete', {
         wording: this.logWording(entry.definition),
+        when,
+      });
+    }
+    if (entry.event === 'seen') {
+      return this.i18n.translate('element.historyOpenedFrom', {
+        phrase: entry.phrase ?? '',
         when,
       });
     }
@@ -9411,7 +9626,8 @@ export class ElementModal {
       entry.event === 'example' ||
       entry.event === 'form' ||
       entry.event === 'reveal' ||
-      entry.event === 'game'
+      entry.event === 'game' ||
+      (entry.event === 'seen' && !!entry.phrase)
     );
   }
 

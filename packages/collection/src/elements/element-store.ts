@@ -112,6 +112,16 @@ export type DefinitionFormLog = {
   snapshot?: DefinitionSnapshot;
 };
 
+/**
+ * The element was shown after a typed answer, or opened from another element.
+ * `phrase` is the passage it was opened from. A reveal after an answer has none.
+ */
+export type DefinitionSeenLog = {
+  event: 'seen';
+  at: number;
+  phrase?: string;
+};
+
 /** A translation uncovered on a definition or one of its examples. */
 export type DefinitionRevealLog = {
   event: 'reveal';
@@ -132,6 +142,7 @@ export type DefinitionLogEntry =
   | DefinitionExampleLog
   | DefinitionFormLog
   | DefinitionRevealLog
+  | DefinitionSeenLog
   | { event: 'view'; at: number };
 
 /** An interaction on an element. `at` is when it happened. */
@@ -682,6 +693,16 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
     if (at == null) return null;
     return { event: 'view', at };
   }
+  if (source.event === 'seen') {
+    if (at == null) return null;
+    const phrase =
+      typeof source.phrase === 'string' ? source.phrase.replace(/\s+/g, ' ').trim() : '';
+    return {
+      event: 'seen',
+      at,
+      ...(phrase ? { phrase } : {}),
+    };
+  }
   if (source.event === 'reveal') {
     if (at == null) return null;
     const phrase = typeof source.phrase === 'string' ? source.phrase.trim() : '';
@@ -846,6 +867,14 @@ function presentLog(log: ElementLogEntry[]): ElementLogEntry[] {
         at: entry.at,
         forms: entry.forms.map((form) => form.trim()).filter(Boolean),
         ...(entry.snapshot ? { snapshot: presentSnapshot(entry.snapshot) } : {}),
+      };
+    }
+    if (entry.event === 'seen') {
+      const phrase = entry.phrase?.replace(/\s+/g, ' ').trim() ?? '';
+      return {
+        event: 'seen',
+        at: entry.at,
+        ...(phrase ? { phrase } : {}),
       };
     }
     if (entry.event === 'reveal') {

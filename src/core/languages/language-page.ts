@@ -922,7 +922,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
           (deleted)="onElementDeleted()"
-          (visit)="visitElement($event)"
+          (visit)="visitElement($event, true)"
           (back)="backElement()"
           (addSelection)="addFromSelection($event)"
           (addPrepared)="addPrepared($event)"

@@ -46,6 +46,7 @@ export {
   type DefinitionLogEntry,
   type DefinitionRevealLog,
   type DefinitionReworkLog,
+  type DefinitionSeenLog,
   type DefinitionSnapshot,
   type ElementDefinition,
   type RemovedDefinition,

@@ -16,6 +16,7 @@ export type ElementDayStats = {
   added: number;
   revealed: number;
   exercises: number;
+  seen: number;
   /** During-day mean minus the mean of earlier days. Null when nothing was scored before that day. */
   differential: number | null;
 };
@@ -25,6 +26,7 @@ export type DayStats = {
   added: number;
   revealed: number;
   exercises: number;
+  seen: number;
   /** Sum of the element differentials that could be compared with an earlier mean. */
   differential: number;
   elements: ElementDayStats[];
@@ -45,6 +47,7 @@ type MutableDay = {
   added: number;
   revealed: number;
   exercises: number;
+  seen: number;
   elements: Map<string, MutableElement>;
 };
 
@@ -136,9 +139,17 @@ function tally(
       if (entry.event === 'view' || entry.event === 'rework' || entry.event === 'reveal') continue;
       const day = bucket(days, entry.at);
       if (!day) continue;
+      if (entry.event === 'seen') {
+        day.seen += 1;
+        elementOf(day, id, title).seen += 1;
+        continue;
+      }
       if (entry.event === 'game' && isRecall(entry.game)) {
-        day.exercises += 1;
-        elementOf(day, id, title).exercises += 1;
+        const answer = typeof entry.answer === 'string' ? entry.answer.trim() : '';
+        if (answer) {
+          day.exercises += 1;
+          elementOf(day, id, title).exercises += 1;
+        }
         const score = coverageOf(entry);
         if (score != null && typeof entry.at === 'number') {
           const prior = attempts.get(id);
@@ -163,6 +174,7 @@ function tally(
       added: stats.added,
       revealed: stats.revealed,
       exercises: stats.exercises,
+      seen: stats.seen,
       differential: dayDifferential(elements),
       elements,
     });
@@ -180,6 +192,7 @@ function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {
       added: 0,
       revealed: 0,
       exercises: 0,
+      seen: 0,
       elements: new Map(),
     };
     days.set(key, day);
@@ -196,6 +209,7 @@ function elementOf(day: MutableDay, id: string, title: string): MutableElement {
       added: 0,
       revealed: 0,
       exercises: 0,
+      seen: 0,
       differential: null,
     };
     day.elements.set(id, element);
@@ -254,13 +268,14 @@ function dayKey(at: number): string {
 }
 
 function hasActivity(element: ElementDayStats): boolean {
-  return element.added + element.revealed > 0 || element.exercises > 0;
+  return element.added + element.revealed + element.seen > 0 || element.exercises > 0;
 }
 
 function compareElements(left: ElementDayStats, right: ElementDayStats, language: string): number {
   const exercises = right.exercises - left.exercises;
   if (exercises) return exercises;
-  const activity = right.added + right.revealed - (left.added + left.revealed);
+  const activity =
+    right.added + right.revealed + right.seen - (left.added + left.revealed + left.seen);
   if (activity) return activity;
   return left.title.localeCompare(right.title, language);
 }
