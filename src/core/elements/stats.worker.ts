@@ -139,7 +139,15 @@ function tally(
     const entries = Array.isArray(source.log) ? source.log : [];
     for (const entry of entries) {
       if (!isRecord(entry)) continue;
-      if (entry.event === 'view' || entry.event === 'rework' || entry.event === 'reveal') continue;
+      if (
+        entry.event === 'view' ||
+        entry.event === 'rework' ||
+        entry.event === 'reveal' ||
+        entry.event === 'removed' ||
+        entry.event === 'restored'
+      ) {
+        continue;
+      }
       const day = bucket(days, entry.at);
       if (!day) continue;
       if (entry.event === 'seen') {

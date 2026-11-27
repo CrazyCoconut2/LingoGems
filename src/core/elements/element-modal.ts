@@ -19,6 +19,8 @@ import {
 import {
   assignEquivalent,
   deleteElement,
+  purgeElement,
+  restoreElement,
   DEFINITION_COVERAGE_MAX,
   definitionCoverage,
   definitionScoreAverage,
@@ -51,6 +53,8 @@ import {
   type ElementEquivalent,
   type EquivalentLinks,
   type ElementLogEntry,
+  type ElementRemovedLog,
+  type ElementRestoredLog,
   type RemovedDefinition,
   type ElementForm,
   type ElementMetadata,
@@ -174,7 +178,9 @@ type DefinitionHistoryEntry =
   | DefinitionExampleLog
   | DefinitionFormLog
   | DefinitionRevealLog
-  | DefinitionSeenLog;
+  | DefinitionSeenLog
+  | ElementRemovedLog
+  | ElementRestoredLog;
 
 type ExampleDraft = {
   definitionIndex: number;
@@ -189,6 +195,7 @@ type PendingForms = {
 
 type ConfirmDelete =
   | { kind: 'element' }
+  | { kind: 'purge' }
   | { kind: 'definition'; index: number }
   | { kind: 'example'; definitionIndex: number; exampleIndex: number }
   | { kind: 'exercise'; definitionIndex: number; historyIndex: number };
@@ -926,6 +933,29 @@ function unlockModalScroll(): void {
                                 <path d="m6 9 6 6 6-6" />
                               </svg>
                             </button>
+                          } @else if (entry.event === 'removed' || entry.event === 'restored') {
+                            <div class="log-copy" [attr.aria-label]="historyAria(entry)">
+                              <span class="log-edit-line">
+                                @if (entry.event === 'removed') {
+                                  <svg class="log-wrench" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 6h18" />
+                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                    <path d="M10 11v6" />
+                                    <path d="M14 11v6" />
+                                  </svg>
+                                } @else {
+                                  <svg class="log-wrench" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                    <path d="M3 3v5h5" />
+                                  </svg>
+                                }
+                                <span class="log-edit-copies">
+                                  <span class="log-game">{{ historyTitle(entry) }}</span>
+                                  <span class="hint">{{ exerciseWhen(entry.at) }}</span>
+                                </span>
+                              </span>
+                            </div>
                           } @else if (entry.event === 'game' && gaveUp(entry)) {
                             <div class="log-copy">
                               <span class="log-edit-line">
@@ -1027,7 +1057,11 @@ function unlockModalScroll(): void {
                               </svg>
                             </button>
                           }
-                          @if (entry.event !== 'rework') {
+                          @if (
+                            entry.event !== 'rework' &&
+                            entry.event !== 'removed' &&
+                            entry.event !== 'restored'
+                          ) {
                             <button
                               type="button"
                               class="icon-btn danger log-delete"
@@ -3141,14 +3175,33 @@ function unlockModalScroll(): void {
                 <p class="error">{{ titleError() | translate }}</p>
               }
               <div class="sheet-actions">
-                <button
-                  type="button"
-                  class="btn btn-danger"
-                  [disabled]="busy()"
-                  (click)="askDeleteElement()"
-                >
-                  {{ 'common.delete' | translate }}
-                </button>
+                @if (element().deletedAt) {
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    [disabled]="busy()"
+                    (click)="restoreOpenElement()"
+                  >
+                    {{ 'common.restore' | translate }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-danger"
+                    [disabled]="busy()"
+                    (click)="askPurgeElement()"
+                  >
+                    {{ 'languages.deletePermanent' | translate }}
+                  </button>
+                } @else {
+                  <button
+                    type="button"
+                    class="btn btn-danger"
+                    [disabled]="busy()"
+                    (click)="askDeleteElement()"
+                  >
+                    {{ 'common.delete' | translate }}
+                  </button>
+                }
                 <button
                   type="button"
                   class="btn btn-secondary"
@@ -5906,7 +5959,7 @@ export class ElementModal {
   readonly definitionFor = input('');
   readonly closed = output<void>();
   readonly changed = output<StoredElement>();
-  readonly deleted = output<void>();
+  readonly deleted = output<StoredElement | null>();
   readonly visit = output<{
     id: string;
     definition: number;
@@ -8931,6 +8984,7 @@ export class ElementModal {
   }
 
   confirmTitle(pending: ConfirmDelete): string {
+    if (pending.kind === 'purge') return this.i18n.translate('element.purgeElement');
     if (pending.kind === 'element') return this.i18n.translate('element.deleteElement');
     if (pending.kind === 'definition') return this.i18n.translate('element.deleteDefinition');
     if (pending.kind === 'exercise') {
@@ -8946,10 +9000,9 @@ export class ElementModal {
   }
 
   confirmHint(pending: ConfirmDelete): string {
-    if (
-      pending.kind === 'element' ||
-      (pending.kind === 'exercise' && this.historyEmptiesElement(pending.historyIndex))
-    ) {
+    if (pending.kind === 'purge') return this.i18n.translate('element.purgeHint');
+    if (pending.kind === 'element') return this.i18n.translate('element.deleteSoftHint');
+    if (pending.kind === 'exercise' && this.historyEmptiesElement(pending.historyIndex)) {
       return this.i18n.translate('element.deleteHistoryHint');
     }
     if (pending.kind === 'definition') return this.i18n.translate('element.definitionRemoved');
@@ -8958,11 +9011,38 @@ export class ElementModal {
 
   askDeleteElement(): void {
     if (this.busy()) return;
+    this.closeTitleEditors();
+    this.confirm.set({ kind: 'element' });
+  }
+
+  askPurgeElement(): void {
+    if (this.busy()) return;
+    this.closeTitleEditors();
+    this.confirm.set({ kind: 'purge' });
+  }
+
+  async restoreOpenElement(): Promise<void> {
+    if (this.busy() || !this.currentElement().deletedAt) return;
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      const saved = await restoreElement(this.element().id);
+      if (!saved || !this.alive || this.element().id !== saved.id) return;
+      this.written = saved;
+      this.titleEdit.set(false);
+      this.changed.emit(saved);
+    } catch {
+      this.error.set('element.saveFailed');
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  private closeTitleEditors(): void {
     this.editor.set(null);
     this.formEdit.set(null);
     this.formFeatureEdit.set(null);
     this.metaEdit.set(null);
-    this.confirm.set({ kind: 'element' });
   }
 
   askDeleteDefinition(index: number): void {
@@ -9009,7 +9089,14 @@ export class ElementModal {
   }
 
   askDeleteExercise(entry: DefinitionHistoryEntry): void {
-    if (this.busy() || entry.event === 'rework') return;
+    if (
+      this.busy() ||
+      entry.event === 'rework' ||
+      entry.event === 'removed' ||
+      entry.event === 'restored'
+    ) {
+      return;
+    }
     const historyIndex = this.elementHistory().indexOf(entry);
     if (historyIndex < 0) return;
     this.confirm.set({ kind: 'exercise', definitionIndex: 0, historyIndex });
@@ -9045,6 +9132,10 @@ export class ElementModal {
   async confirmDelete(): Promise<void> {
     const pending = this.confirm();
     if (!pending || this.busy()) return;
+    if (pending.kind === 'purge') {
+      await this.purgeOpenElement();
+      return;
+    }
     if (pending.kind === 'element') {
       await this.removeElement();
       return;
@@ -9157,7 +9248,7 @@ export class ElementModal {
     }
     const log = current.log.filter((_, index) => index !== logIndex);
     if (!log.some((item) => this.listedHistory(item))) {
-      await this.removeElement();
+      await this.purgeOpenElement();
       return;
     }
     this.written = {
@@ -9180,12 +9271,31 @@ export class ElementModal {
     this.error.set('');
     try {
       const id = this.element().id;
-      await deleteElement(id);
+      const saved = await deleteElement(id);
       dropNewDefinitions(id);
       writeExampleSuggestions(id, {});
       writeRelatedDrafts(id, new Map());
       this.confirm.set(null);
-      this.deleted.emit();
+      this.deleted.emit(saved?.deletedAt ? saved : null);
+    } catch {
+      this.confirm.set(null);
+      this.error.set('element.deleteFailed');
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  private async purgeOpenElement(): Promise<void> {
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      const id = this.element().id;
+      await purgeElement(id);
+      dropNewDefinitions(id);
+      writeExampleSuggestions(id, {});
+      writeRelatedDrafts(id, new Map());
+      this.confirm.set(null);
+      this.deleted.emit(null);
     } catch {
       this.confirm.set(null);
       this.error.set('element.deleteFailed');
@@ -9609,16 +9719,28 @@ export class ElementModal {
 
   /** Recall attempts, definition edits, deletions, and opens from another element, newest first. */
   shownHistory(): Array<
-    DefinitionGameLog | DefinitionReworkLog | DefinitionDeleteLog | DefinitionSeenLog
+    | DefinitionGameLog
+    | DefinitionReworkLog
+    | DefinitionDeleteLog
+    | DefinitionSeenLog
+    | ElementRemovedLog
+    | ElementRestoredLog
   > {
     return this.elementHistory().filter(
       (
         entry,
       ): entry is
-        DefinitionGameLog | DefinitionReworkLog | DefinitionDeleteLog | DefinitionSeenLog =>
+        | DefinitionGameLog
+        | DefinitionReworkLog
+        | DefinitionDeleteLog
+        | DefinitionSeenLog
+        | ElementRemovedLog
+        | ElementRestoredLog =>
         entry.event === 'game' ||
         entry.event === 'rework' ||
         entry.event === 'delete' ||
+        entry.event === 'removed' ||
+        entry.event === 'restored' ||
         (entry.event === 'seen' && !!entry.phrase),
     );
   }
@@ -9715,6 +9837,8 @@ export class ElementModal {
   historyTitle(entry: DefinitionHistoryEntry): string {
     if (entry.event === 'rework') return this.i18n.translate('element.reworked');
     if (entry.event === 'delete') return this.i18n.translate('element.deleted');
+    if (entry.event === 'removed') return this.i18n.translate('element.elementRemoved');
+    if (entry.event === 'restored') return this.i18n.translate('element.elementRestored');
     if (entry.event === 'example') return this.i18n.translate('element.example');
     if (entry.event === 'form') return this.i18n.translate('element.forms');
     if (entry.event === 'reveal') return this.i18n.translate('element.translated');
@@ -9803,6 +9927,8 @@ export class ElementModal {
       entry.event === 'form' ||
       entry.event === 'reveal' ||
       entry.event === 'game' ||
+      entry.event === 'removed' ||
+      entry.event === 'restored' ||
       (entry.event === 'seen' && !!entry.phrase)
     );
   }

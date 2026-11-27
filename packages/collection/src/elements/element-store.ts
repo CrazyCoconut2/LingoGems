@@ -145,8 +145,18 @@ export type DefinitionLogEntry =
   | DefinitionSeenLog
   | { event: 'view'; at: number };
 
+/** The element left the active list. The record stays, so its statistics stay too. */
+export type ElementRemovedLog = { event: 'removed'; at: number };
+
+/** The element returned to the active list. */
+export type ElementRestoredLog = { event: 'restored'; at: number };
+
 /** An interaction on an element. `at` is when it happened. */
-export type ElementLogEntry = { event: 'click'; at: number } | DefinitionLogEntry;
+export type ElementLogEntry =
+  | { event: 'click'; at: number }
+  | ElementRemovedLog
+  | ElementRestoredLog
+  | DefinitionLogEntry;
 
 export type ElementDefinition = {
   text: string;
@@ -183,6 +193,8 @@ export type StoredElement = {
   clicks: number;
   /** Opens and activity. Missing values are an empty log. */
   log: ElementLogEntry[];
+  /** Set when the element leaves the active list. The record stays so its stats remain. */
+  deletedAt?: number;
   /** Distinct metadata values across this element's definitions. */
   definitionMetadata: ElementMetadataVariability;
   /** Distinct metadata values across this element's examples. */
@@ -284,6 +296,17 @@ function supportCode(language: string): string {
 }
 
 export async function readElements(language: string): Promise<StoredElement[]> {
+  const rows = await readLanguageElements(language);
+  return rows.filter((element) => !element.deletedAt);
+}
+
+/** Elements removed from the active list. The record is still stored. */
+export async function readRemovedElements(language: string): Promise<StoredElement[]> {
+  const rows = await readLanguageElements(language);
+  return rows.filter((element) => !!element.deletedAt);
+}
+
+async function readLanguageElements(language: string): Promise<StoredElement[]> {
   const code = language.trim().toLowerCase();
   if (!isLearnableLanguage(code) || typeof indexedDB === 'undefined') return [];
   return materializeElements(await readLanguageRecords(code), code);
@@ -357,6 +380,7 @@ export async function saveElement(
     content.equivalents,
   ).map(presentDefinition);
   const indexes = collectMetadataIndexes(definitions);
+  const deletedAt = deletedStamp(element?.deletedAt);
   const saved: StoredElement = {
     id,
     language,
@@ -369,6 +393,7 @@ export async function saveElement(
     ...indexes,
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
+    ...(deletedAt ? { deletedAt } : {}),
   };
   await putElement(saved);
   if (options?.syncCatalog !== false && !metadataIndexesEmpty(indexes)) {
@@ -429,7 +454,33 @@ async function writeCollection(
   return languages;
 }
 
-export async function deleteElement(id: string): Promise<void> {
+/** Hide an active element. The record stays, with a log entry, so statistics do not change. */
+export async function deleteElement(id: string): Promise<StoredElement | null> {
+  const element = await readStoredElement(id);
+  if (!element || element.deletedAt) return element;
+  const at = Date.now();
+  return saveElement({
+    ...element,
+    deletedAt: at,
+    log: [...element.log, { event: 'removed', at }],
+  });
+}
+
+/** Put a removed element back on the active list and record that it returned. */
+export async function restoreElement(id: string): Promise<StoredElement | null> {
+  const element = await readStoredElement(id);
+  if (!element || !element.deletedAt) return element;
+  const at = Date.now();
+  const next: StoredElement = {
+    ...element,
+    log: [...element.log, { event: 'restored', at }],
+  };
+  delete next.deletedAt;
+  return saveElement(next);
+}
+
+/** Remove the record. Statistics are recomputed without it. */
+export async function purgeElement(id: string): Promise<void> {
   const element = await readStoredElement(id);
   if (!element || typeof indexedDB === 'undefined') return;
   const db = await openDatabase();
@@ -453,7 +504,7 @@ export async function mergeElements(keepId: string, absorbId: string): Promise<S
   if (keep.id === absorb.id) return keep;
   if (keep.language !== absorb.language) throw new Error('Languages differ');
   const saved = await saveElement(combineElements(keep, absorb));
-  await deleteElement(absorb.id);
+  await purgeElement(absorb.id);
   return saved;
 }
 
@@ -756,6 +807,7 @@ function normalizeElement(raw: unknown): StoredElement | null {
   if (!title || !id) return null;
   const createdAtValue = source.createdAt;
   const content = normalizeContent(source.equivalents, source.definitions);
+  const deletedAt = deletedStamp(source.deletedAt);
   return {
     id,
     language,
@@ -768,7 +820,13 @@ function normalizeElement(raw: unknown): StoredElement | null {
     ...collectMetadataIndexes(content.definitions),
     createdAt:
       typeof createdAtValue === 'number' && Number.isFinite(createdAtValue) ? createdAtValue : 0,
+    ...(deletedAt ? { deletedAt } : {}),
   };
+}
+
+/** A removal stamp is kept only when it is a real time. */
+function deletedStamp(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 function readElementLog(raw: unknown): ElementLogEntry[] {
@@ -792,6 +850,10 @@ function normalizeElementLogEntry(raw: unknown): ElementLogEntry | null {
   if (source.event === 'click') {
     if (typeof source.at !== 'number' || !Number.isFinite(source.at)) return null;
     return { event: 'click', at: source.at };
+  }
+  if (source.event === 'removed' || source.event === 'restored') {
+    if (typeof source.at !== 'number' || !Number.isFinite(source.at) || source.at <= 0) return null;
+    return { event: source.event, at: source.at };
   }
   return normalizeLogEntry(raw);
 }

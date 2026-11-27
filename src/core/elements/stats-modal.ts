@@ -22,13 +22,6 @@ import {
 import { readFieldColor } from './metadata-colors';
 import { PhraseTranslation } from '../translate/phrase-translation';
 import { supportLanguageFor } from '../languages/translation-language';
-import {
-  emptyDailyGoals,
-  readDailyGoals,
-  readGoalInput,
-  writeDailyGoals,
-  type DailyGoals,
-} from './stats-goals';
 import { type StatsView } from './stats-cache';
 import { StatsJob } from './stats-job';
 import { ignoreMissingToken, readMissingBlacklist, restoreMissingToken } from './stats-missing';
@@ -39,17 +32,14 @@ type ActivityKey = 'seen' | 'added' | 'exercises' | 'translated';
 const ACTIVITIES: readonly {
   key: ActivityKey;
   label: string;
-  goal: string | null;
 }[] = [
-  { key: 'seen', label: 'stats.seen', goal: 'stats.goalSeen' },
-  { key: 'added', label: 'stats.added', goal: 'stats.goalAdded' },
-  { key: 'exercises', label: 'stats.exercises', goal: 'stats.goalExercises' },
-  { key: 'translated', label: 'stats.translated', goal: null },
+  { key: 'seen', label: 'stats.seen' },
+  { key: 'added', label: 'stats.added' },
+  { key: 'exercises', label: 'stats.exercises' },
+  { key: 'translated', label: 'stats.translated' },
 ];
 
 type ElementSort = { kind: 'exercises' } | { kind: 'differential' } | { kind: 'seen' };
-
-type GoalKind = keyof DailyGoals;
 
 const LOADING_ACTIVITY = [0, 1, 2, 3];
 const LOADING_ROWS = [0, 1, 2, 3];
@@ -120,21 +110,6 @@ const EMPTY_DAY: DayStats = {
                   <path d="M3 3v5h5" />
                   <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
                   <path d="M16 16h5v5" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="icon-btn"
-                [class.on]="goalsOpen()"
-                [attr.aria-label]="'stats.dailyGoals' | translate"
-                [attr.aria-expanded]="goalsOpen()"
-                (click)="toggleGoals()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
-                  />
-                  <circle cx="12" cy="12" r="3" />
                 </svg>
               </button>
               <button
@@ -269,41 +244,6 @@ const EMPTY_DAY: DayStats = {
                     </span>
                     <span class="count">{{ formatCount(shown()[row.key]) }}</span>
                     <span class="caption">{{ row.label | translate }}</span>
-                    @if (goalKind(row.key); as kind) {
-                      @if (goalsOpen() || goals()[kind] !== null) {
-                        <div class="card-foot">
-                          @if (goalsOpen()) {
-                            <span class="card-goal-label">{{ 'stats.goal' | translate }}</span>
-                            <ng-container
-                              *ngTemplateOutlet="
-                                goalStepper;
-                                context: { kind: kind, label: row.goal ?? '' }
-                              "
-                            />
-                          }
-                          @if (goals()[kind]; as goal) {
-                            <div
-                              class="meter"
-                              role="progressbar"
-                              aria-valuemin="0"
-                              [attr.aria-valuenow]="meterNow(shown()[row.key], goal)"
-                              [attr.aria-valuemax]="goal"
-                              [attr.aria-label]="meterLabel(kind, goal)"
-                            >
-                              <span class="meter-track">
-                                <span
-                                  class="meter-fill"
-                                  [style.width.%]="meterPercent(shown()[row.key], goal)"
-                                ></span>
-                              </span>
-                              <span class="meter-label">{{
-                                meterText(shown()[row.key], goal)
-                              }}</span>
-                            </div>
-                          }
-                        </div>
-                      }
-                    }
                   </li>
                 }
               </ul>
@@ -698,34 +638,6 @@ const EMPTY_DAY: DayStats = {
         </div>
       </section>
     </div>
-    <ng-template #goalStepper let-kind="kind" let-label="label">
-      <div class="count-stepper">
-        <button
-          type="button"
-          [attr.aria-label]="'stats.decreaseGoal' | translate: { label: (label | translate) }"
-          [disabled]="!goalSet(kind)"
-          (click)="stepGoal(kind, -1)"
-        >
-          −
-        </button>
-        <input
-          type="text"
-          inputmode="numeric"
-          autocomplete="off"
-          [attr.aria-label]="'stats.dailyGoal' | translate: { label: (label | translate) }"
-          placeholder="–"
-          [value]="goalValue(kind)"
-          (change)="commitGoal(kind, $event)"
-        />
-        <button
-          type="button"
-          [attr.aria-label]="'stats.increaseGoal' | translate: { label: (label | translate) }"
-          (click)="stepGoal(kind, 1)"
-        >
-          +
-        </button>
-      </div>
-    </ng-template>
     <ng-template #exerciseIcon>
       <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
         <path d="m14 13-8.381 8.38a1 1 0 0 1-3.001-3L11 9.999" />
@@ -982,96 +894,6 @@ const EMPTY_DAY: DayStats = {
       line-height: 1;
     }
 
-    .count-stepper {
-      display: flex;
-      align-items: center;
-      gap: 0.45rem;
-      flex: none;
-    }
-
-    .count-stepper button {
-      display: grid;
-      place-items: center;
-      width: 1.8rem;
-      height: 1.8rem;
-      border: 0;
-      border-radius: 0.55rem;
-      background: color-mix(in srgb, var(--surface) 80%, transparent);
-      color: var(--text);
-      font: inherit;
-      font-size: 1rem;
-      line-height: 1;
-      cursor: pointer;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
-    }
-
-    .count-stepper button:hover:not(:disabled) {
-      background: rgba(127, 127, 127, 0.1);
-    }
-
-    .count-stepper button:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .count-stepper input {
-      width: 2.7rem;
-      border: 0;
-      background: transparent;
-      color: var(--text);
-      font: inherit;
-      font-size: 0.84rem;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-      text-align: center;
-      padding: 0;
-    }
-
-    .count-stepper input::placeholder {
-      color: var(--text-muted);
-      font-weight: 650;
-    }
-
-    .count-stepper input:focus {
-      outline: 2px solid rgba(var(--accent-rgb), 0.55);
-      outline-offset: 2px;
-      border-radius: 0.2rem;
-    }
-
-    .meter {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      min-width: 0;
-      color: var(--goal, var(--text));
-    }
-
-    .meter-track {
-      flex: 1;
-      height: 0.42rem;
-      min-width: 0;
-      overflow: hidden;
-      border-radius: 999px;
-      background: rgba(0, 0, 0, 0.4);
-    }
-
-    .meter-fill {
-      display: block;
-      height: 100%;
-      border-radius: inherit;
-      background: currentColor;
-      transition: width 0.2s ease;
-    }
-
-    .meter-label {
-      flex: none;
-      color: inherit;
-      font-size: 0.62rem;
-      font-weight: 750;
-      font-variant-numeric: tabular-nums;
-      line-height: 1.2;
-    }
-
     .block h3 {
       margin: 0;
       color: var(--text-muted);
@@ -1208,57 +1030,6 @@ const EMPTY_DAY: DayStats = {
       color: var(--score-1);
     }
 
-    .card-foot {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0.4rem;
-      align-self: stretch;
-      width: 100%;
-      margin-top: auto;
-      padding-top: 0.45rem;
-    }
-
-    .card-goal-label {
-      display: block;
-      color: var(--text-muted);
-      font-size: 0.58rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      line-height: 1;
-      text-align: center;
-      text-transform: uppercase;
-    }
-
-    .card-foot .count-stepper {
-      justify-content: center;
-      gap: 0.12rem;
-    }
-
-    .card-foot .count-stepper button {
-      width: 1.4rem;
-      height: 1.4rem;
-      border-radius: 0.4rem;
-      background: color-mix(in srgb, var(--goal, var(--text)) 18%, rgba(6, 8, 16, 0.72));
-      color: var(--goal, var(--text));
-      font-size: 0.85rem;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--goal, var(--text)) 42%, transparent);
-    }
-
-    .card-foot .count-stepper button:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--goal, var(--text)) 30%, rgba(6, 8, 16, 0.72));
-    }
-
-    .card-foot .count-stepper input {
-      width: 1.7rem;
-      color: var(--goal, var(--text));
-      font-size: 0.78rem;
-    }
-
-    .card-foot .count-stepper input::placeholder {
-      color: color-mix(in srgb, var(--goal, var(--text)) 50%, transparent);
-    }
-
     .activity .well {
       display: grid;
       place-items: center;
@@ -1299,21 +1070,6 @@ const EMPTY_DAY: DayStats = {
       border-radius: 1rem;
       background: var(--surface-2);
       color: var(--text-muted);
-    }
-
-    .activity li:has(.card-foot) {
-      align-items: stretch;
-    }
-
-    .activity li:has(.card-foot) .well,
-    .activity li:has(.card-foot) .count,
-    .activity li:has(.card-foot) .caption {
-      align-self: center;
-    }
-
-    .activity .meter {
-      align-self: stretch;
-      width: 100%;
     }
 
     .flame {
@@ -1881,8 +1637,6 @@ export class StatsModal {
   readonly activities = ACTIVITIES;
   readonly loadingActivity = LOADING_ACTIVITY;
   readonly loadingRows = LOADING_ROWS;
-  readonly goalsOpen = signal(false);
-  readonly goals = signal<DailyGoals>(emptyDailyGoals());
   readonly blacklist = signal<string[]>([]);
   readonly elementsOpen = signal(true);
   readonly hiddenOpen = signal(false);
@@ -1977,8 +1731,6 @@ export class StatsModal {
         this.dayIndex.set(0);
         this.elementSort.set(null);
         this.sortMenuOpen.set(false);
-        this.goalsOpen.set(false);
-        this.goals.set(readDailyGoals(language));
         this.blacklist.set(readMissingBlacklist(language));
         this.elementsOpen.set(true);
         this.hiddenOpen.set(false);
@@ -2053,10 +1805,6 @@ export class StatsModal {
     this.elementSort.update((current) => (sameElementSort(current, sort) ? null : sort));
   }
 
-  toggleGoals(): void {
-    this.goalsOpen.update((open) => !open);
-  }
-
   /** Show the compile already in progress, or start one when the window is current. */
   recompile(): void {
     const language = this.language();
@@ -2065,57 +1813,6 @@ export class StatsModal {
     this.following.set(true);
     if (behind && live.phase !== 'empty') return;
     this.job.invalidate(language);
-  }
-
-  goalSet(kind: GoalKind): boolean {
-    return this.goals()[kind] != null;
-  }
-
-  goalValue(kind: GoalKind): string {
-    const value = this.goals()[kind];
-    return value == null ? '' : String(value);
-  }
-
-  stepGoal(kind: GoalKind, by: number): void {
-    const current = this.goals()[kind] ?? 0;
-    const next = current + by;
-    if (!Number.isSafeInteger(next)) return;
-    this.saveGoal(kind, next > 0 ? next : null);
-  }
-
-  commitGoal(kind: GoalKind, event: Event): void {
-    const input = event.target;
-    if (!(input instanceof HTMLInputElement)) return;
-    const parsed = readGoalInput(input.value);
-    if (!parsed.ok) {
-      input.value = this.goalValue(kind);
-      return;
-    }
-    this.saveGoal(kind, parsed.value);
-  }
-
-  meterNow(gain: number, goal: number): number {
-    return Math.min(Math.max(gain, 0), goal);
-  }
-
-  meterPercent(gain: number, goal: number): number {
-    if (goal <= 0) return 0;
-    return (this.meterNow(gain, goal) / goal) * 100;
-  }
-
-  meterText(gain: number, goal: number): string {
-    return `${this.formatCount(Math.max(gain, 0))} / ${this.formatCount(goal)}`;
-  }
-
-  meterLabel(key: GoalKind, goal: number): string {
-    const progress = this.meterText(this.shown()[key], goal);
-    const label =
-      key === 'seen'
-        ? 'stats.seenMeter'
-        : key === 'added'
-          ? 'stats.addedMeter'
-          : 'stats.exerciseMeter';
-    return this.i18n.translate(label, { progress });
   }
 
   titleOf(element: ElementDayStats): string {
@@ -2236,22 +1933,11 @@ export class StatsModal {
     });
   }
 
-  goalKind(key: ActivityKey): GoalKind | null {
-    if (key === 'seen' || key === 'added' || key === 'exercises') return key;
-    return null;
-  }
-
   private activityName(key: ActivityKey): string {
     if (key === 'added') return this.i18n.translate('stats.addedLower');
     if (key === 'seen') return this.i18n.translate('stats.seenLower');
     if (key === 'translated') return this.i18n.translate('stats.translatedLower');
-    return this.i18n.translate('stats.goalExercises');
-  }
-
-  private saveGoal(kind: GoalKind, value: number | null): void {
-    const next: DailyGoals = { ...this.goals(), [kind]: value };
-    this.goals.set(next);
-    writeDailyGoals(this.language(), next);
+    return this.i18n.translate('stats.exercisesLower');
   }
 }
 

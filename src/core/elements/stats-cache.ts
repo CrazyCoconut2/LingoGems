@@ -68,7 +68,7 @@ export function pendingStatsLanguages(): string[] {
   return cachedStatsLanguages().filter((language) => readStatsView(language).phase === 'pending');
 }
 
-/** Removes compiled stats only. Goals and other settings stay. */
+/** Removes compiled stats only. Other settings stay. */
 export function clearStatsCache(): void {
   if (typeof localStorage === 'undefined') return;
   const keys: string[] = [];
@@ -126,15 +126,16 @@ function recordOf(value: unknown): StatsRecord | null {
   };
 }
 
-/** Drops compiled snapshots from earlier stats formats. Goals and other settings stay. */
+/** Drops compiled snapshots from earlier stats formats, and leftover daily-goal records. */
 function dropStaleStatsKeys(): void {
   if (typeof localStorage === 'undefined') return;
   const stale: string[] = [];
   try {
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
-      if (!key?.startsWith(STALE_STATS_ROOT) || key.startsWith(KEY_PREFIX)) continue;
-      stale.push(key);
+      if (!key) continue;
+      const staleStats = key.startsWith(STALE_STATS_ROOT) && !key.startsWith(KEY_PREFIX);
+      if (staleStats || key.startsWith('lingogem.stats.goals.')) stale.push(key);
     }
     for (const key of stale) localStorage.removeItem(key);
   } catch {

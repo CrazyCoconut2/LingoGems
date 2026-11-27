@@ -27,6 +27,8 @@ import {
   compareElements,
   DEFAULT_ELEMENT_SORT,
   deleteElement,
+  purgeElement,
+  restoreElement,
   definitionScoreAverage,
   displayTitle,
   ELEMENT_SEARCH_MAX_LENGTH,
@@ -56,6 +58,7 @@ import {
   metadataFilterSize,
   parseMetadataFilter,
   readElements,
+  readRemovedElements,
   saveElement,
   sensesWithEquivalents,
   type ElementCatalog,
@@ -92,6 +95,15 @@ function retargetLayers(
   return next;
 }
 
+function withoutIds(list: readonly StoredElement[], ids: ReadonlySet<string>): StoredElement[] {
+  return list.filter((item) => !ids.has(item.id));
+}
+
+function withSaved(list: readonly StoredElement[], saved: readonly StoredElement[]): StoredElement[] {
+  const ids = new Set(saved.map((item) => item.id));
+  return [...list.filter((item) => !ids.has(item.id)), ...saved];
+}
+
 function grammarMovementKey(movement: GrammarMovement): string {
   switch (movement) {
     case 'new':
@@ -107,7 +119,9 @@ function grammarMovementKey(movement: GrammarMovement): string {
   }
 }
 
-type FilterSection = 'sort' | 'language' | 'score' | 'definitions' | 'examples' | 'forms';
+type FilterSection = 'sort' | 'language' | 'status' | 'score' | 'definitions' | 'examples' | 'forms';
+
+type SelectionAction = 'delete' | 'restore' | 'purge';
 
 type MetadataKind = 'definitions' | 'examples' | 'forms';
 
@@ -264,7 +278,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             </p>
             @if (selecting()) {
               <div class="list-toolbar-actions">
-                @if (selectedIds().size === 2) {
+                @if (selectedIds().size === 2 && !deletedFilter()) {
                   <button
                     type="button"
                     class="list-action"
@@ -281,22 +295,54 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   </button>
                 }
                 @if (selectedIds().size) {
-                  <button
-                    type="button"
-                    class="list-action danger"
-                    [attr.aria-label]="'languages.deleteSelected' | translate"
-                    [attr.title]="'languages.deleteSelected' | translate"
-                    [disabled]="selectionBusy()"
-                    (click)="askDeleteSelection()"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 6h18" />
-                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                      <path d="M10 11v6" />
-                      <path d="M14 11v6" />
-                    </svg>
-                  </button>
+                  @if (deletedFilter()) {
+                    <button
+                      type="button"
+                      class="list-action"
+                      [attr.aria-label]="'languages.restoreSelected' | translate"
+                      [attr.title]="'languages.restoreSelected' | translate"
+                      [disabled]="selectionBusy()"
+                      (click)="askRestoreSelection()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                        <path d="M3 3v5h5" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="list-action danger"
+                      [attr.aria-label]="'languages.deletePermanent' | translate"
+                      [attr.title]="'languages.deletePermanent' | translate"
+                      [disabled]="selectionBusy()"
+                      (click)="askPurgeSelection()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                      </svg>
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="list-action danger"
+                      [attr.aria-label]="'languages.deleteSelected' | translate"
+                      [attr.title]="'languages.deleteSelected' | translate"
+                      [disabled]="selectionBusy()"
+                      (click)="askDeleteSelection()"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                      </svg>
+                    </button>
+                  }
                 }
                 <button
                   type="button"
@@ -848,6 +894,57 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 }
               </section>
 
+              <section class="filter-section" [class.expanded]="expanded() === 'status'">
+                <div class="section-header">
+                  <button
+                    type="button"
+                    class="section-toggle"
+                    [attr.aria-expanded]="expanded() === 'status'"
+                    (click)="toggleSection('status')"
+                  >
+                    <span class="section-title">
+                      {{ 'languages.status' | translate }}
+                      <span class="section-count">{{
+                        (deletedFilter() ? 'languages.deleted' : 'languages.active') | translate
+                      }}</span>
+                    </span>
+                    <svg class="section-chevron" viewBox="0 0 24 24">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                </div>
+                @if (expanded() === 'status') {
+                  <div class="section-body">
+                    <div
+                      class="sort-options"
+                      role="listbox"
+                      [attr.aria-label]="'languages.status' | translate"
+                    >
+                      <button
+                        type="button"
+                        class="sort-option"
+                        role="option"
+                        [class.selected]="!deletedFilter()"
+                        [attr.aria-selected]="!deletedFilter()"
+                        (click)="chooseStatus(false)"
+                      >
+                        {{ 'languages.active' | translate }}
+                      </button>
+                      <button
+                        type="button"
+                        class="sort-option"
+                        role="option"
+                        [class.selected]="deletedFilter()"
+                        [attr.aria-selected]="deletedFilter()"
+                        (click)="chooseStatus(true)"
+                      >
+                        {{ 'languages.deleted' | translate }}
+                      </button>
+                    </div>
+                  </div>
+                }
+              </section>
+
               <section class="filter-section" [class.expanded]="expanded() === 'sort'">
                 <div class="section-header">
                   <button
@@ -1089,33 +1186,37 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         </div>
       }
 
-      @if (deleteConfirm()) {
-        <div class="selection-backdrop" (click)="closeDeleteConfirm($event)">
+      @if (selectionConfirm(); as pending) {
+        <div class="selection-backdrop" (click)="closeSelectionConfirm($event)">
           <section
             class="selection-sheet"
             role="dialog"
             aria-modal="true"
-            [attr.aria-label]="deleteSelectionTitle()"
+            [attr.aria-label]="selectionConfirmTitle()"
             (click)="$event.stopPropagation()"
           >
-            <h3>{{ deleteSelectionTitle() }}</h3>
+            <h3>{{ selectionConfirmTitle() }}</h3>
             <p class="selection-hint">{{ selectionConfirmHint() }}</p>
             <div class="selection-actions">
               <button
                 type="button"
                 class="btn btn-secondary"
                 [disabled]="selectionBusy()"
-                (click)="closeDeleteConfirm($event)"
+                (click)="closeSelectionConfirm($event)"
               >
                 {{ 'common.cancel' | translate }}
               </button>
               <button
                 type="button"
-                class="btn btn-danger"
+                class="btn"
+                [class.btn-primary]="pending === 'restore'"
+                [class.btn-danger]="pending !== 'restore'"
                 [disabled]="selectionBusy()"
-                (click)="confirmDeleteSelection()"
+                (click)="confirmSelectionAction()"
               >
-                {{ 'common.delete' | translate }}
+                {{
+                  (pending === 'restore' ? 'common.restore' : 'common.delete') | translate
+                }}
               </button>
             </div>
             @if (selectionError()) {
@@ -1160,7 +1261,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             [definitionFor]="layer.definitionFor"
             (closed)="closeElement()"
             (changed)="replaceElement($event)"
-            (deleted)="onElementDeleted()"
+            (deleted)="onElementDeleted($event)"
             (visit)="visitElement($event, true)"
             (addSelection)="addFromSelection($event)"
             (addPrepared)="addPrepared($event)"
@@ -2793,7 +2894,8 @@ export class LanguagePage {
   readonly selectedIds = signal<ReadonlySet<string>>(new Set());
   readonly selectionBusy = signal(false);
   readonly selectionError = signal('');
-  readonly deleteConfirm = signal(false);
+  readonly selectionConfirm = signal<SelectionAction | null>(null);
+  readonly deletedFilter = signal(false);
   readonly mergeConfirm = signal(false);
   readonly skeletons = ELEMENT_SKELETONS;
   readonly sortOptions: { value: ElementSort; label: string }[] = [
@@ -2828,6 +2930,7 @@ export class LanguagePage {
   readonly name = signal('');
   readonly ready = signal(false);
   readonly elements = signal<StoredElement[]>([]);
+  readonly removed = signal<StoredElement[]>([]);
   readonly leadFieldKey = signal(readDefinitionMetadataFields()[0]?.key ?? '');
   readonly query = signal('');
   readonly search = signal<ElementSearch>({ mode: 'browse', value: '' });
@@ -2887,6 +2990,7 @@ export class LanguagePage {
   readonly scoreShortcut = !isDevMode();
   readonly optionalFilterCount = computed(
     () =>
+      (this.deletedFilter() ? 1 : 0) +
       this.scoreFilter().length +
       (this.unscoredFilter() ? 1 : 0) +
       metadataFilterSize(this.definitionMetaFilter()) +
@@ -2905,7 +3009,7 @@ export class LanguagePage {
     const definitionMeta = this.definitionMetaFilter();
     const exampleMeta = this.exampleMetaFilter();
     const formMeta = this.formMetaFilter();
-    const source = this.elements();
+    const source = this.deletedFilter() ? this.removed() : this.elements();
     const matched = source.filter((element) => {
       if (search.mode === 'prefix' && !elementMatchesPrefix(element, search.value)) return false;
       if (!elementMatchesScore(element, score, unscored)) return false;
@@ -2935,7 +3039,12 @@ export class LanguagePage {
   });
   emptyMessage(): string {
     if (!this.code()) return this.i18n.translate('languages.selectLanguage');
-    if (!this.elements().length) return this.i18n.translate('languages.noElements');
+    const source = this.deletedFilter() ? this.removed() : this.elements();
+    if (!source.length) {
+      return this.i18n.translate(
+        this.deletedFilter() ? 'languages.noDeleted' : 'languages.noElements',
+      );
+    }
     return this.i18n.translate('languages.noMatches');
   }
 
@@ -2991,8 +3100,8 @@ export class LanguagePage {
       this.mergeConfirm.set(false);
       return;
     }
-    if (this.deleteConfirm()) {
-      this.deleteConfirm.set(false);
+    if (this.selectionConfirm()) {
+      this.selectionConfirm.set(null);
       return;
     }
     if (this.selecting()) {
@@ -3095,20 +3204,33 @@ export class LanguagePage {
     this.clearPressTimer();
     this.selecting.set(false);
     this.selectedIds.set(new Set());
-    this.deleteConfirm.set(false);
+    this.selectionConfirm.set(null);
     this.mergeConfirm.set(false);
     this.selectionError.set('');
   }
 
   askDeleteSelection(): void {
+    this.askSelection('delete');
+  }
+
+  askRestoreSelection(): void {
+    this.askSelection('restore');
+  }
+
+  askPurgeSelection(): void {
+    this.askSelection('purge');
+  }
+
+  private askSelection(action: SelectionAction): void {
     if (this.selectionBusy() || this.selectedIds().size === 0) return;
     this.mergeConfirm.set(false);
-    this.deleteConfirm.set(true);
+    this.selectionError.set('');
+    this.selectionConfirm.set(action);
   }
 
   askMergeSelection(): void {
     if (this.selectionBusy() || !this.mergePair()) return;
-    this.deleteConfirm.set(false);
+    this.selectionConfirm.set(null);
     this.selectionError.set('');
     this.mergeConfirm.set(true);
   }
@@ -3153,40 +3275,79 @@ export class LanguagePage {
     }
   }
 
-  closeDeleteConfirm(event?: Event): void {
+  closeSelectionConfirm(event?: Event): void {
     event?.stopPropagation();
     if (this.selectionBusy()) return;
-    this.deleteConfirm.set(false);
+    this.selectionConfirm.set(null);
   }
 
-  deleteSelectionTitle(): string {
+  selectionConfirmTitle(): string {
+    const action = this.selectionConfirm();
     const count = this.selectedIds().size;
     const locale = this.i18n.currentLanguage;
+    const many = count.toLocaleString(locale);
+    if (action === 'restore') {
+      return count === 1
+        ? this.i18n.translate('languages.restoreOne')
+        : this.i18n.translate('languages.restoreMany', { count: many });
+    }
+    if (action === 'purge') {
+      return count === 1
+        ? this.i18n.translate('languages.purgeOne')
+        : this.i18n.translate('languages.purgeMany', { count: many });
+    }
     return count === 1
       ? this.i18n.translate('languages.deleteOne')
-      : this.i18n.translate('languages.deleteMany', { count: count.toLocaleString(locale) });
+      : this.i18n.translate('languages.deleteMany', { count: many });
   }
 
   selectionConfirmHint(): string {
-    return this.i18n.translate(
-      this.selectedIds().size === 1 ? 'languages.deleteHintOne' : 'languages.deleteHintMany',
-    );
+    const action = this.selectionConfirm();
+    const one = this.selectedIds().size === 1;
+    if (action === 'restore') {
+      return this.i18n.translate(one ? 'languages.restoreHintOne' : 'languages.restoreHintMany');
+    }
+    if (action === 'purge') {
+      return this.i18n.translate(one ? 'languages.purgeHintOne' : 'languages.purgeHintMany');
+    }
+    return this.i18n.translate(one ? 'languages.deleteHintOne' : 'languages.deleteHintMany');
   }
 
-  async confirmDeleteSelection(): Promise<void> {
+  async confirmSelectionAction(): Promise<void> {
+    const action = this.selectionConfirm();
     const ids = [...this.selectedIds()];
-    if (!ids.length || this.selectionBusy()) return;
+    if (!action || !ids.length || this.selectionBusy()) return;
     this.selectionBusy.set(true);
     this.selectionError.set('');
     try {
-      await Promise.all(ids.map((id) => deleteElement(id)));
-      const gone = new Set(ids);
-      this.elements.update((list) => list.filter((item) => !gone.has(item.id)));
+      if (action === 'purge') {
+        await Promise.all(ids.map((id) => purgeElement(id)));
+        const gone = new Set(ids);
+        this.elements.update((list) => withoutIds(list, gone));
+        this.removed.update((list) => withoutIds(list, gone));
+        this.dropLayers(gone);
+      } else if (action === 'restore') {
+        const saved = (await Promise.all(ids.map((id) => restoreElement(id)))).filter(
+          (item): item is StoredElement => !!item && !item.deletedAt,
+        );
+        const gone = new Set(saved.map((item) => item.id));
+        this.removed.update((list) => withoutIds(list, gone));
+        this.elements.update((list) => withSaved(list, saved));
+      } else {
+        const saved = (await Promise.all(ids.map((id) => deleteElement(id)))).filter(
+          (item): item is StoredElement => !!item?.deletedAt,
+        );
+        const gone = new Set(saved.map((item) => item.id));
+        this.elements.update((list) => withoutIds(list, gone));
+        this.removed.update((list) => withSaved(list, saved));
+        this.dropLayers(gone);
+      }
       this.useLanguageCatalog(this.elements());
-      this.dropLayers(gone);
       this.clearSelection();
     } catch {
-      this.selectionError.set('languages.deleteFailed');
+      this.selectionError.set(
+        action === 'restore' ? 'languages.restoreFailed' : 'languages.deleteFailed',
+      );
     } finally {
       this.selectionBusy.set(false);
     }
@@ -3245,7 +3406,7 @@ export class LanguagePage {
 
   private dismissSelectionFromOutside(target: Element | null): void {
     if (this.selectionBusy() || !this.selecting()) return;
-    if (this.deleteConfirm() || this.mergeConfirm()) return;
+    if (this.selectionConfirm() || this.mergeConfirm()) return;
     if (
       target?.closest(
         '.card, .element, .list-toolbar-actions, .selection-backdrop, app-element-modal',
@@ -3385,20 +3546,27 @@ export class LanguagePage {
   }
 
   replaceElement(saved: StoredElement): void {
-    this.elements.update((list) =>
-      list.some((item) => item.id === saved.id)
-        ? list.map((item) => (item.id === saved.id ? saved : item))
-        : [...list, saved],
-    );
+    if (saved.deletedAt) {
+      this.elements.update((list) => withoutIds(list, new Set([saved.id])));
+      this.removed.update((list) => withSaved(list, [saved]));
+    } else {
+      this.removed.update((list) => withoutIds(list, new Set([saved.id])));
+      this.elements.update((list) => withSaved(list, [saved]));
+    }
     this.refreshCatalog();
   }
 
-  onElementDeleted(): void {
-    const id = this.elementId();
-    if (id) {
-      this.elements.update((list) => list.filter((item) => item.id !== id));
-      this.dropSelected(id);
+  onElementDeleted(saved: StoredElement | null): void {
+    const id = saved?.id || this.elementId();
+    if (saved?.deletedAt) {
+      this.elements.update((list) => withoutIds(list, new Set([saved.id])));
+      this.removed.update((list) => withSaved(list, [saved]));
+    } else if (id) {
+      const gone = new Set([id]);
+      this.elements.update((list) => withoutIds(list, gone));
+      this.removed.update((list) => withoutIds(list, gone));
     }
+    if (id) this.dropSelected(id);
     this.refreshCatalog();
     if (id) this.dropLayers(new Set([id]));
   }
@@ -3412,7 +3580,17 @@ export class LanguagePage {
   }
 
   elementById(id: string): StoredElement | null {
-    return this.elements().find((element) => element.id === id) ?? null;
+    return (
+      this.elements().find((element) => element.id === id) ??
+      this.removed().find((element) => element.id === id) ??
+      null
+    );
+  }
+
+  chooseStatus(deleted: boolean): void {
+    if (this.deletedFilter() === deleted) return;
+    this.deletedFilter.set(deleted);
+    this.clearSelection();
   }
 
   private elementLayer(options: {
@@ -3658,9 +3836,13 @@ export class LanguagePage {
   async reloadElements(): Promise<void> {
     const code = this.code();
     if (!code) return;
-    const elements = await readElements(code);
+    const [elements, removed] = await Promise.all([
+      readElements(code),
+      readRemovedElements(code),
+    ]);
     if (this.code() !== code) return;
     this.elements.set(elements);
+    this.removed.set(removed);
     this.useLanguageCatalog(elements);
   }
 
@@ -3864,6 +4046,10 @@ export class LanguagePage {
     this.definitionMetaFilter.set({});
     this.exampleMetaFilter.set({});
     this.formMetaFilter.set({});
+    if (this.deletedFilter()) {
+      this.deletedFilter.set(false);
+      this.clearSelection();
+    }
   }
 
   metadataEntries(kind: MetadataKind): { key: string; values: string[] }[] {
@@ -4118,6 +4304,7 @@ export class LanguagePage {
       this.code.set('');
       this.name.set('');
       this.elements.set([]);
+      this.removed.set([]);
       this.useLanguageCatalog([]);
       this.clearGrammar();
       this.ready.set(true);
@@ -4133,12 +4320,14 @@ export class LanguagePage {
     this.name.set(languageDisplayName(code));
     this.clearGrammar();
     this.ready.set(false);
-    const [elements, grammar] = await Promise.all([
+    const [elements, removed, grammar] = await Promise.all([
       readElements(code),
+      readRemovedElements(code),
       readGrammarInputs(code).catch(() => [] as GrammarInput[]),
     ]);
     if (seq !== this.loadId) return;
     this.elements.set(elements);
+    this.removed.set(removed);
     this.useLanguageCatalog(elements);
     this.grammarInputs.set(grammar);
     this.ready.set(true);
