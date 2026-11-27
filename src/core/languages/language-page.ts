@@ -66,18 +66,27 @@ import {
   type StoredElement,
 } from 'collection';
 
-type ElementTrailStop = { id: string; definition: number; example?: string; guide?: string };
+type ElementLayer = {
+  key: number;
+  id: string;
+  definition: number;
+  example: string;
+  phrase: string;
+  definitionFor: string;
+  skipRecall: boolean;
+  forfeitRecall: boolean;
+};
 
-function retargetTrail(
-  trail: readonly ElementTrailStop[],
+function retargetLayers(
+  layers: readonly ElementLayer[],
   absorbedId: string,
   keepId: string,
-): ElementTrailStop[] {
-  const next: ElementTrailStop[] = [];
-  for (const stop of trail) {
-    const id = stop.id === absorbedId ? keepId : stop.id;
+): ElementLayer[] {
+  const next: ElementLayer[] = [];
+  for (const layer of layers) {
+    const id = layer.id === absorbedId ? keepId : layer.id;
     if (next.at(-1)?.id === id) continue;
-    next.push(id === stop.id ? stop : { ...stop, id });
+    next.push(id === layer.id ? layer : { ...layer, id });
   }
   return next;
 }
@@ -1002,25 +1011,28 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         />
       }
 
-      @if (opened(); as element) {
-        <app-element-modal
-          [element]="element"
-          [collection]="elements()"
-          [canGoBack]="canGoBack()"
-          [definitionIndex]="openedDefinition()"
-          [arrivedExample]="arrivedExample()"
-          [skipRecall]="skipRecall()"
-          [forfeitRecall]="forfeitRecall()"
-          [openedFrom]="openedFrom()"
-          [definitionFor]="definitionFor()"
-          (closed)="closeElement()"
-          (changed)="replaceElement($event)"
-          (deleted)="onElementDeleted()"
-          (visit)="visitElement($event, true)"
-          (back)="backElement()"
-          (addSelection)="addFromSelection($event)"
-          (addPrepared)="addPrepared($event)"
-        />
+      @for (layer of layers(); track layer.key; let first = $first; let last = $last) {
+        @if (elementById(layer.id); as element) {
+          <app-element-modal
+            [attr.inert]="last ? null : ''"
+            [element]="element"
+            [collection]="elements()"
+            [foreground]="last"
+            [dimBackdrop]="first"
+            [definitionIndex]="layer.definition"
+            [arrivedExample]="layer.example"
+            [skipRecall]="layer.skipRecall"
+            [forfeitRecall]="layer.forfeitRecall"
+            [openedFrom]="layer.phrase"
+            [definitionFor]="layer.definitionFor"
+            (closed)="closeElement()"
+            (changed)="replaceElement($event)"
+            (deleted)="onElementDeleted()"
+            (visit)="visitElement($event, true)"
+            (addSelection)="addFromSelection($event)"
+            (addPrepared)="addPrepared($event)"
+          />
+        }
       }
 
       <footer class="app-bar">
@@ -2444,6 +2456,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
 })
 export class LanguagePage {
   private loadId = 0;
+  private layerKey = 0;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   private pressTimer: ReturnType<typeof setTimeout> | null = null;
   private pressStartX = 0;
@@ -2554,26 +2567,12 @@ export class LanguagePage {
   readonly settingsOpen = signal(false);
   readonly statsOpen = signal(false);
   readonly expanded = signal<FilterSection | null>('definitions');
-  readonly elementId = signal('');
-  /** True only while the open element was just created. */
-  readonly skipRecall = signal(false);
-  /** Production shortcut: open as a give-up, without showing the recall. */
-  readonly forfeitRecall = signal(false);
+  /** Open element modals, bottom to top. Each stays mounted until that layer closes. */
+  readonly layers = signal<ElementLayer[]>([]);
+  /** Element shown in the top modal. */
+  readonly elementId = computed(() => this.layers().at(-1)?.id ?? '');
   /** The score opens the element as a give-up. Development keeps the normal card click. */
   readonly scoreShortcut = !isDevMode();
-  readonly trail = signal<ElementTrailStop[]>([]);
-  /** Passage for the open in progress. Empty unless this visit came from a highlight. */
-  readonly openedFrom = signal('');
-  /** Source element when this visit carries its definition as an example. */
-  readonly definitionFor = signal('');
-  readonly canGoBack = computed(() => this.trail().length > 1);
-  readonly openedDefinition = computed(() => this.trail().at(-1)?.definition ?? 0);
-  readonly arrivedExample = computed(() => this.trail().at(-1)?.example?.trim() ?? '');
-  readonly opened = computed(() => {
-    const id = this.elementId();
-    if (!id) return null;
-    return this.elements().find((element) => element.id === id) ?? null;
-  });
   readonly optionalFilterCount = computed(
     () =>
       this.scoreFilter().length +
@@ -2687,19 +2686,13 @@ export class LanguagePage {
 
   openElement(id: string): void {
     if (!id) return;
-    this.skipRecall.set(false);
-    this.forfeitRecall.set(false);
-    this.trail.set([{ id, definition: 0 }]);
-    this.showElement(id);
+    this.layers.set([this.elementLayer({ id, skipRecall: false, forfeitRecall: false })]);
   }
 
   /** Opens the element with the definitions shown, and records a give-up. */
   openForfeited(id: string): void {
     if (!id) return;
-    this.skipRecall.set(true);
-    this.forfeitRecall.set(true);
-    this.trail.set([{ id, definition: 0 }]);
-    this.showElement(id);
+    this.layers.set([this.elementLayer({ id, skipRecall: true, forfeitRecall: true })]);
   }
 
   onScoreClick(event: Event, id: string): void {
@@ -2834,8 +2827,7 @@ export class LanguagePage {
           .map((item) => (item.id === saved.id ? saved : item)),
       );
       this.dropSelected(absorb.id);
-      this.trail.update((trail) => retargetTrail(trail, absorb.id, saved.id));
-      if (this.elementId() === absorb.id) this.elementId.set(saved.id);
+      this.layers.update((layers) => retargetLayers(layers, absorb.id, saved.id));
       this.useLanguageCatalog(this.elements());
       this.clearSelection();
     } catch {
@@ -2875,7 +2867,7 @@ export class LanguagePage {
       const gone = new Set(ids);
       this.elements.update((list) => list.filter((item) => !gone.has(item.id)));
       this.useLanguageCatalog(this.elements());
-      if (gone.has(this.elementId())) this.closeElement();
+      this.dropLayers(gone);
       this.clearSelection();
     } catch {
       this.selectionError.set('languages.deleteFailed');
@@ -2993,33 +2985,17 @@ export class LanguagePage {
   ): void {
     const id = visit.id;
     if (!id || id === this.elementId()) return;
-    const example = visit.example?.trim() ?? '';
-    const guide = visit.guide?.replace(/\s+/g, ' ').trim() ?? '';
-    this.trail.update((trail) => {
-      const next = trail.slice();
-      const current = next.at(-1);
-      if (current) next[next.length - 1] = { ...current, definition: visit.definition };
-      next.push({
+    this.layers.update((layers) => [
+      ...layers,
+      this.elementLayer({
         id,
-        definition: 0,
-        ...(example ? { example } : {}),
-        ...(guide ? { guide } : {}),
-      });
-      return next;
-    });
-    this.skipRecall.set(fresh);
-    this.forfeitRecall.set(false);
-    this.showElement(id, visit.phrase ?? '', visit.definitionFor ?? '');
-  }
-
-  backElement(): void {
-    const trail = this.trail();
-    if (trail.length < 2) return;
-    const next = trail.slice(0, -1);
-    this.trail.set(next);
-    this.skipRecall.set(true);
-    this.forfeitRecall.set(false);
-    this.showElement(next.at(-1)?.id ?? '');
+        skipRecall: fresh,
+        forfeitRecall: false,
+        example: visit.example,
+        phrase: visit.phrase,
+        definitionFor: visit.definitionFor,
+      }),
+    ]);
   }
 
   async addFromSelection(pick: {
@@ -3075,10 +3051,9 @@ export class LanguagePage {
     const example = prepared.example?.replace(/\s+/g, ' ').trim() ?? '';
     if (fromSearch) {
       this.clearSearch();
-      this.trail.set([{ id: created.id, definition: 0 }]);
-      this.skipRecall.set(fresh);
-      this.forfeitRecall.set(false);
-      this.showElement(created.id);
+      this.layers.set([
+        this.elementLayer({ id: created.id, skipRecall: fresh, forfeitRecall: false }),
+      ]);
       return;
     }
     if (created.id === this.elementId()) return;
@@ -3109,21 +3084,54 @@ export class LanguagePage {
       this.dropSelected(id);
     }
     this.refreshCatalog();
-    this.closeElement();
+    if (id) this.dropLayers(new Set([id]));
   }
 
   closeElement(): void {
-    if (!this.elementId()) return;
-    this.trail.set([]);
-    this.showElement(null);
-    void this.refreshGrammar();
+    const layers = this.layers();
+    if (!layers.length) return;
+    const next = layers.slice(0, -1);
+    this.layers.set(next);
+    if (!next.length) void this.refreshGrammar();
   }
 
-  private showElement(id: string | null, phrase = '', definitionFor = ''): void {
-    this.openedFrom.set(id ? phrase.replace(/\s+/g, ' ').trim() : '');
-    this.definitionFor.set(id ? definitionFor.replace(/\s+/g, ' ').trim() : '');
-    this.elementId.set(id ?? '');
-    if (!id) this.trail.set([]);
+  elementById(id: string): StoredElement | null {
+    return this.elements().find((element) => element.id === id) ?? null;
+  }
+
+  private elementLayer(options: {
+    id: string;
+    skipRecall: boolean;
+    forfeitRecall: boolean;
+    example?: string;
+    phrase?: string;
+    definitionFor?: string;
+  }): ElementLayer {
+    return {
+      key: ++this.layerKey,
+      id: options.id,
+      definition: 0,
+      example: options.example?.trim() ?? '',
+      phrase: options.phrase?.replace(/\s+/g, ' ').trim() ?? '',
+      definitionFor: options.definitionFor?.replace(/\s+/g, ' ').trim() ?? '',
+      skipRecall: options.skipRecall,
+      forfeitRecall: options.forfeitRecall,
+    };
+  }
+
+  /** Drops every open layer for these elements and leaves the rest mounted. */
+  private dropLayers(ids: ReadonlySet<string>): void {
+    if (!ids.size || !this.layers().length) return;
+    const next = this.layers().filter((layer) => !ids.has(layer.id));
+    if (next.length === this.layers().length) return;
+    this.layers.set(next);
+    if (!next.length) void this.refreshGrammar();
+  }
+
+  private clearLayers(): void {
+    if (!this.layers().length) return;
+    this.layers.set([]);
+    void this.refreshGrammar();
   }
 
   highlight(text: string): ElementSearchPart[] {
@@ -3289,10 +3297,13 @@ export class LanguagePage {
     const created = await addElement(code, title);
     this.elements.set(await readElements(code));
     this.clearSearch();
-    this.trail.set([{ id: created.id, definition: 0 }]);
-    this.skipRecall.set(created.createdAt >= started);
-    this.forfeitRecall.set(false);
-    this.showElement(created.id);
+    this.layers.set([
+      this.elementLayer({
+        id: created.id,
+        skipRecall: created.createdAt >= started,
+        forfeitRecall: false,
+      }),
+    ]);
   }
 
   private clearSearch(): void {
@@ -3569,7 +3580,7 @@ export class LanguagePage {
   }
 
   onCollectionReplaced(): void {
-    if (this.elementId()) this.closeElement();
+    this.clearLayers();
     this.refreshLeadField();
     void this.reloadElements();
   }
@@ -3724,8 +3735,7 @@ export class LanguagePage {
     this.clearSelection();
     if (this.discoverOpen()) this.closeDiscover();
     if (this.grammarOpen()) this.closeGrammar();
-    this.elementId.set('');
-    this.trail.set([]);
+    this.layers.set([]);
     this.definitionMetaFilter.set({});
     this.exampleMetaFilter.set({});
     this.formMetaFilter.set({});

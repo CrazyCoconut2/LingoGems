@@ -507,8 +507,31 @@ function writeExampleSuggestions(
   for (const listener of exampleSuggestionListeners) listener(elementId);
 }
 
+let openModalCount = 0;
+let lockedOverflow = '';
+
+function lockModalScroll(): void {
+  if (openModalCount === 0) {
+    lockedOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  openModalCount += 1;
+}
+
+function unlockModalScroll(): void {
+  if (openModalCount === 0) return;
+  openModalCount -= 1;
+  if (openModalCount === 0) {
+    document.body.style.overflow = lockedOverflow;
+    lockedOverflow = '';
+  }
+}
+
 @Component({
   selector: 'app-element-modal',
+  host: {
+    '[class.covered]': '!foreground()',
+  },
   imports: [
     NgTemplateOutlet,
     FeedbackTranslation,
@@ -523,6 +546,7 @@ function writeExampleSuggestions(
   template: `
     <div
       class="backdrop"
+      [class.bare]="!dimBackdrop()"
       role="dialog"
       aria-modal="true"
       [attr.aria-label]="dialogLabel()"
@@ -695,20 +719,6 @@ function writeExampleSuggestions(
         </ng-template>
         <header>
           <div class="title-row">
-            @if (canGoBack()) {
-              <button
-                type="button"
-                class="icon-btn"
-                [attr.aria-label]="'common.back' | translate"
-                [attr.title]="'common.back' | translate"
-                [disabled]="busy()"
-                (click)="back.emit()"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m15 18-6-6 6-6" />
-                </svg>
-              </button>
-            }
             <div class="title-main">
               <h2>
                 <button
@@ -3197,6 +3207,10 @@ function writeExampleSuggestions(
       z-index: 40;
     }
 
+    :host(.covered) .panel {
+      visibility: hidden;
+    }
+
     .backdrop {
       display: flex;
       align-items: center;
@@ -3206,6 +3220,10 @@ function writeExampleSuggestions(
       height: 100%;
       padding: 1.25rem;
       background: rgba(8, 10, 16, 0.78);
+    }
+
+    .backdrop.bare {
+      background: transparent;
     }
 
     .panel {
@@ -5870,7 +5888,10 @@ export class ElementModal {
   private readonly i18n = inject(LanguageService);
   readonly element = input.required<StoredElement>();
   readonly collection = input<StoredElement[]>([]);
-  readonly canGoBack = input(false);
+  /** Covered modals stay mounted. Only the top one handles input. */
+  readonly foreground = input(true);
+  /** Layers above the first leave the scrim to the modal underneath. */
+  readonly dimBackdrop = input(true);
   /** Sense to scroll into view when this element opens. It stays collapsed. */
   readonly definitionIndex = input(0);
   /** Example sentence carried in from the element that opened this one. */
@@ -5879,7 +5900,7 @@ export class ElementModal {
   readonly skipRecall = input(false);
   /** This open is a give-up. The recall stays hidden, and the give-up is still logged. */
   readonly forfeitRecall = input(false);
-  /** Passage this open came from. Empty for a click, Back, or a new element. */
+  /** Passage this open came from. Empty for a click or a new element. */
   readonly openedFrom = input('');
   /** Element whose definition arrived as the example. Empty for any other open. */
   readonly definitionFor = input('');
@@ -5894,7 +5915,6 @@ export class ElementModal {
     phrase: string;
     definitionFor: string;
   }>();
-  readonly back = output<void>();
   readonly addSelection = output<{
     title: string;
     language: string;
@@ -6047,6 +6067,8 @@ export class ElementModal {
   private trackedElementId = '';
   /** This open already counted a sighting. The recall phase does not. */
   private seenThisOpen = false;
+  /** This modal has been under another one, so becoming visible again takes focus back. */
+  private wasCovered = false;
   private engineerDrafts = new Map<string, EngineerDraft>();
   private definitionEngineerDrafts = new Map<string, DefinitionEngineerDraft>();
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
@@ -6060,7 +6082,7 @@ export class ElementModal {
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       this.alive = false;
-      stopSpeaking();
+      if (this.foreground()) stopSpeaking();
     });
     effect(() => {
       const id = this.element().id;
@@ -6125,12 +6147,24 @@ export class ElementModal {
         });
       }
     });
+    effect(() => {
+      if (this.foreground()) {
+        if (!this.wasCovered) return;
+        queueMicrotask(() => {
+          if (!this.alive || !this.foreground()) return;
+          this.closeButton()?.nativeElement.focus();
+        });
+        return;
+      }
+      this.wasCovered = true;
+      stopSpeaking();
+      this.speaking.set(null);
+    });
     const stopWatchingExamples = watchExampleSuggestions((elementId) => {
       if (elementId !== this.trackedElementId) return;
       this.exampleSuggestions.set(readExampleSuggestions(elementId));
     });
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockModalScroll();
     document.addEventListener('selectionchange', this.syncPassageSelection);
     document.addEventListener('pointerdown', this.onSelectionPointerDown, true);
     document.addEventListener('pointerup', this.syncPassageSelection, true);
@@ -6143,13 +6177,14 @@ export class ElementModal {
       document.removeEventListener('pointerup', this.syncPassageSelection, true);
       document.removeEventListener('scroll', this.syncPassageSelection, true);
       window.removeEventListener('resize', this.syncPassageSelection);
-      document.body.style.overflow = previous;
+      unlockModalScroll();
     });
     afterNextRender(() => this.closeButton()?.nativeElement.focus());
   }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
+    if (!this.foreground()) return;
     if (this.confirm()?.kind === 'exercise') {
       if (!this.busy()) this.confirm.set(null);
       return;
@@ -6195,14 +6230,11 @@ export class ElementModal {
       this.closeDefinitionEngineer();
       return;
     }
-    if (this.canGoBack()) {
-      if (!this.busy()) this.back.emit();
-      return;
-    }
     this.closed.emit();
   }
 
   onBackdrop(event: MouseEvent): void {
+    if (!this.foreground()) return;
     if (event.target === event.currentTarget) this.closed.emit();
   }
 
@@ -6857,7 +6889,7 @@ export class ElementModal {
   }
 
   private stopSpeech(): void {
-    stopSpeaking();
+    if (this.foreground()) stopSpeaking();
     this.speaking.set(null);
   }
 
@@ -8533,6 +8565,7 @@ export class ElementModal {
   private blockPassageSelectionUntil = 0;
 
   private readonly syncPassageSelection = (): void => {
+    if (!this.foreground()) return;
     if (Date.now() < this.blockPassageSelectionUntil) {
       window.getSelection()?.removeAllRanges();
       if (!this.addingSelection()) this.passageSelection.set(null);
@@ -8556,6 +8589,7 @@ export class ElementModal {
   };
 
   private readonly onSelectionPointerDown = (event: Event): void => {
+    if (!this.foreground()) return;
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest('.sense-selectable, .lookup-chip, .lookup-float')) return;
     const selection = window.getSelection();
