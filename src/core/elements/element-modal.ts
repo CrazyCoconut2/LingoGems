@@ -5677,6 +5677,8 @@ export class ElementModal {
   readonly arrivedExample = input('');
   /** This open is the one that created the element, so recall stays out of the way. */
   readonly skipRecall = input(false);
+  /** This open is a give-up. The recall stays hidden, and the give-up is still logged. */
+  readonly forfeitRecall = input(false);
   /** Parent headword and gloss, shown so an example can be written before it is added. */
   readonly arrivedGuide = input('');
   readonly closed = output<void>();
@@ -5848,6 +5850,7 @@ export class ElementModal {
     });
     effect(() => {
       const id = this.element().id;
+      const forfeit = this.forfeitRecall();
       if (id === this.trackedElementId) return;
       const definition = this.definitionIndex();
       this.trackedElementId = id;
@@ -5898,6 +5901,12 @@ export class ElementModal {
       void this.commitStoredExamples(id);
       this.refreshNewDefinitions(id);
       this.scrollSenseIntoView(definition);
+      if (forfeit) {
+        queueMicrotask(() => {
+          if (!this.alive || this.element().id !== id) return;
+          this.finishRecall({ score: 0, answer: '', explanation: '', by: 'user', extra: false });
+        });
+      }
     });
     const stopWatchingExamples = watchExampleSuggestions((elementId) => {
       if (elementId !== this.trackedElementId) return;

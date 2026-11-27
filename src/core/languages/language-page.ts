@@ -5,6 +5,7 @@ import {
   effect,
   HostListener,
   inject,
+  isDevMode,
   signal,
   untracked,
 } from '@angular/core';
@@ -406,15 +407,21 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                   @if (scoreLabel(element); as score) {
                     <span
                       class="stat-score"
+                      [class.shortcut]="scoreShortcut"
                       [attr.aria-label]="'languages.scoreAverage' | translate: { score: score }"
+                      (click)="onScoreClick($event, element.id)"
+                      (pointerdown)="onScorePointerDown($event)"
                     >
                       {{ score }}<span class="stat-score-max">/10</span>
                     </span>
                   } @else {
                     <span
                       class="stat-score unscored"
+                      [class.shortcut]="scoreShortcut"
                       [attr.aria-label]="'languages.scoreUnavailable' | translate"
                       [attr.title]="'languages.scoreUnavailable' | translate"
+                      (click)="onScoreClick($event, element.id)"
+                      (pointerdown)="onScorePointerDown($event)"
                     >
                       {{ 'common.na' | translate }}
                     </span>
@@ -911,6 +918,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
           [arrivedExample]="arrivedExample()"
           [arrivedGuide]="arrivedGuide()"
           [skipRecall]="skipRecall()"
+          [forfeitRecall]="forfeitRecall()"
           (closed)="closeElement()"
           (changed)="replaceElement($event)"
           (deleted)="onElementDeleted()"
@@ -1684,6 +1692,10 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
       line-height: 1;
     }
 
+    .stat-score.shortcut {
+      cursor: pointer;
+    }
+
     .stat-score-max {
       color: color-mix(in srgb, var(--card-accent) 65%, var(--text-muted));
       font-size: 0.68rem;
@@ -2450,6 +2462,10 @@ export class LanguagePage {
   readonly elementId = signal('');
   /** True only while the open element was just created. */
   readonly skipRecall = signal(false);
+  /** Production shortcut: open as a give-up, without showing the recall. */
+  readonly forfeitRecall = signal(false);
+  /** The score opens the element as a give-up. Development keeps the normal card click. */
+  readonly scoreShortcut = !isDevMode();
   readonly trail = signal<ElementTrailStop[]>([]);
   readonly canGoBack = computed(() => this.trail().length > 1);
   readonly openedDefinition = computed(() => this.trail().at(-1)?.definition ?? 0);
@@ -2571,8 +2587,33 @@ export class LanguagePage {
   openElement(id: string): void {
     if (!id) return;
     this.skipRecall.set(false);
+    this.forfeitRecall.set(false);
     this.trail.set([{ id, definition: 0 }]);
     this.showElement(id);
+  }
+
+  /** Opens the element with the definitions shown, and records a give-up. */
+  openForfeited(id: string): void {
+    if (!id) return;
+    this.skipRecall.set(true);
+    this.forfeitRecall.set(true);
+    this.trail.set([{ id, definition: 0 }]);
+    this.showElement(id);
+  }
+
+  onScoreClick(event: Event, id: string): void {
+    if (!this.scoreShortcut || this.selecting()) return;
+    event.stopPropagation();
+    if (Date.now() < this.swallowClickUntil) {
+      this.swallowClickUntil = 0;
+      return;
+    }
+    this.openForfeited(id);
+  }
+
+  onScorePointerDown(event: Event): void {
+    if (!this.scoreShortcut || this.selecting()) return;
+    event.stopPropagation();
   }
 
   openCard(id: string): void {
@@ -2791,6 +2832,7 @@ export class LanguagePage {
       return next;
     });
     this.skipRecall.set(fresh);
+    this.forfeitRecall.set(false);
     this.showElement(id);
   }
 
@@ -2800,6 +2842,7 @@ export class LanguagePage {
     const next = trail.slice(0, -1);
     this.trail.set(next);
     this.skipRecall.set(true);
+    this.forfeitRecall.set(false);
     this.showElement(next.at(-1)?.id ?? '');
   }
 
@@ -2858,6 +2901,7 @@ export class LanguagePage {
       this.clearSearch();
       this.trail.set([{ id: created.id, definition: 0 }]);
       this.skipRecall.set(fresh);
+      this.forfeitRecall.set(false);
       this.showElement(created.id);
       return;
     }
@@ -3066,6 +3110,7 @@ export class LanguagePage {
     this.clearSearch();
     this.trail.set([{ id: created.id, definition: 0 }]);
     this.skipRecall.set(created.createdAt >= started);
+    this.forfeitRecall.set(false);
     this.showElement(created.id);
   }
 
