@@ -14,6 +14,8 @@ export type ElementDayStats = {
   id: string;
   title: string;
   added: number;
+  /** 1 when this element was deleted that day. */
+  removed: number;
   revealed: number;
   exercises: number;
   seen: number;
@@ -143,13 +145,16 @@ function tally(
         entry.event === 'view' ||
         entry.event === 'rework' ||
         entry.event === 'reveal' ||
-        entry.event === 'removed' ||
         entry.event === 'restored'
       ) {
         continue;
       }
       const day = bucket(days, entry.at);
       if (!day) continue;
+      if (entry.event === 'removed') {
+        elementOf(day, id, title).removed = 1;
+        continue;
+      }
       if (entry.event === 'seen') {
         day.seen += 1;
         elementOf(day, id, title).seen += 1;
@@ -221,6 +226,7 @@ function elementOf(day: MutableDay, id: string, title: string): MutableElement {
       id,
       title,
       added: 0,
+      removed: 0,
       revealed: 0,
       exercises: 0,
       seen: 0,
@@ -282,14 +288,20 @@ function dayKey(at: number): string {
 }
 
 function hasActivity(element: ElementDayStats): boolean {
-  return element.added + element.revealed + element.seen > 0 || element.exercises > 0;
+  return (
+    element.added + element.removed + element.revealed + element.seen > 0 || element.exercises > 0
+  );
 }
 
 function compareElements(left: ElementDayStats, right: ElementDayStats, language: string): number {
   const exercises = right.exercises - left.exercises;
   if (exercises) return exercises;
   const activity =
-    right.added + right.revealed + right.seen - (left.added + left.revealed + left.seen);
+    right.added +
+    right.removed +
+    right.revealed +
+    right.seen -
+    (left.added + left.removed + left.revealed + left.seen);
   if (activity) return activity;
   return left.title.localeCompare(right.title, language);
 }

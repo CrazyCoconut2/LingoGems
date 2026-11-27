@@ -18,7 +18,8 @@ import {
         <button
           type="button"
           class="linguagem-highlighted"
-          [style.--score-color]="part.color || null"
+          [class.linguagem-highlighted--muted]="part.muted"
+          [style.--score-color]="part.muted ? null : part.color || null"
           [textContent]="part.text"
           (click)="collide($event, part.matches)"
         ></button>
@@ -26,14 +27,16 @@ import {
         <button
           type="button"
           class="linguagem-highlighted"
-          [style.--score-color]="part.color || null"
+          [class.linguagem-highlighted--muted]="part.muted"
+          [style.--score-color]="part.muted ? null : part.color || null"
           [textContent]="part.text"
           (click)="open($event, part.matches[0].elementId)"
         ></button>
       } @else if (part.current) {
         <span
           class="linguagem-highlighted linguagem-highlighted--current"
-          [style.--score-color]="part.color || null"
+          [class.linguagem-highlighted--muted]="part.muted"
+          [style.--score-color]="part.muted ? null : part.color || null"
           [textContent]="part.text"
         ></span>
       } @else {
@@ -57,6 +60,10 @@ import {
       );
       text-decoration-thickness: 2px;
       text-underline-offset: 0.18em;
+    }
+
+    .linguagem-highlighted--muted {
+      text-decoration-color: var(--text-muted);
     }
 
     button.linguagem-highlighted {
@@ -133,10 +140,11 @@ export class HighlightedText {
   }
 }
 
-function scoreColor(element: StoredElement): { color: string } {
+function scoreColor(element: StoredElement): { color: string; muted: boolean } {
+  if (element.deletedAt) return { color: '', muted: true };
   const average = definitionScoreAverage(element);
-  if (average == null) return { color: '' };
-  return { color: `var(--score-${definitionScoreStep(average)})` };
+  if (average == null) return { color: '', muted: false };
+  return { color: `var(--score-${definitionScoreStep(average)})`, muted: false };
 }
 
 function elementFormTexts(element: StoredElement): string[] {

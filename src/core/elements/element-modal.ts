@@ -731,7 +731,7 @@ function unlockModalScroll(): void {
                 <button
                   type="button"
                   class="element-title"
-                  [class.has-color]="scoreAverage() !== 'NA'"
+                  [class.has-color]="scoreAverage() !== 'NA' && !element().deletedAt"
                   [attr.title]="'element.editElement' | translate"
                   [disabled]="aiBusy()"
                   (click)="openTitle()"
@@ -1260,7 +1260,7 @@ function unlockModalScroll(): void {
                               <app-highlighted-text
                                 [text]="entry.answer"
                                 [element]="element()"
-                                [collection]="collection()"
+                                [collection]="linkedElements()"
                                 (opened)="openFromDefinition($event.id, -1, $event.phrase)"
                                 (collided)="
                                   showCollision($event.event, $event.matches, -1, '', $event.phrase)
@@ -1280,7 +1280,7 @@ function unlockModalScroll(): void {
                               <app-highlighted-text
                                 [text]="(entry.explanation || entry.answer) | upwardQuote"
                                 [element]="element()"
-                                [collection]="collection()"
+                                [collection]="linkedElements()"
                                 (opened)="openFromDefinition($event.id, -1, $event.phrase)"
                                 (collided)="
                                   showCollision($event.event, $event.matches, -1, '', $event.phrase)
@@ -1298,7 +1298,7 @@ function unlockModalScroll(): void {
                               <app-highlighted-text
                                 [text]="entry.phrase"
                                 [element]="element()"
-                                [collection]="collection()"
+                                [collection]="linkedElements()"
                                 (opened)="openFromDefinition($event.id, -1, $event.phrase)"
                                 (collided)="
                                   showCollision($event.event, $event.matches, -1, '', $event.phrase)
@@ -1374,7 +1374,8 @@ function unlockModalScroll(): void {
                               <button
                                 type="button"
                                 class="linguagem-highlighted"
-                                [style.--score-color]="part.color || null"
+                                [class.linguagem-highlighted--muted]="part.muted"
+                                [style.--score-color]="part.muted ? null : part.color || null"
                                 [textContent]="part.text"
                                 (click)="showCollision($event, part.matches, -1, '', text)"
                               ></button>
@@ -1382,14 +1383,16 @@ function unlockModalScroll(): void {
                               <button
                                 type="button"
                                 class="linguagem-highlighted"
-                                [style.--score-color]="part.color || null"
+                                [class.linguagem-highlighted--muted]="part.muted"
+                                [style.--score-color]="part.muted ? null : part.color || null"
                                 [textContent]="part.text"
                                 (click)="openFromDefinition(part.matches[0].elementId, -1, text)"
                               ></button>
                             } @else if (part.current) {
                               <span
                                 class="linguagem-highlighted linguagem-highlighted--current"
-                                [style.--score-color]="part.color || null"
+                                [class.linguagem-highlighted--muted]="part.muted"
+                                [style.--score-color]="part.muted ? null : part.color || null"
                                 [textContent]="part.text"
                               ></span>
                             } @else {
@@ -1407,6 +1410,16 @@ function unlockModalScroll(): void {
             </div>
           }
           <div class="element-view" [class.offstage]="historyOpen()">
+            @if (element().deletedAt && openedFrom()) {
+              <button
+                type="button"
+                class="deleted-restore"
+                [disabled]="busy()"
+                (click)="restoreOpenElement()"
+              >
+                {{ 'element.deletedRestore' | translate }}
+              </button>
+            }
             @if (element().definitions.length && !recallSkipped()) {
               <app-definition-recall
                 [elementId]="element().id"
@@ -1417,7 +1430,7 @@ function unlockModalScroll(): void {
                 [examples]="recallExamples()"
                 [settled]="recallSettled()"
                 [element]="element()"
-                [collection]="collection()"
+                [collection]="linkedElements()"
                 (finished)="finishRecall($event)"
                 (acceptExtra)="acceptRecallExtra($event)"
                 (opened)="openFromDefinition($event.id, -1, $event.phrase)"
@@ -1578,7 +1591,8 @@ function unlockModalScroll(): void {
                                             <button
                                               type="button"
                                               class="linguagem-highlighted"
-                                              [style.--score-color]="part.color || null"
+                                              [class.linguagem-highlighted--muted]="part.muted"
+                                              [style.--score-color]="part.muted ? null : part.color || null"
                                               [textContent]="part.text"
                                               (click)="showCollision($event, part.matches, index)"
                                             ></button>
@@ -1586,7 +1600,8 @@ function unlockModalScroll(): void {
                                             <button
                                               type="button"
                                               class="linguagem-highlighted"
-                                              [style.--score-color]="part.color || null"
+                                              [class.linguagem-highlighted--muted]="part.muted"
+                                              [style.--score-color]="part.muted ? null : part.color || null"
                                               [textContent]="part.text"
                                               (click)="
                                                 openFromDefinition(part.matches[0].elementId, index)
@@ -1595,7 +1610,8 @@ function unlockModalScroll(): void {
                                           } @else if (part.current) {
                                             <span
                                               class="linguagem-highlighted linguagem-highlighted--current"
-                                              [style.--score-color]="part.color || null"
+                                              [class.linguagem-highlighted--muted]="part.muted"
+                                              [style.--score-color]="part.muted ? null : part.color || null"
                                               [textContent]="part.text"
                                             ></span>
                                           } @else {
@@ -1683,7 +1699,8 @@ function unlockModalScroll(): void {
                                                 <button
                                                   type="button"
                                                   class="linguagem-highlighted"
-                                                  [style.--score-color]="part.color || null"
+                                                  [class.linguagem-highlighted--muted]="part.muted"
+                                                  [style.--score-color]="part.muted ? null : part.color || null"
                                                   [textContent]="part.text"
                                                   (click)="
                                                     showCollision(
@@ -1700,7 +1717,8 @@ function unlockModalScroll(): void {
                                                 <button
                                                   type="button"
                                                   class="linguagem-highlighted"
-                                                  [style.--score-color]="part.color || null"
+                                                  [class.linguagem-highlighted--muted]="part.muted"
+                                                  [style.--score-color]="part.muted ? null : part.color || null"
                                                   [textContent]="part.text"
                                                   (click)="
                                                     visitHighlight(
@@ -1713,7 +1731,8 @@ function unlockModalScroll(): void {
                                               } @else if (part.current) {
                                                 <span
                                                   class="linguagem-highlighted linguagem-highlighted--current"
-                                                  [style.--score-color]="part.color || null"
+                                                  [class.linguagem-highlighted--muted]="part.muted"
+                                                  [style.--score-color]="part.muted ? null : part.color || null"
                                                   [textContent]="part.text"
                                                 ></span>
                                               } @else {
@@ -4392,6 +4411,35 @@ function unlockModalScroll(): void {
       text-underline-offset: 0.18em;
     }
 
+    .linguagem-highlighted--muted {
+      text-decoration-color: var(--text-muted);
+    }
+
+    .deleted-restore {
+      display: block;
+      width: calc(100% - 2.3rem);
+      margin: 0.85rem 1.15rem 0;
+      padding: 0.45rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.82rem;
+      line-height: 1.35;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .deleted-restore:hover:not(:disabled) {
+      color: var(--text);
+    }
+
+    .deleted-restore:disabled {
+      opacity: 0.55;
+      cursor: default;
+    }
+
     button.linguagem-highlighted {
       display: inline;
       margin: 0;
@@ -5941,6 +5989,8 @@ export class ElementModal {
   private readonly i18n = inject(LanguageService);
   readonly element = input.required<StoredElement>();
   readonly collection = input<StoredElement[]>([]);
+  /** Soft-deleted elements. Their underlines stay gray, and opening one offers a restore. */
+  readonly removed = input<StoredElement[]>([]);
   /** Covered modals stay mounted. Only the top one handles input. */
   readonly foreground = input(true);
   /** Layers above the first leave the scrim to the modal underneath. */
@@ -8428,11 +8478,16 @@ export class ElementModal {
     this.metaValue.set('');
   }
 
+  /** Active elements plus deleted ones, so a deleted match can still be underlined. */
+  linkedElements(): StoredElement[] {
+    return linkedFor(this.collection(), this.removed());
+  }
+
   highlightPassage(text: string): DefinitionHighlightPart[] {
     const element = this.element();
     const shown = displayTitle(text, element.language);
     const others: HighlightSource[] = [];
-    for (const item of this.collection()) {
+    for (const item of this.linkedElements()) {
       if (item.id === element.id) continue;
       others.push({
         id: item.id,
@@ -10032,10 +10087,16 @@ function selectionCoversPassage(passage: Element, range: Range): boolean {
   );
 }
 
-function scoreColor(element: StoredElement): { color: string } {
+function scoreColor(element: StoredElement): { color: string; muted: boolean } {
+  if (element.deletedAt) return { color: '', muted: true };
   const average = definitionScoreAverage(element);
-  if (average == null) return { color: '' };
-  return { color: `var(--score-${definitionScoreStep(average)})` };
+  if (average == null) return { color: '', muted: false };
+  return { color: `var(--score-${definitionScoreStep(average)})`, muted: false };
+}
+
+function linkedFor(active: readonly StoredElement[], removed: readonly StoredElement[]): StoredElement[] {
+  const seen = new Set(active.map((item) => item.id));
+  return [...active, ...removed.filter((item) => !seen.has(item.id))];
 }
 
 function elementFormTexts(element: StoredElement): string[] {

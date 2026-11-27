@@ -1,6 +1,6 @@
 import type { DayStats, ElementDayStats, MissingToken } from './stats.worker';
 
-const KEY_PREFIX = 'lingogem.stats.v21.';
+const KEY_PREFIX = 'lingogem.stats.v22.';
 const STALE_STATS_ROOT = 'lingogem.stats.v';
 
 export type StatsPhase = 'empty' | 'pending' | 'ready' | 'error';
@@ -186,6 +186,7 @@ function isElementDay(value: unknown): value is ElementDayStats {
     typeof source.title === 'string' &&
     source.title.trim().length > 0 &&
     isCount(source.added) &&
+    isCount(source.removed) &&
     isCount(source.revealed) &&
     isCount(source.exercises) &&
     isCount(source.seen) &&

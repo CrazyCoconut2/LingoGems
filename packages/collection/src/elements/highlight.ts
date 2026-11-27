@@ -14,6 +14,8 @@ export type DefinitionHighlightPart = {
   matches: DefinitionHighlightMatch[];
   /** Color of the element that won the span. Empty when that element has none. */
   color: string;
+  /** The winning element was deleted, so the underline stays gray. */
+  muted: boolean;
 };
 
 type HighlightRegex = { source: string; flags?: string };
@@ -23,6 +25,7 @@ type HighlightSource = {
   title: string;
   forms: readonly string[];
   color: string;
+  muted?: boolean;
 };
 
 type HighlightRule = {
@@ -31,6 +34,7 @@ type HighlightRule = {
   elementId: string | null;
   regexes: HighlightRegex[];
   color: string;
+  muted: boolean;
 };
 
 type HighlightSpan = {
@@ -48,6 +52,7 @@ type HighlightHit = {
   elementId: string | null;
   matches: HighlightSpan[];
   color: string;
+  muted: boolean;
 };
 
 const compiledRegexCache = new Map<string, RegExp | null>();
@@ -107,6 +112,7 @@ function collectHighlightMatches(text: string, rules: readonly HighlightRule[]):
           elementId: rule.elementId,
           matches: [{ lemma: rule.lemma, id: rule.id, elementId: rule.elementId }],
           color: rule.color,
+          muted: rule.muted,
         });
         if (match[0].length === 0) matcher.lastIndex += 1;
       }
@@ -147,6 +153,7 @@ function ruleFor(id: number, source: HighlightSource): HighlightRule | null {
     elementId: source.id,
     regexes: [{ source: pattern, flags: 'iu' }],
     color: source.color,
+    muted: !!source.muted,
   };
 }
 
@@ -172,12 +179,12 @@ export function highlightDefinitionPassage(
   const currentRule = ruleFor(CURRENT_ID, current);
   if (currentRule) rules.push(currentRule);
   if (!rules.length) {
-    return [{ text, current: false, matches: [], color: '' }];
+    return [{ text, current: false, matches: [], color: '', muted: false }];
   }
 
   const hits = resolveHighlightOverlaps(collectHighlightMatches(text, rules));
   if (!hits.length) {
-    return [{ text, current: false, matches: [], color: '' }];
+    return [{ text, current: false, matches: [], color: '', muted: false }];
   }
   hits.sort((left, right) => left.start - right.start);
 
@@ -190,6 +197,7 @@ export function highlightDefinitionPassage(
         current: false,
         matches: [],
         color: '',
+        muted: false,
       });
     }
     const spans =
@@ -214,6 +222,7 @@ export function highlightDefinitionPassage(
       current: hit.id === CURRENT_ID,
       matches,
       color: hit.color,
+      muted: hit.muted,
     });
     cursor = hit.end;
   }
@@ -223,6 +232,7 @@ export function highlightDefinitionPassage(
       current: false,
       matches: [],
       color: '',
+      muted: false,
     });
   }
 
@@ -232,10 +242,11 @@ export function highlightDefinitionPassage(
       hit: part.current || part.matches.length > 0,
       lemma: part.current ? null : (part.matches[0]?.title ?? null),
     })),
-  ).map(({ text: partText, current, matches, color }) => ({
+  ).map(({ text: partText, current, matches, color, muted }) => ({
     text: partText,
     current,
     matches,
     color,
+    muted,
   }));
 }

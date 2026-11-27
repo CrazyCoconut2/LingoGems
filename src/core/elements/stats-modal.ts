@@ -313,11 +313,19 @@ const EMPTY_DAY: DayStats = {
                         type="button"
                         class="row"
                         [class.has-new]="element.added > 0"
+                        [class.has-deleted]="element.removed > 0"
                         [attr.aria-label]="titleOf(element)"
                         (click)="opened.emit(element.id)"
                       >
-                        @if (element.added > 0) {
-                          <span class="new-sign">{{ 'stats.new' | translate }}</span>
+                        @if (element.added > 0 || element.removed > 0) {
+                          <span class="row-marks">
+                            @if (element.added > 0) {
+                              <span class="new-sign">{{ 'stats.new' | translate }}</span>
+                            }
+                            @if (element.removed > 0) {
+                              <span class="deleted-sign">{{ 'stats.deleted' | translate }}</span>
+                            }
+                          </span>
                         }
                         <div class="row-main">
                           <span class="title" [attr.title]="titleOf(element)">{{
@@ -1171,6 +1179,10 @@ const EMPTY_DAY: DayStats = {
       padding-right: 2.6rem;
     }
 
+    .row.has-deleted .title {
+      padding-right: 4.8rem;
+    }
+
     .bits {
       display: flex;
       flex: none;
@@ -1539,21 +1551,36 @@ const EMPTY_DAY: DayStats = {
       color: var(--danger);
     }
 
-    .new-sign {
+    .row-marks {
       position: absolute;
       top: 0.55rem;
       right: 0.6rem;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.2rem;
+    }
+
+    .new-sign,
+    .deleted-sign {
       display: inline-flex;
       align-items: center;
       padding: 0.16rem 0.38rem;
       border-radius: 999px;
-      background: var(--danger);
       color: #fff;
       font-size: 0.6rem;
       font-weight: 750;
       letter-spacing: 0.05em;
       line-height: 1;
       text-transform: uppercase;
+    }
+
+    .new-sign {
+      background: var(--danger);
+    }
+
+    .deleted-sign {
+      background: var(--text-muted);
     }
 
     .bit .mark {
@@ -1973,7 +2000,7 @@ function compareElementsDefault(left: ElementDayStats, right: ElementDayStats): 
 }
 
 function activityTotal(element: ElementDayStats): number {
-  return element.added + element.revealed + element.seen;
+  return element.added + element.removed + element.revealed + element.seen;
 }
 
 function formatDay(day: string, i18n: LanguageService): string {

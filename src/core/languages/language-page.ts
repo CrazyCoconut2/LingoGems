@@ -1251,6 +1251,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             [attr.inert]="last ? null : ''"
             [element]="element"
             [collection]="elements()"
+            [removed]="removed()"
             [foreground]="last"
             [dimBackdrop]="first"
             [definitionIndex]="layer.definition"
