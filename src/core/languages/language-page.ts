@@ -351,6 +351,19 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                 </button>
                 <div class="stat-rail">
                   <span class="stat-group">
+                    @if (activity.seen > 0) {
+                      <span
+                        class="stat"
+                        [attr.aria-label]="seenLabel(activity.seen)"
+                        [attr.title]="seenLabel(activity.seen)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        <span>{{ activity.seen }}</span>
+                      </span>
+                    }
                     @if (activity.worked > 0) {
                       <span
                         class="stat"
@@ -370,20 +383,6 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
                           />
                         </svg>
                         <span>{{ activity.worked }}</span>
-                      </span>
-                    }
-                    @if (activity.reworked > 0) {
-                      <span
-                        class="stat"
-                        [attr.aria-label]="reworkedLabel(activity.reworked)"
-                        [attr.title]="reworkedLabel(activity.reworked)"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-                          />
-                        </svg>
-                        <span>{{ activity.reworked }}</span>
                       </span>
                     }
                     @if (translated > 0) {
@@ -3005,28 +3004,33 @@ export class LanguagePage {
     return pills.map((pill) => pill.value).join(' · ');
   }
 
-  activityTotals(element: StoredElement): { worked: number; reworked: number } {
+  activityTotals(element: StoredElement): { seen: number; worked: number } {
+    const exercisedAt = new Set<number>();
     let worked = 0;
-    let reworked = 0;
     for (const entry of element.log) {
-      if (entry.event === 'rework' || entry.event === 'delete') reworked += 1;
-      else if (entry.event === 'game') worked += 1;
+      if (entry.event !== 'game') continue;
+      worked += 1;
+      exercisedAt.add(entry.at);
     }
-    return { worked, reworked };
+    let seen = worked + 1;
+    for (const entry of element.log) {
+      if (entry.event === 'seen' && !exercisedAt.has(entry.at)) seen += 1;
+    }
+    return { seen, worked };
+  }
+
+  seenLabel(count: number): string {
+    if (count === 0) return this.i18n.translate('languages.notSeen');
+    if (count === 1) return this.i18n.translate('languages.seenOnce');
+    return this.i18n.translate('languages.seenMany', {
+      count: count.toLocaleString(this.i18n.currentLanguage),
+    });
   }
 
   workedLabel(count: number): string {
     if (count === 0) return this.i18n.translate('languages.notWorked');
     if (count === 1) return this.i18n.translate('languages.workedOnce');
     return this.i18n.translate('languages.workedMany', {
-      count: count.toLocaleString(this.i18n.currentLanguage),
-    });
-  }
-
-  reworkedLabel(count: number): string {
-    if (count === 0) return this.i18n.translate('languages.notReworked');
-    if (count === 1) return this.i18n.translate('languages.reworkedOnce');
-    return this.i18n.translate('languages.reworkedMany', {
       count: count.toLocaleString(this.i18n.currentLanguage),
     });
   }

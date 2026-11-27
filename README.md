@@ -16,17 +16,17 @@ npm run deploy
 `deploy` bumps the patch version, builds, and publishes with Wrangler.
 
 TODO
-- Number of view feature. It counts. When you open something 
+- Number of views feature. It counts. When you open something 
   in a context, meaning.
 - FORMS: They can go outside definitions in retrospective.
-          They can have multiple part of speech metadata.
+         They can have multiple part of speech metadata.
 - Feature when writing something with *.
     => So I think this is another genius feature. When somebody
        writes something, they often times think in their other language so they'll say something like "Passe moi la *spoon*". The AI could automatically detect that and suggest a change for the phrase that the user can accept.
        So the first step would be to replace those elements,
        then correct via the correction, then reformulate.
 - TODO: We just have to know what happens if a form is not 
-        present, so if an element exists but one of its forms in an example is not there. How should it act? And I think we're done. Maybe we can have duplicates or something. Same issue with the soft delete of an element. How do we deal with that?
+        present, so if an element exists but one of its forms in an example is not theimage.pngre. How should it act? And I think we're done. Maybe we can have duplicates or something. Same issue with the soft delete of an element. How do we deal with that?
         Tests need to be written for it.
 - Phantom elements (from translations) and querying the
   whole data to get examples and definitions where the element is.

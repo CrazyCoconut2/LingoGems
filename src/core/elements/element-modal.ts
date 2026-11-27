@@ -5605,9 +5605,18 @@ function writeExampleSuggestions(
       background: color-mix(in srgb, currentColor 14%, transparent);
     }
 
+    .log-row .score-plain > span:first-child,
+    .log-row .score-input {
+      width: 2ch;
+      min-width: 2ch;
+      text-align: end;
+      font-variant-numeric: tabular-nums;
+    }
+
     .score-input {
       width: auto;
       min-width: 1ch;
+      height: 1em;
       margin: 0;
       padding: 0;
       border: 0;
@@ -5617,8 +5626,8 @@ function writeExampleSuggestions(
       font: inherit;
       font-weight: 700;
       line-height: 1;
-      text-align: center;
-      field-sizing: content;
+      text-align: end;
+      field-sizing: fixed;
       appearance: textfield;
     }
 
