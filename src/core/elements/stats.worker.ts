@@ -27,6 +27,8 @@ export type DayStats = {
   revealed: number;
   exercises: number;
   seen: number;
+  /** Distinct phrases unveiled that day. A phrase opened again the same day counts once. */
+  translated: number;
   /** Sum of the element differentials that could be compared with an earlier mean. */
   differential: number;
   elements: ElementDayStats[];
@@ -48,6 +50,7 @@ type MutableDay = {
   revealed: number;
   exercises: number;
   seen: number;
+  phrases: Set<string>;
   elements: Map<string, MutableElement>;
 };
 
@@ -168,13 +171,15 @@ function tally(
     const elements = [...stats.elements.values()]
       .filter(hasActivity)
       .sort((left, right) => compareElements(left, right, code));
-    if (!elements.length) continue;
+    const translated = stats.phrases.size;
+    if (!elements.length && translated === 0) continue;
     result.push({
       day,
       added: stats.added,
       revealed: stats.revealed,
       exercises: stats.exercises,
       seen: stats.seen,
+      translated,
       differential: dayDifferential(elements),
       elements,
     });
@@ -193,6 +198,7 @@ function bucket(days: Map<string, MutableDay>, at: unknown): MutableDay | null {
       revealed: 0,
       exercises: 0,
       seen: 0,
+      phrases: new Set(),
       elements: new Map(),
     };
     days.set(key, day);
@@ -349,7 +355,10 @@ function claimsFor(
   return found;
 }
 
-/** Each unveil date counts every word in the phrase. A stored wording with no date does not. */
+/**
+ * Each unveil date counts every word in the phrase. A stored wording with no date does not.
+ * The phrase itself counts once for each day it was unveiled.
+ */
 function tallyUnveils(
   translations: readonly unknown[],
   language: string,
@@ -362,10 +371,17 @@ function tallyUnveils(
     const phrase = translationPhrase(record, language);
     if (!phrase) continue;
     const tokens = phraseTokens(phrase.phrase);
-    if (!tokens.length) continue;
+    const counted = new Set<string>();
     for (const date of phrase.dates) {
       const at = Date.parse(date);
       if (!Number.isFinite(at)) continue;
+      const dayName = dayKey(at);
+      if (!counted.has(dayName)) {
+        counted.add(dayName);
+        const day = bucket(days, at);
+        if (day) day.phrases.add(phrase.phrase);
+      }
+      if (!tokens.length) continue;
       for (const token of tokens) {
         const key = tokenKey(token, language);
         if (!key) continue;

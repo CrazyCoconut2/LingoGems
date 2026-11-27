@@ -34,23 +34,24 @@ import { StatsJob } from './stats-job';
 import { ignoreMissingToken, readMissingBlacklist, restoreMissingToken } from './stats-missing';
 import type { DayStats, ElementDayStats, MissingToken } from './stats.worker';
 
-type ActivityKey = 'seen' | 'added' | 'exercises';
+type ActivityKey = 'seen' | 'added' | 'exercises' | 'translated';
 
 const ACTIVITIES: readonly {
   key: ActivityKey;
   label: string;
-  goal: string;
+  goal: string | null;
 }[] = [
   { key: 'seen', label: 'stats.seen', goal: 'stats.goalSeen' },
   { key: 'added', label: 'stats.added', goal: 'stats.goalAdded' },
   { key: 'exercises', label: 'stats.exercises', goal: 'stats.goalExercises' },
+  { key: 'translated', label: 'stats.translated', goal: null },
 ];
 
 type ElementSort = { kind: 'exercises' } | { kind: 'differential' } | { kind: 'seen' };
 
 type GoalKind = keyof DailyGoals;
 
-const LOADING_ACTIVITY = [0, 1, 2];
+const LOADING_ACTIVITY = [0, 1, 2, 3];
 const LOADING_ROWS = [0, 1, 2, 3];
 
 export type MissingPreviewSense = {
@@ -76,6 +77,7 @@ const EMPTY_DAY: DayStats = {
   revealed: 0,
   exercises: 0,
   seen: 0,
+  translated: 0,
   differential: 0,
   elements: [],
 };
@@ -267,36 +269,40 @@ const EMPTY_DAY: DayStats = {
                     </span>
                     <span class="count">{{ formatCount(shown()[row.key]) }}</span>
                     <span class="caption">{{ row.label | translate }}</span>
-                    @if (goalsOpen() || goals()[row.key] !== null) {
-                      <div class="card-foot">
-                        @if (goalsOpen()) {
-                          <span class="card-goal-label">{{ 'stats.goal' | translate }}</span>
-                          <ng-container
-                            *ngTemplateOutlet="
-                              goalStepper;
-                              context: { kind: row.key, label: row.goal }
-                            "
-                          />
-                        }
-                        @if (goals()[row.key]; as goal) {
-                          <div
-                            class="meter"
-                            role="progressbar"
-                            aria-valuemin="0"
-                            [attr.aria-valuenow]="meterNow(shown()[row.key], goal)"
-                            [attr.aria-valuemax]="goal"
-                            [attr.aria-label]="meterLabel(row.key, goal)"
-                          >
-                            <span class="meter-track">
-                              <span
-                                class="meter-fill"
-                                [style.width.%]="meterPercent(shown()[row.key], goal)"
-                              ></span>
-                            </span>
-                            <span class="meter-label">{{ meterText(shown()[row.key], goal) }}</span>
-                          </div>
-                        }
-                      </div>
+                    @if (goalKind(row.key); as kind) {
+                      @if (goalsOpen() || goals()[kind] !== null) {
+                        <div class="card-foot">
+                          @if (goalsOpen()) {
+                            <span class="card-goal-label">{{ 'stats.goal' | translate }}</span>
+                            <ng-container
+                              *ngTemplateOutlet="
+                                goalStepper;
+                                context: { kind: kind, label: row.goal ?? '' }
+                              "
+                            />
+                          }
+                          @if (goals()[kind]; as goal) {
+                            <div
+                              class="meter"
+                              role="progressbar"
+                              aria-valuemin="0"
+                              [attr.aria-valuenow]="meterNow(shown()[row.key], goal)"
+                              [attr.aria-valuemax]="goal"
+                              [attr.aria-label]="meterLabel(kind, goal)"
+                            >
+                              <span class="meter-track">
+                                <span
+                                  class="meter-fill"
+                                  [style.width.%]="meterPercent(shown()[row.key], goal)"
+                                ></span>
+                              </span>
+                              <span class="meter-label">{{
+                                meterText(shown()[row.key], goal)
+                              }}</span>
+                            </div>
+                          }
+                        </div>
+                      }
                     }
                   </li>
                 }
@@ -748,6 +754,16 @@ const EMPTY_DAY: DayStats = {
             <circle cx="12" cy="12" r="3" />
           </svg>
         }
+        @case ('translated') {
+          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m5 8 6 6" />
+            <path d="m4 14 6-6 2-3" />
+            <path d="M2 5h12" />
+            <path d="M7 2h1" />
+            <path d="m22 22-5-10-5 10" />
+            <path d="M14 18h6" />
+          </svg>
+        }
       }
     </ng-template>
   `,
@@ -1156,7 +1172,7 @@ const EMPTY_DAY: DayStats = {
     }
 
     .activity {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .score li,
@@ -2091,7 +2107,7 @@ export class StatsModal {
     return `${this.formatCount(Math.max(gain, 0))} / ${this.formatCount(goal)}`;
   }
 
-  meterLabel(key: ActivityKey, goal: number): string {
+  meterLabel(key: GoalKind, goal: number): string {
     const progress = this.meterText(this.shown()[key], goal);
     const label =
       key === 'seen'
@@ -2220,9 +2236,15 @@ export class StatsModal {
     });
   }
 
+  goalKind(key: ActivityKey): GoalKind | null {
+    if (key === 'seen' || key === 'added' || key === 'exercises') return key;
+    return null;
+  }
+
   private activityName(key: ActivityKey): string {
     if (key === 'added') return this.i18n.translate('stats.addedLower');
     if (key === 'seen') return this.i18n.translate('stats.seenLower');
+    if (key === 'translated') return this.i18n.translate('stats.translatedLower');
     return this.i18n.translate('stats.goalExercises');
   }
 
@@ -2340,6 +2362,7 @@ function daysWithToday(days: readonly DayStats[]): readonly DayStats[] {
       revealed: 0,
       exercises: 0,
       seen: 0,
+      translated: 0,
       differential: 0,
       elements: [],
     },
