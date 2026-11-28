@@ -345,25 +345,33 @@ type ShownReformulation = {
             (input)="onDraft($event)"
           ></textarea>
           @if (hintStep() >= 1) {
-            @if (examples().length) {
-              <ul class="examples" [attr.aria-label]="'recall.examples' | translate">
-                @for (example of examples(); track $index) {
-                  <li>
-                    <span
-                      class="example-index"
-                      [attr.aria-label]="
-                        'recall.definitionN' | translate: { index: '' + example.definition }
-                      "
-                    >
-                      {{ example.definition }}
-                    </span>
-                    <span>{{ example.text }}</span>
-                  </li>
-                }
-              </ul>
-            } @else {
-              <p class="hint">{{ 'recall.noExamples' | translate }}</p>
-            }
+            <div class="example-tip" role="note" [attr.aria-label]="'recall.examples' | translate">
+              @if (examples().length) {
+                <ul>
+                  @for (example of examples(); track $index) {
+                    <li>
+                      <span
+                        class="example-index"
+                        [attr.aria-label]="
+                          'recall.definitionN' | translate: { index: '' + example.definition }
+                        "
+                      >
+                        {{ example.definition }}
+                      </span>
+                      <app-highlighted-text
+                        [text]="example.text"
+                        [element]="element()"
+                        [collection]="collection()"
+                        (opened)="opened.emit($event)"
+                        (collided)="collided.emit($event)"
+                      />
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="hint">{{ 'recall.noExamples' | translate }}</p>
+              }
+            </div>
           }
           @if (error()) {
             <p class="error">{{ error() | translate }}</p>
@@ -518,15 +526,6 @@ type ShownReformulation = {
       background: var(--surface-2);
     }
 
-    .examples {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
-    }
-
     .grammar-sentence {
       margin: 0;
       font-size: 0.95rem;
@@ -653,6 +652,45 @@ type ShownReformulation = {
       display: flex;
     }
 
+    .example-tip {
+      max-height: 9rem;
+      overflow: auto;
+      padding: 0.55rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 0.85rem;
+      background: color-mix(in srgb, var(--surface-2) 82%, var(--bg));
+    }
+
+    .example-tip ul {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .example-tip li {
+      display: flex;
+      align-items: baseline;
+      gap: 0.45rem;
+      line-height: 1.45;
+    }
+
+    .example-tip .example-index {
+      flex: none;
+      min-width: 1.15rem;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .example-tip .hint {
+      margin: 0;
+    }
+
     textarea {
       width: 100%;
       box-sizing: border-box;
@@ -672,23 +710,6 @@ type ShownReformulation = {
 
     textarea:disabled {
       opacity: 0.6;
-    }
-
-    .examples li {
-      display: flex;
-      align-items: baseline;
-      gap: 0.45rem;
-      color: var(--text);
-    }
-
-    .example-index {
-      flex: none;
-      min-width: 1.15rem;
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-      text-align: center;
     }
 
     .error {
@@ -825,6 +846,8 @@ export class DefinitionRecall {
   readonly element = input.required<StoredElement>();
   readonly collection = input<StoredElement[]>([]);
   readonly finished = output<RecallFinish>();
+  /** The learner asked to see the stored examples. */
+  readonly hinted = output<readonly RecallExample[]>();
   readonly acceptExtra = output<RecallExtra>();
   readonly opened = output<{ id: string; phrase: string }>();
   readonly collided = output<{
@@ -954,6 +977,7 @@ export class DefinitionRecall {
   showHint(): void {
     if (this.busy() !== null || this.result() || this.hintStep() >= 1) return;
     this.hintStep.set(1);
+    this.hinted.emit(this.examples());
   }
 
   giveUp(): void {

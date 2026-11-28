@@ -55,14 +55,19 @@ import {
       border-bottom: none;
       text-decoration-line: underline;
       text-decoration-style: solid;
-      text-decoration-color: oklch(
-        from var(--score-color, var(--accent)) 0.74 calc(min(max(c, 0.16), 0.24)) h
-      );
+      text-decoration-color: var(--text-muted);
       text-decoration-thickness: 2px;
       text-underline-offset: 0.18em;
     }
 
+    .linguagem-highlighted[style*='--score-color'] {
+      text-decoration-color: oklch(
+        from var(--score-color) 0.74 calc(min(max(c, 0.16), 0.24)) h
+      );
+    }
+
     .linguagem-highlighted--muted {
+      text-decoration-style: dotted;
       text-decoration-color: var(--text-muted);
     }
 
@@ -77,6 +82,7 @@ import {
       color: inherit;
       cursor: pointer;
       text-align: inherit;
+      user-select: text;
     }
 
     .linguagem-highlighted--current {
@@ -85,7 +91,7 @@ import {
       padding: 0 0.12em;
       background: color-mix(
         in srgb,
-        oklch(from var(--score-color, var(--accent)) 0.68 calc(min(max(c, 0.13), 0.18)) h) 42%,
+        oklch(from var(--score-color, var(--text-muted)) 0.68 calc(min(max(c, 0.13), 0.18)) h) 42%,
         transparent
       );
       box-decoration-break: clone;

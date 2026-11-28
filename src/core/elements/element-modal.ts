@@ -42,6 +42,7 @@ import {
   type DefinitionExampleLog,
   type DefinitionFormLog,
   type DefinitionGameLog,
+  type DefinitionHintLog,
   type DefinitionHighlightMatch,
   type DefinitionLogEntry,
   type DefinitionRevealLog,
@@ -78,7 +79,7 @@ import {
   type RecallSense,
   type RelatedWord,
 } from 'ai';
-import { DefinitionRecall, type RecallFinish } from './definition-recall';
+import { DefinitionRecall, type RecallExample, type RecallFinish } from './definition-recall';
 import { ShowText } from './show-text';
 import { readFieldColor, type MetadataColorPlace } from './metadata-colors';
 import { supportLanguageFor } from '../languages/translation-language';
@@ -96,6 +97,18 @@ import { canSpeak, speakText, stopSpeaking } from './speech';
 
 const EQUIVALENT_MAX = 200;
 const FORM_MAX_LENGTH = 100;
+const HIGHLIGHT_PRESS_MS = 500;
+const HIGHLIGHT_PRESS_SLOP = 10;
+
+function highlightPressButton(target: EventTarget | null): HTMLButtonElement | null {
+  if (!(target instanceof Element)) return null;
+  const button = target.closest('button');
+  if (!(button instanceof HTMLButtonElement)) return null;
+  if (button.classList.contains('linguagem-highlighted') || button.closest('.collision')) {
+    return button;
+  }
+  return null;
+}
 const META_KEY_MAX_LENGTH = 40;
 const META_VALUE_MAX_LENGTH = 100;
 
@@ -113,6 +126,8 @@ type PassageSelection = {
   text: string;
   definitionIndex: number;
   exampleIndex: number | null;
+  /** Sentence around the selection when it is not a saved definition or example. */
+  source: string;
   top: number;
   left: number;
   before: boolean;
@@ -126,6 +141,7 @@ type PreparedElement = {
   example: string;
   definition: number;
   guide?: string;
+  definitionFor?: string;
 };
 
 type HighlightSource = {
@@ -179,6 +195,7 @@ type DefinitionHistoryEntry =
   | DefinitionFormLog
   | DefinitionRevealLog
   | DefinitionSeenLog
+  | DefinitionHintLog
   | ElementRemovedLog
   | ElementRestoredLog;
 
@@ -715,6 +732,15 @@ function unlockModalScroll(): void {
             <path d="M14 18h6" />
           </svg>
         </ng-template>
+        <ng-template #linkedMeta let-entry="entry">
+          <app-highlighted-text
+            [text]="entry.value"
+            [element]="element()"
+            [collection]="linkedElements()"
+            (opened)="openFromDefinition($event.id, -1, $event.phrase)"
+            (collided)="showCollision($event.event, $event.matches, -1, '', $event.phrase)"
+          />
+        </ng-template>
         <ng-template #formIcon>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -732,6 +758,7 @@ function unlockModalScroll(): void {
                   type="button"
                   class="element-title"
                   [class.has-color]="scoreAverage() !== 'NA' && !element().deletedAt"
+                  [class.deleted]="!!element().deletedAt"
                   [attr.title]="'element.editElement' | translate"
                   [disabled]="aiBusy()"
                   (click)="openTitle()"
@@ -781,7 +808,7 @@ function unlockModalScroll(): void {
             </div>
           </div>
         </header>
-        <div #definitionBody class="body" cdkScrollable>
+        <div #definitionBody class="body ask-selectable" cdkScrollable>
           @if (collision(); as matches) {
             <div class="collision" role="menu" [attr.aria-label]="'element.matching' | translate">
               @for (match of matches; track match.elementId) {
@@ -933,6 +960,24 @@ function unlockModalScroll(): void {
                                 <path d="m6 9 6 6 6-6" />
                               </svg>
                             </button>
+                          } @else if (entry.event === 'hint') {
+                            <div class="log-copy" [attr.aria-label]="historyAria(entry)">
+                              <span class="log-edit-line">
+                                <svg class="log-wrench" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path
+                                    d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"
+                                  />
+                                  <path d="M9 18h6" />
+                                  <path d="M10 22h4" />
+                                </svg>
+                                <span class="log-edit-copies">
+                                  <span class="log-game">{{
+                                    'element.examplesShown' | translate
+                                  }}</span>
+                                  <span class="hint">{{ exerciseWhen(entry.at) }}</span>
+                                </span>
+                              </span>
+                            </div>
                           } @else if (entry.event === 'removed' || entry.event === 'restored') {
                             <div class="log-copy" [attr.aria-label]="historyAria(entry)">
                               <span class="log-edit-line">
@@ -1060,7 +1105,8 @@ function unlockModalScroll(): void {
                           @if (
                             entry.event !== 'rework' &&
                             entry.event !== 'removed' &&
-                            entry.event !== 'restored'
+                            entry.event !== 'restored' &&
+                            entry.event !== 'hint'
                           ) {
                             <button
                               type="button"
@@ -1156,7 +1202,12 @@ function unlockModalScroll(): void {
                                     @let color = metaColor('definitions', field.key);
                                     <li [class.colored]="color" [style.--meta-color]="color">
                                       <span class="sense-meta-key">{{ label(field.key) }}</span>
-                                      <span class="sense-meta-value">{{ label(field.value) }}</span>
+                                      <span class="sense-meta-value">
+                                        <ng-container
+                                          [ngTemplateOutlet]="linkedMeta"
+                                          [ngTemplateOutletContext]="{ entry: field }"
+                                        />
+                                      </span>
                                     </li>
                                   }
                                 </ul>
@@ -1212,9 +1263,12 @@ function unlockModalScroll(): void {
                                                 <span class="sense-meta-key">{{
                                                   label(field.key)
                                                 }}</span>
-                                                <span class="sense-meta-value">{{
-                                                  label(field.value)
-                                                }}</span>
+                                                <span class="sense-meta-value">
+                                                  <ng-container
+                                                    [ngTemplateOutlet]="linkedMeta"
+                                                    [ngTemplateOutletContext]="{ entry: field }"
+                                                  />
+                                                </span>
                                               </li>
                                             }
                                           </ul>
@@ -1360,7 +1414,12 @@ function unlockModalScroll(): void {
                                     @let color = metaColor('definitions', field.key);
                                     <li [class.colored]="color" [style.--meta-color]="color">
                                       <span class="sense-meta-key">{{ label(field.key) }}</span>
-                                      <span class="sense-meta-value">{{ label(field.value) }}</span>
+                                      <span class="sense-meta-value">
+                                        <ng-container
+                                          [ngTemplateOutlet]="linkedMeta"
+                                          [ngTemplateOutletContext]="{ entry: field }"
+                                        />
+                                      </span>
                                     </li>
                                   }
                                 </ul>
@@ -1429,6 +1488,7 @@ function unlockModalScroll(): void {
                 [senses]="recallSenses()"
                 [examples]="recallExamples()"
                 [settled]="recallSettled()"
+                (hinted)="noteRecallExamples($event)"
                 [element]="element()"
                 [collection]="linkedElements()"
                 (finished)="finishRecall($event)"
@@ -1662,7 +1722,12 @@ function unlockModalScroll(): void {
                                     @let color = metaColor('definitions', entry.key);
                                     <li [class.colored]="color" [style.--meta-color]="color">
                                       <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                                      <span class="sense-meta-value">{{ label(entry.value) }}</span>
+                                      <span class="sense-meta-value">
+                                        <ng-container
+                                          [ngTemplateOutlet]="linkedMeta"
+                                          [ngTemplateOutletContext]="{ entry: entry }"
+                                        />
+                                      </span>
                                     </li>
                                   }
                                 </ul>
@@ -1786,9 +1851,12 @@ function unlockModalScroll(): void {
                                               <span class="sense-meta-key">{{
                                                 label(entry.key)
                                               }}</span>
-                                              <span class="sense-meta-value">{{
-                                                label(entry.value)
-                                              }}</span>
+                                              <span class="sense-meta-value">
+                                                <ng-container
+                                                  [ngTemplateOutlet]="linkedMeta"
+                                                  [ngTemplateOutletContext]="{ entry: entry }"
+                                                />
+                                              </span>
                                             </li>
                                           }
                                         </ul>
@@ -2729,7 +2797,12 @@ function unlockModalScroll(): void {
                                     @let color = metaColor('examples', entry.key);
                                     <li [class.colored]="color" [style.--meta-color]="color">
                                       <span class="sense-meta-key">{{ label(entry.key) }}</span>
-                                      <span class="sense-meta-value">{{ label(entry.value) }}</span>
+                                      <span class="sense-meta-value">
+                                        <ng-container
+                                          [ngTemplateOutlet]="linkedMeta"
+                                          [ngTemplateOutletContext]="{ entry: entry }"
+                                        />
+                                      </span>
                                     </li>
                                   }
                                 </ul>
@@ -3394,6 +3467,7 @@ function unlockModalScroll(): void {
       letter-spacing: inherit;
       text-align: start;
       text-decoration: underline;
+      text-decoration-style: solid;
       text-decoration-thickness: 2px;
       text-decoration-color: var(--text-muted);
       text-underline-offset: 0.16em;
@@ -3404,7 +3478,16 @@ function unlockModalScroll(): void {
       text-decoration-color: oklch(from var(--swatch) 0.74 calc(min(max(c, 0.16), 0.24)) h);
     }
 
+    .element-title.deleted {
+      text-decoration-style: dotted;
+      text-decoration-color: var(--text-muted);
+    }
+
     .element-title:hover:not(:disabled) {
+      text-decoration-color: var(--text);
+    }
+
+    .element-title.deleted:hover:not(:disabled) {
       text-decoration-color: var(--text);
     }
 
@@ -4216,12 +4299,14 @@ function unlockModalScroll(): void {
       margin-right: 0.35rem;
       font-weight: 500;
       letter-spacing: 0.02em;
+      user-select: none;
     }
 
     .sense-meta-value {
       color: var(--text);
       font-size: 0.75rem;
       font-weight: 600;
+      user-select: text;
     }
 
     .sense-meta li.sense-equivalent {
@@ -4404,14 +4489,19 @@ function unlockModalScroll(): void {
       border-bottom: none;
       text-decoration-line: underline;
       text-decoration-style: solid;
-      text-decoration-color: oklch(
-        from var(--score-color, var(--accent)) 0.74 calc(min(max(c, 0.16), 0.24)) h
-      );
+      text-decoration-color: var(--text-muted);
       text-decoration-thickness: 2px;
       text-underline-offset: 0.18em;
     }
 
+    .linguagem-highlighted[style*='--score-color'] {
+      text-decoration-color: oklch(
+        from var(--score-color) 0.74 calc(min(max(c, 0.16), 0.24)) h
+      );
+    }
+
     .linguagem-highlighted--muted {
+      text-decoration-style: dotted;
       text-decoration-color: var(--text-muted);
     }
 
@@ -4459,7 +4549,7 @@ function unlockModalScroll(): void {
       padding: 0 0.12em;
       background: color-mix(
         in srgb,
-        oklch(from var(--score-color, var(--accent)) 0.68 calc(min(max(c, 0.13), 0.18)) h) 42%,
+        oklch(from var(--score-color, var(--text-muted)) 0.68 calc(min(max(c, 0.13), 0.18)) h) 42%,
         transparent
       );
       box-decoration-break: clone;
@@ -5999,7 +6089,7 @@ export class ElementModal {
   readonly definitionIndex = input(0);
   /** Example sentence carried in from the element that opened this one. */
   readonly arrivedExample = input('');
-  /** Recall stays out of the way. This open created the element, or it came from another one. */
+  /** Recall stays out of the way when this open created the element, or a long press gave it up. */
   readonly skipRecall = input(false);
   /** This open is a give-up. The recall stays hidden, and the give-up is still logged. */
   readonly forfeitRecall = input(false);
@@ -6017,6 +6107,7 @@ export class ElementModal {
     guide: string;
     phrase: string;
     definitionFor: string;
+    forfeit: boolean;
   }>();
   readonly addSelection = output<{
     title: string;
@@ -6024,6 +6115,7 @@ export class ElementModal {
     definition: number;
     example: string;
     guide: string;
+    definitionFor: string;
     done: (saved: boolean) => void;
   }>();
   readonly addPrepared = output<PreparedElement>();
@@ -6082,12 +6174,24 @@ export class ElementModal {
   private collisionExample = '';
   /** Passage a collision pick was opened from. */
   private collisionPhrase = '';
+  /** The next collision pick skips the exercise and logs a give-up. */
+  private collisionForfeit = false;
+  /** Long press on a highlight. The click it fires skips the exercise. */
+  private bypassExercise = false;
+  /** The real click after a long press. The press already opened the element. */
+  private ignoreHighlightClick = false;
+  private highlightTimer: ReturnType<typeof setTimeout> | null = null;
+  private highlightButton: HTMLButtonElement | null = null;
+  private highlightX = 0;
+  private highlightY = 0;
   readonly passageSelection = signal<PassageSelection | null>(null);
   readonly confirm = signal<ConfirmDelete | null>(null);
   readonly busy = signal(false);
   readonly shownDefinitions = computed(() => this.element().definitions);
   /** The recall for this open has been submitted or given up. */
   readonly recallSettled = signal(false);
+  /** Examples revealed for this recall. Null until the hint is opened. */
+  private examplesLogged = false;
   readonly recallSkipped = computed(() => this.skipRecall());
   readonly recallPending = computed(
     () => this.element().definitions.length > 0 && !this.recallSkipped() && !this.recallSettled(),
@@ -6222,6 +6326,7 @@ export class ElementModal {
       this.definitionEngineer.set(null);
       this.senseStages.set(new Map());
       this.recallSettled.set(false);
+      this.examplesLogged = false;
       this.draftTranslation.set(null);
       this.translationEdit.set(null);
       this.translationCleared.set('');
@@ -6270,13 +6375,24 @@ export class ElementModal {
     lockModalScroll();
     document.addEventListener('selectionchange', this.syncPassageSelection);
     document.addEventListener('pointerdown', this.onSelectionPointerDown, true);
+    document.addEventListener('pointerdown', this.onHighlightPointerDown);
+    document.addEventListener('pointermove', this.onHighlightPointerMove);
+    document.addEventListener('pointerup', this.onHighlightPointerUp);
+    document.addEventListener('pointercancel', this.onHighlightPointerUp);
+    document.addEventListener('contextmenu', this.onHighlightContextMenu);
     document.addEventListener('pointerup', this.syncPassageSelection, true);
     document.addEventListener('scroll', this.syncPassageSelection, true);
     window.addEventListener('resize', this.syncPassageSelection);
     inject(DestroyRef).onDestroy(() => {
       stopWatchingExamples();
+      this.clearHighlightPress();
       document.removeEventListener('selectionchange', this.syncPassageSelection);
       document.removeEventListener('pointerdown', this.onSelectionPointerDown, true);
+      document.removeEventListener('pointerdown', this.onHighlightPointerDown);
+      document.removeEventListener('pointermove', this.onHighlightPointerMove);
+      document.removeEventListener('pointerup', this.onHighlightPointerUp);
+      document.removeEventListener('pointercancel', this.onHighlightPointerUp);
+      document.removeEventListener('contextmenu', this.onHighlightContextMenu);
       document.removeEventListener('pointerup', this.syncPassageSelection, true);
       document.removeEventListener('scroll', this.syncPassageSelection, true);
       window.removeEventListener('resize', this.syncPassageSelection);
@@ -6429,6 +6545,17 @@ export class ElementModal {
 
   translationTarget(): string {
     return supportLanguageFor(this.element().language);
+  }
+
+  noteRecallExamples(examples: readonly RecallExample[]): void {
+    if (!examples.length || this.examplesLogged) return;
+    this.examplesLogged = true;
+    this.appendLog({
+      event: 'hint',
+      at: Date.now(),
+      examples: examples.map((item) => item.text),
+    });
+    void this.persist(this.copyDefinitions(), this.currentElement().equivalents, { busy: false });
   }
 
   finishRecall(result: RecallFinish): void {
@@ -7202,7 +7329,7 @@ export class ElementModal {
     const wording = this.askingWording();
     if (wording != null) this.askingWording.set(swap(wording));
     const selection = this.passageSelection();
-    if (selection) {
+    if (selection && selection.definitionIndex >= 0) {
       this.passageSelection.set({ ...selection, definitionIndex: swap(selection.definitionIndex) });
     }
     const engineer = this.exampleEngineer();
@@ -8523,8 +8650,10 @@ export class ElementModal {
     example = '',
     phrase = '',
   ): void {
+    if (this.consumeIgnoredHighlightClick()) return;
     event.preventDefault();
     event.stopPropagation();
+    this.collisionForfeit = this.bypassExercise;
     this.collisionDefinition = definition;
     this.collisionExample = example.trim();
     this.collisionPhrase = phrase.replace(/\s+/g, ' ').trim();
@@ -8557,6 +8686,9 @@ export class ElementModal {
     phrase = '',
     definitionFor = '',
   ): void {
+    if (this.consumeIgnoredHighlightClick()) return;
+    const forfeit = this.bypassExercise || this.collisionForfeit;
+    this.collisionForfeit = false;
     this.collision.set(null);
     this.collisionExample = '';
     this.collisionPhrase = '';
@@ -8569,6 +8701,7 @@ export class ElementModal {
       guide: '',
       phrase: source,
       definitionFor: definitionFor.replace(/\s+/g, ' ').trim(),
+      forfeit,
     });
   }
 
@@ -8585,26 +8718,31 @@ export class ElementModal {
 
   private async askSelectionElement(title: string, pick: PassageSelection | null): Promise<void> {
     const element = this.element();
-    const definition = pick ? element.definitions[pick.definitionIndex] : undefined;
+    const index = pick?.definitionIndex ?? -1;
+    const definition = index >= 0 ? element.definitions[index] : undefined;
     const raw =
       pick?.exampleIndex == null ? definition?.text : definition?.examples[pick.exampleIndex]?.text;
     const passage = parsePassage(raw ?? '');
     const fromExample = pick?.exampleIndex != null;
     const gloss = passage.text.replace(/\s+/g, ' ').trim();
+    const loose = pick?.source.replace(/\s+/g, ' ').trim() ?? '';
     const root = element.title.replace(/\s+/g, ' ').trim();
-    const definitionIndex = pick?.definitionIndex ?? 0;
-    const guide = !fromExample && gloss && root ? `${root}: ${gloss}` : '';
-    const example = fromExample ? passage.text : '';
+    const definitionIndex = index >= 0 ? index : 0;
+    const fromDefinition = !fromExample && !loose && !!gloss;
+    const guide = fromDefinition && root ? `${root}: ${gloss}` : '';
+    const example = fromExample ? passage.text : loose || gloss;
+    const definitionFor = fromDefinition ? root : '';
+    const phrase = gloss || loose;
     this.addingSelection.set(true);
     this.error.set('');
     try {
       const generated = await this.elementFromSelection(
         element.language,
         title,
-        pick && gloss
+        pick && phrase
           ? {
-              kind: fromExample ? 'example' : 'definition',
-              phrase: gloss,
+              kind: fromExample || loose ? 'example' : 'definition',
+              phrase,
               ...(root ? { root } : {}),
             }
           : undefined,
@@ -8617,6 +8755,7 @@ export class ElementModal {
           language: element.language,
           example,
           guide,
+          definitionFor,
           definition: definitionIndex,
           definitions: generated.definitions.map((sense) => ({
             text: sense.text,
@@ -8635,6 +8774,7 @@ export class ElementModal {
         definitionIndex,
         example,
         guide,
+        definitionFor,
       );
       if (!saved && this.element().id === element.id) {
         this.error.set('common.addFailed');
@@ -8663,10 +8803,19 @@ export class ElementModal {
     definition: number,
     example: string,
     guide: string,
+    definitionFor: string,
   ): Promise<boolean> {
     this.passageSelection.set(null);
     return new Promise((resolve) => {
-      this.addSelection.emit({ title, language, definition, example, guide, done: resolve });
+      this.addSelection.emit({
+        title,
+        language,
+        definition,
+        example,
+        guide,
+        definitionFor,
+        done: resolve,
+      });
     });
   }
 
@@ -8686,6 +8835,7 @@ export class ElementModal {
       current?.text === pick?.text &&
       current?.definitionIndex === pick?.definitionIndex &&
       current?.exampleIndex === pick?.exampleIndex &&
+      current?.source === pick?.source &&
       current?.top === pick?.top &&
       current?.left === pick?.left &&
       current?.before === pick?.before &&
@@ -8696,15 +8846,65 @@ export class ElementModal {
     this.passageSelection.set(pick);
   };
 
+  private readonly onHighlightPointerDown = (event: PointerEvent): void => {
+    if (!this.foreground() || event.button !== 0) return;
+    const button = highlightPressButton(event.target);
+    if (!button) return;
+    this.ignoreHighlightClick = false;
+    this.clearHighlightPress();
+    this.highlightButton = button;
+    this.highlightX = event.clientX;
+    this.highlightY = event.clientY;
+    this.highlightTimer = setTimeout(() => {
+      this.highlightTimer = null;
+      const pressed = this.highlightButton;
+      this.highlightButton = null;
+      if (!pressed || !this.foreground()) return;
+      this.bypassExercise = true;
+      pressed.click();
+      this.bypassExercise = false;
+      this.ignoreHighlightClick = true;
+    }, HIGHLIGHT_PRESS_MS);
+  };
+
+  private readonly onHighlightPointerMove = (event: PointerEvent): void => {
+    if (!this.highlightTimer) return;
+    const dx = event.clientX - this.highlightX;
+    const dy = event.clientY - this.highlightY;
+    if (dx * dx + dy * dy > HIGHLIGHT_PRESS_SLOP * HIGHLIGHT_PRESS_SLOP) this.clearHighlightPress();
+  };
+
+  private readonly onHighlightPointerUp = (): void => {
+    this.clearHighlightPress();
+  };
+
+  private readonly onHighlightContextMenu = (event: Event): void => {
+    if (!this.foreground() || !highlightPressButton(event.target)) return;
+    event.preventDefault();
+  };
+
+  private clearHighlightPress(): void {
+    if (this.highlightTimer) clearTimeout(this.highlightTimer);
+    this.highlightTimer = null;
+    this.highlightButton = null;
+  }
+
+  /** The click that follows a long press already opened the element. */
+  private consumeIgnoredHighlightClick(): boolean {
+    if (!this.ignoreHighlightClick) return false;
+    this.ignoreHighlightClick = false;
+    return true;
+  }
+
   private readonly onSelectionPointerDown = (event: Event): void => {
     if (!this.foreground()) return;
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('.sense-selectable, .lookup-chip, .lookup-float')) return;
+    if (target?.closest('.sense-selectable, .ask-selectable, .lookup-chip, .lookup-float')) return;
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
     const anchor = selection.anchorNode;
     const element = anchor instanceof Element ? anchor : anchor?.parentElement;
-    if (!element?.closest('.sense-selectable')) return;
+    if (!element?.closest('.sense-selectable, .ask-selectable')) return;
     selection.removeAllRanges();
     this.passageSelection.set(null);
   };
@@ -9057,9 +9257,6 @@ export class ElementModal {
   confirmHint(pending: ConfirmDelete): string {
     if (pending.kind === 'purge') return this.i18n.translate('element.purgeHint');
     if (pending.kind === 'element') return this.i18n.translate('element.deleteSoftHint');
-    if (pending.kind === 'exercise' && this.historyEmptiesElement(pending.historyIndex)) {
-      return this.i18n.translate('element.deleteHistoryHint');
-    }
     if (pending.kind === 'definition') return this.i18n.translate('element.definitionRemoved');
     return this.i18n.translate('element.willBeRemoved');
   }
@@ -9148,7 +9345,8 @@ export class ElementModal {
       this.busy() ||
       entry.event === 'rework' ||
       entry.event === 'removed' ||
-      entry.event === 'restored'
+      entry.event === 'restored' ||
+      entry.event === 'hint'
     ) {
       return;
     }
@@ -9283,15 +9481,6 @@ export class ElementModal {
     }
   }
 
-  private historyEmptiesElement(historyIndex: number): boolean {
-    const entry = this.elementHistory()[historyIndex];
-    if (!entry) return false;
-    const current = this.currentElement();
-    const logIndex = current.log.indexOf(entry);
-    if (logIndex < 0) return false;
-    return !current.log.some((item, index) => index !== logIndex && this.listedHistory(item));
-  }
-
   private async removeExercise(historyIndex: number): Promise<void> {
     const elementId = this.element().id;
     const entry = this.elementHistory()[historyIndex];
@@ -9302,10 +9491,6 @@ export class ElementModal {
       return;
     }
     const log = current.log.filter((_, index) => index !== logIndex);
-    if (!log.some((item) => this.listedHistory(item))) {
-      await this.purgeOpenElement();
-      return;
-    }
     this.written = {
       ...current,
       log,
@@ -9778,6 +9963,7 @@ export class ElementModal {
     | DefinitionReworkLog
     | DefinitionDeleteLog
     | DefinitionSeenLog
+    | DefinitionHintLog
     | ElementRemovedLog
     | ElementRestoredLog
   > {
@@ -9789,6 +9975,7 @@ export class ElementModal {
         | DefinitionReworkLog
         | DefinitionDeleteLog
         | DefinitionSeenLog
+        | DefinitionHintLog
         | ElementRemovedLog
         | ElementRestoredLog =>
         entry.event === 'game' ||
@@ -9796,6 +9983,7 @@ export class ElementModal {
         entry.event === 'delete' ||
         entry.event === 'removed' ||
         entry.event === 'restored' ||
+        entry.event === 'hint' ||
         (entry.event === 'seen' && !!entry.phrase),
     );
   }
@@ -9898,6 +10086,7 @@ export class ElementModal {
     if (entry.event === 'form') return this.i18n.translate('element.forms');
     if (entry.event === 'reveal') return this.i18n.translate('element.translated');
     if (entry.event === 'seen') return this.i18n.translate('element.openedFrom');
+    if (entry.event === 'hint') return this.i18n.translate('element.examplesShown');
     return this.i18n.translate('element.exercise');
   }
 
@@ -9984,6 +10173,7 @@ export class ElementModal {
       entry.event === 'game' ||
       entry.event === 'removed' ||
       entry.event === 'restored' ||
+      entry.event === 'hint' ||
       (entry.event === 'seen' && !!entry.phrase)
     );
   }
@@ -10023,29 +10213,78 @@ export class ElementModal {
 function readPassageSelection(): PassageSelection | null {
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
-  const text = selection.toString().replace(/\s+/g, ' ').trim();
-  if (!text) return null;
   const range = selection.getRangeAt(0);
+  const text = selectionText(selection, range);
+  if (!text) return null;
   const node = range.commonAncestorContainer;
   const anchor = node instanceof Element ? node : node.parentElement;
-  const passage = anchor?.closest('.sense-selectable');
-  if (!passage) return null;
-  if (selectionCoversPassage(passage, range)) return null;
-  const definitionIndex = Number(passage.getAttribute('data-definition-index'));
-  if (!Number.isInteger(definitionIndex) || definitionIndex < 0) return null;
-  const exampleRaw = passage.getAttribute('data-example-index');
-  const exampleIndex = exampleRaw == null ? null : Number(exampleRaw);
-  if (exampleIndex != null && (!Number.isInteger(exampleIndex) || exampleIndex < 0)) return null;
-  const placed = placePassageActions(range, passage);
+  const sense = anchor?.closest('.sense-selectable');
+  if (sense) {
+    if (selectionCoversPassage(sense, range)) return null;
+    const definitionIndex = Number(sense.getAttribute('data-definition-index'));
+    if (!Number.isInteger(definitionIndex) || definitionIndex < 0) return null;
+    const exampleRaw = sense.getAttribute('data-example-index');
+    const exampleIndex = exampleRaw == null ? null : Number(exampleRaw);
+    if (exampleIndex != null && (!Number.isInteger(exampleIndex) || exampleIndex < 0)) return null;
+    const placed = placePassageActions(range, sense);
+    return {
+      text,
+      definitionIndex,
+      exampleIndex,
+      source: '',
+      top: placed?.top ?? 0,
+      left: placed?.left ?? 0,
+      before: placed?.before ?? false,
+      visible: placed != null,
+    };
+  }
+  const host = anchor?.closest('.ask-selectable');
+  if (!host || anchor?.closest('textarea, input, select')) return null;
+  const control = anchor?.closest('button');
+  if (control && !control.classList.contains('linguagem-highlighted')) return null;
+  const placed = placePassageActions(range, host);
   return {
     text,
-    definitionIndex,
-    exampleIndex,
+    definitionIndex: -1,
+    exampleIndex: null,
+    source: selectionSource(anchor),
     top: placed?.top ?? 0,
     left: placed?.left ?? 0,
     before: placed?.before ?? false,
     visible: placed != null,
   };
+}
+
+/** The selected words, leaving a metadata key out of the phrase. */
+function selectionText(selection: Selection, range: Range): string {
+  const start = rangeEndpoint(range.startContainer);
+  const end = rangeEndpoint(range.endContainer);
+  const pill = start?.closest('.sense-meta') ?? end?.closest('.sense-meta');
+  if (!pill) return selection.toString().replace(/\s+/g, ' ').trim();
+  const walker = document.createTreeWalker(pill, NodeFilter.SHOW_TEXT);
+  let piece = '';
+  let node = walker.nextNode();
+  while (node) {
+    if (!node.parentElement?.closest('.sense-meta-key') && range.intersectsNode(node)) {
+      const content = node.textContent ?? '';
+      const from = node === range.startContainer ? range.startOffset : 0;
+      const to = node === range.endContainer ? range.endOffset : content.length;
+      piece += content.slice(from, to);
+    }
+    node = walker.nextNode();
+  }
+  return piece.replace(/\s+/g, ' ').trim();
+}
+
+function rangeEndpoint(node: Node): Element | null {
+  return node instanceof Element ? node : node.parentElement;
+}
+
+function selectionSource(anchor: Element | null): string {
+  const block = anchor?.closest(
+    '.feedback, .feedback-translation, .log-feedback, .log-answer, .log-translation, .passage, .grammar-sentence, .example-tip li, .extra p',
+  );
+  return block?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 }
 
 function placePassageActions(

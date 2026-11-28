@@ -46,6 +46,7 @@ export {
   type DefinitionFormLog,
   type DefinitionGame,
   type DefinitionGameLog,
+  type DefinitionHintLog,
   type DefinitionLogBy,
   type DefinitionLogEntry,
   type DefinitionRevealLog,

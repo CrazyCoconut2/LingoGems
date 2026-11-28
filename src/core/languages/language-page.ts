@@ -1263,7 +1263,7 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
             (closed)="closeElement()"
             (changed)="replaceElement($event)"
             (deleted)="onElementDeleted($event)"
-            (visit)="visitElement($event, true)"
+            (visit)="visitElement($event)"
             (addSelection)="addFromSelection($event)"
             (addPrepared)="addPrepared($event)"
           />
@@ -3458,17 +3458,19 @@ export class LanguagePage {
       guide?: string;
       phrase?: string;
       definitionFor?: string;
+      forfeit?: boolean;
     },
     fresh = false,
   ): void {
     const id = visit.id;
     if (!id || id === this.elementId()) return;
+    const forfeit = !!visit.forfeit && !fresh;
     this.layers.update((layers) => [
       ...layers,
       this.elementLayer({
         id,
-        skipRecall: fresh,
-        forfeitRecall: false,
+        skipRecall: fresh || forfeit,
+        forfeitRecall: forfeit,
         example: visit.example,
         phrase: visit.phrase,
         definitionFor: visit.definitionFor,
@@ -3482,6 +3484,7 @@ export class LanguagePage {
     definition: number;
     example?: string;
     guide?: string;
+    definitionFor?: string;
     done?: (saved: boolean) => void;
   }): Promise<void> {
     const finish = (saved: boolean) => pick.done?.(saved);
@@ -3502,6 +3505,7 @@ export class LanguagePage {
             definition: pick.definition,
             example: pick.example,
             guide: pick.guide,
+            definitionFor: pick.definitionFor,
           },
           created.createdAt >= started,
         );
@@ -3519,6 +3523,7 @@ export class LanguagePage {
       definitions: Array<ElementDefinition & { equivalent?: string }>;
       example?: string;
       guide?: string;
+      definitionFor?: string;
       definition?: number;
     },
     fromSearch = false,
@@ -3541,6 +3546,7 @@ export class LanguagePage {
         definition: prepared.definition ?? 0,
         example,
         guide: prepared.guide,
+        definitionFor: prepared.definitionFor,
       },
       fresh,
     );

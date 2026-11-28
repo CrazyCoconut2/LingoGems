@@ -145,7 +145,8 @@ function tally(
         entry.event === 'view' ||
         entry.event === 'rework' ||
         entry.event === 'reveal' ||
-        entry.event === 'restored'
+        entry.event === 'restored' ||
+        entry.event === 'hint'
       ) {
         continue;
       }

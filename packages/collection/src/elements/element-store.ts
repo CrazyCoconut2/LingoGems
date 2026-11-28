@@ -122,6 +122,13 @@ export type DefinitionSeenLog = {
   phrase?: string;
 };
 
+/** Examples shown during recall, in the tip above the element. */
+export type DefinitionHintLog = {
+  event: 'hint';
+  at: number;
+  examples: string[];
+};
+
 /** A translation uncovered on a definition or one of its examples. */
 export type DefinitionRevealLog = {
   event: 'reveal';
@@ -143,6 +150,7 @@ export type DefinitionLogEntry =
   | DefinitionFormLog
   | DefinitionRevealLog
   | DefinitionSeenLog
+  | DefinitionHintLog
   | { event: 'view'; at: number };
 
 /** The element left the active list. The record stays, so its statistics stay too. */
@@ -1055,6 +1063,18 @@ function normalizeLogEntry(raw: unknown): DefinitionLogEntry | null {
       ...(snapshot ? { snapshot } : {}),
     };
   }
+  if (source.event === 'hint') {
+    if (at == null) return null;
+    const examples = Array.isArray(source.examples)
+      ? source.examples.flatMap((item) => {
+          if (typeof item !== 'string') return [];
+          const text = item.replace(/\s+/g, ' ').trim();
+          return text ? [text] : [];
+        })
+      : [];
+    if (!examples.length) return null;
+    return { event: 'hint', at, examples };
+  }
   if (source.event === 'form') {
     if (at == null) return null;
     const forms = Array.isArray(source.forms)
@@ -1162,6 +1182,12 @@ function presentLog(log: ElementLogEntry[]): ElementLogEntry[] {
         example: capitalizePassage(entry.example),
         ...(entry.snapshot ? { snapshot: presentSnapshot(entry.snapshot) } : {}),
       };
+    }
+    if (entry.event === 'hint') {
+      const examples = entry.examples
+        .map((item) => item.replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+      return { event: 'hint', at: entry.at, examples };
     }
     if (entry.event === 'form') {
       return {

@@ -103,6 +103,7 @@
   "element.exampleNeedsText": "Un exemple a besoin d'un texte.",
   "element.examples": "Exemples",
   "element.examplesFailed": "Impossible de demander des exemples.",
+  "element.examplesShown": "Tu as affiché des exemples",
   "element.exercise": "Exercice",
   "element.feedback": "Commentaire",
   "element.findRelated": "Trouver des apparentés",

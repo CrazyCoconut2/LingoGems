@@ -16,6 +16,9 @@ npm run deploy
 `deploy` bumps the patch version, builds, and publishes with Wrangler.
 
 TODO
+- One new definition at a time is the way. You have time to review.
+  Remember that the core philosophy of the app is to NEVER add a definition
+  out of thin air.
 - Feature when writing something with *.
   => So I think this is another genius feature. When somebody
       writes something, they often times think in their other language so they'll say something like "Passe moi la *spoon*". The AI could automatically detect that and suggest a change for the phrase that the user can accept.
