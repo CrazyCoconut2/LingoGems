@@ -9,7 +9,6 @@ const EVALUATE_MAX_TOKENS = 2048;
 const ANSWER_MAX = 1000;
 const FEEDBACK_MAX = 800;
 const GLOSS_MAX = 400;
-const EXAMPLE_MAX = 500;
 const EQUIVALENT_MAX = 200;
 const MISTAKE_MAX = 300;
 const SPAN_MAX = 200;
@@ -49,29 +48,18 @@ coverage is an integer from 0 to 10.
 Give 10 only when every stored sense is present in the answer and each one is close.
 Lower the score when a stored sense is missing, vague, or only partly matched. Count how many senses are covered and how close each one is.
 Give 0 when none of the stored senses are present.
-extra is present only when the answer clearly states a real additional sense of this lemma. A paraphrase of a stored sense is not extra. Do not invent a sense the answer did not state.
-extra.gloss is a short dictionary definition of that new sense, written in learningLang.
-extra.example is one sentence in learningLang that uses the lemma and makes that new sense obvious.
 When answerLang differs from learningLang, do not include a translation or an equivalent. The learner asks for those separately.
-Omit extra entirely when there is no additional sense.
-feedback comments on what was covered and how close it was. Write it in learningLang, as a natural sentence. Do not quote the stored definition, the learner's wording, or any phrase, and do not use quotation marks. Do not put the numeric score in feedback.
-JSON only: {"coverage":0,"feedback":"<comment>","extra":{"gloss":"<definition>","example":"<sentence>"}}`;
+feedback comments on what was covered and how close it was. If the answer states another real sense of this lemma, mention it in that comment. Write it in learningLang, as a natural sentence. Do not quote the stored definition, the learner's wording, or any phrase, and do not use quotation marks. Do not put the numeric score in feedback. Do not return a separate definition.
+JSON only: {"coverage":0,"feedback":"<comment>"}`;
 
 export type RecallSense = {
   gloss: string;
   equivalent?: string;
 };
 
-export type RecallExtra = {
-  gloss: string;
-  example: string;
-  equivalent: string;
-};
-
 export type RecallEvaluation = {
   coverage: number;
   feedback: string;
-  extra: RecallExtra | null;
 };
 
 export type RecallMistake = {
@@ -243,18 +231,7 @@ function idOf(value: unknown): string {
   return String((value as Record<string, unknown>)['id'] ?? '');
 }
 
-function parseExtra(value: unknown, senses: readonly RecallSense[]): RecallExtra | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const source = value as Record<string, unknown>;
-  const gloss = clip(source['gloss'], GLOSS_MAX);
-  if (!gloss) return null;
-  const known = gloss.toLowerCase();
-  if (senses.some((sense) => sense.gloss.trim().toLowerCase() === known)) return null;
-  const example = clip(source['example'], EXAMPLE_MAX);
-  return { gloss, example, equivalent: '' };
-}
-
-function parseEvaluation(parsed: unknown, senses: readonly RecallSense[]): RecallEvaluation | null {
+function parseEvaluation(parsed: unknown): RecallEvaluation | null {
   const source =
     parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
@@ -264,11 +241,7 @@ function parseEvaluation(parsed: unknown, senses: readonly RecallSense[]): Recal
   if (!Number.isInteger(coverage) || coverage < 0 || coverage > COVERAGE_MAX) return null;
   const feedback = clip(source['feedback'], FEEDBACK_MAX);
   if (!feedback) return null;
-  return {
-    coverage,
-    feedback,
-    extra: parseExtra(source['extra'], senses),
-  };
+  return { coverage, feedback };
 }
 
 async function completeRecall(input: CompleteJsonInput): Promise<Record<string, unknown>> {
@@ -309,7 +282,7 @@ export async function evaluateRecallAnswer(
   const answer = clip(request.answer, ANSWER_MAX);
   const senses = request.senses.filter((sense) => clip(sense.gloss, GLOSS_MAX));
   if (!answer || !senses.length) {
-    return { coverage: 0, feedback: '', extra: null };
+    return { coverage: 0, feedback: '' };
   }
   const input: CompleteJsonInput = {
     system: EVALUATE_SYSTEM_PROMPT,
@@ -319,8 +292,8 @@ export async function evaluateRecallAnswer(
   };
   try {
     const complete = () => completeRecall(input);
-    let evaluation = parseEvaluation(await complete(), senses);
-    if (!evaluation) evaluation = parseEvaluation(await complete(), senses);
+    let evaluation = parseEvaluation(await complete());
+    if (!evaluation) evaluation = parseEvaluation(await complete());
     if (!evaluation) aiError(AI_ERROR.RESPONSE_INVALID);
     return evaluation;
   } catch (err) {

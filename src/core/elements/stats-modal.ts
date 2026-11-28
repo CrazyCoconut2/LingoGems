@@ -332,17 +332,6 @@ const EMPTY_DAY: DayStats = {
                             titleOf(element)
                           }}</span>
                           <span class="bits" [class.focused]="!!elementSort()">
-                            @if (element.exercises > 0) {
-                              <span
-                                class="bit"
-                                [class.on]="isSort(exerciseSort)"
-                                [attr.aria-label]="exerciseLabel(element.exercises)"
-                                [attr.title]="exerciseLabel(element.exercises)"
-                              >
-                                <ng-container *ngTemplateOutlet="exerciseIcon" />
-                                <span>{{ formatCount(element.exercises) }}</span>
-                              </span>
-                            }
                             @if (element.seen > 0) {
                               <span
                                 class="bit"
@@ -354,6 +343,17 @@ const EMPTY_DAY: DayStats = {
                                   *ngTemplateOutlet="activityIcon; context: { $implicit: 'seen' }"
                                 />
                                 <span>{{ formatCount(element.seen) }}</span>
+                              </span>
+                            }
+                            @if (element.exercises > 0) {
+                              <span
+                                class="bit"
+                                [class.on]="isSort(exerciseSort)"
+                                [attr.aria-label]="exerciseLabel(element.exercises)"
+                                [attr.title]="exerciseLabel(element.exercises)"
+                              >
+                                <ng-container *ngTemplateOutlet="exerciseIcon" />
+                                <span>{{ formatCount(element.exercises) }}</span>
                               </span>
                             }
                           </span>

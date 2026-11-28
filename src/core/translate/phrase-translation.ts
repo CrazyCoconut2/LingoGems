@@ -15,9 +15,9 @@ import {
     @if (stored(); as text) {
       @if (revealed()) {
         <button type="button" class="translation shown" (click)="reveal($event)">
-          {{ text }}
+          <span class="wording">{{shownText()}}</span>
           @if (shownEquivalent(); as gloss) {
-            <span class="equivalent">{{ gloss }}</span>
+            <span class="equivalent">{{gloss}}</span>
           }
         </button>
       } @else {
@@ -27,7 +27,7 @@ import {
           [attr.aria-label]="'translate.show' | translate"
           (click)="reveal($event)"
         >
-          <span aria-hidden="true">{{ text }}</span>
+          <span class="wording" aria-hidden="true">{{shownText()}}</span>
         </button>
       }
     } @else {
@@ -185,6 +185,10 @@ export class PhraseTranslation {
     return this.equivalent().trim() || this.foundEquivalent().trim();
   }
 
+  shownText(): string {
+    return capitalizeFirst(this.stored(), this.targetLang());
+  }
+
   async translate(event: Event): Promise<void> {
     event.preventDefault();
     event.stopPropagation();
@@ -231,4 +235,10 @@ export class PhraseTranslation {
     }
     return result.translation;
   }
+}
+
+function capitalizeFirst(value: string, language: string): string {
+  const text = value.trim();
+  const locale = language.trim() || undefined;
+  return text.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase(locale));
 }

@@ -80,7 +80,6 @@ export {
   type RecallCommittedMistake,
   type RecallCorrection,
   type RecallEvaluation,
-  type RecallExtra,
   type RecallMistake,
   type RecallPriorMistake,
   type RecallResolvedMistake,

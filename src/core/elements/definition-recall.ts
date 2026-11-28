@@ -23,7 +23,6 @@ import {
   evaluateRecallAnswer,
   readStoredAiCredentials,
   suggestReformulations,
-  type RecallExtra,
   type RecallCorrection,
   type RecallSense,
 } from 'ai';
@@ -36,7 +35,6 @@ export type RecallFinish = {
   answer: string;
   explanation: string;
   by: 'user' | 'ai';
-  extra: boolean;
 };
 
 export type RecallExample = {
@@ -48,7 +46,6 @@ export type RecallExample = {
 type RecallView = {
   coverage: number;
   feedback: string;
-  extra: RecallExtra | null;
   gaveUp: boolean;
 };
 
@@ -88,12 +85,7 @@ type ShownReformulation = {
             [attr.aria-label]="scoreLabel(scored)"
           >
             <div class="result-head">
-              <p class="score">
-                {{ scored.coverage }}<span class="max">/10</span>
-                @if (scored.extra) {
-                  <span class="bonus">+1</span>
-                }
-              </p>
+              <p class="score">{{ scored.coverage }}<span class="max">/10</span></p>
               <div class="result-tools">
                 <app-feedback-translation
                   #note
@@ -126,30 +118,6 @@ type ShownReformulation = {
               }
             }
           </section>
-        }
-        @if (scored.extra; as extra) {
-          @if (extraChoice() === 'pending') {
-            <div class="extra">
-              <p class="label">{{ 'recall.anotherMeaning' | translate }}</p>
-              <p>{{ extra.gloss }}</p>
-              @if (extra.example) {
-                <p class="example">{{ extra.example }}</p>
-              }
-              @if (extra.equivalent) {
-                <p class="equivalent">{{ extra.equivalent }}</p>
-              }
-              <div class="actions">
-                <button type="button" class="btn btn-secondary" (click)="dismissExtra()">
-                  {{ 'recall.dismiss' | translate }}
-                </button>
-                <button type="button" class="btn btn-primary" (click)="acceptExtraSense()">
-                  {{ 'recall.accept' | translate }}
-                </button>
-              </div>
-            </div>
-          } @else if (extraChoice() === 'accepted') {
-            <p class="hint">{{ 'recall.added' | translate }}</p>
-          }
         }
       } @else if (!settled()) {
         <div class="prompt">
@@ -418,8 +386,7 @@ type ShownReformulation = {
     .ask,
     .score,
     .feedback,
-    .feedback-translation,
-    .extra p {
+    .feedback-translation {
       margin: 0;
     }
 
@@ -508,15 +475,10 @@ type ShownReformulation = {
       cursor: not-allowed;
     }
 
-    .hint,
-    .label {
+    .hint {
       margin: 0;
       color: var(--text-muted);
       font-size: 0.82rem;
-    }
-
-    .label {
-      font-weight: 650;
     }
 
     .mistakes {
@@ -792,16 +754,10 @@ type ShownReformulation = {
       stroke-linecap: round;
     }
 
-    .max,
-    .bonus {
+    .max {
       color: var(--text-muted);
       font-size: 0.95rem;
       font-weight: 650;
-    }
-
-    .bonus {
-      margin-left: 0.35rem;
-      color: var(--score-10);
     }
 
     .feedback,
@@ -810,21 +766,6 @@ type ShownReformulation = {
     }
 
     .feedback-translation {
-      color: var(--text-muted);
-    }
-
-    .extra {
-      display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
-      padding: 0.75rem 0.8rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface-2);
-    }
-
-    .example,
-    .equivalent {
       color: var(--text-muted);
     }
   `,
@@ -848,7 +789,6 @@ export class DefinitionRecall {
   readonly finished = output<RecallFinish>();
   /** The learner asked to see the stored examples. */
   readonly hinted = output<readonly RecallExample[]>();
-  readonly acceptExtra = output<RecallExtra>();
   readonly opened = output<{ id: string; phrase: string }>();
   readonly collided = output<{
     event: MouseEvent;
@@ -862,7 +802,6 @@ export class DefinitionRecall {
   readonly coloredRules = signal<readonly string[]>([]);
   readonly reformulations = signal<readonly ShownReformulation[] | null>(null);
   readonly result = signal<RecallView | null>(null);
-  readonly extraChoice = signal<'pending' | 'accepted' | 'dismissed'>('pending');
   readonly error = signal('');
   readonly busy = signal<'correct' | 'score' | 'reformulate' | null>(null);
   readonly cleared = signal(false);
@@ -905,7 +844,6 @@ export class DefinitionRecall {
       this.correction.set(null);
       this.coloredRules.set([]);
       this.result.set(null);
-      this.extraChoice.set('pending');
       this.error.set('');
       this.busy.set(null);
       this.cleared.set(false);
@@ -966,8 +904,7 @@ export class DefinitionRecall {
   }
 
   scoreLabel(scored: RecallView): string {
-    const score = String(scored.coverage);
-    return this.i18n.translate(scored.extra ? 'recall.scoreBonus' : 'recall.score', { score });
+    return this.i18n.translate('recall.score', { score: String(scored.coverage) });
   }
 
   scoreColor(scored: RecallView): string {
@@ -982,24 +919,12 @@ export class DefinitionRecall {
 
   giveUp(): void {
     if (this.busy() !== null || this.result()) return;
-    this.finished.emit({ score: 0, answer: '', explanation: '', by: 'user', extra: false });
-    this.result.set({ coverage: 0, feedback: '', extra: null, gaveUp: true });
+    this.finished.emit({ score: 0, answer: '', explanation: '', by: 'user' });
+    this.result.set({ coverage: 0, feedback: '', gaveUp: true });
   }
 
   clearResult(): void {
     this.cleared.set(true);
-  }
-
-  dismissExtra(): void {
-    if (this.extraChoice() !== 'pending') return;
-    this.extraChoice.set('dismissed');
-  }
-
-  acceptExtraSense(): void {
-    const extra = this.result()?.extra;
-    if (!extra || this.extraChoice() !== 'pending') return;
-    this.extraChoice.set('accepted');
-    this.acceptExtra.emit(extra);
   }
 
   async correct(): Promise<void> {
@@ -1102,18 +1027,15 @@ export class DefinitionRecall {
         }
         return;
       }
-      const extra = evaluation.extra;
       this.finished.emit({
-        score: evaluation.coverage + (extra ? 1 : 0),
+        score: evaluation.coverage,
         answer,
         explanation: evaluation.feedback,
         by: 'ai',
-        extra: !!extra,
       });
       this.result.set({
         coverage: evaluation.coverage,
         feedback: evaluation.feedback,
-        extra,
         gaveUp: false,
       });
     } catch {

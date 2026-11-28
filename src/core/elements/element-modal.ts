@@ -37,7 +37,6 @@ import {
   readOpenGrammarMistakes,
   type GrammarMistake,
   saveElement,
-  sensesWithEquivalents,
   type DefinitionDeleteLog,
   type DefinitionExampleLog,
   type DefinitionFormLog,
@@ -75,7 +74,6 @@ import {
   suggestMetadata,
   sentenceUsesForm,
   verbalizeDefinition,
-  type RecallExtra,
   type RecallSense,
   type RelatedWord,
 } from 'ai';
@@ -225,12 +223,6 @@ function definitionGloss(text: string): string {
 
 type SenseStage = 'examples' | 'open';
 
-function shiftIndexMap<T>(map: ReadonlyMap<number, T>, by: number): Map<number, T> {
-  const next = new Map<number, T>();
-  for (const [index, value] of map) next.set(index + by, value);
-  return next;
-}
-
 function plainPassage(value: string): string {
   return parsePassage(value).text.trim();
 }
@@ -265,19 +257,6 @@ function readNewDefinitions(elementId: string): string[] {
     glosses.push(gloss);
   }
   return glosses;
-}
-
-function rememberNewDefinitions(elementId: string, glosses: readonly string[]): void {
-  if (!elementId) return;
-  const next = readNewDefinitions(elementId);
-  for (const gloss of glosses) {
-    const key = gloss.trim().toLowerCase();
-    if (key && !next.includes(key)) next.push(key);
-  }
-  const stored = readRecord(NEW_DEFINITIONS_KEY);
-  if (next.length) stored[elementId] = next;
-  else delete stored[elementId];
-  writeRecord(NEW_DEFINITIONS_KEY, stored);
 }
 
 function dismissNewDefinition(elementId: string, text: string): string[] {
@@ -1492,7 +1471,6 @@ function unlockModalScroll(): void {
                 [element]="element()"
                 [collection]="linkedElements()"
                 (finished)="finishRecall($event)"
-                (acceptExtra)="acceptRecallExtra($event)"
                 (opened)="openFromDefinition($event.id, -1, $event.phrase)"
                 (collided)="showCollision($event.event, $event.matches, -1, '', $event.phrase)"
               />
@@ -6351,7 +6329,7 @@ export class ElementModal {
       if (forfeit) {
         queueMicrotask(() => {
           if (!this.alive || this.element().id !== id) return;
-          this.finishRecall({ score: 0, answer: '', explanation: '', by: 'user', extra: false });
+          this.finishRecall({ score: 0, answer: '', explanation: '', by: 'user' });
         });
       }
     });
@@ -6573,7 +6551,6 @@ export class ElementModal {
       at: Date.now(),
       answer: result.answer,
       ...(result.explanation ? { explanation: result.explanation } : {}),
-      ...(result.extra ? { extra: true } : {}),
       ...(glosses.length ? { snapshot: { text: glosses.join('\n'), equivalent: '' } } : {}),
     };
     this.appendLog(entry);
@@ -6585,30 +6562,6 @@ export class ElementModal {
     } else {
       this.noteSeen(phrase);
     }
-  }
-
-  acceptRecallExtra(extra: RecallExtra): void {
-    const element = this.currentElement();
-    void this.commitGeneratedSenses(
-      element,
-      [
-        {
-          text: extra.gloss,
-          metadata: {},
-          ...(extra.example ? { example: extra.example } : {}),
-          ...(extra.equivalent ? { equivalent: extra.equivalent } : {}),
-        },
-      ],
-      'end',
-    ).then((saved) => {
-      if (!saved || this.element().id !== element.id) return;
-      const index = this.currentElement().definitions.length - 1;
-      this.senseStages.update((current) => {
-        const next = new Map(current);
-        next.set(index, 'open');
-        return next;
-      });
-    });
   }
 
   private revealRecallDefinitions(element: StoredElement): void {
@@ -7080,96 +7033,9 @@ export class ElementModal {
     this.newGlosses.set(new Set(pruneNewDefinitions(elementId, present)));
   }
 
-  private async commitGeneratedSenses(
-    element: StoredElement,
-    senses: readonly {
-      text: string;
-      metadata: ElementMetadata;
-      example?: string;
-      equivalent?: string;
-    }[],
-    placement: 'start' | 'end' = 'start',
-  ): Promise<boolean> {
-    if (!senses.length || this.element().id !== element.id) return false;
-    const attached = sensesWithEquivalents(
-      this.element().equivalents,
-      this.translationTarget(),
-      senses,
-    );
-    const created: ElementDefinition[] = attached.senses.map((sense) => ({
-      text: sense.text,
-      equivalentIds: sense.equivalentIds,
-      forms: [],
-      examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
-      metadata: { ...sense.metadata },
-    }));
-    const existing = this.copyDefinitions();
-    const next = placement === 'end' ? [...existing, ...created] : [...created, ...existing];
-    if (!(await this.persist(next, attached.equivalents))) return false;
-    const glosses = created.map((definition) => definitionGloss(definition.text)).filter(Boolean);
-    rememberNewDefinitions(element.id, glosses);
-    if (this.element().id === element.id) {
-      if (placement === 'start') this.shiftDefinitionIndexes(created.length);
-      this.formAttributesView.set(null);
-      const index = placement === 'end' ? next.length - 1 : 0;
-      this.scrollSenseIntoView(index);
-      this.newGlosses.set(new Set(readNewDefinitions(element.id)));
-    }
-    return true;
-  }
-
   private stopSpeech(): void {
     if (this.foreground()) stopSpeaking();
     this.speaking.set(null);
-  }
-
-  private shiftDefinitionIndexes(by: number): void {
-    const editing = this.formEdit();
-    if (editing) this.formEdit.set({ ...editing, definitionIndex: editing.definitionIndex + by });
-    const editor = this.editor();
-    if (editor?.kind === 'definition') {
-      this.editor.set({ kind: 'definition', index: editor.index + by });
-    }
-    if (editor?.kind === 'example') {
-      this.editor.set({ ...editor, definitionIndex: editor.definitionIndex + by });
-    }
-    const pending = this.confirm();
-    if (pending?.kind === 'definition') {
-      this.confirm.set({ kind: 'definition', index: pending.index + by });
-    }
-    if (pending?.kind === 'example') {
-      this.confirm.set({ ...pending, definitionIndex: pending.definitionIndex + by });
-    }
-    const asking = this.askingExamples();
-    if (asking != null) this.askingExamples.set(asking + by);
-    const forms = this.askingForms();
-    if (forms != null) this.askingForms.set(forms + by);
-    const draft = this.exampleDraft();
-    if (draft) this.exampleDraft.set({ ...draft, definitionIndex: draft.definitionIndex + by });
-    this.shiftExampleEditDefinitions(by);
-    const pendingForms = this.pendingForms();
-    if (pendingForms) {
-      this.pendingForms.set({
-        ...pendingForms,
-        definitionIndex: pendingForms.definitionIndex + by,
-      });
-    }
-    const related = this.askingRelated();
-    if (related != null) this.askingRelated.set(related + by);
-    const wording = this.askingWording();
-    if (wording != null) this.askingWording.set(wording + by);
-    const engineer = this.exampleEngineer();
-    if (engineer) {
-      this.exampleEngineer.set({ ...engineer, definitionIndex: engineer.definitionIndex + by });
-    }
-    const definitionEngineer = this.definitionEngineer();
-    if (definitionEngineer) {
-      this.definitionEngineer.set({
-        ...definitionEngineer,
-        definitionIndex: definitionEngineer.definitionIndex + by,
-      });
-    }
-    this.shiftSenseState(by);
   }
 
   async askForms(index: number): Promise<void> {
@@ -7288,10 +7154,6 @@ export class ElementModal {
       if (attempt < 2) requestAnimationFrame(() => run(attempt + 1));
     };
     requestAnimationFrame(() => run(0));
-  }
-
-  private shiftSenseState(by: number): void {
-    this.senseStages.update((current) => shiftIndexMap(current, by));
   }
 
   private swapDefinitionState(from: number, to: number): void {
@@ -8323,36 +8185,6 @@ export class ElementModal {
     return plainPassage(draft);
   }
 
-  private shiftExampleEditDefinitions(by: number): void {
-    if (!by) return;
-    this.exampleEdits.update((current) => {
-      const next = new Map<string, string>();
-      for (const [key, value] of current) {
-        const split = key.indexOf(':');
-        const definitionIndex = Number(key.slice(0, split)) + by;
-        next.set(`${definitionIndex}:${key.slice(split + 1)}`, value);
-      }
-      return next;
-    });
-    this.mapRemovedExamples(
-      (definitionIndex, exampleIndex) => `${definitionIndex + by}:${exampleIndex}`,
-    );
-    this.exampleAdditions.update((current) => {
-      const next = new Map<number, string[]>();
-      for (const [index, rows] of current) next.set(index + by, rows);
-      return next;
-    });
-    const field = this.exampleDraftField();
-    if (field)
-      this.exampleDraftField.set({ ...field, definitionIndex: field.definitionIndex + by });
-    const engineer = this.exampleFieldEngineer();
-    if (engineer)
-      this.exampleFieldEngineer.set({
-        ...engineer,
-        definitionIndex: engineer.definitionIndex + by,
-      });
-  }
-
   private dropDefinitionExampleEdits(index: number): void {
     this.exampleEdits.update((current) => {
       const next = new Map<string, string>();
@@ -8730,9 +8562,13 @@ export class ElementModal {
     const definitionIndex = index >= 0 ? index : 0;
     const fromDefinition = !fromExample && !loose && !!gloss;
     const guide = fromDefinition && root ? `${root}: ${gloss}` : '';
-    const example = fromExample ? passage.text : loose || gloss;
-    const definitionFor = fromDefinition ? root : '';
+    const sentence = (fromExample ? passage.text : fromDefinition ? gloss : loose)
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, MAX_EXAMPLE_LENGTH);
     const phrase = gloss || loose;
+    const exampleMetadata: ElementMetadata = {};
+    if (fromDefinition && root) exampleMetadata['Definition for'] = this.shownTitle();
     this.addingSelection.set(true);
     this.error.set('');
     try {
@@ -8753,16 +8589,14 @@ export class ElementModal {
         this.addPrepared.emit({
           title: generated.lemma,
           language: element.language,
-          example,
-          guide,
-          definitionFor,
+          example: '',
           definition: definitionIndex,
           definitions: generated.definitions.map((sense) => ({
             text: sense.text,
             equivalent: sense.equivalent,
             equivalentIds: {},
             forms: selectionForms(generated.lemma, title),
-            examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
+            examples: sentence ? [{ text: sentence, metadata: exampleMetadata }] : [],
             metadata: { ...sense.metadata },
           })),
         });
@@ -8772,9 +8606,9 @@ export class ElementModal {
         title,
         element.language,
         definitionIndex,
-        example,
+        sentence,
         guide,
-        definitionFor,
+        fromDefinition ? root : '',
       );
       if (!saved && this.element().id === element.id) {
         this.error.set('common.addFailed');

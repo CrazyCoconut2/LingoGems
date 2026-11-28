@@ -57,6 +57,7 @@ function elementFromSelectionSystemPrompt(
           '- selected is a word or phrase inside phrase. root, when present, is the headword that phrase defines or exemplifies. Define selected, not root',
           '- Return exactly one sense: the meaning of the lemma as selected is used in phrase',
           '- Do not return any other meaning',
+          '- Do not include an example',
         ]
       : [
           '- One sense per distinct meaning of that lemma',
@@ -66,12 +67,14 @@ function elementFromSelectionSystemPrompt(
     NO_SELF_MENTION,
     '- Do not include forms',
     '- Do not add bracket tags such as [en:…]',
-    '- Spelling MUST be correct in the lemma, every gloss, and every example',
+    contextual
+      ? '- Spelling MUST be correct in the lemma and every gloss'
+      : '- Spelling MUST be correct in the lemma, every gloss, and every example',
     NO_TRANSLATION,
-    SENSE_EXAMPLE,
+    ...(contextual ? [] : [SENSE_EXAMPLE]),
     ...metadataRuleLines('definition', fields, extra),
     'Return JSON only with this shape:',
-    `{"lemma":"<root lemma>","senses":[${definitionSenseShape(fields, extra, true)}]}`,
+    `{"lemma":"<root lemma>","senses":[${definitionSenseShape(fields, extra, !contextual)}]}`,
   ]);
 }
 
