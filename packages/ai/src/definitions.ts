@@ -53,9 +53,10 @@ function elementFromSelectionSystemPrompt(
     '- lemma is the citation form of selected in writeFieldsIn. When selected is already that form, lemma is selected. Do not translate selected into another language and do not choose a different word',
     ...(contextual
       ? [
-          '- phraseKind is definition or example. phrase is that definition, or one example sentence, written in writeFieldsIn',
+          '- phraseKind is definition or example. phrase is the sentence selected was taken from, written in writeFieldsIn. phrase is context only',
           '- selected is a word or phrase inside phrase. root, when present, is the headword that phrase defines or exemplifies. Define selected, not root',
-          '- Return exactly one sense: the meaning of the lemma as selected is used in phrase',
+          '- Return exactly one sense: a short dictionary gloss of the lemma for the meaning selected has inside phrase',
+          '- The gloss defines the lemma. It is not phrase, and it is not phrase with a few words removed',
           '- Do not return any other meaning',
           '- Do not include an example',
         ]
@@ -351,7 +352,29 @@ function parseGeneratedElement(
     translation: input.translation,
   });
   if (!definitions) return null;
-  return { lemma, definitions: input.context ? definitions.slice(0, 1) : definitions };
+  const senses = input.context ? definitions.slice(0, 1) : definitions;
+  const phrase = input.context?.phrase ?? '';
+  if (phrase && senses.some((sense) => copiesContext(sense.text, phrase))) return null;
+  return { lemma, definitions: senses };
+}
+
+function wordingKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** The gloss is the context sentence, or that sentence with a little wording removed. */
+function copiesContext(gloss: string, phrase: string): boolean {
+  const left = wordingKey(gloss);
+  const right = wordingKey(phrase);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const shorter = left.length < right.length ? left : right;
+  const longer = left.length < right.length ? right : left;
+  return longer.includes(shorter) && shorter.length >= 12 && shorter.length / longer.length >= 0.8;
 }
 
 function selectionContext(context: SelectionContext | undefined): SelectionContext | undefined {

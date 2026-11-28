@@ -4544,6 +4544,12 @@ function unlockModalScroll(): void {
       font-weight: 600;
     }
 
+    .panel:not(.has-color) .example-quote .linguagem-highlighted--current {
+      border-color: color-mix(in srgb, var(--text-muted) 45%, transparent);
+      background: color-mix(in srgb, var(--text-muted) 22%, transparent);
+      color: var(--text-muted);
+    }
+
     .collision {
       display: flex;
       flex-wrap: wrap;
