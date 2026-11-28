@@ -14,13 +14,13 @@ import { LanguageService } from '../i18n/language.service';
 import { TranslatePipe } from '../i18n/translate.pipe';
 import { ElementModal } from '../elements/element-modal';
 import { StatsJob } from '../elements/stats-job';
-import { StatsModal, type MissingPreview } from '../elements/stats-modal';
+import { StatsModal } from '../elements/stats-modal';
 import { readFieldColor, writeFieldColor } from '../elements/metadata-colors';
 import { DiscoverModal } from './discover-modal';
 import { ensureSelectedLanguage, writeSelectedLanguage } from './selected-language';
 import { supportLanguageFor, writeSupportLanguage } from './translation-language';
 import { Settings } from '../settings/settings';
-import { generateElementFromSelection, readDefinitionMetadataFields } from 'ai';
+import { generateElementFromSelection, MAX_EXAMPLE_LENGTH, readDefinitionMetadataFields } from 'ai';
 import {
   addElement,
   catalogFromElements,
@@ -1234,14 +1234,10 @@ function compiledLeadValues(element: StoredElement, fieldKey: string): LeadValue
         <app-stats
           [language]="code()"
           [asking]="asking()"
-          [askingKey]="askingKey()"
           [askError]="statsAskError()"
-          [preview]="missingPreview()"
           (closed)="closeStats()"
           (opened)="openStatsElement($event)"
-          (askMissing)="askMissingElement($event)"
-          (addMissing)="addMissingElement()"
-          (dismissed)="dismissMissingPreview($event)"
+          (askPhrase)="askMissingPhrase($event)"
         />
       }
 
@@ -2886,8 +2882,6 @@ export class LanguagePage {
   readonly languageOptions = LEARNABLE_LANGUAGES;
   readonly maxSearchLength = ELEMENT_SEARCH_MAX_LENGTH;
   readonly asking = signal(false);
-  readonly askingKey = signal('');
-  readonly missingPreview = signal<MissingPreview | null>(null);
   readonly discoverOpen = signal(false);
   readonly lookupError = signal('');
   readonly statsAskError = signal('');
@@ -4168,7 +4162,6 @@ export class LanguagePage {
     if (!this.statsOpen()) return;
     this.statsOpen.set(false);
     this.statsAskError.set('');
-    this.missingPreview.set(null);
     this.unlockScroll();
   }
 
@@ -4177,88 +4170,50 @@ export class LanguagePage {
     this.openElement(id);
   }
 
-  async askMissingElement(token: { key: string; title: string }): Promise<void> {
-    const selected = token.title.replace(/\s+/g, ' ').trim();
+  async askMissingPhrase(pick: { title: string; phrase: string }): Promise<void> {
+    const selected = pick.title.replace(/\s+/g, ' ').trim();
+    const sentence = pick.phrase.replace(/\s+/g, ' ').trim().slice(0, MAX_EXAMPLE_LENGTH);
     const code = this.code();
-    if (!selected || !token.key || !code || this.asking()) return;
+    if (!selected || !sentence || !code || this.asking()) return;
     const job = ++this.missingAsk;
     this.asking.set(true);
-    this.askingKey.set(token.key);
     this.statsAskError.set('');
-    this.missingPreview.set(null);
     try {
-      const generated = await this.elementFromQuery(code, selected);
+      const generated = await generateElementFromSelection({
+        language: code,
+        selected,
+        translation: this.translationTarget(),
+        context: { kind: 'example', phrase: sentence },
+      });
       if (job !== this.missingAsk || !this.statsOpen() || this.code() !== code) return;
       if (!generated?.definitions.length) {
         this.statsAskError.set('common.addFailed');
         return;
       }
-      this.missingPreview.set({
-        key: token.key,
-        title: selected,
-        lemma: generated.lemma,
-        senses: generated.definitions.map((sense) => ({
-          text: sense.text,
-          metadata: { ...sense.metadata },
-          ...(sense.equivalent ? { equivalent: sense.equivalent } : {}),
-          ...(sense.example ? { example: sense.example } : {}),
-        })),
-        collectedId: '',
-      });
-    } catch {
-      if (job === this.missingAsk && this.statsOpen()) {
-        this.statsAskError.set('common.addFailed');
-      }
-    } finally {
-      if (job === this.missingAsk) {
-        this.asking.set(false);
-        this.askingKey.set('');
-      }
-    }
-  }
-
-  async addMissingElement(): Promise<void> {
-    const preview = this.missingPreview();
-    const code = this.code();
-    if (!preview || preview.collectedId || !code || this.asking()) return;
-    const job = ++this.missingAsk;
-    this.asking.set(true);
-    this.askingKey.set(preview.key);
-    this.statsAskError.set('');
-    try {
       const saved = await this.persistPrepared({
-        title: preview.lemma,
+        title: generated.lemma,
         language: code,
-        definitions: preview.senses.map((sense) => ({
+        definitions: generated.definitions.map((sense) => ({
           text: sense.text,
           equivalent: sense.equivalent,
           equivalentIds: {},
-          forms: searchForms(preview.lemma, preview.title),
-          examples: sense.example ? [{ text: sense.example, metadata: {} }] : [],
+          forms: searchForms(generated.lemma, selected),
+          examples: [{ text: sentence, metadata: {} }],
           metadata: { ...sense.metadata },
         })),
       });
-      if (job !== this.missingAsk) return;
+      if (job !== this.missingAsk || !this.statsOpen()) return;
       if (!saved) {
         this.statsAskError.set('common.addFailed');
         return;
       }
-      const current = this.missingPreview();
-      if (current?.key === preview.key) {
-        this.missingPreview.set({ ...current, collectedId: saved.element.id });
-      }
+      this.closeStats();
+      this.visitElement({ id: saved.element.id, definition: 0 }, saved.fresh);
     } catch {
-      if (job === this.missingAsk) this.statsAskError.set('common.addFailed');
+      if (job === this.missingAsk && this.statsOpen()) this.statsAskError.set('common.addFailed');
     } finally {
-      if (job === this.missingAsk) {
-        this.asking.set(false);
-        this.askingKey.set('');
-      }
+      if (job === this.missingAsk) this.asking.set(false);
     }
-  }
-
-  dismissMissingPreview(key: string): void {
-    if (this.missingPreview()?.key === key) this.missingPreview.set(null);
   }
 
   async recomputeMetadata(): Promise<void> {
@@ -4295,11 +4250,7 @@ export class LanguagePage {
     const seq = ++this.loadId;
     const code = language.trim().toLowerCase();
     this.missingAsk += 1;
-    if (this.askingKey()) {
-      this.asking.set(false);
-      this.askingKey.set('');
-    }
-    this.missingPreview.set(null);
+    if (this.asking()) this.asking.set(false);
     this.clearSelection();
     if (this.discoverOpen()) this.closeDiscover();
     if (this.grammarOpen()) this.closeGrammar();

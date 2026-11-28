@@ -130,6 +130,30 @@ export async function readAllPhraseTranslations(): Promise<StoredPhraseTranslati
   return snapshot();
 }
 
+/** Learning-language phrases that have been unveiled at least once. */
+export function unveiledPhrases(language: string): { phrase: string; at: number }[] {
+  const source = language.trim().toLowerCase();
+  const byTarget = memory.get(source);
+  if (!byTarget) return [];
+  const latest = new Map<string, { phrase: string; at: number }>();
+  for (const byPhrase of byTarget.values()) {
+    for (const [phrase, value] of byPhrase) {
+      if (!value.dates.length) continue;
+      const text = phrase.replace(/\s+/g, ' ').trim();
+      if (!text) continue;
+      let at = 0;
+      for (const date of value.dates) {
+        const parsed = Date.parse(date);
+        if (Number.isFinite(parsed) && parsed > at) at = parsed;
+      }
+      const key = text.toLowerCase();
+      const current = latest.get(key);
+      if (!current || at > current.at) latest.set(key, { phrase: text, at });
+    }
+  }
+  return [...latest.values()];
+}
+
 /** Replaces the translations store and the in-memory mirror. */
 export function replacePhraseTranslations(translations: readonly unknown[]): Promise<void> {
   const records = normalizeStoredPhraseTranslations(translations);

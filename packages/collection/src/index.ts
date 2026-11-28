@@ -108,6 +108,7 @@ export {
   notePhraseUnveil,
   setPhraseTranslationListener,
   readAllPhraseTranslations,
+  unveiledPhrases,
   readPhraseTranslation,
   recordPhraseTranslation,
   replacePhraseTranslation,

@@ -12,14 +12,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import {
-  displayTitle,
-  languageDisplayName,
-  parsePassage,
-  type ElementMetadata,
-  type ParsedPassage,
-} from 'collection';
-import { readFieldColor } from './metadata-colors';
+import { displayTitle, languageDisplayName, phraseTokens, unveiledPhrases } from 'collection';
 import { PhraseTranslation } from '../translate/phrase-translation';
 import { supportLanguageFor } from '../languages/translation-language';
 import { type StatsView } from './stats-cache';
@@ -44,21 +37,12 @@ type ElementSort = { kind: 'exercises' } | { kind: 'differential' } | { kind: 's
 const LOADING_ACTIVITY = [0, 1, 2, 3];
 const LOADING_ROWS = [0, 1, 2, 3];
 
-export type MissingPreviewSense = {
+type PhrasePick = {
   text: string;
-  metadata: ElementMetadata;
-  equivalent?: string;
-  example?: string;
-};
-
-/** A generated element waiting in the missing list. */
-export type MissingPreview = {
-  key: string;
-  title: string;
-  lemma: string;
-  senses: MissingPreviewSense[];
-  /** Set once the user adds it, until the row leaves the list. */
-  collectedId: string;
+  phrase: string;
+  top: number;
+  left: number;
+  before: boolean;
 };
 
 const EMPTY_DAY: DayStats = {
@@ -402,182 +386,64 @@ const EMPTY_DAY: DayStats = {
                   }
                   <ul class="elements">
                     @for (token of visibleMissing(); track token.key) {
-                      <li>
-                        @if (previewFor(token); as preview) {
-                          <article class="card" [class.collected]="!!preview.collectedId">
-                            <div class="card-head">
-                              @if (preview.collectedId) {
-                                <button
-                                  type="button"
-                                  class="card-title"
-                                  [attr.aria-label]="
-                                    'stats.open' | translate: { title: label(preview.lemma) }
-                                  "
-                                  (click)="opened.emit(preview.collectedId)"
-                                >
-                                  {{ label(preview.lemma) }}
-                                </button>
-                                <span class="tile-mark" aria-hidden="true">
-                                  <svg viewBox="0 0 24 24">
-                                    <path d="M20 6 9 17l-5-5" />
-                                  </svg>
-                                </span>
-                              } @else {
-                                <span class="card-title">{{ label(preview.lemma) }}</span>
-                                <button
-                                  type="button"
-                                  class="tile-add"
-                                  [attr.aria-label]="'common.add' | translate"
-                                  [attr.title]="'common.add' | translate"
-                                  [disabled]="asking()"
-                                  [attr.aria-busy]="busyToken(token.key) ? true : null"
-                                  (click)="addMissing.emit()"
-                                >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M5 12h14" />
-                                    <path d="M12 5v14" />
-                                  </svg>
-                                </button>
-                              }
-                              <button
-                                type="button"
-                                class="icon-btn"
-                                [attr.aria-label]="'common.remove' | translate"
-                                [attr.title]="'common.remove' | translate"
-                                [disabled]="asking()"
-                                (click)="hideMissing(token)"
+                      <li class="missing-item">
+                        <div class="row missing-row" [class.open]="missingExpanded(token.key)">
+                          <button
+                            type="button"
+                            class="row-main missing-toggle"
+                            [attr.aria-expanded]="missingExpanded(token.key)"
+                            (click)="toggleMissing(token.key)"
+                          >
+                            <span class="title" [attr.title]="token.title">{{ token.title }}</span>
+                            <span class="bits">
+                              <span
+                                class="bit"
+                                [attr.aria-label]="translatedLabel(token.seen)"
+                                [attr.title]="translatedLabel(token.seen)"
                               >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="M18 6 6 18" />
-                                  <path d="m6 6 12 12" />
+                                <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="m5 8 6 6" />
+                                  <path d="m4 14 6-6 2-3" />
+                                  <path d="M2 5h12" />
+                                  <path d="M7 2h1" />
+                                  <path d="m22 22-5-10-5 10" />
+                                  <path d="M14 18h6" />
                                 </svg>
-                              </button>
-                            </div>
-                            <ol class="senses">
-                              @for (sense of preview.senses; track $index) {
-                                <li>
-                                  @let passage = sensePassage(sense);
-                                  @if (passage.text) {
-                                    <p class="sense-text">
-                                      {{ passage.text }}
-                                      @if (supportLanguage()) {
-                                        <app-phrase-translation
-                                          [phrase]="passage.text"
-                                          [sourceLang]="language()"
-                                          [targetLang]="supportLanguage()"
-                                          [equivalent]="sense.equivalent ?? ''"
-                                        />
-                                      }
-                                    </p>
-                                  }
-                                  @if (examplePassage(sense); as example) {
-                                    <div class="sense-example">
-                                      @if (example.text) {
-                                        <p class="sense-example-text">
-                                          {{ example.text }}
-                                          @if (supportLanguage()) {
-                                            <app-phrase-translation
-                                              [phrase]="example.text"
-                                              [sourceLang]="language()"
-                                              [targetLang]="supportLanguage()"
-                                            />
-                                          }
-                                        </p>
-                                      }
-                                    </div>
-                                  }
-                                  @let meta = senseMeta(sense);
-                                  @let equivalentPill =
-                                    sense.equivalent && (!passage.text || !supportLanguage());
-                                  @if (equivalentPill || meta.length) {
-                                    <ul class="sense-meta">
-                                      @if (equivalentPill) {
-                                        <li class="sense-equivalent">
-                                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                                            <path d="m5 8 6 6" />
-                                            <path d="m4 14 6-6 2-3" />
-                                            <path d="M2 5h12" />
-                                            <path d="M7 2h1" />
-                                            <path d="m22 22-5-10-5 10" />
-                                            <path d="M14 18h6" />
-                                          </svg>
-                                          <span>{{ sense.equivalent }}</span>
-                                        </li>
-                                      }
-                                      @for (entry of meta; track entry.key) {
-                                        <li
-                                          [class.colored]="entry.color"
-                                          [style.--meta-color]="entry.color"
-                                        >
-                                          <span class="sense-meta-key">{{
-                                            metaLabel(entry.key)
-                                          }}</span>
-                                          <span class="sense-meta-value">{{
-                                            metaLabel(entry.value)
-                                          }}</span>
-                                        </li>
-                                      }
-                                    </ul>
-                                  }
-                                </li>
-                              }
-                            </ol>
-                          </article>
-                        } @else {
-                          <div class="row missing-row">
-                            <div class="row-main">
-                              <span class="title" [attr.title]="token.title">{{
-                                token.title
-                              }}</span>
-                              <span class="bits">
-                                <span
-                                  class="bit"
-                                  [attr.aria-label]="translatedLabel(token.seen)"
-                                  [attr.title]="translatedLabel(token.seen)"
-                                >
-                                  <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="m5 8 6 6" />
-                                    <path d="m4 14 6-6 2-3" />
-                                    <path d="M2 5h12" />
-                                    <path d="M7 2h1" />
-                                    <path d="m22 22-5-10-5 10" />
-                                    <path d="M14 18h6" />
-                                  </svg>
-                                  <span>{{ formatCount(token.seen) }}</span>
-                                </span>
+                                <span>{{ formatCount(token.seen) }}</span>
                               </span>
-                            </div>
-                            <div class="missing-actions">
-                              <button
-                                type="button"
-                                class="icon-btn"
-                                [attr.aria-label]="'languages.askAi' | translate"
-                                [attr.title]="'languages.askAi' | translate"
-                                [disabled]="asking()"
-                                [attr.aria-busy]="busyToken(token.key) ? true : null"
-                                (click)="askMissing.emit({ key: token.key, title: token.title })"
-                              >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path
-                                    d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
-                                  />
-                                </svg>
-                              </button>
-                              <button
-                                type="button"
-                                class="icon-btn"
-                                [attr.aria-label]="'common.remove' | translate"
-                                [attr.title]="'common.remove' | translate"
-                                [disabled]="asking()"
-                                (click)="hideMissing(token)"
-                              >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="M18 6 6 18" />
-                                  <path d="m6 6 12 12" />
-                                </svg>
-                              </button>
-                            </div>
+                            </span>
+                          </button>
+                          <div class="missing-actions">
+                            <button
+                              type="button"
+                              class="icon-btn"
+                              [attr.aria-label]="'common.remove' | translate"
+                              [attr.title]="'common.remove' | translate"
+                              [disabled]="asking()"
+                              (click)="hideMissing(token)"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M18 6 6 18" />
+                                <path d="m6 6 12 12" />
+                              </svg>
+                            </button>
                           </div>
+                        </div>
+                        @if (missingExpanded(token.key)) {
+                          <ul class="missing-phrases">
+                            @for (phrase of phrasesFor(token); track phrase) {
+                              <li class="missing-phrase" [attr.data-phrase]="phrase">
+                                <p class="missing-phrase-text">{{ phrase }}</p>
+                                @if (supportLanguage(); as target) {
+                                  <app-phrase-translation
+                                    [phrase]="phrase"
+                                    [sourceLang]="language()"
+                                    [targetLang]="target"
+                                  />
+                                }
+                              </li>
+                            }
+                          </ul>
                         }
                       </li>
                     }
@@ -644,6 +510,24 @@ const EMPTY_DAY: DayStats = {
             }
           }
         </div>
+        @if (phrasePick(); as pick) {
+          <button
+            type="button"
+            class="phrase-ask"
+            [class.before]="pick.before"
+            [style.top.px]="pick.top"
+            [style.left.px]="pick.left"
+            [disabled]="asking()"
+            (pointerdown)="confirmPhrasePick($event)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"
+              />
+            </svg>
+            {{ 'element.askAi' | translate }}
+          </button>
+        }
       </section>
     </div>
     <ng-template #exerciseIcon>
@@ -1256,189 +1140,97 @@ const EMPTY_DAY: DayStats = {
       flex-shrink: 0;
     }
 
-    .card {
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      gap: 0.55rem;
-      min-width: 0;
-      max-width: 100%;
+    button.missing-toggle {
       margin: 0;
-      padding: 0.85rem;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 1rem;
-      background: var(--surface-2);
-      color: var(--text);
-    }
-
-    .card.collected {
-      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-      background: var(--surface-2);
-      box-shadow: 0 0 16px -2px color-mix(in srgb, var(--accent) 45%, transparent);
-    }
-
-    .card-head {
-      display: flex;
-      align-items: center;
-      gap: 0.45rem;
-    }
-
-    .card-title {
-      flex: 1;
-      min-width: 0;
-      border: 0;
-      background: transparent;
-      color: white;
       padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
       font: inherit;
-      font-size: 1.125rem;
-      font-weight: 750;
-      line-height: 1.2;
-      letter-spacing: -0.02em;
-      text-align: left;
-      overflow-wrap: anywhere;
-    }
-
-    button.card-title {
+      text-align: start;
       cursor: pointer;
     }
 
-    .senses {
+    .missing-row.open {
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .missing-item {
       display: flex;
       flex-direction: column;
-      gap: 0.65rem;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+
+    .missing-phrases {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
       margin: 0;
       padding: 0;
       list-style: none;
     }
 
-    .sense-text {
-      margin: 0;
-      font-size: 0.92rem;
-      line-height: 1.45;
-    }
-
-    .sense-meta li.sense-equivalent {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      max-width: 100%;
-      border-radius: 999px;
-      border-color: var(--accent-border);
-      background: var(--accent-soft);
-      color: var(--text);
-      font-size: 0.75rem;
-      font-style: normal;
-      font-weight: 600;
-    }
-
-    .sense-meta li.sense-equivalent svg {
-      width: 0.95rem;
-      height: 0.95rem;
-      flex: none;
-      fill: none;
-      stroke: var(--accent-text);
-      stroke-width: 1.75;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .sense-example {
-      display: flex;
-      flex-direction: column;
-      gap: 0.15rem;
-      margin-top: 0.45rem;
+    .missing-phrase {
+      min-width: 0;
       padding: 0.65rem 0.75rem;
       border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
       border-radius: 0.75rem;
       background: color-mix(in srgb, var(--surface-2) 90%, transparent);
     }
 
-    .sense-example-text {
-      margin: 0;
+    .missing-phrase-text {
       color: #e2e8f0;
       font-size: 0.875rem;
       font-weight: 500;
       line-height: 1.5;
+      user-select: text;
+      cursor: text;
     }
 
-    .sense-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      margin: 0.35rem 0 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .sense-meta li {
-      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-      border-radius: 0.5rem;
-      background: var(--bg);
-      padding: 0.25rem 0.625rem;
-      font-size: 0.6875rem;
-      line-height: 1.2;
-    }
-
-    .sense-meta li.colored {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      background: color-mix(in srgb, var(--meta-color) 30%, var(--surface-2));
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--meta-color) 62%, transparent);
-      color: var(--meta-color);
-    }
-
-    .sense-meta-key {
-      margin-right: 0.25rem;
-      color: var(--text-muted);
-      font-weight: 700;
-    }
-
-    .sense-meta li.colored .sense-meta-key {
-      margin-right: 0;
-      color: var(--meta-color);
-    }
-
-    .sense-meta-value {
-      color: var(--text);
-      font-weight: 650;
-    }
-
-    .tile-add,
-    .tile-mark {
-      flex: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 1.55rem;
-      height: 1.55rem;
-      color: var(--accent-text);
-    }
-
-    .tile-add {
-      border: 0;
-      border-radius: 999px;
-      padding: 0;
-      background: rgba(var(--accent-rgb), 0.16);
-      cursor: pointer;
-    }
-
-    .tile-add:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-    }
-
-    .tile-add svg,
-    .tile-mark svg {
+    .missing-phrase app-phrase-translation {
       display: block;
-      width: 0.85rem;
-      height: 0.85rem;
+      margin-top: 0.2rem;
+    }
+
+    .phrase-ask {
+      position: fixed;
+      z-index: 60;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      height: 2rem;
+      padding: 0 0.7rem 0 0.5rem;
+      border: 1px solid rgba(var(--accent-rgb), 0.45);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--accent-text);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 650;
+      line-height: 1;
+      cursor: pointer;
+      transform: translate(0.45rem, -50%);
+    }
+
+    .phrase-ask.before {
+      transform: translate(calc(-100% - 0.45rem), -50%);
+    }
+
+    .phrase-ask svg {
+      display: block;
+      width: 1rem;
+      height: 1rem;
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .phrase-ask:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .hidden-row {
@@ -1653,18 +1445,17 @@ export class StatsModal {
   private readonly i18n = inject(LanguageService);
   readonly language = input.required<string>();
   readonly asking = input(false);
-  readonly askingKey = input('');
   readonly askError = input('');
-  readonly preview = input<MissingPreview | null>(null);
   readonly closed = output<void>();
   readonly opened = output<string>();
-  readonly askMissing = output<{ key: string; title: string }>();
-  readonly addMissing = output<void>();
-  readonly dismissed = output<string>();
+  readonly askPhrase = output<{ title: string; phrase: string }>();
   readonly activities = ACTIVITIES;
   readonly loadingActivity = LOADING_ACTIVITY;
   readonly loadingRows = LOADING_ROWS;
   readonly blacklist = signal<string[]>([]);
+  readonly expandedMissing = signal<string | null>(null);
+  readonly phrasePick = signal<PhrasePick | null>(null);
+  private readonly unveiled = computed(() => unveiledPhrases(this.language()));
   readonly elementsOpen = signal(true);
   readonly hiddenOpen = signal(false);
   readonly missingOpen = signal(false);
@@ -1762,6 +1553,8 @@ export class StatsModal {
         this.elementsOpen.set(true);
         this.hiddenOpen.set(false);
         this.missingOpen.set(false);
+        this.expandedMissing.set(null);
+        this.phrasePick.set(null);
         this.job.ensure(language);
       });
     });
@@ -1891,50 +1684,91 @@ export class StatsModal {
   hideMissing(token: MissingToken): void {
     if (this.asking()) return;
     this.blacklist.set(ignoreMissingToken(this.language(), token.key));
-    this.dismissed.emit(token.key);
+    if (this.expandedMissing() === token.key) this.expandedMissing.set(null);
+    this.phrasePick.set(null);
   }
 
-  previewFor(token: MissingToken): MissingPreview | null {
-    const preview = this.preview();
-    return preview?.key === token.key ? preview : null;
+  missingExpanded(key: string): boolean {
+    return this.expandedMissing() === key;
   }
 
-  busyToken(key: string): boolean {
-    return this.asking() && this.askingKey() === key;
+  toggleMissing(key: string): void {
+    this.phrasePick.set(null);
+    window.getSelection()?.removeAllRanges();
+    this.expandedMissing.update((current) => (current === key ? null : key));
+  }
+
+  phrasesFor(token: MissingToken): string[] {
+    const language = this.language();
+    return this.unveiled()
+      .filter((item) => phraseHasToken(item.phrase, token.key, language))
+      .sort((left, right) => right.at - left.at || left.phrase.localeCompare(right.phrase))
+      .map((item) => item.phrase);
+  }
+
+  @HostListener('document:selectionchange')
+  syncPhrasePick(): void {
+    if (this.asking()) return;
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) {
+      this.phrasePick.set(null);
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const text = selection.toString().replace(/\s+/g, ' ').trim();
+    const start = rangeEndpoint(range.startContainer);
+    const end = rangeEndpoint(range.endContainer);
+    const passage = start?.closest('.missing-phrase-text');
+    const phrase = passage?.closest('.missing-phrase')?.getAttribute('data-phrase') ?? '';
+    if (!passage || !end || !phrase || !text || !passage.contains(end) || text.length > 100) {
+      this.phrasePick.set(null);
+      return;
+    }
+    const folded = (value: string) =>
+      value.replace(/\s+/g, ' ').trim().toLocaleLowerCase(this.language());
+    if (folded(text) === folded(phrase) && phraseTokens(phrase).length > 1) {
+      this.phrasePick.set(null);
+      return;
+    }
+    const caret = Array.from(range.getClientRects())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+      .at(-1);
+    if (!caret) {
+      this.phrasePick.set(null);
+      return;
+    }
+    const scroller = passage.closest('.body');
+    if (scroller) {
+      const view = scroller.getBoundingClientRect();
+      const visibleTop = Math.max(caret.top, view.top);
+      const visibleBottom = Math.min(caret.bottom, view.bottom);
+      if (visibleBottom - visibleTop < Math.min(caret.height, 8)) {
+        this.phrasePick.set(null);
+        return;
+      }
+    }
+    const before = caret.right + 8 + 120 > window.innerWidth - 8;
+    this.phrasePick.set({
+      text,
+      phrase,
+      top: Math.round(caret.top + caret.height / 2),
+      left: Math.round(before ? caret.left : caret.right),
+      before,
+    });
+  }
+
+  confirmPhrasePick(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const pick = this.phrasePick();
+    if (!pick || this.asking()) return;
+    window.getSelection()?.removeAllRanges();
+    this.phrasePick.set(null);
+    this.askPhrase.emit({ title: pick.text, phrase: pick.phrase });
   }
 
   supportLanguage(): string {
     return supportLanguageFor(this.language());
-  }
-
-  label(title: string): string {
-    return displayTitle(title, this.language());
-  }
-
-  sensePassage(sense: MissingPreviewSense): ParsedPassage {
-    const passage = parsePassage(sense.text);
-    return { ...passage, text: displayTitle(passage.text, this.language()) };
-  }
-
-  examplePassage(sense: MissingPreviewSense): ParsedPassage | null {
-    const raw = sense.example?.trim() ?? '';
-    if (!raw) return null;
-    const passage = parsePassage(raw);
-    const text = displayTitle(passage.text, this.language());
-    if (!text) return null;
-    return { ...passage, text };
-  }
-
-  senseMeta(sense: MissingPreviewSense): { key: string; value: string; color: string | null }[] {
-    return Object.entries(sense.metadata).map(([key, value]) => ({
-      key,
-      value,
-      color: readFieldColor('definitions', key),
-    }));
-  }
-
-  metaLabel(value: string): string {
-    return value.replace(/\p{L}/u, (letter) => letter.toLocaleUpperCase(this.i18n.currentLanguage));
   }
 
   restoreMissing(key: string): void {
@@ -2081,4 +1915,16 @@ function daysWithToday(days: readonly DayStats[]): readonly DayStats[] {
     },
     ...days,
   ];
+}
+
+function phraseHasToken(phrase: string, key: string, language: string): boolean {
+  return phraseTokens(phrase).some((token) => tokenKey(token, language) === key);
+}
+
+function tokenKey(token: string, language: string): string {
+  return token.replace(/[\u0027\u2019]/g, "'").toLocaleLowerCase(language);
+}
+
+function rangeEndpoint(node: Node): Element | null {
+  return node instanceof Element ? node : node.parentElement;
 }
